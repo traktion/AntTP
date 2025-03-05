@@ -4,6 +4,7 @@ use actix_http::header;
 use actix_multipart::Multipart;
 use actix_web::http::header::{ETag, EntityTag};
 use actix_web::{Error, HttpRequest, HttpResponse};
+use actix_web::error::ErrorNotFound;
 use autonomi::{Client, Wallet};
 use autonomi::client::payment::PaymentOption;
 use autonomi::files::PublicArchive;
@@ -34,42 +35,35 @@ impl ArchiveClient {
         info!("archive_addr [{}], archive_file_name [{}]", archive_addr, archive_file_name);
         
         // load app_config from archive and resolve route
-        match self.caching_autonomi_client.config_get_public(archive.clone(), xor_addr).await {
-            Ok(app_config) => {
-                // resolve route
-                let archive_relative_path = path_parts[1..].join("/").to_string();
-                let (resolved_relative_path_route, has_route_map) = app_config.resolve_route(archive_relative_path.clone(), archive_file_name.clone());
+        let app_config = self.caching_autonomi_client.config_get_public(archive.clone(), xor_addr).await;
+        // resolve route
+        let archive_relative_path = path_parts[1..].join("/").to_string();
+        let (resolved_relative_path_route, has_route_map) = app_config.resolve_route(archive_relative_path.clone(), archive_file_name.clone());
 
-                // resolve file name to chunk address
-                let archive_helper = ArchiveHelper::new(archive.clone());
-                let archive_info = archive_helper.resolve_archive_info(path_parts, request.clone(), resolved_relative_path_route.clone(), has_route_map);
+        // resolve file name to chunk address
+        let archive_helper = ArchiveHelper::new(archive.clone());
+        let archive_info = archive_helper.resolve_archive_info(path_parts, request.clone(), resolved_relative_path_route.clone(), has_route_map);
 
-                if archive_info.state == DataState::NotModified {
-                    info!("ETag matches for path [{}] at address [{}]. Client can use cached version", archive_info.path_string, format!("{:x}", archive_info.resolved_xor_addr));
-                    Ok(HttpResponse::NotModified().into())
-                } else if archive_info.action == ArchiveAction::Redirect {
-                    info!("Redirect to archive directory [{}]", request.path().to_string() + "/");
-                    Ok(HttpResponse::MovedPermanently()
-                        .insert_header((header::LOCATION, request.path().to_string() + "/"))
-                        .finish())
-                } else if archive_info.action == ArchiveAction::NotFound {
-                    warn!("Path not found {:?}", archive_info.path_string);
-                    Ok(HttpResponse::NotFound().body(format!("File not found {:?}", archive_info.path_string)))
-                } else if archive_info.action == ArchiveAction::Listing {
-                    info!("List files in archive [{}]", archive_addr);
-                    // todo: set header when js file
-                    Ok(HttpResponse::Ok()
-                        .insert_header(ETag(EntityTag::new_strong(format!("{:x}", xor_addr).to_owned())))
-                        .insert_header((header::ACCESS_CONTROL_ALLOW_ORIGIN, "*"))
-                        .body(archive_helper.list_files(request.headers())))
-                } else {
-                    self.file_client.download_data_body(archive_relative_path, archive_info.resolved_xor_addr, true).await
-                }
-            },
-            Err(err) => {
-                warn!("Failed to load config from map [{:?}]", err);
-                Ok(HttpResponse::InternalServerError().body(format!("Failed to load config from map [{:?}]", err)))
-            },
+        if archive_info.state == DataState::NotModified {
+            info!("ETag matches for path [{}] at address [{}]. Client can use cached version", archive_info.path_string, format!("{:x}", archive_info.resolved_xor_addr));
+            Ok(HttpResponse::NotModified().into())
+        } else if archive_info.action == ArchiveAction::Redirect {
+            info!("Redirect to archive directory [{}]", request.path().to_string() + "/");
+            Ok(HttpResponse::MovedPermanently()
+                .insert_header((header::LOCATION, request.path().to_string() + "/"))
+                .finish())
+        } else if archive_info.action == ArchiveAction::NotFound {
+            warn!("Path not found {:?}", archive_info.path_string);
+            Err(ErrorNotFound(format!("File not found {:?}", archive_info.path_string)))
+        } else if archive_info.action == ArchiveAction::Listing {
+            info!("List files in archive [{}]", archive_addr);
+            // todo: set header when js file
+            Ok(HttpResponse::Ok()
+                .insert_header(ETag(EntityTag::new_strong(format!("{:x}", xor_addr).to_owned())))
+                .insert_header((header::ACCESS_CONTROL_ALLOW_ORIGIN, "*"))
+                .body(archive_helper.list_files(request.headers())))
+        } else {
+            self.file_client.download_data_body(archive_relative_path, archive_info.resolved_xor_addr, true).await
         }
     }
 

@@ -1,6 +1,7 @@
 use actix_http::header;
 use actix_web::{Error, HttpRequest, HttpResponse};
 use actix_web::dev::ConnectionInfo;
+use actix_web::error::{ErrorInternalServerError, ErrorNotFound};
 use actix_web::http::header::{CacheControl, CacheDirective, ContentType, ETag, EntityTag};
 use autonomi::Client;
 use autonomi::data::DataAddress;
@@ -28,7 +29,7 @@ impl FileClient {
             info!("ETag matches for path [{}] at address [{}]. Client can use cached version", archive_addr, format!("{:x}", xor_name).as_str());
             Ok(HttpResponse::NotModified().into())
         } else if !is_found {
-            Ok(HttpResponse::NotFound().body(format!("File not found {:?}", self.conn.host())))
+            Err(ErrorNotFound(format!("File not found {:?}", self.conn.host())))
         } else {
             self.download_data_body(archive_addr, xor_name, false).await
         }
@@ -65,7 +66,7 @@ impl FileClient {
                 }
             }
             Err(e) => {
-                Ok(HttpResponse::InternalServerError().body(format!("Failed to download [{:?}]", e)))
+                Err(ErrorInternalServerError(format!("Failed to download [{:?}]", e)))
             }
         }
     }

@@ -1,10 +1,10 @@
 use std::path::PathBuf;
 use actix_http::header::HeaderMap;
-use actix_web::HttpRequest;
+use actix_web::{Error, HttpRequest};
+use actix_web::error::ErrorInternalServerError;
 use autonomi::data::{DataAddress};
 use autonomi::files::PublicArchive;
 use chrono::DateTime;
-use color_eyre::{Report, Result};
 use log::{debug, info};
 use xor_name::XorName;
 use crate::xor_helper::XorHelper;
@@ -87,7 +87,7 @@ impl ArchiveHelper {
         output
     }
 
-    pub fn resolve_data_addr(&self, path_parts: Vec<String>) -> Result<DataAddress> {
+    pub fn resolve_data_addr(&self, path_parts: Vec<String>) -> Result<DataAddress, Error> {
         self.archive.iter().for_each(|(path_buf, data_address, _)| debug!("archive entry: [{}] at [{:x}]", path_buf.display(), data_address.xorname()));
 
         // todo: Replace with contains() once keys are a more useful shape
@@ -98,8 +98,9 @@ impl ArchiveHelper {
                 return Ok(data_addr.clone())
             }
         }
-        Err(Report::msg(format!("Failed to find item [{}] in archive", path_parts_string)))
+        Err(ErrorInternalServerError(format!("Failed to find item [{}] in archive", path_parts_string)))
 
+        
         /*if archive.map().contains_key(path_buf) {
             let (data_addr, metadata) = archive
                 .map()

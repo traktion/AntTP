@@ -11,7 +11,7 @@ pub struct AntTpConfig {
 }
 
 impl AntTpConfig {
-    pub fn read_args() -> color_eyre::Result<AntTpConfig> {
+    pub fn read_args() -> AntTpConfig {
         // Skip executable name form args
         let mut args_received = args();
         args_received.next();
@@ -30,10 +30,10 @@ impl AntTpConfig {
         let wallet_private_key = args_received.next().unwrap_or_else(|| "".to_string());
         info!("Wallet private key: [*****]");
 
-        Ok(AntTpConfig {
+        AntTpConfig {
             bind_socket_addr,
             static_dir,
             wallet_private_key,
-        })
+        }
     }
 }

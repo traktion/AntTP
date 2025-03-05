@@ -8,6 +8,7 @@ use autonomi::data::DataAddress;
 use bytes::Bytes;
 use log::{debug, info};
 use xor_name::XorName;
+use crate::app_config::AppConfig;
 use crate::archive_helper::ArchiveHelper;
 
 #[derive(Clone)]
@@ -77,10 +78,7 @@ impl CachingClient {
         }
     }
 
-    // todo: color_eyre needed?
-    // todo: non-clashing name for AppConfig?
-    // todo: fix funky error handling
-    pub async fn config_get_public(&self, archive: PublicArchive, archive_address_xorname: XorName) -> color_eyre::Result<crate::app_config::AppConfig> {
+    pub async fn config_get_public(&self, archive: PublicArchive, archive_address_xorname: XorName) -> AppConfig {
         let path_str = "app-conf.json";
         let mut path_parts = Vec::<String>::new();
         path_parts.push("ignore".to_string());
@@ -92,17 +90,14 @@ impl CachingClient {
                     Ok(data) => {
                         let json = String::from_utf8(data.to_vec()).unwrap_or(String::new());
                         debug!("json [{}]", json);
-                        let config: crate::app_config::AppConfig = serde_json::from_str(&json.as_str())
-                            .unwrap_or(crate::app_config::AppConfig::default());
-
-                        Ok(config)
+                        let config: AppConfig = serde_json::from_str(&json.as_str())
+                            .unwrap_or(AppConfig::default());
+                        config
                     }
-                    Err(_e) => {
-                        Ok(crate::app_config::AppConfig::default())
-                    }
+                    Err(_e) => AppConfig::default()
                 }
             }
-            Err(_e) => Ok(crate::app_config::AppConfig::default())
+            Err(_e) => AppConfig::default()
         }
     }
 }

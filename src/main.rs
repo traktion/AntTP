@@ -31,7 +31,7 @@ async fn main() -> std::io::Result<()> {
         .default_filter_or(DEFAULT_LOGGING))
         .init();
 
-    let app_config = AntTpConfig::read_args().expect("Failed to read CLI arguments");
+    let app_config = AntTpConfig::read_args();
     let bind_socket_addr = app_config.bind_socket_addr;
     let wallet_private_key = app_config.wallet_private_key.clone();
 
@@ -95,7 +95,7 @@ async fn get_public_data(
     let caching_autonomi_client = CachingClient::new(autonomi_client.clone());
     let (is_found, archive, is_archive, xor_addr) = xor_helper.resolve_archive_or_file(&caching_autonomi_client, &archive_addr, &archive_file_name).await;
     let file_client = FileClient::new(autonomi_client.clone(), xor_helper.clone(), conn);
-
+    
     if !is_archive {
         info!("Retrieving file from XOR [{:x}]", xor_addr);
         file_client.get_data(path_parts, request, xor_addr, is_found).await

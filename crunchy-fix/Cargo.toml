@@ -1,0 +1,12 @@
+[package] 
+name = "crunchy" 
+version = "0.2.3" 
+authors = ["Parity Technologies <admin@parity.io>"] 
+description = "Crunchy unrolled loops" 
+license = "MIT" 
+repository = "https://github.com/paritytech/crunchy" 
+documentation = "https://docs.rs/crunchy" 
+ 
+[features] 
+default = ["std"] 
+std = [] 

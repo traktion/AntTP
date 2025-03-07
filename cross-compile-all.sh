@@ -319,7 +319,23 @@ ENV CARGO_TARGET_X86_64_PC_WINDOWS_GNU_LINKER=x86_64-w64-mingw32-gcc
 ENV CC_x86_64_pc_windows_gnu=x86_64-w64-mingw32-gcc
 ENV CXX_x86_64_pc_windows_gnu=x86_64-w64-mingw32-g++
 
+# Fix the crunchy crate inside the Docker container
+RUN mkdir -p /tmp/crunchy-fix && \
+    echo 'fn main() { println!("cargo:rerun-if-changed=build.rs"); }' > /tmp/crunchy-fix/build.rs && \
+    mkdir -p /tmp/crunchy-fix/src && \
+    echo '#![cfg_attr(not(feature = "std"), no_std)]\n\
+# Fix the lib.rs file\n\
+sed -i "s|\\\\\\\\lib.rs|/lib.rs|g" $CRUNCHY_DIR/src/lib.rs\n\
+echo "Fixed crunchy lib.rs"\n\
+fi\n\
+\n\
+# Run the original command\n\
+exec "$@"' > /usr/local/bin/fix-and-run.sh && \
+    chmod +x /usr/local/bin/fix-and-run.sh
+
 WORKDIR /app
+
+ENTRYPOINT ["/usr/local/bin/fix-and-run.sh"]
 EOF
     
     # Build the Docker image

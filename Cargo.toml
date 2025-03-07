@@ -30,4 +30,7 @@ futures-util = "0.3.31"
 tokio = "1.43.0"
 
 #[patch.crates-io]
-#self_encryption = { path = "/home/paul/dev/self_encryption" }
+crunchy = { path = "./crunchy-fix" }
+#self_encryption = { path = "/home/paul/dev/self_encryption" } 
+[patch.crates-io] 
+crunchy = { path = "./crunchy-fix" } 

@@ -3,8 +3,8 @@ mod caching_client;
 mod app_config;
 mod archive_helper;
 mod xor_helper;
-mod archive_client;
-mod file_client;
+mod archive_service;
+mod file_service;
 
 use actix_web::{web, App, HttpServer, Responder, middleware::Logger, HttpRequest};
 use actix_files::Files;
@@ -18,8 +18,8 @@ use ant_evm::EvmWallet;
 use awc::Client as AwcClient;
 use crate::caching_client::CachingClient;
 use crate::anttp_config::AntTpConfig;
-use crate::archive_client::ArchiveClient;
-use crate::file_client::FileClient;
+use crate::archive_service::ArchiveService;
+use crate::file_service::FileService;
 use crate::xor_helper::XorHelper;
 
 const DEFAULT_LOGGING: &'static str = "info,anttp=info,ant_api=warn,ant_client=warn,ant_networking=off,ant_bootstrap=error";
@@ -73,12 +73,12 @@ async fn post_public_archive(
     let caching_autonomi_client = CachingClient::new(autonomi_client.clone());
     let evm_wallet = evm_wallet_data.get_ref().clone();
     let xor_helper = XorHelper::new();
-    let file_client = FileClient::new(autonomi_client.clone(), xor_helper.clone(), conn);
+    let file_service = FileService::new(autonomi_client.clone(), xor_helper.clone(), conn);
 
-    let archive_client = ArchiveClient::new(autonomi_client, caching_autonomi_client, file_client, xor_helper.clone());
+    let archive_service = ArchiveService::new(autonomi_client, caching_autonomi_client, file_service, xor_helper.clone());
 
     info!("Creating new archive from multipart POST");
-    archive_client.post_data(payload, evm_wallet).await
+    archive_service.post_data(payload, evm_wallet).await
 }
 
 async fn get_public_data(
@@ -94,15 +94,15 @@ async fn get_public_data(
     let autonomi_client = autonomi_client_data.get_ref().clone();
     let caching_autonomi_client = CachingClient::new(autonomi_client.clone());
     let (is_found, archive, is_archive, xor_addr) = xor_helper.resolve_archive_or_file(&caching_autonomi_client, &archive_addr, &archive_file_name).await;
-    let file_client = FileClient::new(autonomi_client.clone(), xor_helper.clone(), conn);
+    let file_service = FileService::new(autonomi_client.clone(), xor_helper.clone(), conn);
     
     if !is_archive {
         info!("Retrieving file from XOR [{:x}]", xor_addr);
-        file_client.get_data(path_parts, request, xor_addr, is_found).await
+        file_service.get_data(path_parts, request, xor_addr, is_found).await
     } else {
         info!("Retrieving file from archive [{:x}]", xor_addr);
-        let archive_client = ArchiveClient::new(autonomi_client, caching_autonomi_client.clone(), file_client, xor_helper);
-        archive_client.get_data(archive, xor_addr, request, path_parts).await
+        let archive_service = ArchiveService::new(autonomi_client, caching_autonomi_client.clone(), file_service, xor_helper);
+        archive_service.get_data(archive, xor_addr, request, path_parts).await
     }
 }
 

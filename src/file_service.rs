@@ -10,15 +10,15 @@ use xor_name::XorName;
 use crate::archive_helper::DataState;
 use crate::xor_helper::XorHelper;
 
-pub struct FileClient {
+pub struct FileService {
     autonomi_client: Client,
     xor_helper: XorHelper,
     conn: ConnectionInfo
 }
 
-impl FileClient {
+impl FileService {
     pub fn new(autonomi_client: Client, xor_helper: XorHelper, conn: ConnectionInfo) -> Self {
-        FileClient { autonomi_client, xor_helper, conn }
+        FileService { autonomi_client, xor_helper, conn }
     }
 
     pub async fn get_data(&self, path_parts: Vec<String>, request: HttpRequest, xor_name: XorName, is_found: bool) -> Result<HttpResponse, Error> {

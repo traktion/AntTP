@@ -12,22 +12,22 @@ use log::{info, warn};
 use xor_name::XorName;
 use crate::archive_helper::{ArchiveAction, ArchiveHelper, DataState};
 use crate::caching_client::CachingClient;
-use crate::file_client::FileClient;
+use crate::file_service::FileService;
 use crate::xor_helper::XorHelper;
 use tempdir::TempDir;
 use futures_util::{StreamExt as _};
 
-pub struct ArchiveClient {
+pub struct ArchiveService {
     autonomi_client: Client,
     caching_autonomi_client: CachingClient,
-    file_client: FileClient,
+    file_client: FileService,
     xor_helper: XorHelper,
 }
 
-impl ArchiveClient {
+impl ArchiveService {
     
-    pub fn new(autonomi_client: Client, caching_autonomi_client: CachingClient, file_client: FileClient, xor_helper: XorHelper) -> Self {
-        ArchiveClient { autonomi_client, caching_autonomi_client, file_client, xor_helper }
+    pub fn new(autonomi_client: Client, caching_autonomi_client: CachingClient, file_client: FileService, xor_helper: XorHelper) -> Self {
+        ArchiveService { autonomi_client, caching_autonomi_client, file_client, xor_helper }
     }
     
     pub async fn get_data(&self, archive: PublicArchive, xor_addr: XorName, request: HttpRequest, path_parts: Vec<String>) -> Result<HttpResponse, Error> {

@@ -6,6 +6,8 @@ mod xor_helper;
 mod archive_service;
 mod file_service;
 
+use std::collections::HashMap;
+use std::sync::{Mutex};
 use actix_web::{web, App, HttpServer, Responder, middleware::Logger, HttpRequest};
 use actix_files::Files;
 use log::{info};
@@ -15,7 +17,9 @@ use actix_web::dev::{ConnectionInfo};
 use actix_web::web::Data;
 use ant_evm::EvmNetwork::ArbitrumOne;
 use ant_evm::EvmWallet;
+use autonomi::files::archive_public::ArchiveAddress;
 use awc::Client as AwcClient;
+use tokio::task::JoinHandle;
 use crate::caching_client::CachingClient;
 use crate::anttp_config::AntTpConfig;
 use crate::archive_service::ArchiveService;
@@ -23,6 +27,10 @@ use crate::file_service::FileService;
 use crate::xor_helper::XorHelper;
 
 const DEFAULT_LOGGING: &'static str = "info,anttp=info,ant_api=warn,ant_client=warn,ant_networking=off,ant_bootstrap=error";
+
+struct AppState {
+    upload_map: Mutex<HashMap::<String, JoinHandle<ArchiveAddress>>>,
+}
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
@@ -43,6 +51,10 @@ async fn main() -> std::io::Result<()> {
         EvmWallet::new_with_random_wallet(ArbitrumOne)
     };
 
+    let upload_map = Data::new(AppState {
+        upload_map: Mutex::new(HashMap::<String, JoinHandle<ArchiveAddress>>::new()),
+    });
+
     info!("Starting listener");
 
     HttpServer::new(move || {
@@ -52,11 +64,13 @@ async fn main() -> std::io::Result<()> {
             .wrap(logger)
             .service(Files::new("/static", app_config.static_dir.clone()))
             .route("/api/v1/archive", web::post().to(post_public_archive))
+            .route("/api/v1/archive/{id}", web::get().to(get_status_public_archive))
             .route("/{path:.*}", web::get().to(get_public_data))
             .app_data(Data::new(app_config.clone()))
             .app_data(Data::new(autonomi_client.clone()))
             .app_data(Data::new(AwcClient::default()))
             .app_data(Data::new(evm_wallet.clone()))
+            .app_data(upload_map.clone())
     })
         .bind(bind_socket_addr)?
         .run()
@@ -67,25 +81,43 @@ async fn post_public_archive(
     payload: Multipart,
     autonomi_client_data: Data<Client>,
     evm_wallet_data: Data<EvmWallet>,
-    conn: ConnectionInfo)
+    conn: ConnectionInfo,
+    app_state: Data<AppState>
+)
 -> impl Responder {
-    let autonomi_client = autonomi_client_data.get_ref().clone();
-    let caching_autonomi_client = CachingClient::new(autonomi_client.clone());
+    let archive_service = build_archive_service(autonomi_client_data.get_ref().clone(), conn, app_state);
     let evm_wallet = evm_wallet_data.get_ref().clone();
-    let xor_helper = XorHelper::new();
-    let file_service = FileService::new(autonomi_client.clone(), xor_helper.clone(), conn);
-
-    let archive_service = ArchiveService::new(autonomi_client, caching_autonomi_client, file_service, xor_helper.clone());
 
     info!("Creating new archive from multipart POST");
     archive_service.post_data(payload, evm_wallet).await
+}
+
+async fn get_status_public_archive(
+    path: web::Path<String>,
+    autonomi_client_data: Data<Client>,
+    conn: ConnectionInfo,
+    app_state: Data<AppState>
+) -> impl Responder {
+    let id = path.into_inner();
+    let archive_service = build_archive_service(autonomi_client_data.get_ref().clone(), conn, app_state);
+
+    info!("Checking upload status for [{:?}]", id);
+    archive_service.get_status(id).await
+}
+
+fn build_archive_service(autonomi_client: Client, conn: ConnectionInfo, app_state: Data<AppState>) -> ArchiveService {
+    let caching_autonomi_client = CachingClient::new(autonomi_client.clone());
+    let xor_helper = XorHelper::new();
+    let file_service = FileService::new(autonomi_client.clone(), xor_helper.clone(), conn);
+    ArchiveService::new(autonomi_client, caching_autonomi_client, file_service, xor_helper, app_state)
 }
 
 async fn get_public_data(
     request: HttpRequest,
     path: web::Path<String>,
     autonomi_client_data: Data<Client>,
-    conn: ConnectionInfo
+    conn: ConnectionInfo,
+    app_state: Data<AppState>
 ) -> impl Responder {
     let path_parts = get_path_parts(&conn.host(), &path.into_inner());
     let xor_helper = XorHelper::new();
@@ -95,13 +127,13 @@ async fn get_public_data(
     let caching_autonomi_client = CachingClient::new(autonomi_client.clone());
     let (is_found, archive, is_archive, xor_addr) = xor_helper.resolve_archive_or_file(&caching_autonomi_client, &archive_addr, &archive_file_name).await;
     let file_service = FileService::new(autonomi_client.clone(), xor_helper.clone(), conn);
-    
+
     if !is_archive {
         info!("Retrieving file from XOR [{:x}]", xor_addr);
         file_service.get_data(path_parts, request, xor_addr, is_found).await
     } else {
         info!("Retrieving file from archive [{:x}]", xor_addr);
-        let archive_service = ArchiveService::new(autonomi_client, caching_autonomi_client.clone(), file_service, xor_helper);
+        let archive_service = ArchiveService::new(autonomi_client, caching_autonomi_client.clone(), file_service, xor_helper, app_state);
         archive_service.get_data(archive, xor_addr, request, path_parts).await
     }
 }

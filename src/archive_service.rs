@@ -5,9 +5,11 @@ use actix_multipart::Multipart;
 use actix_web::http::header::{ETag, EntityTag};
 use actix_web::{Error, HttpRequest, HttpResponse};
 use actix_web::error::ErrorNotFound;
+use actix_web::web::Data;
 use autonomi::{Client, Wallet};
 use autonomi::client::payment::PaymentOption;
-use autonomi::files::PublicArchive;
+use autonomi::files::{PublicArchive};
+use autonomi::files::archive_public::ArchiveAddress;
 use log::{info, warn};
 use xor_name::XorName;
 use crate::archive_helper::{ArchiveAction, ArchiveHelper, DataState};
@@ -16,18 +18,21 @@ use crate::file_service::FileService;
 use crate::xor_helper::XorHelper;
 use tempdir::TempDir;
 use futures_util::{StreamExt as _};
+use tokio::task::JoinHandle;
+use crate::AppState;
 
 pub struct ArchiveService {
     autonomi_client: Client,
     caching_autonomi_client: CachingClient,
     file_client: FileService,
     xor_helper: XorHelper,
+    app_state: Data<AppState>,
 }
 
 impl ArchiveService {
     
-    pub fn new(autonomi_client: Client, caching_autonomi_client: CachingClient, file_client: FileService, xor_helper: XorHelper) -> Self {
-        ArchiveService { autonomi_client, caching_autonomi_client, file_client, xor_helper }
+    pub fn new(autonomi_client: Client, caching_autonomi_client: CachingClient, file_client: FileService, xor_helper: XorHelper, app_state: Data<AppState>) -> Self {
+        ArchiveService { autonomi_client, caching_autonomi_client, file_client, xor_helper, app_state }
     }
     
     pub async fn get_data(&self, archive: PublicArchive, xor_addr: XorName, request: HttpRequest, path_parts: Vec<String>) -> Result<HttpResponse, Error> {
@@ -83,22 +88,32 @@ impl ArchiveService {
                 tmp_file.write_all(&chunk?)?;
             }
         }
-
-        info!("Uploading chunks");
-        let (cost, archive_address) = self.autonomi_client
-            .dir_upload_public(tmp_dir.into_path(), PaymentOption::Wallet(evm_wallet))
-            .await
-            .expect("Failed to upload archive");
-        info!("Uploaded directory to network for: {}", cost);
-
-        // Wait for the data to be replicated
-        tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
-
-        // todo: confirm if this is needed - files are removed automatically anyway
-        //drop(tmp_file);
-        //tmp_dir.close().expect("Failed to close temp dir");
-
-        info!("Successfully uploaded data at [{:?}]", archive_address);
-        Ok(HttpResponse::Ok().body(format!("{:?}", archive_address)))
+        
+        let local_client = self.autonomi_client.clone();
+        let handle: JoinHandle<ArchiveAddress> = tokio::spawn(async move {
+            info!("Uploading chunks to autonomi network");
+            let (cost, archive_address) = local_client
+                .dir_upload_public(tmp_dir.into_path(), PaymentOption::Wallet(evm_wallet))
+                .await
+                .expect("Failed to upload archive");
+            info!("Uploaded directory to network at [{:?}] for [{}]", archive_address, cost);
+            archive_address
+        });
+        let handle_id = handle.id();
+        self.app_state.upload_map.lock().unwrap().insert(handle_id.to_string(), handle);
+            
+        info!("Upload directory scheduled with handle id [{:?}]", handle_id.to_string());
+        Ok(HttpResponse::Ok().body(format!("{:?}", handle_id.to_string())))
+    }
+    
+    pub async fn get_status(&self, handle_id: String) -> Result<HttpResponse, Error> {
+        match self.app_state.upload_map.lock().unwrap().get(&handle_id) {
+            Some(handle) => {
+                Ok(HttpResponse::Ok().body(format!("Upload task complete: [{:?}]", handle.is_finished())))
+            }
+            None => {
+                Err(ErrorNotFound(format!("Upload task not found: [{:?}]", handle_id)))
+            }
+        }
     }
 }

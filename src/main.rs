@@ -64,7 +64,7 @@ async fn main() -> std::io::Result<()> {
             .wrap(logger)
             .service(Files::new("/static", app_config.static_dir.clone()))
             .route("/api/v1/archive", web::post().to(post_public_archive))
-            .route("/api/v1/archive/{id}", web::get().to(get_status_public_archive))
+            .route("/api/v1/archive/status/{id}", web::get().to(get_status_public_archive))
             .route("/{path:.*}", web::get().to(get_public_data))
             .app_data(Data::new(app_config.clone()))
             .app_data(Data::new(autonomi_client.clone()))

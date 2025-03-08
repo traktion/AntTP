@@ -4,11 +4,12 @@ use actix_http::header;
 use actix_multipart::Multipart;
 use actix_web::http::header::{ETag, EntityTag};
 use actix_web::{Error, HttpRequest, HttpResponse};
-use actix_web::error::ErrorNotFound;
+use actix_web::error::{ErrorBadGateway, ErrorNotFound};
 use actix_web::web::Data;
+use ant_evm::AttoTokens;
 use autonomi::{Client, Wallet};
 use autonomi::client::payment::PaymentOption;
-use autonomi::files::{PublicArchive};
+use autonomi::files::{PublicArchive, UploadError};
 use autonomi::files::archive_public::ArchiveAddress;
 use log::{info, warn};
 use xor_name::XorName;
@@ -18,7 +19,6 @@ use crate::file_service::FileService;
 use crate::xor_helper::XorHelper;
 use tempdir::TempDir;
 use futures_util::{StreamExt as _};
-use tokio::task::JoinHandle;
 use crate::AppState;
 
 pub struct ArchiveService {
@@ -90,26 +90,42 @@ impl ArchiveService {
         }
         
         let local_client = self.autonomi_client.clone();
-        let handle: JoinHandle<ArchiveAddress> = tokio::spawn(async move {
+        let handle = tokio::spawn(async move {
             info!("Uploading chunks to autonomi network");
-            let (cost, archive_address) = local_client
+            let result: Result<(AttoTokens, ArchiveAddress), UploadError> = local_client
                 .dir_upload_public(tmp_dir.into_path(), PaymentOption::Wallet(evm_wallet))
-                .await
-                .expect("Failed to upload archive");
-            info!("Uploaded directory to network at [{:?}] for [{}]", archive_address, cost);
-            archive_address
+                .await;
+            match result {
+                Ok((_, archive_address)) => {
+                    info!("Uploaded directory to network at [{:?}]", archive_address);
+                    archive_address
+                }
+                Err(e) => {
+                    warn!("Failed to upload directory to network: [{:?}]", e);
+                    ArchiveAddress::new(XorName::default())
+                }
+            }
         });
-        let handle_id = handle.id();
+        let handle_id = handle.id(); // todo: change to ArchiveAddress or hash for security
         self.app_state.upload_map.lock().unwrap().insert(handle_id.to_string(), handle);
-            
+
         info!("Upload directory scheduled with handle id [{:?}]", handle_id.to_string());
         Ok(HttpResponse::Ok().body(format!("{:?}", handle_id.to_string())))
     }
     
     pub async fn get_status(&self, handle_id: String) -> Result<HttpResponse, Error> {
-        match self.app_state.upload_map.lock().unwrap().get(&handle_id) {
+        match self.app_state.upload_map.lock().unwrap().get_mut(&handle_id) {
             Some(handle) => {
-                Ok(HttpResponse::Ok().body(format!("Upload task complete: [{:?}]", handle.is_finished())))
+                if handle.is_finished() {
+                    let xorname = *handle.await.unwrap().xorname();
+                    if xorname != XorName::default() {
+                        Ok(HttpResponse::Ok().body(format!("Upload task complete: [{:?}], archive address: [{:x}]", handle_id, xorname)))
+                    } else {
+                        Err(ErrorBadGateway(format!("Upload task failed: [{:?}]", handle_id)))
+                    }
+                } else {
+                    Ok(HttpResponse::Ok().body(format!("Upload task in progress: [{:?}]", handle_id)))
+                }
             }
             None => {
                 Err(ErrorNotFound(format!("Upload task not found: [{:?}]", handle_id)))

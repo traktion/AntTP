@@ -5,6 +5,7 @@ mod archive_helper;
 mod xor_helper;
 mod archive_service;
 mod file_service;
+mod chunk_service;
 
 use std::collections::HashMap;
 use std::sync::{Mutex};

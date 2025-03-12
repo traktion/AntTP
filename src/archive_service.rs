@@ -67,6 +67,9 @@ impl ArchiveService {
                 .insert_header(ETag(EntityTag::new_strong(format!("{:x}", xor_addr).to_owned())))
                 .insert_header((header::ACCESS_CONTROL_ALLOW_ORIGIN, "*"))
                 .body(archive_helper.list_files(request.headers())))
+        } else if self.file_client.has_range(&request) {
+            let (range_from, range_to, _) = self.file_client.get_range(&request);
+            self.file_client.download_data_stream(archive_addr, archive_info.resolved_xor_addr, false, range_from, range_to).await
         } else {
             self.file_client.download_data_body(archive_relative_path, archive_info.resolved_xor_addr, true).await
         }
@@ -88,7 +91,7 @@ impl ArchiveService {
                 tmp_file.write_all(&chunk?)?;
             }
         }
-        
+
         let local_client = self.autonomi_client.clone();
         let handle = tokio::spawn(async move {
             info!("Uploading chunks to autonomi network");
@@ -112,7 +115,7 @@ impl ArchiveService {
         info!("Upload directory scheduled with handle id [{:?}]", handle_id.to_string());
         Ok(HttpResponse::Ok().body(format!("{:?}", handle_id.to_string())))
     }
-    
+
     pub async fn get_status(&self, handle_id: String) -> Result<HttpResponse, Error> {
         match self.app_state.upload_map.lock().unwrap().get_mut(&handle_id) {
             Some(handle) => {

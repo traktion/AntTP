@@ -30,44 +30,48 @@ impl ChunkService {
     pub async fn fetch_from_data_map_chunk(
         &self,
         data_map_bytes: &Bytes,
-        position_start: usize,
-        position_end: usize,
+        position_start: u64,
+        position_end: u64,
     ) -> Result<Bytes, Error> {
         info!("fetch from data map chunk");
-            
-        let data_map_level: DataMapLevel = rmp_serde::from_slice(data_map_bytes)
-            .map_err(GetError::InvalidDataMap)
-            .inspect_err(|err| error!("Error deserializing data map: {err:?}"))
-            .expect("failed to parse data map level");
 
-        let data_map = match &data_map_level {
-            DataMapLevel::First(map) => map,
-            DataMapLevel::Additional(map) => map,
-        };
-        
-        let position = position_start / STREAM_CHUNK_SIZE;
-        let relative_position = position_start % STREAM_CHUNK_SIZE;
-        let relative_size = self.get_chunk_size(position_start, position_end) - relative_position;
+        let data_map = self.get_data_map_from_bytes(data_map_bytes);
 
-        info!("decrypt chunk in position [{}], relative position [{}], relative size [{}]", position, relative_position, relative_size);
-        match data_map.infos().get(position) {
+        let chunk_position = (position_start / STREAM_CHUNK_SIZE as u64) as usize;
+        let chunk_start_offset = (position_start % STREAM_CHUNK_SIZE as u64) as usize;
+        let chunk_size = self.get_chunk_size(position_start as usize, position_end as usize) - chunk_start_offset;
+
+        info!("decrypt chunk in position=[{}] of [{}], offset=[{}], size=[{}], total_size=[{}]", chunk_position, data_map.infos().len()-1, chunk_start_offset, chunk_size, data_map.file_size());
+        match data_map.infos().get(chunk_position) {
             Some(chunk_info) => {
                 info!("get chunk from data map: {:?}", chunk_info.dst_hash);
                 let chunk = self.autonomi_client.chunk_get(&ChunkAddress::new(chunk_info.dst_hash)).await.expect("get chunk failed");
 
                 info!("self decrypt chunk: {:?}", chunk_info.dst_hash);
-                let encrypted_chunks = &[EncryptedChunk { index: position, content: chunk.clone().value }];
-                match self_encryption::decrypt_range(&data_map, encrypted_chunks, relative_position, relative_size) {
+                let encrypted_chunks = &[EncryptedChunk { index: chunk_position, content: chunk.clone().value }];
+                match self_encryption::decrypt_range(&data_map, encrypted_chunks, chunk_start_offset, chunk_size) {
                     Ok(chunk_bytes) => Ok(chunk_bytes),
                     Err(e) => Err(e)
                 }
             }
             None => {
-                Err(Error::Decryption(format!("failed to get chunk at position: [{}]", position)))
+                Err(Error::Decryption(format!("failed to get chunk at position: [{}]", chunk_position)))
             }
         }
     }
-    
+
+    pub fn get_data_map_from_bytes(&self, data_map_bytes: &Bytes) -> DataMap {
+        let data_map_level: DataMapLevel = rmp_serde::from_slice(data_map_bytes)
+            .map_err(GetError::InvalidDataMap)
+            .inspect_err(|err| error!("Error deserializing data map: {err:?}"))
+            .expect("failed to parse data map level");
+
+        match data_map_level {
+            DataMapLevel::First(map) => map,
+            DataMapLevel::Additional(map) => map,
+        }
+    }
+
     pub fn get_chunk_size(&self, position_start: usize, position_end: usize) -> usize {
         if position_end - position_start > STREAM_CHUNK_SIZE {
             STREAM_CHUNK_SIZE

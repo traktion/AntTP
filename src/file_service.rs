@@ -9,7 +9,7 @@ use autonomi::data::DataAddress;
 use log::{info};
 use xor_name::XorName;
 use crate::archive_helper::DataState;
-use crate::chunk_service::{ChunkService};
+use crate::chunk_service::ChunkService;
 use crate::xor_helper::XorHelper;
 
 pub struct FileService {
@@ -97,7 +97,7 @@ impl FileService {
 
         let chunk_service = ChunkService::new(streaming_client);
         let total_size = chunk_service.get_data_map_from_bytes(&data_map_chunk.value).file_size();
-        
+
         let mut next_range_from = range_from;
         let derived_range_to = if range_to == u64::MAX { total_size as u64 - 1 } else { range_to };
 
@@ -133,7 +133,7 @@ impl FileService {
 
         // todo: When there is only 1 known chunk, we could use body (with 'content-length: x') instead of
         //       streaming (with 'transfer-encoding: chunked') to improve performance.
-        info!("return partial content");
+        info!("return partial content for range {} to {}", range_from, derived_range_to);
         Ok(HttpResponse::PartialContent()
             .insert_header(ContentRange(ContentRangeSpec::Bytes { range: Some((range_from, derived_range_to)), instance_length: Some(total_size as u64) }))
             .insert_header(cache_control_header)

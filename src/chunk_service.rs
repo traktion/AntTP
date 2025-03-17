@@ -5,8 +5,6 @@ use log::{error, info};
 use self_encryption::{DataMap, EncryptedChunk, Error};
 use serde::{Deserialize, Serialize};
 
-pub const STREAM_CHUNK_SIZE: usize = 4096 * 1024;
-
 #[derive(Serialize, Deserialize)]
 enum DataMapLevel {
     // Holds the data map to the source data.
@@ -36,20 +34,21 @@ impl ChunkService {
         info!("fetch from data map chunk");
 
         let data_map = self.get_data_map_from_bytes(data_map_bytes);
+        let stream_chunk_size = self.get_chunk_size_from_data_map(&data_map);
 
-        let chunk_position = (position_start / STREAM_CHUNK_SIZE as u64) as usize;
-        let chunk_start_offset = (position_start % STREAM_CHUNK_SIZE as u64) as usize;
-        let chunk_size = self.get_chunk_size(position_start as usize, position_end as usize) - chunk_start_offset;
+        let chunk_position = (position_start / stream_chunk_size as u64) as usize;
+        let chunk_start_offset = (position_start % stream_chunk_size as u64) as usize;
+        let derived_chunk_size = self.get_chunk_size(position_start as usize, position_end as usize, stream_chunk_size) - chunk_start_offset;
 
-        info!("decrypt chunk in position=[{}] of [{}], offset=[{}], size=[{}], total_size=[{}]", chunk_position, data_map.infos().len()-1, chunk_start_offset, chunk_size, data_map.file_size());
+        info!("decrypt chunk in position=[{}] of [{}], offset=[{}], size=[{}], total_size=[{}]", chunk_position, data_map.infos().len()-1, chunk_start_offset, derived_chunk_size, data_map.file_size());
         match data_map.infos().get(chunk_position) {
             Some(chunk_info) => {
-                info!("get chunk from data map: {:?}", chunk_info.dst_hash);
+                info!("get chunk from data map with hash {:?} and size {}", chunk_info.dst_hash, chunk_info.src_size);
                 let chunk = self.autonomi_client.chunk_get(&ChunkAddress::new(chunk_info.dst_hash)).await.expect("get chunk failed");
 
                 info!("self decrypt chunk: {:?}", chunk_info.dst_hash);
                 let encrypted_chunks = &[EncryptedChunk { index: chunk_position, content: chunk.clone().value }];
-                match self_encryption::decrypt_range(&data_map, encrypted_chunks, chunk_start_offset, chunk_size) {
+                match self_encryption::decrypt_range(&data_map, encrypted_chunks, chunk_start_offset, derived_chunk_size) {
                     Ok(chunk_bytes) => Ok(chunk_bytes),
                     Err(e) => Err(e)
                 }
@@ -72,9 +71,24 @@ impl ChunkService {
         }
     }
 
-    pub fn get_chunk_size(&self, position_start: usize, position_end: usize) -> usize {
-        if position_end - position_start > STREAM_CHUNK_SIZE {
-            STREAM_CHUNK_SIZE
+    fn get_chunk_size_from_data_map(&self, data_map: &DataMap) -> usize {
+        if data_map.infos().len() > 0 {
+            match data_map.infos().get(0) {
+                Some(chunk_info) => {
+                    chunk_info.src_size
+                },
+                None => {
+                    1
+                }
+            }
+        } else {
+            1
+        }
+    }
+
+    pub fn get_chunk_size(&self, position_start: usize, position_end: usize, stream_chunk_size: usize) -> usize {
+        if position_end - position_start > stream_chunk_size {
+            stream_chunk_size
         } else {
             position_end - position_start
         }

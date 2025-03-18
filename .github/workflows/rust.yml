@@ -30,8 +30,8 @@ jobs:
       run: sudo apt-get install mingw-w64
     - name: Install x86_64-pc-windows-gnu target
       run: rustup target add x86_64-pc-windows-gnu
-    - name: Build x86_64-pc-windows-gnu
-      run: cargo build --release --target x86_64-pc-windows-gnu
+    #- name: Build x86_64-pc-windows-gnu
+    #  run: cargo build --release --target x86_64-pc-windows-gnu
     - name: Install aarch64-unknown-linux-musl
       run: rustup target add aarch64-unknown-linux-musl
     - name: Build aarch64-unknown-linux-musl
@@ -68,16 +68,16 @@ jobs:
         asset_path: ./target/x86_64-unknown-linux-musl/release/anttp
         asset_name: anttp
         asset_content_type: application/octet-stream
-    - name: Upload x86_64 PC Windows GNU Release Asset
-      id: upload-x86_64-pc-windows-gnu-release-asset
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }} # This pulls from the CREATE RELEASE step above, referencing it's ID to get its outputs object, which include a `upload_url`. See this blog post for more info: https://jasonet.co/posts/new-features-of-github-actions/#passing-data-to-future-steps
-        asset_path: ./target/x86_64-pc-windows-gnu/release/anttp.exe
-        asset_name: anttp.exe
-        asset_content_type: application/octet-stream
+#    - name: Upload x86_64 PC Windows GNU Release Asset
+#      id: upload-x86_64-pc-windows-gnu-release-asset
+#      uses: actions/upload-release-asset@v1
+#      env:
+#        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+#      with:
+#        upload_url: ${{ steps.create_release.outputs.upload_url }} # This pulls from the CREATE RELEASE step above, referencing it's ID to get its outputs object, which include a `upload_url`. See this blog post for more info: https://jasonet.co/posts/new-features-of-github-actions/#passing-data-to-future-steps
+#        asset_path: ./target/x86_64-pc-windows-gnu/release/anttp.exe
+#        asset_name: anttp.exe
+#        asset_content_type: application/octet-stream
     - name: Upload AARCH 64 Linux MUSL Release Asset
       id: upload-aarch64-unknown-linux-musl-release-asset
       uses: actions/upload-release-asset@v1

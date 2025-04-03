@@ -1,7 +1,7 @@
 use actix_http::header;
 use actix_web::{Error, HttpRequest, HttpResponse};
 use actix_web::dev::ConnectionInfo;
-use actix_web::error::{ErrorBadGateway, ErrorInternalServerError, ErrorNotFound};
+use actix_web::error::{ErrorGatewayTimeout, ErrorInternalServerError, ErrorNotFound};
 use actix_web::http::header::{CacheControl, CacheDirective, ContentRange, ContentRangeSpec, ContentType, ETag, EntityTag};
 use async_stream::{stream};
 use autonomi::{ChunkAddress, Client};
@@ -96,32 +96,56 @@ impl FileService {
         let streaming_client = self.autonomi_client.clone();
 
         let chunk_service = ChunkService::new(streaming_client);
-        let total_size = chunk_service.get_data_map_from_bytes(&data_map_chunk.value).file_size();
+        let data_map = chunk_service.get_data_map_from_bytes(&data_map_chunk.value);
+        let stream_chunk_size = chunk_service.get_chunk_size_from_data_map(&data_map);
+        let total_size = data_map.file_size();
 
         let mut next_range_from = range_from;
         let derived_range_to = if range_to == u64::MAX { total_size as u64 - 1 } else { range_to };
+        let first_chunk_limit = self.get_first_chunk_limit(stream_chunk_size, next_range_from);
 
         let data_stream = stream!{
             info!("sending data stream");
 
             let mut chunk_count = 1;
-            loop {
-                match chunk_service.fetch_from_data_map_chunk(&data_map_chunk.value, next_range_from, range_to).await {
-                    Ok(data) => {
-                        let bytes_read = data.len();
-                        info!("Read [{}] bytes from file position [{}] for XOR address [{}]", bytes_read, next_range_from, xor_name);
-                        if bytes_read > 0 {
-                            yield Ok(data); // Sending data to the client here
-                        } else {
-                            info!("Last chunk [{}] read for XOR address [{}] - breaking", chunk_count, xor_name);
-                            break;
+            let mut tasks = Vec::new();
+
+            // todo: limit additions to pool with FIFO queue to cap async tasks
+            while next_range_from < derived_range_to {
+                info!("Async chunk download from file position [{}] for XOR address [{}]", next_range_from, xor_name);
+                let chunk_service_clone = chunk_service.clone();
+                let data_map_clone = data_map.clone();
+                tasks.push(
+                    tokio::spawn(async move {chunk_service_clone.fetch_from_data_map_chunk(data_map_clone, next_range_from, range_to, stream_chunk_size).await})
+                );
+                next_range_from += if chunk_count == 1 {
+                    first_chunk_limit as u64
+                } else {
+                    stream_chunk_size as u64
+                };
+                chunk_count += 1;
+            };
+            chunk_count = 1;
+            for task in tasks {
+                match task.await {
+                    Ok(result) => {
+                        match result {
+                            Ok(data) => {
+                                let bytes_read = data.len();
+                                info!("Read [{}] bytes from chunk [{}] at file position [{}] for XOR address [{}]", bytes_read, chunk_count, next_range_from, xor_name);
+                                if bytes_read > 0 {
+                                    yield Ok(data); // Sending data to the client here
+                                }
+                                next_range_from += stream_chunk_size as u64;
+                                chunk_count += 1;
+                            }
+                            Err(e) => {
+                                yield Err(ErrorGatewayTimeout(e));
+                            }
                         }
-                        next_range_from += bytes_read as u64;
-                        chunk_count += 1;
-                    }
+                    },
                     Err(e) => {
-                        yield Err(ErrorBadGateway(e));
-                        break;
+                        yield Err(ErrorGatewayTimeout(e));
                     }
                 }
             }
@@ -140,6 +164,15 @@ impl FileService {
             .insert_header(etag_header)
             .insert_header(cors_allow_all)
             .streaming(data_stream))
+    }
+
+    fn get_first_chunk_limit(&self, stream_chunk_size: usize, next_range_from: u64) -> usize {
+        let first_chunk_remainder = next_range_from % stream_chunk_size as u64;
+        if first_chunk_remainder > 0 {
+            (stream_chunk_size as u64 - first_chunk_remainder) as usize
+        } else {
+            stream_chunk_size
+        }
     }
 
     pub fn get_range(&self, request: &HttpRequest) -> (u64, u64) {

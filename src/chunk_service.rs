@@ -15,6 +15,7 @@ enum DataMapLevel {
     Additional(DataMap),
 }
 
+#[derive(Clone)]
 pub struct ChunkService {
     autonomi_client: Client,
 }
@@ -27,20 +28,17 @@ impl ChunkService {
 
     pub async fn fetch_from_data_map_chunk(
         &self,
-        data_map_bytes: &Bytes,
+        data_map: DataMap,
         position_start: u64,
         position_end: u64,
+        stream_chunk_size: usize,
     ) -> Result<Bytes, Error> {
         info!("fetch from data map chunk");
-
-        let data_map = self.get_data_map_from_bytes(data_map_bytes);
-        let stream_chunk_size = self.get_chunk_size_from_data_map(&data_map);
-
         let chunk_position = (position_start / stream_chunk_size as u64) as usize;
         let chunk_start_offset = (position_start % stream_chunk_size as u64) as usize;
         let derived_chunk_size = self.get_chunk_size(position_start as usize, position_end as usize, stream_chunk_size) - chunk_start_offset;
 
-        info!("decrypt chunk in position=[{}] of [{}], offset=[{}], size=[{}], total_size=[{}]", chunk_position, data_map.infos().len()-1, chunk_start_offset, derived_chunk_size, data_map.file_size());
+        info!("decrypt chunk in position=[{}] of [{}], offset=[{}], limit=[{}], total_size=[{}]", chunk_position+1, data_map.infos().len(), chunk_start_offset, derived_chunk_size, data_map.file_size());
         match data_map.infos().get(chunk_position) {
             Some(chunk_info) => {
                 info!("get chunk from data map with hash {:?} and size {}", chunk_info.dst_hash, chunk_info.src_size);
@@ -71,7 +69,7 @@ impl ChunkService {
         }
     }
 
-    fn get_chunk_size_from_data_map(&self, data_map: &DataMap) -> usize {
+    pub fn get_chunk_size_from_data_map(&self, data_map: &DataMap) -> usize {
         if data_map.infos().len() > 0 {
             match data_map.infos().get(0) {
                 Some(chunk_info) => {

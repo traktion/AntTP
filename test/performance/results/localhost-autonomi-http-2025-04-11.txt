@@ -1,0 +1,48 @@
+import http from 'k6/http';
+
+export default function () {
+  http.get('http://localhost:8080/cec7a9eb2c644b9a5de58bbcdf2e893db9f0b2acd7fc563fc849e19d1f6bd872/1_QdxdljdwBwR2QbAVr8scuw.png');
+  http.get('http://localhost:8080/cec7a9eb2c644b9a5de58bbcdf2e893db9f0b2acd7fc563fc849e19d1f6bd872/1_dH5Ce6neTHIfEkAbmsr1BQ.jpeg');
+  http.get('http://localhost:8080/cec7a9eb2c644b9a5de58bbcdf2e893db9f0b2acd7fc563fc849e19d1f6bd872/1_pt48p45dQmR5PBW8np1l8Q.png');
+  http.get('http://localhost:8080/cec7a9eb2c644b9a5de58bbcdf2e893db9f0b2acd7fc563fc849e19d1f6bd872/1_sWZ4OWGeQjWs6urcPwR6Yw.png');
+  http.get('http://localhost:8080/cec7a9eb2c644b9a5de58bbcdf2e893db9f0b2acd7fc563fc849e19d1f6bd872/1_ZT6qplX5Yt8PMCUqxq1lFQ.png');
+  http.get('http://localhost:8080/cec7a9eb2c644b9a5de58bbcdf2e893db9f0b2acd7fc563fc849e19d1f6bd872/1_SxkGLnSNsMtu0SDrsWW8Wg.jpeg');
+  http.get('http://localhost:8080/cec7a9eb2c644b9a5de58bbcdf2e893db9f0b2acd7fc563fc849e19d1f6bd872/1_bogEVpJvgx_gMHQoHMoSLg.jpeg');
+  http.get('http://localhost:8080/cec7a9eb2c644b9a5de58bbcdf2e893db9f0b2acd7fc563fc849e19d1f6bd872/1_LFEyRQMHmxRnZtJwMozW5w.jpeg');
+}
+
+         /\      Grafana   /‾‾/  
+    /\  /  \     |\  __   /  /   
+   /  \/    \    | |/ /  /   ‾‾\ 
+  /          \   |   (  |  (‾)  |
+ / __________ \  |_|\_\  \_____/ 
+
+     execution: local
+        script: localhost-autonomi-http.js
+        output: -
+
+     scenarios: (100.00%) 1 scenario, 10 max VUs, 10m30s max duration (incl. graceful stop):
+              * default: 1000 iterations shared among 10 VUs (maxDuration: 10m0s, gracefulStop: 30s)
+
+
+     data_received..................: 1.5 GB 2.4 MB/s
+     data_sent......................: 583 kB 946 B/s
+     dropped_iterations.............: 580    0.941482/s
+     http_req_blocked...............: avg=9.81µs   min=2.25µs   med=5.36µs   max=1.01ms  p(90)=10.58µs p(95)=15.06µs
+     http_req_connecting............: avg=1.12µs   min=0s       med=0s       max=504.8µs p(90)=0s      p(95)=0s     
+     http_req_duration..............: avg=1.83s    min=570.43ms med=1.38s    max=14.4s   p(90)=2.41s   p(95)=5.34s  
+       { expected_response:true }...: avg=1.83s    min=570.43ms med=1.38s    max=14.4s   p(90)=2.41s   p(95)=5.34s  
+     http_req_failed................: 0.00%  0 out of 3360
+     http_req_receiving.............: avg=1.01s    min=333.12ms med=824.8ms  max=6.79s   p(90)=1.45s   p(95)=1.79s  
+     http_req_sending...............: avg=40.6µs   min=7.06µs   med=17.9µs   max=2.72ms  p(90)=44µs    p(95)=77.43µs
+     http_req_tls_handshaking.......: avg=0s       min=0s       med=0s       max=0s      p(90)=0s      p(95)=0s     
+     http_req_waiting...............: avg=820.82ms min=159.33ms med=515.62ms max=13.32s  p(90)=1.04s   p(95)=1.49s  
+     http_reqs......................: 3360   5.454103/s
+     iteration_duration.............: avg=14.66s   min=9.79s    med=12.41s   max=26.2s   p(90)=21.4s   p(95)=23.08s 
+     iterations.....................: 420    0.681763/s
+     vus............................: 10     min=10        max=10
+     vus_max........................: 10     min=10        max=10
+
+
+running (10m16.0s), 00/10 VUs, 420 complete and 0 interrupted iterations
+default ✗ [==============>-----------------------] 10 VUs  10m16.0s/10m0s  0420/1000 shared iters

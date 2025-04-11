@@ -74,7 +74,7 @@ impl FileService {
         let total_size = data_map.file_size();
 
         let mut next_range_from = range_from;
-        let derived_range_to = if range_to == u64::MAX { total_size as u64 } else { range_to };
+        let derived_range_to = if range_to == u64::MAX { total_size as u64 - 1 } else { range_to };
         let first_chunk_limit = self.get_first_chunk_limit(stream_chunk_size, next_range_from);
 
         let data_stream = stream!{
@@ -152,6 +152,35 @@ impl FileService {
         }
     }
 
+    /*pub async fn download_data_body(
+        &self,
+        path_str: String,
+        xor_name: XorName,
+        is_resolved_file_name: bool
+    ) -> Result<HttpResponse, Error> {
+        info!("Downloading item [{}] at addr [{}] ", path_str, format!("{:x}", xor_name));
+        let data_address =  DataAddress::new(xor_name);
+        match self.autonomi_client.data_get_public(&data_address).await {
+            Ok(data) => {
+                info!("Read [{}] bytes of item [{}] at addr [{}]", data.len(), path_str, format!("{:x}", xor_name));
+                let cache_control_header = self.build_cache_control_header(&xor_name, is_resolved_file_name);
+                let etag_header = ETag(EntityTag::new_strong(format!("{:x}", xor_name).to_owned()));
+                let cors_allow_all = (header::ACCESS_CONTROL_ALLOW_ORIGIN, "*");
+
+                let extension = Path::new(&path_str).extension().unwrap_or_default().to_str().unwrap_or_default();
+                Ok(HttpResponse::Ok()
+                    .insert_header(cache_control_header)
+                    .insert_header(etag_header)
+                    .insert_header(cors_allow_all)
+                    .insert_header(self.get_content_type_from_filename(extension))
+                    .body(data))
+            }
+            Err(e) => {
+                Err(ErrorInternalServerError(format!("Failed to download [{:?}]", e)))
+            }
+        }
+    }*/
+
     fn get_first_chunk_limit(&self, stream_chunk_size: usize, next_range_from: u64) -> usize {
         let first_chunk_remainder = next_range_from % stream_chunk_size as u64;
         if first_chunk_remainder > 0 {
@@ -196,10 +225,13 @@ impl FileService {
     }
 
     fn get_content_type_from_filename(&self, extension: &str) -> ContentType {
-        if extension != "" && extension != "md" { // todo: remove markdown exclusion when IMIM fixed
+        // todo: remove markdown exclusion when IMIM fixed
+        if extension != "" && extension != "md" {
             ContentType(file_extension_to_mime(extension))
+        } else if extension == "md" {
+            ContentType(mime::TEXT_HTML)
         } else {
-            ContentType(mime::TEXT_HTML) // default to text/html
+            ContentType(mime::TEXT_PLAIN) // default to text/html
         }
     }
 }

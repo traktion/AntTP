@@ -1,11 +1,13 @@
+use std::path::Path;
+use std::time::{Duration, SystemTime};
+use actix_files::file_extension_to_mime;
 use actix_http::header;
 use actix_web::{Error, HttpRequest, HttpResponse};
 use actix_web::dev::ConnectionInfo;
-use actix_web::error::{ErrorGatewayTimeout, ErrorInternalServerError, ErrorNotFound};
-use actix_web::http::header::{CacheControl, CacheDirective, ContentRange, ContentRangeSpec, ContentType, ETag, EntityTag};
+use actix_web::error::{ErrorGatewayTimeout, ErrorNotFound};
+use actix_web::http::header::{CacheControl, CacheDirective, ContentRange, ContentRangeSpec, ContentType, ETag, EntityTag, Expires};
 use async_stream::{stream};
 use autonomi::{ChunkAddress, Client};
-use autonomi::data::DataAddress;
 use log::{info};
 use xor_name::XorName;
 use crate::archive_helper::DataState;
@@ -29,50 +31,20 @@ impl FileService {
 
         if self.xor_helper.get_data_state(request.headers(), &xor_name) == DataState::NotModified {
             info!("ETag matches for path [{}] at address [{}]. Client can use cached version", archive_addr, format!("{:x}", xor_name).as_str());
-            Ok(HttpResponse::NotModified().into())
+            let cache_control_header = self.build_cache_control_header(&xor_name, false);
+            let expires_header = self.build_expires_header(&xor_name, false);
+            let etag_header = ETag(EntityTag::new_strong(format!("{:x}", xor_name).to_owned()));
+            let cors_allow_all = (header::ACCESS_CONTROL_ALLOW_ORIGIN, "*");
+            Ok(HttpResponse::NotModified()
+                .insert_header(cache_control_header)
+                .insert_header(expires_header)
+                .insert_header(etag_header)
+                .insert_header(cors_allow_all)
+                .finish())
         } else if !is_found {
             Err(ErrorNotFound(format!("File not found {:?}", self.conn.host())))
-        } else if request.headers().get(header::IF_RANGE).is_some() {
-            let (range_from, range_to) = self.get_range(&request);
-            self.download_data_stream(archive_addr, xor_name, false, range_from, range_to).await
         } else {
-            self.download_data_body(archive_addr, xor_name, false).await
-        }
-    }
-
-    pub async fn download_data_body(
-        &self,
-        path_str: String,
-        xor_name: XorName,
-        is_resolved_file_name: bool
-    ) -> Result<HttpResponse, Error> {
-        info!("Downloading item [{}] at addr [{}] ", path_str, format!("{:x}", xor_name));
-        let data_address =  DataAddress::new(xor_name);
-        match self.autonomi_client.data_get_public(&data_address).await {
-            Ok(data) => {
-                info!("Read [{}] bytes of item [{}] at addr [{}]", data.len(), path_str, format!("{:x}", xor_name));
-                let cache_control_header = self.build_cache_control_header(&xor_name, is_resolved_file_name);
-                let etag_header = ETag(EntityTag::new_strong(format!("{:x}", xor_name).to_owned()));
-                let cors_allow_all = (header::ACCESS_CONTROL_ALLOW_ORIGIN, "*");
-
-                if path_str.ends_with(".js") {
-                    Ok(HttpResponse::Ok()
-                        .insert_header(cache_control_header)
-                        .insert_header(etag_header)
-                        .insert_header(cors_allow_all)
-                        .insert_header(self.get_content_type_from_filename(path_str)) // todo: why necessary?
-                        .body(data))
-                } else {
-                    Ok(HttpResponse::Ok()
-                        .insert_header(cache_control_header)
-                        .insert_header(etag_header)
-                        .insert_header(cors_allow_all)
-                        .body(data))
-                }
-            }
-            Err(e) => {
-                Err(ErrorInternalServerError(format!("Failed to download [{:?}]", e)))
-            }
+            self.download_data_stream(archive_addr, xor_name, false, &request).await
         }
     }
 
@@ -81,9 +53,10 @@ impl FileService {
         path_str: String,
         xor_name: XorName,
         is_resolved_file_name: bool,
-        range_from: u64,
-        range_to: u64
+        request: &HttpRequest,
     ) -> Result<HttpResponse, Error> {
+        let (range_from, range_to, is_range_request) = self.get_range(&request);
+
         info!("Streaming item [{}] at addr [{}], range_from [{}], range_to [{}]", path_str, format!("{:x}", xor_name), range_from, range_to);
 
         info!("getting data map from chunk [{:x}]", xor_name);
@@ -101,7 +74,7 @@ impl FileService {
         let total_size = data_map.file_size();
 
         let mut next_range_from = range_from;
-        let derived_range_to = if range_to == u64::MAX { total_size as u64 - 1 } else { range_to };
+        let derived_range_to = if range_to == u64::MAX { total_size as u64 } else { range_to };
         let first_chunk_limit = self.get_first_chunk_limit(stream_chunk_size, next_range_from);
 
         let data_stream = stream!{
@@ -152,18 +125,31 @@ impl FileService {
         };
 
         let cache_control_header = self.build_cache_control_header(&xor_name, is_resolved_file_name);
+        let expires_header = self.build_expires_header(&xor_name, is_resolved_file_name);
         let etag_header = ETag(EntityTag::new_strong(format!("{:x}", xor_name).to_owned()));
         let cors_allow_all = (header::ACCESS_CONTROL_ALLOW_ORIGIN, "*");
 
-        // todo: When there is only 1 known chunk, we could use body (with 'content-length: x') instead of
-        //       streaming (with 'transfer-encoding: chunked') to improve performance.
-        info!("return partial content for range {} to {}", range_from, derived_range_to);
-        Ok(HttpResponse::PartialContent()
-            .insert_header(ContentRange(ContentRangeSpec::Bytes { range: Some((range_from, derived_range_to)), instance_length: Some(total_size as u64) }))
-            .insert_header(cache_control_header)
-            .insert_header(etag_header)
-            .insert_header(cors_allow_all)
-            .streaming(data_stream))
+        let extension = Path::new(&path_str).extension().unwrap_or_default().to_str().unwrap_or_default();
+        if is_range_request {
+            info!("return partial content for range {} to {}", range_from, derived_range_to);
+            Ok(HttpResponse::PartialContent()
+                .insert_header(ContentRange(ContentRangeSpec::Bytes { range: Some((range_from, derived_range_to)), instance_length: Some(total_size as u64) }))
+                .insert_header(cache_control_header)
+                .insert_header(expires_header)
+                .insert_header(etag_header)
+                .insert_header(cors_allow_all)
+                .insert_header(self.get_content_type_from_filename(extension))
+                .streaming(data_stream))
+        } else {
+            info!("return full content as stream");
+            Ok(HttpResponse::Ok()
+                .insert_header(cache_control_header)
+                .insert_header(expires_header)
+                .insert_header(etag_header)
+                .insert_header(cors_allow_all)
+                .insert_header(self.get_content_type_from_filename(extension))
+                .streaming(data_stream))
+        }
     }
 
     fn get_first_chunk_limit(&self, stream_chunk_size: usize, next_range_from: u64) -> usize {
@@ -175,7 +161,7 @@ impl FileService {
         }
     }
 
-    pub fn get_range(&self, request: &HttpRequest) -> (u64, u64) {
+    pub fn get_range(&self, request: &HttpRequest) -> (u64, u64, bool) {
         if let Some(range) = request.headers().get(header::RANGE) {
             let range_str = range.to_str().unwrap();
             info!("get range: [{}]", range_str);
@@ -184,32 +170,36 @@ impl FileService {
             if let Some((range_from_str, range_to_str)) = range_value.split_once("-") {
                 let range_from = range_from_str.parse::<u64>().unwrap_or_else(|_| 0);
                 let range_to = range_to_str.parse::<u64>().unwrap_or_else(|_| u64::MAX);
-                (range_from, range_to)
+                (range_from, range_to, true)
             } else {
-                (0, u64::MAX)
+                (0, u64::MAX, true)
             }
         } else {
-            (0, u64::MAX)
+            (0, u64::MAX, false)
         }
     }
 
     fn build_cache_control_header(&self, xor_name: &XorName, is_resolved_file_name: bool) -> CacheControl {
         if !is_resolved_file_name && self.xor_helper.is_xor(&format!("{:x}", xor_name)) {
-            CacheControl(vec![CacheDirective::MaxAge(31536000u32)]) // immutable
+            CacheControl(vec![CacheDirective::MaxAge(u32::MAX), CacheDirective::Public]) // immutable
         } else {
-            CacheControl(vec![CacheDirective::MaxAge(0u32)]) // mutable
+            CacheControl(vec![CacheDirective::MaxAge(10u32), CacheDirective::Public]) // mutable
         }
     }
 
-    fn get_content_type_from_filename(&self, filename: String) -> ContentType {
-        if filename.ends_with(".js") {
-            ContentType(mime::APPLICATION_JAVASCRIPT)
-        } else if filename.ends_with(".html") {
-            ContentType(mime::TEXT_HTML)
-        } else if filename.ends_with(".css") {
-            ContentType(mime::TEXT_CSS)
+    fn build_expires_header(&self, xor_name: &XorName, is_resolved_file_name: bool) -> Expires {
+        if !is_resolved_file_name && self.xor_helper.is_xor(&format!("{:x}", xor_name)) {
+            Expires((SystemTime::now() + Duration::from_secs(u32::MAX as u64)).into()) // immutable
         } else {
-            ContentType(mime::TEXT_PLAIN) // todo: use actix function to derive default
+            Expires((SystemTime::now() + Duration::from_secs(10u64)).into()) // mutable
+        }
+    }
+
+    fn get_content_type_from_filename(&self, extension: &str) -> ContentType {
+        if extension != "" && extension != "md" { // todo: remove markdown exclusion when IMIM fixed
+            ContentType(file_extension_to_mime(extension))
+        } else {
+            ContentType(mime::TEXT_HTML) // default to text/html
         }
     }
 }

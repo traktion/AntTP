@@ -34,14 +34,14 @@ impl ChunkService {
         stream_chunk_size: usize,
     ) -> Result<Bytes, Error> {
         info!("fetch from data map chunk");
-        let chunk_position = (position_start / stream_chunk_size as u64) as usize;
+        let chunk_position = (position_start / stream_chunk_size as u64) as usize; // chunk_info.src_size needed for exact size, as last chunk size varies 
         let chunk_start_offset = (position_start % stream_chunk_size as u64) as usize;
-        let derived_chunk_size = self.get_chunk_size(position_start as usize, position_end as usize, stream_chunk_size) - chunk_start_offset;
-
-        info!("decrypt chunk in position=[{}] of [{}], offset=[{}], limit=[{}], total_size=[{}]", chunk_position+1, data_map.infos().len(), chunk_start_offset, derived_chunk_size, data_map.file_size());
+        
+        info!("decrypt chunk in position=[{}] of [{}], offset=[{}], total_size=[{}]", chunk_position+1, data_map.infos().len(), chunk_start_offset, data_map.file_size());
         match data_map.infos().get(chunk_position) {
             Some(chunk_info) => {
                 info!("get chunk from data map with hash {:?} and size {}", chunk_info.dst_hash, chunk_info.src_size);
+                let derived_chunk_size = self.get_chunk_size(position_start as usize, position_end as usize, chunk_info.src_size) - chunk_start_offset;
                 let chunk = self.autonomi_client.chunk_get(&ChunkAddress::new(chunk_info.dst_hash)).await.expect("get chunk failed");
 
                 info!("self decrypt chunk: {:?}", chunk_info.dst_hash);
@@ -52,7 +52,7 @@ impl ChunkService {
                 }
             }
             None => {
-                Err(Error::Decryption(format!("failed to get chunk at position: [{}]", chunk_position)))
+                Ok(Bytes::new())
             }
         }
     }

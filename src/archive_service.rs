@@ -66,12 +66,9 @@ impl ArchiveService {
             Ok(HttpResponse::Ok()
                 .insert_header(ETag(EntityTag::new_strong(format!("{:x}", xor_addr).to_owned())))
                 .insert_header((header::ACCESS_CONTROL_ALLOW_ORIGIN, "*"))
-                .body(archive_helper.list_files(request.headers())))
-        } else if request.headers().get(header::IF_RANGE).is_some() || request.headers().get(header::RANGE).is_some() {
-            let (range_from, range_to) = self.file_client.get_range(&request);
-            self.file_client.download_data_stream(archive_addr, archive_info.resolved_xor_addr, false, range_from, range_to).await
+                .body(archive_helper.list_files(request.headers()))) // todo: return .json / .body depending on accept header
         } else {
-            self.file_client.download_data_body(archive_relative_path, archive_info.resolved_xor_addr, true).await
+            self.file_client.download_data_stream(archive_relative_path, archive_info.resolved_xor_addr, false, &request).await
         }
     }
 

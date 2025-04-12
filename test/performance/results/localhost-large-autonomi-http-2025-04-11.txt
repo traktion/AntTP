@@ -1,0 +1,44 @@
+$ cat localhost-large-autonomi-http.js; k6 run -u 10 -i 1000 localhost-large-autonomi-http.js
+import http from 'k6/http';
+
+export default function () {
+  http.get('http://localhost:8080/91d16e58e9164bccd29a8fd8d25218a61d8253b51c26119791b2633ff4f6b309/to-autonomi.mp4');
+  http.get('http://localhost:8080/cec7a9eb2c644b9a5de58bbcdf2e893db9f0b2acd7fc563fc849e19d1f6bd872/st-patrick-monument.mp4');
+  http.get('http://localhost:8080/b6ec9f0f84cf6236dc42d3624679649f51024a57a58b2805552bb3aa690244dd/newcastle-promenade.mp4');
+}
+
+/\      Grafana   /‾‾/  
+/\  /  \     |\  __   /  /   
+/  \/    \    | |/ /  /   ‾‾\ 
+  /          \   |   (  |  (‾)  |
+/ __________ \  |_|\_\  \_____/
+
+execution: local
+script: localhost-large-autonomi-http.js
+output: -
+
+    scenarios: (100.00%) 1 scenario, 10 max VUs, 10m30s max duration (incl. graceful stop):
+* default: 1000 iterations shared among 10 VUs (maxDuration: 10m0s, gracefulStop: 30s)
+
+
+data_received..................: 17 GB 28 MB/s
+data_sent......................: 60 kB 97 B/s
+dropped_iterations.............: 880   1.42613/s
+http_req_blocked...............: avg=45.68µs min=2.84µs  med=11.21µs  max=1.64ms   p(90)=35.65µs  p(95)=48.21µs
+http_req_connecting............: avg=22.87µs min=0s      med=0s       max=1.35ms   p(90)=0s       p(95)=0s
+http_req_duration..............: avg=17.13s  min=2.23s   med=11.99s   max=40.66s   p(90)=32.76s   p(95)=38.21s
+{ expected_response:true }...: avg=17.13s  min=2.23s   med=11.99s   max=40.66s   p(90)=32.76s   p(95)=38.21s
+http_req_failed................: 0.00% 0 out of 360
+http_req_receiving.............: avg=15.44s  min=1.15s   med=10.29s   max=40.47s   p(90)=32.54s   p(95)=37.86s
+http_req_sending...............: avg=66.51µs min=11.09µs med=38.22µs  max=640.58µs p(90)=127.49µs p(95)=168.42µs
+http_req_tls_handshaking.......: avg=0s      min=0s      med=0s       max=0s       p(90)=0s       p(95)=0s
+http_req_waiting...............: avg=1.69s   min=10.81ms med=514.21ms max=13.56s   p(90)=5.42s    p(95)=12.93s
+http_reqs......................: 360   0.583417/s
+iteration_duration.............: avg=51.42s  min=41.84s  med=50.18s   max=1m10s    p(90)=1m1s     p(95)=1m10s
+iterations.....................: 120   0.194472/s
+vus............................: 10    min=10       max=10
+vus_max........................: 10    min=10       max=10
+
+
+running (10m17.1s), 00/10 VUs, 120 complete and 0 interrupted iterations
+default ✗ [===>----------------------------------] 10 VUs  10m17.1s/10m0s  0120/1000 shared iters

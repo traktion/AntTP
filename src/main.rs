@@ -83,10 +83,11 @@ async fn post_public_archive(
     autonomi_client_data: Data<Client>,
     evm_wallet_data: Data<EvmWallet>,
     conn: ConnectionInfo,
-    app_state: Data<AppState>
+    app_state: Data<AppState>,
+    ant_tp_config: Data<AntTpConfig>,
 )
 -> impl Responder {
-    let archive_service = build_archive_service(autonomi_client_data.get_ref().clone(), conn, app_state);
+    let archive_service = build_archive_service(autonomi_client_data.get_ref().clone(), conn, app_state, ant_tp_config.clone());
     let evm_wallet = evm_wallet_data.get_ref().clone();
 
     info!("Creating new archive from multipart POST");
@@ -97,19 +98,20 @@ async fn get_status_public_archive(
     path: web::Path<String>,
     autonomi_client_data: Data<Client>,
     conn: ConnectionInfo,
-    app_state: Data<AppState>
+    app_state: Data<AppState>,
+    ant_tp_config: Data<AntTpConfig>,
 ) -> impl Responder {
     let id = path.into_inner();
-    let archive_service = build_archive_service(autonomi_client_data.get_ref().clone(), conn, app_state);
+    let archive_service = build_archive_service(autonomi_client_data.get_ref().clone(), conn, app_state, ant_tp_config.clone());
 
     info!("Checking upload status for [{:?}]", id);
     archive_service.get_status(id).await
 }
 
-fn build_archive_service(autonomi_client: Client, conn: ConnectionInfo, app_state: Data<AppState>) -> ArchiveService {
+fn build_archive_service(autonomi_client: Client, conn: ConnectionInfo, app_state: Data<AppState>, ant_tp_config: Data<AntTpConfig>) -> ArchiveService {
     let caching_autonomi_client = CachingClient::new(autonomi_client.clone());
     let xor_helper = XorHelper::new();
-    let file_service = FileService::new(autonomi_client.clone(), xor_helper.clone(), conn);
+    let file_service = FileService::new(autonomi_client.clone(), xor_helper.clone(), conn, ant_tp_config.get_ref().clone());
     ArchiveService::new(autonomi_client, caching_autonomi_client, file_service, xor_helper, app_state)
 }
 
@@ -118,16 +120,18 @@ async fn get_public_data(
     path: web::Path<String>,
     autonomi_client_data: Data<Client>,
     conn: ConnectionInfo,
-    app_state: Data<AppState>
+    app_state: Data<AppState>,
+    ant_tp_config_data: Data<AntTpConfig>,
 ) -> impl Responder {
     let path_parts = get_path_parts(&conn.host(), &path.into_inner());
     let xor_helper = XorHelper::new();
     let (archive_addr, archive_file_name) = xor_helper.assign_path_parts(path_parts.clone());
+    let ant_tp_config = ant_tp_config_data.get_ref().clone();
 
     let autonomi_client = autonomi_client_data.get_ref().clone();
     let caching_autonomi_client = CachingClient::new(autonomi_client.clone());
     let (is_found, archive, is_archive, xor_addr) = xor_helper.resolve_archive_or_file(&caching_autonomi_client, &archive_addr, &archive_file_name).await;
-    let file_service = FileService::new(autonomi_client.clone(), xor_helper.clone(), conn);
+    let file_service = FileService::new(autonomi_client.clone(), xor_helper.clone(), conn, ant_tp_config);
 
     if !is_archive {
         info!("Retrieving file from XOR [{:x}]", xor_addr);

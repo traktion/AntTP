@@ -5,12 +5,13 @@ use actix_http::header;
 use actix_web::{Error, HttpRequest, HttpResponse};
 use actix_web::dev::ConnectionInfo;
 use actix_web::error::{ErrorInternalServerError, ErrorNotFound};
-use actix_web::http::header::{CacheControl, CacheDirective, ContentRange, ContentRangeSpec, ContentType, ETag, EntityTag, Expires};
+use actix_web::http::header::{CacheControl, CacheDirective, ContentLength, ContentRange, ContentRangeSpec, ContentType, ETag, EntityTag, Expires};
 use async_stream::{stream};
 use autonomi::{ChunkAddress, Client};
 use log::{info};
 use tokio::sync::mpsc::channel;
 use xor_name::XorName;
+use crate::anttp_config::AntTpConfig;
 use crate::archive_helper::DataState;
 use crate::chunk_service::ChunkService;
 use crate::xor_helper::XorHelper;
@@ -18,12 +19,13 @@ use crate::xor_helper::XorHelper;
 pub struct FileService {
     autonomi_client: Client,
     xor_helper: XorHelper,
-    conn: ConnectionInfo
+    conn: ConnectionInfo,
+    ant_tp_config: AntTpConfig,
 }
 
 impl FileService {
-    pub fn new(autonomi_client: Client, xor_helper: XorHelper, conn: ConnectionInfo) -> Self {
-        FileService { autonomi_client, xor_helper, conn }
+    pub fn new(autonomi_client: Client, xor_helper: XorHelper, conn: ConnectionInfo, ant_tp_config: AntTpConfig) -> Self {
+        FileService { autonomi_client, xor_helper, conn, ant_tp_config }
     }
 
     pub async fn get_data(&self, path_parts: Vec<String>, request: HttpRequest, xor_name: XorName, is_found: bool) -> Result<HttpResponse, Error> {
@@ -71,30 +73,32 @@ impl FileService {
 
         let chunk_service = ChunkService::new(streaming_client);
         let data_map = chunk_service.get_data_map_from_bytes(&data_map_chunk.value);
-        let stream_chunk_size = chunk_service.get_chunk_size_from_data_map(&data_map);
+        let stream_chunk_size = chunk_service.get_chunk_size_from_data_map(&data_map, 0);
         let total_size = data_map.file_size();
-        //let total_chunks = data_map.infos().len();
-
+        
         let mut next_range_from = range_from;
         let derived_range_to = if range_to == u64::MAX { total_size as u64 - 1 } else { range_to };
         let first_chunk_limit = self.get_first_chunk_limit(stream_chunk_size, next_range_from);
-
+        
+        let chunk_download_threads = self.ant_tp_config.chunk_download_threads.clone();
+        
         let data_stream = stream!{
             info!("sending data stream");
 
+            let (sender, mut receiver) = channel(chunk_download_threads);
+
             let mut chunk_count = 1;
-
-            // todo: tune channel buffer size. Should total be shared between connections, as shared autonomi connection
-            let (sender, mut receiver) = channel(64);
-
             tokio::spawn(async move {
                 while next_range_from < derived_range_to {
-                    info!("Async chunk download from file position [{}] for XOR address [{}]", next_range_from, xor_name);
+                    info!("Async fetch chunk [{}] at file position [{}] for XOR address [{}], channel capacity [{}] of [{}]", chunk_count, next_range_from, xor_name, sender.capacity(), sender.max_capacity());
                     let chunk_service_clone = chunk_service.clone();
                     let data_map_clone = data_map.clone();
-                    let handle = tokio::spawn(async move {chunk_service_clone.fetch_from_data_map_chunk(data_map_clone, next_range_from, range_to, stream_chunk_size).await});
-                    info!("Sender channel capacity [{}] of [{}]", sender.capacity(), sender.max_capacity());
-                    sender.send(handle).await.unwrap(); // todo: add handling
+                    
+                    let join_handle = tokio::spawn(async move {
+                        chunk_service_clone.fetch_from_data_map_chunk(data_map_clone, next_range_from, range_to, stream_chunk_size).await
+                    });
+                    sender.send(join_handle).await.unwrap();
+                    
                     next_range_from += if chunk_count == 1 {
                         first_chunk_limit as u64
                     } else {
@@ -106,7 +110,6 @@ impl FileService {
 
             let mut file_position = 0;
             let mut chunk_index = 1;
-            //while chunk_index <= total_chunks {
             loop {
                 let maybe_join_handle = receiver.recv().await;
                 match maybe_join_handle {
@@ -140,12 +143,11 @@ impl FileService {
             }
             receiver.close();
         };
-
-        let cache_control_header = self.build_cache_control_header(&xor_name, is_resolved_file_name);
-        let expires_header = self.build_expires_header(&xor_name, is_resolved_file_name);
         let etag_header = ETag(EntityTag::new_strong(format!("{:x}", xor_name).to_owned()));
         let cors_allow_all = (header::ACCESS_CONTROL_ALLOW_ORIGIN, "*");
-
+        
+        let cache_control_header = self.build_cache_control_header(&xor_name, is_resolved_file_name);
+        let expires_header = self.build_expires_header(&xor_name, is_resolved_file_name);
         let extension = Path::new(&path_str).extension().unwrap_or_default().to_str().unwrap_or_default();
         if is_range_request {
             info!("return partial content for range {} to {}", range_from, derived_range_to);
@@ -160,6 +162,7 @@ impl FileService {
         } else {
             info!("return full content as stream");
             Ok(HttpResponse::Ok()
+                .insert_header(ContentLength(total_size))
                 .insert_header(cache_control_header)
                 .insert_header(expires_header)
                 .insert_header(etag_header)

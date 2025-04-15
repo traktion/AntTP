@@ -69,9 +69,9 @@ impl ChunkService {
         }
     }
 
-    pub fn get_chunk_size_from_data_map(&self, data_map: &DataMap) -> usize {
+    pub fn get_chunk_size_from_data_map(&self, data_map: &DataMap, count: usize) -> usize {
         if data_map.infos().len() > 0 {
-            match data_map.infos().get(0) {
+            match data_map.infos().get(count) {
                 Some(chunk_info) => {
                     chunk_info.src_size
                 },

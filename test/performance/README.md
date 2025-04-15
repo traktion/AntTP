@@ -4,7 +4,7 @@
 
 K6 is used for performance testing. Usage:
 
-`cat localhost-autonomi-http.js; k6 run -u 10 -i 1000 localhost-autonomi-http.js`
+`cat src/localhost-autonomi-http.js; k6 run -u 10 -i 1000 results/2025-04-15/localhost-autonomi-http.js`
 
 ## Results
 

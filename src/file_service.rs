@@ -4,11 +4,12 @@ use actix_files::file_extension_to_mime;
 use actix_http::header;
 use actix_web::{Error, HttpRequest, HttpResponse};
 use actix_web::dev::ConnectionInfo;
-use actix_web::error::{ErrorGatewayTimeout, ErrorNotFound};
+use actix_web::error::{ErrorInternalServerError, ErrorNotFound};
 use actix_web::http::header::{CacheControl, CacheDirective, ContentRange, ContentRangeSpec, ContentType, ETag, EntityTag, Expires};
 use async_stream::{stream};
 use autonomi::{ChunkAddress, Client};
 use log::{info};
+use tokio::sync::mpsc::channel;
 use xor_name::XorName;
 use crate::archive_helper::DataState;
 use crate::chunk_service::ChunkService;
@@ -72,6 +73,7 @@ impl FileService {
         let data_map = chunk_service.get_data_map_from_bytes(&data_map_chunk.value);
         let stream_chunk_size = chunk_service.get_chunk_size_from_data_map(&data_map);
         let total_size = data_map.file_size();
+        //let total_chunks = data_map.infos().len();
 
         let mut next_range_from = range_from;
         let derived_range_to = if range_to == u64::MAX { total_size as u64 - 1 } else { range_to };
@@ -81,47 +83,62 @@ impl FileService {
             info!("sending data stream");
 
             let mut chunk_count = 1;
-            let mut tasks = Vec::new();
 
-            // todo: limit additions to pool with FIFO queue to cap async tasks
-            while next_range_from < derived_range_to {
-                info!("Async chunk download from file position [{}] for XOR address [{}]", next_range_from, xor_name);
-                let chunk_service_clone = chunk_service.clone();
-                let data_map_clone = data_map.clone();
-                tasks.push(
-                    tokio::spawn(async move {chunk_service_clone.fetch_from_data_map_chunk(data_map_clone, next_range_from, range_to, stream_chunk_size).await})
-                );
-                next_range_from += if chunk_count == 1 {
-                    first_chunk_limit as u64
-                } else {
-                    stream_chunk_size as u64
+            // todo: tune channel buffer size. Should total be shared between connections, as shared autonomi connection
+            let (sender, mut receiver) = channel(64);
+
+            tokio::spawn(async move {
+                while next_range_from < derived_range_to {
+                    info!("Async chunk download from file position [{}] for XOR address [{}]", next_range_from, xor_name);
+                    let chunk_service_clone = chunk_service.clone();
+                    let data_map_clone = data_map.clone();
+                    let handle = tokio::spawn(async move {chunk_service_clone.fetch_from_data_map_chunk(data_map_clone, next_range_from, range_to, stream_chunk_size).await});
+                    info!("Sender channel capacity [{}] of [{}]", sender.capacity(), sender.max_capacity());
+                    sender.send(handle).await.unwrap(); // todo: add handling
+                    next_range_from += if chunk_count == 1 {
+                        first_chunk_limit as u64
+                    } else {
+                        stream_chunk_size as u64
+                    };
+                    chunk_count += 1;
                 };
-                chunk_count += 1;
-            };
-            chunk_count = 1;
-            for task in tasks {
-                match task.await {
-                    Ok(result) => {
-                        match result {
-                            Ok(data) => {
-                                let bytes_read = data.len();
-                                info!("Read [{}] bytes from chunk [{}] at file position [{}] for XOR address [{}]", bytes_read, chunk_count, next_range_from, xor_name);
-                                if bytes_read > 0 {
-                                    yield Ok(data); // Sending data to the client here
+            });
+
+            let mut file_position = 0;
+            let mut chunk_index = 1;
+            //while chunk_index <= total_chunks {
+            loop {
+                let maybe_join_handle = receiver.recv().await;
+                match maybe_join_handle {
+                    Some(join_handle) => {
+                        match join_handle.await {
+                            Ok(result) => {
+                                match result {
+                                    Ok(data) => {
+                                        let bytes_read = data.len();
+                                        info!("Read [{}] bytes from chunk [{}] at file position [{}] for XOR address [{}]", bytes_read, chunk_index, file_position, xor_name);
+                                        if bytes_read > 0 {
+                                            yield Ok(data); // Sending data to the client here
+                                        }
+                                        file_position += stream_chunk_size as u64;
+                                        chunk_index += 1;
+                                    },
+                                    Err(e) => {
+                                        yield Err(ErrorInternalServerError(e));    
+                                    }
                                 }
-                                next_range_from += stream_chunk_size as u64;
-                                chunk_count += 1;
-                            }
+                            },
                             Err(e) => {
-                                yield Err(ErrorGatewayTimeout(e));
+                                yield Err(ErrorInternalServerError(e));
                             }
                         }
-                    },
-                    Err(e) => {
-                        yield Err(ErrorGatewayTimeout(e));
+                    }
+                    None => {
+                        break; // end of stream - break
                     }
                 }
             }
+            receiver.close();
         };
 
         let cache_control_header = self.build_cache_control_header(&xor_name, is_resolved_file_name);

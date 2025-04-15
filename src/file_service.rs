@@ -248,10 +248,8 @@ impl FileService {
         // todo: remove markdown exclusion when IMIM fixed
         if extension != "" && extension != "md" {
             ContentType(file_extension_to_mime(extension))
-        } else if extension == "md" {
-            ContentType(mime::TEXT_HTML)
         } else {
-            ContentType(mime::TEXT_PLAIN) // default to text/html
+            ContentType(mime::TEXT_HTML) // default to text/html
         }
     }
 }

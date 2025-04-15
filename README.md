@@ -175,18 +175,28 @@ Then build release:
 
 ### Run instructions
 
-From source code:
+From source code with defaults:
 
-`cargo run 0.0.0.0:8080 static`
+`cargo run`
 
-From binary:
+From source code with arguments:
+
+`cargo run 0.0.0.0:8080 static secret_key chunk_download_threads`
+
+From binary with defaults
 
 `anttp`
+
+From binary with arguments:
+
+`anttp 0.0.0.0:8080 static secret_key chunk_download_threads`
 
 Where:
 
 - `0.0.0.0:8080` (optional, default = `0.0.0.0:8080`) is the IP address and port to listen on.
 - `static` (optional, default = `static`) is a directory to host local/static files in.
+- `secret_key` (optional, default = ``) is a secret key for a wallet used for uploads.
+- `chunk_download_threads` (optional, default = `32`) is the number of parallel threads used for chunk downloads.
 
 ### Archive Upload
 

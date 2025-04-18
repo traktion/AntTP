@@ -11,15 +11,15 @@ use xor_name::XorName;
 
 pub struct ChunkReceiver {
     receiver: Receiver<JoinHandle<Result<Bytes, Error>>>,
-    stream_chunk_size: u64,
+    stream_chunk_size: usize,
     xor_name: XorName,
-    file_position: u64,
+    file_position: usize,
     chunk_index: i32,
     current_task: Option<JoinHandle<Result<Bytes, Error>>>,
 }
 
 impl ChunkReceiver {
-    pub fn new(receiver: Receiver<JoinHandle<Result<Bytes, Error>>>, stream_chunk_size: u64, xor_name: XorName) -> ChunkReceiver {
+    pub fn new(receiver: Receiver<JoinHandle<Result<Bytes, Error>>>, stream_chunk_size: usize, xor_name: XorName) -> ChunkReceiver {
         ChunkReceiver { receiver, stream_chunk_size, xor_name, file_position: 0, chunk_index: 1, current_task: None }
     }
 

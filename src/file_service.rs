@@ -84,9 +84,9 @@ impl FileService {
         let chunk_download_threads = self.ant_tp_config.chunk_download_threads.clone();
         
         let (sender, receiver) = channel(chunk_download_threads);
-        let chunk_sender = ChunkSender::new(sender, chunk_service, data_map, first_chunk_limit, stream_chunk_size);
-        let chunk_receiver = ChunkReceiver::new(receiver, stream_chunk_size as u64, xor_name);
-        tokio::spawn(async move { chunk_sender.send(next_range_from, derived_range_to, range_to, xor_name).await; });
+        let chunk_sender = ChunkSender::new(sender, chunk_service, data_map, first_chunk_limit, stream_chunk_size, xor_name);
+        let chunk_receiver = ChunkReceiver::new(receiver, stream_chunk_size, xor_name);
+        tokio::spawn(async move { chunk_sender.send(next_range_from, derived_range_to, range_to).await; });
         
         let etag_header = ETag(EntityTag::new_strong(format!("{:x}", xor_name).to_owned()));
         let cors_allow_all = (header::ACCESS_CONTROL_ALLOW_ORIGIN, "*");

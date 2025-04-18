@@ -12,17 +12,18 @@ pub struct ChunkSender {
     data_map: DataMap,
     first_chunk_limit: usize,
     stream_chunk_size: usize,
+    xor_name: XorName,
 }
 
 impl ChunkSender {
-    pub fn new(sender: Sender<JoinHandle<Result<Bytes, Error>>>, chunk_service: ChunkService, data_map: DataMap, first_chunk_limit: usize, stream_chunk_size: usize) -> ChunkSender {
-        ChunkSender { sender, chunk_service, data_map, first_chunk_limit, stream_chunk_size }
+    pub fn new(sender: Sender<JoinHandle<Result<Bytes, Error>>>, chunk_service: ChunkService, data_map: DataMap, first_chunk_limit: usize, stream_chunk_size: usize, xor_name: XorName) -> ChunkSender {
+        ChunkSender { sender, chunk_service, data_map, first_chunk_limit, stream_chunk_size, xor_name }
     }
     
-    pub async fn send(&self, mut next_range_from: u64, derived_range_to: u64, range_to: u64, xor_name: XorName) {
+    pub async fn send(&self, mut next_range_from: u64, derived_range_to: u64, range_to: u64) {
         let mut chunk_count = 1;
         while next_range_from < derived_range_to {
-            info!("Async fetch chunk [{}] at file position [{}] for XOR address [{}], channel capacity [{}] of [{}]", chunk_count, next_range_from, xor_name, self.sender.capacity(), self.sender.max_capacity());
+            info!("Async fetch chunk [{}] at file position [{}] for XOR address [{}], channel capacity [{}] of [{}]", chunk_count, next_range_from, self.xor_name, self.sender.capacity(), self.sender.max_capacity());
             let chunk_service_clone = self.chunk_service.clone();
             let data_map_clone = self.data_map.clone();
             let stream_chunk_size_clone = self.stream_chunk_size.clone();

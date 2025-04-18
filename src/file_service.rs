@@ -4,16 +4,17 @@ use actix_files::file_extension_to_mime;
 use actix_http::header;
 use actix_web::{Error, HttpRequest, HttpResponse};
 use actix_web::dev::ConnectionInfo;
-use actix_web::error::{ErrorInternalServerError, ErrorNotFound};
+use actix_web::error::{ErrorNotFound};
 use actix_web::http::header::{CacheControl, CacheDirective, ContentLength, ContentRange, ContentRangeSpec, ContentType, ETag, EntityTag, Expires};
-use async_stream::{stream};
 use autonomi::{ChunkAddress, Client};
 use log::{info};
-use tokio::sync::mpsc::channel;
+use tokio::sync::mpsc::{channel};
 use xor_name::XorName;
 use crate::anttp_config::AntTpConfig;
 use crate::archive_helper::DataState;
 use crate::chunk_service::ChunkService;
+use crate::chunk_receiver::ChunkReceiver;
+use crate::chunk_sender::ChunkSender;
 use crate::xor_helper::XorHelper;
 
 pub struct FileService {
@@ -76,73 +77,17 @@ impl FileService {
         let stream_chunk_size = chunk_service.get_chunk_size_from_data_map(&data_map, 0);
         let total_size = data_map.file_size();
         
-        let mut next_range_from = range_from;
+        let next_range_from = range_from;
         let derived_range_to = if range_to == u64::MAX { total_size as u64 - 1 } else { range_to };
         let first_chunk_limit = self.get_first_chunk_limit(stream_chunk_size, next_range_from);
         
         let chunk_download_threads = self.ant_tp_config.chunk_download_threads.clone();
         
-        let data_stream = stream!{
-            info!("sending data stream");
-
-            let (sender, mut receiver) = channel(chunk_download_threads);
-
-            let mut chunk_count = 1;
-            tokio::spawn(async move {
-                while next_range_from < derived_range_to {
-                    info!("Async fetch chunk [{}] at file position [{}] for XOR address [{}], channel capacity [{}] of [{}]", chunk_count, next_range_from, xor_name, sender.capacity(), sender.max_capacity());
-                    let chunk_service_clone = chunk_service.clone();
-                    let data_map_clone = data_map.clone();
-                    
-                    let join_handle = tokio::spawn(async move {
-                        chunk_service_clone.fetch_from_data_map_chunk(data_map_clone, next_range_from, range_to, stream_chunk_size).await
-                    });
-                    sender.send(join_handle).await.unwrap();
-                    
-                    next_range_from += if chunk_count == 1 {
-                        first_chunk_limit as u64
-                    } else {
-                        stream_chunk_size as u64
-                    };
-                    chunk_count += 1;
-                };
-            });
-
-            let mut file_position = 0;
-            let mut chunk_index = 1;
-            loop {
-                let maybe_join_handle = receiver.recv().await;
-                match maybe_join_handle {
-                    Some(join_handle) => {
-                        match join_handle.await {
-                            Ok(result) => {
-                                match result {
-                                    Ok(data) => {
-                                        let bytes_read = data.len();
-                                        info!("Read [{}] bytes from chunk [{}] at file position [{}] for XOR address [{}]", bytes_read, chunk_index, file_position, xor_name);
-                                        if bytes_read > 0 {
-                                            yield Ok(data); // Sending data to the client here
-                                        }
-                                        file_position += stream_chunk_size as u64;
-                                        chunk_index += 1;
-                                    },
-                                    Err(e) => {
-                                        yield Err(ErrorInternalServerError(e));    
-                                    }
-                                }
-                            },
-                            Err(e) => {
-                                yield Err(ErrorInternalServerError(e));
-                            }
-                        }
-                    }
-                    None => {
-                        break; // end of stream - break
-                    }
-                }
-            }
-            receiver.close();
-        };
+        let (sender, receiver) = channel(chunk_download_threads);
+        let chunk_sender = ChunkSender::new(sender, chunk_service, data_map, first_chunk_limit, stream_chunk_size);
+        let chunk_receiver = ChunkReceiver::new(receiver, stream_chunk_size as u64, xor_name);
+        tokio::spawn(async move { chunk_sender.send(next_range_from, derived_range_to, range_to, xor_name).await; });
+        
         let etag_header = ETag(EntityTag::new_strong(format!("{:x}", xor_name).to_owned()));
         let cors_allow_all = (header::ACCESS_CONTROL_ALLOW_ORIGIN, "*");
         
@@ -158,7 +103,7 @@ impl FileService {
                 .insert_header(etag_header)
                 .insert_header(cors_allow_all)
                 .insert_header(self.get_content_type_from_filename(extension))
-                .streaming(data_stream))
+                .streaming(chunk_receiver))
         } else {
             info!("return full content as stream");
             Ok(HttpResponse::Ok()
@@ -168,7 +113,7 @@ impl FileService {
                 .insert_header(etag_header)
                 .insert_header(cors_allow_all)
                 .insert_header(self.get_content_type_from_filename(extension))
-                .streaming(data_stream))
+                .streaming(chunk_receiver))
         }
     }
 

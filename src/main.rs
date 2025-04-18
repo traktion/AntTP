@@ -6,6 +6,8 @@ mod xor_helper;
 mod archive_service;
 mod file_service;
 mod chunk_service;
+mod chunk_receiver;
+mod chunk_sender;
 
 use std::collections::HashMap;
 use std::sync::{Mutex};

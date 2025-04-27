@@ -9,7 +9,7 @@ repository = "https://github.com/traktion/AntTP"
 license = "Apache-2.0"
 keywords = ["autonomi", "http", "proxy", "gateway"]
 categories = ["web-programming", "web-programming::http-server", "network-programming"]
-exclude = [".github", "cache/", "target/", "test/"]
+exclude = [".github", ".gitignore", "cache/", "target/", "test/"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 

@@ -7,20 +7,18 @@ use log::{debug, info};
 use self_encryption::Error;
 use tokio::sync::mpsc::{Receiver};
 use tokio::task::{JoinHandle};
-use xor_name::XorName;
 
 pub struct ChunkReceiver {
     receiver: Receiver<JoinHandle<Result<Bytes, Error>>>,
-    stream_chunk_size: usize,
-    xor_name: XorName,
+    id: String,
     file_position: usize,
     chunk_index: i32,
     current_task: Option<JoinHandle<Result<Bytes, Error>>>,
 }
 
 impl ChunkReceiver {
-    pub fn new(receiver: Receiver<JoinHandle<Result<Bytes, Error>>>, stream_chunk_size: usize, xor_name: XorName) -> ChunkReceiver {
-        ChunkReceiver { receiver, stream_chunk_size, xor_name, file_position: 0, chunk_index: 1, current_task: None }
+    pub fn new(receiver: Receiver<JoinHandle<Result<Bytes, Error>>>, id: String) -> ChunkReceiver {
+        ChunkReceiver { receiver, id, file_position: 0, chunk_index: 1, current_task: None }
     }
 
     fn poll_current_task(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Option<Result<Bytes, Error>>> {
@@ -34,13 +32,14 @@ impl ChunkReceiver {
                     Poll::Ready(result) => {
                         let data = result.unwrap().unwrap();
                         let bytes_read = data.len();
-                        info!("Read [{}] bytes from chunk [{}] at file position [{}] for XOR address [{}]", bytes_read, self.chunk_index, self.file_position, self.xor_name);
                         if bytes_read > 0 {
-                            self.file_position += self.stream_chunk_size;
+                            info!("Read [{}] bytes from chunk [{}] at file position [{}] for ID [{}]", bytes_read, self.chunk_index, self.file_position, self.id);
+                            self.file_position += bytes_read;
                             self.chunk_index += 1;
                             self.current_task = None;
                             Poll::Ready(Some(Ok(data))) // Sending data to the client here
                         } else {
+                            info!("No more data at file position [{}] for ID [{}]", self.file_position, self.id);
                             debug!("End of stream A - closing channel");
                             self.receiver.close();
                             Poll::Ready(None) // end of stream - break

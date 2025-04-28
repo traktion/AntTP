@@ -7,15 +7,26 @@ use actix_web::dev::ConnectionInfo;
 use actix_web::error::{ErrorNotFound};
 use actix_web::http::header::{CacheControl, CacheDirective, ContentLength, ContentRange, ContentRangeSpec, ContentType, ETag, EntityTag, Expires};
 use autonomi::{ChunkAddress, Client};
-use log::{info};
-use tokio::sync::mpsc::{channel};
+use autonomi::client::GetError;
+use bytes::Bytes;
+use log::{error, info};
+use self_encryption::DataMap;
+use serde::{Deserialize, Serialize};
 use xor_name::XorName;
 use crate::anttp_config::AntTpConfig;
 use crate::archive_helper::DataState;
-use crate::chunk_service::ChunkService;
-use crate::chunk_receiver::ChunkReceiver;
-use crate::chunk_sender::ChunkSender;
+use crate::chunk::ChunkChannel;
 use crate::xor_helper::XorHelper;
+
+#[derive(Serialize, Deserialize)]
+enum DataMapLevel {
+    // Holds the data map to the source data.
+    First(DataMap),
+    // Holds the data map of an _additional_ level of chunks
+    // resulting from chunking up a previous level data map.
+    // This happens when that previous level data map was too big to fit in a chunk itself.
+    Additional(DataMap),
+}
 
 pub struct FileService {
     autonomi_client: Client,
@@ -61,7 +72,7 @@ impl FileService {
     ) -> Result<HttpResponse, Error> {
         let (range_from, range_to, is_range_request) = self.get_range(&request);
 
-        info!("Streaming item [{}] at addr [{}], range_from [{}], range_to [{}]", path_str, format!("{:x}", xor_name), range_from, range_to);
+        info!("streaming item [{}] at addr [{}], range_from [{}], range_to [{}]", path_str, format!("{:x}", xor_name), range_from, range_to);
 
         info!("getting data map from chunk [{:x}]", xor_name);
         let data_map_chunk = self.autonomi_client
@@ -69,24 +80,16 @@ impl FileService {
             .await
             .expect("chunk_get failed")
             .clone();
-
-        let streaming_client = self.autonomi_client.clone();
-
-        let chunk_service = ChunkService::new(streaming_client);
-        let data_map = chunk_service.get_data_map_from_bytes(&data_map_chunk.value);
-        let stream_chunk_size = chunk_service.get_chunk_size_from_data_map(&data_map, 0);
+        
+        let data_map = self.get_data_map_from_bytes(&data_map_chunk.value);
         let total_size = data_map.file_size();
         
-        let next_range_from = range_from;
         let derived_range_to = if range_to == u64::MAX { total_size as u64 - 1 } else { range_to };
-        let first_chunk_limit = self.get_first_chunk_limit(stream_chunk_size, next_range_from);
         
         let chunk_download_threads = self.ant_tp_config.chunk_download_threads.clone();
-        
-        let (sender, receiver) = channel(chunk_download_threads);
-        let chunk_sender = ChunkSender::new(sender, chunk_service, data_map, first_chunk_limit, stream_chunk_size, xor_name);
-        let chunk_receiver = ChunkReceiver::new(receiver, stream_chunk_size, xor_name);
-        tokio::spawn(async move { chunk_sender.send(next_range_from, derived_range_to, range_to).await; });
+
+        let chunk_channel = ChunkChannel::new(xor_name.to_string(), data_map, self.autonomi_client.clone(), chunk_download_threads);
+        let chunk_receiver = chunk_channel.open(range_from, derived_range_to);
         
         let etag_header = ETag(EntityTag::new_strong(format!("{:x}", xor_name).to_owned()));
         let cors_allow_all = (header::ACCESS_CONTROL_ALLOW_ORIGIN, "*");
@@ -146,15 +149,6 @@ impl FileService {
         }
     }*/
 
-    fn get_first_chunk_limit(&self, stream_chunk_size: usize, next_range_from: u64) -> usize {
-        let first_chunk_remainder = next_range_from % stream_chunk_size as u64;
-        if first_chunk_remainder > 0 {
-            (stream_chunk_size as u64 - first_chunk_remainder) as usize
-        } else {
-            stream_chunk_size
-        }
-    }
-
     pub fn get_range(&self, request: &HttpRequest) -> (u64, u64, bool) {
         if let Some(range) = request.headers().get(header::RANGE) {
             let range_str = range.to_str().unwrap();
@@ -195,6 +189,18 @@ impl FileService {
             ContentType(file_extension_to_mime(extension))
         } else {
             ContentType(mime::TEXT_HTML) // default to text/html
+        }
+    }
+
+    pub fn get_data_map_from_bytes(&self, data_map_bytes: &Bytes) -> DataMap {
+        let data_map_level: DataMapLevel = rmp_serde::from_slice(data_map_bytes)
+            .map_err(GetError::InvalidDataMap)
+            .inspect_err(|err| error!("Error deserializing data map: {err:?}"))
+            .expect("failed to parse data map level");
+
+        match data_map_level {
+            DataMapLevel::First(map) => map,
+            DataMapLevel::Additional(map) => map,
         }
     }
 }

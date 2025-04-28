@@ -1,12 +1,12 @@
 [package]
 name = "anttp"
-version = "0.4.5"
+version = "0.4.6"
 edition = "2024"
 authors = ["Paul Green"]
 description = "AntTP is a HTTP service which serves data from Autonomi over conventional HTTP connections"
 readme = "README.md"
 repository = "https://github.com/traktion/AntTP"
-license = "Apache-2.0"
+license = "GPL-3.0"
 keywords = ["autonomi", "http", "proxy", "gateway"]
 categories = ["web-programming", "web-programming::http-server", "network-programming"]
 exclude = [".github", ".gitignore", "cache/", "target/", "test/"]

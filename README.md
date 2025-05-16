@@ -24,91 +24,88 @@ AntTP was formally known as sn_httpd.
   sites to pivot from a 'root' directory and a smoother user experience. E.g.
 - - http://91d16e58e9164bccd29a8fd8d25218a61d8253b51c26119791b2633ff4f6b309/autonomi/david-irvine-autonomi-founder.jpg
 - Routing from URLs to specific `[XOR_ADDRESS]` or `[FILE_NAME]`. Enables SPA (single page apps) such as Angular or
-  React to be hosted (once a routeMap is provided - see [example-config](app-conf.json)
+  React to be hosted (once a routeMap is provided - see [example-config](resources/app-conf.json)
 - Native integration of the `autonomi` libraries into Actix web framework. These are both written in Rust to provide
-  smooth integration. As Actix is core to `AntTP`, it can be extended for specific use cases easily. 
-  
-## Roadmap
+  smooth integration. As Actix is core to `AntTP`, it can be extended for specific use cases easily.
 
-- [ ] Documentation
-  - [x] Basic README
-  - [ ] Improved README
-  - [ ] Add tutorials / API details
-  - [ ] Link with IMIM as sample project
-- [x] Files
-  - [x] Enable file downloads from XOR addresses
-  - [x] Enable file downloads from archives with friendly names
-- [x] Directories (archives)
-  - [x] Enable directory listing in HTML (default)
-  - [x] Enable directory listing with JSON (using `accept` header)
-  - [x] Enable multiple file uploads as multipart form data
-    - Creates an archive, adds the files, then uploads to Autonomi
-    - Async operation, with POST for data and GET for status checks
-- [x] Caching
-  - [x] Cache immutable archive indexes to disk to reduce lookups to Autonomi
-  - [x] Set response headers to encourage long term caching of XOR data
-  - [x] Add eTag header support to encourage long term caching of all immutable data (with/without XOR)
-- [x] Proxy server
-  - [x] Resolve hostnames to XOR addresses for files
-  - [x] Resolve hostnames to XOR addresses for archives
-- [x] Streaming downloads
-  - [x] Add streaming support for data requested with RANGE headers
-  - [x] Add streaming support for all other data requested
-- [ ] Advanced Autonomi API integration
-  - [ ] REST API
-    - [ ] Pointer
-    - [ ] Scratchpad
-    - [ ] Graph
-    - [ ] Register
-    - [ ] Chunk
-        - This is in addition to file support, which is already implemented
-    - [ ] BLS support
-      - [ ] Create, sign, verify
-      - [ ] Derived keys
-    - [ ] Analyze address support
-    - [ ] Vault support (CRUD, cost)
-    - [ ] Data upload cost
-    - [ ] Wallet support
-      - [ ] get balance
-      - [ ] send tokens
-      - [ ] get transaction history
-  - [ ] gRPC API
-    - [ ] Pointer
-    - [ ] Scratchpad
-    - [ ] Graph
-    - [ ] Register
-    - [ ] Chunk
-      - This is in addition to file support, which is already implemented
-    - [ ] BLS support
-      - [ ] Create, sign, verify
-      - [ ] Derived keys
-    - [ ] Analyze address support
-    - [ ] Vault support (CRUD, cost)
-    - [ ] Data upload cost
-    - [ ] Wallet support
-      - [ ] get balance
-      - [ ] send tokens
-      - [ ] get transaction history
-  - [ ] Websockets
-    - [ ] Stream immutable data types
-    - [ ] Stream changes to mutable data types
-- [ ] Testing
-  - [ ] Core unit test coverage
-  - [ ] Full unit test coverage
-  - [ ] Performance testing
-- [ ] CLI and add config files
-- [ ] Offline mode
-  - Requests without connected client library dependency
-- [ ] Accounting features
-  - [ ] Bandwidth usage/tracking
-  - [ ] Payments for data uploads (i.e. for public proxies)
+## Run instructions
 
-- Built-in accounting features to allow hosts fund bandwidth usage via Autonomi Network Tokens. While Autonomi doesn't
-  have any bandwidth usage fees, traffic too/from `AntTP` may be subject to charges by your hosting company. This
-  will allow self-service for site authors to publish their site on your `AntTP` instance - the backend data is
-  always on Autonomi, irrespective of where `AntTP` is hosted!
-- Refactoring, performance, stability - `AntTP` is highly experimental and should only be used by the adventurous!
-- Unit testing
+List help from binary:
+
+`anttp --help`
+
+```
+AntTP is a HTTP proxy which serves data from Autonomi over conventional HTTP connections
+
+Usage: anttp [OPTIONS]
+
+Options:
+  -l, --listen-address <LISTEN_ADDRESS>                [default: 0.0.0.0:8080]
+  -s, --static-file-directory <STATIC_FILE_DIRECTORY>  [default: ]
+  -w, --wallet-private-key <WALLET_PRIVATE_KEY>        [default: ]
+  -d, --download-threads <DOWNLOAD_THREADS>            [default: 8]
+  -h, --help                                           Print help
+  -V, --version                                        Print version
+```
+
+Run binary with defaults
+
+`anttp`
+
+Build and run from source code:
+
+`cargo run` OR `cargo run -- <args>`
+
+Where arguments are:
+
+- `-l, --listen-address` is the IP address and port to listen on.
+- `-s, --static-file-directory` is a directory to host local/static files in.
+- `-w, --wallet-private-key` is a secret key for a wallet used for uploads.
+- `-d, --download-threads` is the number of parallel threads used for chunk downloads.
+
+## Proxy Configuration
+
+Using AntTP as a proxy is optional, but it improves the user experience.
+
+Configuring AntTP as a proxy is more secure, as it blocks calls out to clear net sites. All traffic is directed to
+Autonomi, ensuring no data is leaked beyond AntTP and Autonomi.
+
+Using a proxy also enables shorter URLs, where the target web application XOR is considered the 'host' in a traditional
+web sense. For some web applications, this may be a requirement, due to how they route their links.
+
+Configuring a browser to use AntTP as a proxy is easy. Any regular web browser that has proxy settings can be used
+(e.g. Firefox) or allows CLI arguments to enable them (e.g. Brave).
+
+### Firefox Configuration
+
+- Go to `Settings` from the burger drop down
+- Type 'proxy' in the `Find in Settings` input box
+- Click `Settings...` button
+- Click `Manual proxy configuration`
+- Enter `127.0.0.1` in the `HTTP Proxy` input box and `8080` in the `Port` input box (or whichever non-default IP/port you are using)
+- Check the `Also use this proxy for HTTPS` check box
+- Check the `SOCKS v5` check box
+- Check the `Proxy DNS when using SOCKS v5` check box
+- Then click `OK` and start browsing Autonomi over AntTP!
+
+See the example screenshot below:
+
+![firefox_proxy_configuration.png](resources/firefox_proxy_configuration.png)
+
+### Brave Configuration
+
+Brave browser only uses system wide proxy settings, unless it is launched with proxy arguments:
+
+`brave --proxy-server="127.0.0.1:8080" http://a0f6fa2b08e868060fe6e57018e3f73294821feaf3fdcf9cd636ac3d11e7e2ac/BegBlag.mp3`
+
+(or whichever non-default IP/port you are using)
+
+### Security
+
+If you're running AntTP on your own, personal, machine, you can ignore the security warnings for using HTTP. All data
+transmitted between your browser and AntTP will remain on your machine only.
+
+If you use a remote AntTP, ensure you use HTTPS, as your data will be transmitted to/from that remote proxy.
 
 ## Build Instructions
 
@@ -173,44 +170,19 @@ Then build release:
 
 `cargo build --release --target aarch64-unknown-linux-musl`
 
-### Run instructions
-
-From source code with defaults:
-
-`cargo run`
-
-From source code with arguments:
-
-`cargo run 0.0.0.0:8080 static secret_key chunk_download_threads`
-
-From binary with defaults
-
-`anttp`
-
-From binary with arguments:
-
-`anttp 0.0.0.0:8080 static secret_key chunk_download_threads`
-
-Where:
-
-- `0.0.0.0:8080` (optional, default = `0.0.0.0:8080`) is the IP address and port to listen on.
-- `static` (optional, default = `static`) is a directory to host local/static files in.
-- `secret_key` (optional, default = ``) is a secret key for a wallet used for uploads.
-- `chunk_download_threads` (optional, default = `32`) is the number of parallel threads used for chunk downloads.
-
-### Archive Upload
+## Archive Upload
 
 To upload a directory to Autonomi as an archive, do the following:
 
 - `cd your/directory`
-- `ant file upload -p -x <directory>`
+- `ant file upload -p <directory>`
 
 This command will return information about the uploads and summarise with something like:
 
 `Uploading file: "./1_bYTCL7G4KbcR_Y4rd78OhA.png"
 Upload completed in 5.57326318s
 Successfully uploaded: ./
-At address: 387f61da64d2a4c5d2e02ca34660fa2ac4fa6b3604ed8b67a58a3cba6e8ae787`
+At address: 600d4bbc3d7f316c2fe014ca6986c6ea62200be316e34bd307ae3aa68f8e3cfc`
 
 The 'At address' is the archive address, which you can now reference the uploaded files like:
 
@@ -220,9 +192,9 @@ Via a proxy (to localhost:8080):
 Or via direct request:
 `http://localhost:8080/a0f6fa2b08e868060fe6e57018e3f73294821feaf3fdcf9cd636ac3d11e7e2ac/BegBlag.mp3`
 
-### App Configuration
+## Web Application Customisation
 
-See [example-config](app-conf.json) for customising how your website/app behaves on `AntTP`:
+See [example-config](resources/app-conf.json) for customising how your website/app behaves on `AntTP`:
 
 ```
 {
@@ -242,7 +214,7 @@ See [example-config](app-conf.json) for customising how your website/app behaves
   - Use "/blog/*/article/*" as a key to serve the target file for any URL with a blog and article specified
   - The blog/article above are not keywords. Any names can be used to suit the routing approach needed
 - Upload the directory as an archive to Autonomi (see above for more details)
-  - `ant file upload -p -x <directory>`
+  - `ant file upload -p <directory>`
 - Browse to the archive XOR address with your browser and confirm the routing is correct
 - Why add routes?
   - Many modern frameworks expect all requests to be routed through a single HTML file, which then pull in Javascript
@@ -250,7 +222,13 @@ See [example-config](app-conf.json) for customising how your website/app behaves
   - If you just want an index instead of a file listing being rendered, providing a `routeMap` will also enable this. 
     This is handy when you want a default page/app/script to load for a URL, without needing to specify the filename too.
 
-### Example site - IMIM!
+## PubAnt.com - Publish your Website
+
+For more information on how to publish a website on Autonomi Network, [PubAnt.com](https://pubant.com/) is an excellent resource.
+
+Once your site has been published, it can be accessed through a regular browser, through AntTP.
+
+## Example site - IMIM!
 
 A sister application for AntTP is the IMIM blog. The source code is located at [IMIM](https://github.com/traktion/i-am-immutable-client), and enabled authors 
 to write Markup text files and publish them on Autonomi. Using `AntTP`, these blogs can be viewed anywhere that an
@@ -260,4 +238,80 @@ IMIM includes examples of route maps and how Angular apps can be integrated with
 of performance and how immutable file caching can effectively reduce latency to near zero in most cases. IMIM is also
 a great place to create a blog.
 
+If your browser is configured as an AntTP proxy, take a look here at an example blog all about Autonomi:
+
+http://62003e683b5a792f425a75c5d7d99d06e80f7047be8de8176b7d295e510b3b4c/blog/705a5fa9b2b2ee9d1ec88f7f6cae45a9e40d4cf8ea202252c9d7e68eb6e17c8b#home
+
 Why not take a look and start your own immutable blog today?
+
+## Roadmap
+
+- [ ] Documentation
+  - [x] Basic README
+  - [x] Improved README
+  - [ ] Add tutorials / API details
+  - [ ] Link with IMIM as sample project
+- [x] Files
+  - [x] Enable file downloads from XOR addresses
+  - [x] Enable file downloads from archives with friendly names
+- [x] Directories (archives)
+  - [x] Enable directory listing in HTML (default)
+  - [x] Enable directory listing with JSON (using `accept` header)
+  - [x] Enable multiple file uploads as multipart form data
+    - Creates an archive, adds the files, then uploads to Autonomi
+    - Async operation, with POST for data and GET for status checks
+- [x] Caching
+  - [x] Cache immutable archive indexes to disk to reduce lookups to Autonomi
+  - [x] Set response headers to encourage long term caching of XOR data
+  - [x] Add eTag header support to encourage long term caching of all immutable data (with/without XOR)
+- [x] Proxy server
+  - [x] Resolve hostnames to XOR addresses for files
+  - [x] Resolve hostnames to XOR addresses for archives
+- [x] Streaming downloads
+  - [x] Add streaming support for data requested with RANGE headers
+  - [x] Add streaming support for all other data requested
+- [ ] Advanced Autonomi API integration
+  - [ ] REST API
+    - [ ] Pointer
+    - [ ] Scratchpad
+    - [ ] Graph
+    - [ ] Register
+    - [ ] Chunk (in addition to file support, which is already implemented)
+    - [ ] BLS support
+      - [ ] Create, sign, verify
+      - [ ] Derived keys
+    - [ ] Analyze address support
+    - [ ] Vault support (CRUD, cost)
+    - [ ] Data upload cost
+    - [ ] Wallet support
+      - [ ] get balance
+      - [ ] send tokens
+      - [ ] get transaction history
+  - [ ] gRPC API
+    - [ ] Pointer
+    - [ ] Scratchpad
+    - [ ] Graph
+    - [ ] Register
+    - [ ] Chunk (in addition to file support, which is already implemented)
+    - [ ] BLS support
+      - [ ] Create, sign, verify
+      - [ ] Derived keys
+    - [ ] Analyze address support
+    - [ ] Vault support (CRUD, cost)
+    - [ ] Data upload cost
+    - [ ] Wallet support
+      - [ ] get balance
+      - [ ] send tokens
+      - [ ] get transaction history
+  - [ ] Websockets
+    - [ ] Stream immutable data types
+    - [ ] Stream changes to mutable data types
+- [ ] Testing
+  - [ ] Core unit test coverage
+  - [ ] Full unit test coverage
+  - [ ] Performance testing
+- [x] Improve CLI arguments
+- [ ] Offline mode (requests without connected client library dependency)
+- [ ] Accounting features
+  - [ ] Bandwidth usage/tracking
+  - [ ] Payments for data uploads (i.e. for public proxies)

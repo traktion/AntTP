@@ -41,7 +41,7 @@ async fn main() -> std::io::Result<()> {
         .init();
 
     let app_config = AntTpConfig::read_args();
-    let bind_socket_addr = app_config.bind_socket_addr;
+    let listen_address = app_config.listen_address;
     let wallet_private_key = app_config.wallet_private_key.clone();
 
     // initialise safe network connection and files api
@@ -61,9 +61,8 @@ async fn main() -> std::io::Result<()> {
     HttpServer::new(move || {
         let logger = Logger::default();
 
-        App::new()
+        let app = App::new()
             .wrap(logger)
-            .service(Files::new("/static", app_config.static_dir.clone()))
             .route("/api/v1/archive", web::post().to(post_public_archive))
             .route("/api/v1/archive/status/{id}", web::get().to(get_status_public_archive))
             .route("/{path:.*}", web::get().to(get_public_data))
@@ -71,9 +70,14 @@ async fn main() -> std::io::Result<()> {
             .app_data(Data::new(autonomi_client.clone()))
             .app_data(Data::new(AwcClient::default()))
             .app_data(Data::new(evm_wallet.clone()))
-            .app_data(upload_map.clone())
+            .app_data(upload_map.clone());
+        if app_config.static_file_directory != "" {
+            app.service(Files::new("/static", app_config.static_file_directory.clone()))
+        } else {
+            app
+        }
     })
-        .bind(bind_socket_addr)?
+        .bind(listen_address)?
         .run()
         .await
 }

@@ -75,20 +75,19 @@ impl FileService {
         info!("streaming item [{}] at addr [{}], range_from [{}], range_to [{}]", path_str, format!("{:x}", xor_name), range_from, range_to);
 
         info!("getting data map from chunk [{:x}]", xor_name);
-        let data_map_chunk = self.autonomi_client
-            .chunk_get(&ChunkAddress::new(xor_name))
-            .await
-            .expect("chunk_get failed")
-            .clone();
+        let data_map_chunk = match self.autonomi_client.chunk_get(&ChunkAddress::new(xor_name)).await {
+            Ok(chunk) => chunk,
+            Err(e) => return Err(ErrorNotFound(format!("{}", e)))
+        };
         
         let data_map = self.get_data_map_from_bytes(&data_map_chunk.value);
         let total_size = data_map.file_size();
         
         let derived_range_to = if range_to == u64::MAX { total_size as u64 - 1 } else { range_to };
         
-        let chunk_download_threads = self.ant_tp_config.chunk_download_threads.clone();
+        let download_threads = self.ant_tp_config.download_threads.clone();
 
-        let chunk_channel = ChunkChannel::new(xor_name.to_string(), data_map, self.autonomi_client.clone(), chunk_download_threads);
+        let chunk_channel = ChunkChannel::new(xor_name.to_string(), data_map, self.autonomi_client.clone(), download_threads);
         let chunk_receiver = chunk_channel.open(range_from, derived_range_to);
         
         let etag_header = ETag(EntityTag::new_strong(format!("{:x}", xor_name).to_owned()));
@@ -119,35 +118,6 @@ impl FileService {
                 .streaming(chunk_receiver))
         }
     }
-
-    /*pub async fn download_data_body(
-        &self,
-        path_str: String,
-        xor_name: XorName,
-        is_resolved_file_name: bool
-    ) -> Result<HttpResponse, Error> {
-        info!("Downloading item [{}] at addr [{}] ", path_str, format!("{:x}", xor_name));
-        let data_address =  DataAddress::new(xor_name);
-        match self.autonomi_client.data_get_public(&data_address).await {
-            Ok(data) => {
-                info!("Read [{}] bytes of item [{}] at addr [{}]", data.len(), path_str, format!("{:x}", xor_name));
-                let cache_control_header = self.build_cache_control_header(&xor_name, is_resolved_file_name);
-                let etag_header = ETag(EntityTag::new_strong(format!("{:x}", xor_name).to_owned()));
-                let cors_allow_all = (header::ACCESS_CONTROL_ALLOW_ORIGIN, "*");
-
-                let extension = Path::new(&path_str).extension().unwrap_or_default().to_str().unwrap_or_default();
-                Ok(HttpResponse::Ok()
-                    .insert_header(cache_control_header)
-                    .insert_header(etag_header)
-                    .insert_header(cors_allow_all)
-                    .insert_header(self.get_content_type_from_filename(extension))
-                    .body(data))
-            }
-            Err(e) => {
-                Err(ErrorInternalServerError(format!("Failed to download [{:?}]", e)))
-            }
-        }
-    }*/
 
     pub fn get_range(&self, request: &HttpRequest) -> (u64, u64, bool) {
         if let Some(range) = request.headers().get(header::RANGE) {

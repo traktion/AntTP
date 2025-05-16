@@ -29,7 +29,11 @@ impl ChunkSender {
             let join_handle = tokio::spawn(async move {
                 chunk_service_clone.fetch_from_data_map_chunk(data_map_clone, range_from, range_to).await
             });
-            self.sender.send(join_handle).await.unwrap();
+            let result = self.sender.send(join_handle).await;
+            if result.is_err() {
+                info!("Send aborted: {}", result.unwrap_err().to_string());
+                break;
+            };
 
             range_from += if chunk_count == 1 {
                 self.get_first_chunk_limit(range_from) as u64

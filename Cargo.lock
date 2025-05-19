@@ -1178,10 +1178,10 @@ dependencies = [
  "awc",
  "bytes",
  "chrono",
+ "chunk-streamer",
  "clap",
  "color-eyre",
  "env_logger",
- "futures",
  "futures-util",
  "globset",
  "hex",
@@ -1985,6 +1985,21 @@ dependencies = [
  "serde",
  "wasm-bindgen",
  "windows-link",
+]
+
+[[package]]
+name = "chunk-streamer"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "889e5b4c54ea40641d2e8fb9e1735f72afc05a0c66381452dd1f1a8c896fa6cd"
+dependencies = [
+ "autonomi",
+ "bytes",
+ "futures",
+ "futures-util",
+ "log",
+ "self_encryption",
+ "tokio",
 ]
 
 [[package]]

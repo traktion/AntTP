@@ -9,13 +9,13 @@ use actix_web::http::header::{CacheControl, CacheDirective, ContentLength, Conte
 use autonomi::{ChunkAddress, Client};
 use autonomi::client::GetError;
 use bytes::Bytes;
+use chunk_streamer::chunk_streamer::ChunkStreamer;
 use log::{error, info};
 use self_encryption::DataMap;
 use serde::{Deserialize, Serialize};
 use xor_name::XorName;
 use crate::anttp_config::AntTpConfig;
 use crate::archive_helper::DataState;
-use crate::chunk::ChunkChannel;
 use crate::xor_helper::XorHelper;
 
 #[derive(Serialize, Deserialize)]
@@ -85,7 +85,7 @@ impl FileService {
         
         let derived_range_to = if range_to == u64::MAX { total_size as u64 - 1 } else { range_to };
 
-        let chunk_channel = ChunkChannel::new(xor_name.to_string(), data_map, self.autonomi_client.clone(), self.ant_tp_config.download_threads);
+        let chunk_channel = ChunkStreamer::new(xor_name.to_string(), data_map, self.autonomi_client.clone(), self.ant_tp_config.download_threads);
         let chunk_receiver = chunk_channel.open(range_from, derived_range_to);
         
         let etag_header = ETag(EntityTag::new_strong(format!("{:x}", xor_name).to_owned()));

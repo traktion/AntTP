@@ -4,7 +4,7 @@ use log::info;
 use self_encryption::{DataMap, Error};
 use tokio::sync::mpsc::{Sender};
 use tokio::task::JoinHandle;
-use crate::chunk::chunk_service::ChunkService;
+use crate::chunk::chunk_fetcher::ChunkFetcher;
 
 pub struct ChunkSender {
     sender: Sender<JoinHandle<Result<Bytes, Error>>>,
@@ -19,15 +19,14 @@ impl ChunkSender {
     }
     
     pub async fn send(&self, mut range_from: u64, range_to: u64) {
-        let chunk_service = ChunkService::new(self.autonomi_client.clone());
         let mut chunk_count = 1;
         while range_from < range_to {
             info!("Async fetch chunk [{}] at file position [{}] for ID [{}], channel capacity [{}] of [{}]", chunk_count, range_from, self.id, self.sender.capacity(), self.sender.max_capacity());
-            let chunk_service_clone = chunk_service.clone();
+            let chunk_fetcher = ChunkFetcher::new(self.autonomi_client.clone());
             let data_map_clone = self.data_map.clone();
 
             let join_handle = tokio::spawn(async move {
-                chunk_service_clone.fetch_from_data_map_chunk(data_map_clone, range_from, range_to).await
+                chunk_fetcher.fetch_from_data_map_chunk(data_map_clone, range_from, range_to).await
             });
             let result = self.sender.send(join_handle).await;
             if result.is_err() {

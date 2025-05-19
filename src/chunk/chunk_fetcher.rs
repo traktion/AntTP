@@ -4,14 +4,14 @@ use log::{info};
 use self_encryption::{DataMap, EncryptedChunk, Error};
 
 #[derive(Clone)]
-pub struct ChunkService {
+pub struct ChunkFetcher {
     autonomi_client: Client,
 }
 
-impl ChunkService {
+impl ChunkFetcher {
     
     pub fn new(autonomi_client: Client) -> Self {
-        ChunkService { autonomi_client }
+        ChunkFetcher { autonomi_client }
     }
 
     pub async fn fetch_from_data_map_chunk(

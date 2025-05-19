@@ -1,6 +1,6 @@
 [package]
 name = "anttp"
-version = "0.5.0"
+version = "0.5.1"
 edition = "2024"
 authors = ["Paul Green"]
 description = "AntTP is a HTTP proxy which serves data from Autonomi over conventional HTTP connections"

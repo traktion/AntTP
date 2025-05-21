@@ -88,28 +88,17 @@ impl ArchiveHelper {
     }
 
     pub fn resolve_data_addr(&self, path_parts: Vec<String>) -> Result<DataAddress, Error> {
-        self.archive.iter().for_each(|(path_buf, data_address, _)| debug!("archive entry: [{}] at [{:x}]", path_buf.display(), data_address.xorname()));
+        self.archive.iter().for_each(|(path_buf, data_address, _)| debug!("archive entry: [{}] at [{:x}]", path_buf.to_str().unwrap().to_string().replace("\\", "/"), data_address.xorname()));
 
         // todo: Replace with contains() once keys are a more useful shape
         let path_parts_string = path_parts[1..].join("/");
         for key in self.archive.map().keys() {
-            if key.to_str().unwrap().to_string().trim_start_matches("./").ends_with(path_parts_string.as_str()) {
+            if key.to_str().unwrap().to_string().replace("\\", "/").trim_start_matches("./").ends_with(path_parts_string.as_str()) {
                 let (data_addr, _) = self.archive.map().get(key).unwrap();
                 return Ok(data_addr.clone())
             }
         }
         Err(ErrorInternalServerError(format!("Failed to find item [{}] in archive", path_parts_string)))
-
-        
-        /*if archive.map().contains_key(path_buf) {
-            let (data_addr, metadata) = archive
-                .map()
-                .get(path_buf)
-                .expect(format!("Failed to retrieve [{}] from archive", path_buf.clone().display()).as_str());
-            Ok(data_addr.clone())
-        } else {
-            Err(Report::msg(format!("Failed to find item [{}] in archive", path_buf.clone().display())))
-        }*/
     }
 
     pub fn get_index(&self, request_path: String, resolved_filename_string: String) -> (String, XorName) {

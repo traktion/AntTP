@@ -8,6 +8,7 @@ use autonomi::data::DataAddress;
 use bytes::Bytes;
 use log::{debug, info};
 use xor_name::XorName;
+use crate::anttp_config::AntTpConfig;
 use crate::app_config::AppConfig;
 use crate::archive_helper::ArchiveHelper;
 
@@ -15,15 +16,16 @@ use crate::archive_helper::ArchiveHelper;
 pub struct CachingClient {
     client: Client,
     cache_dir: String,
+    ant_tp_config: AntTpConfig,
 }
 
 impl CachingClient {
 
-    pub fn new(client: Client) -> Self {
+    pub fn new(client: Client, ant_tp_config: AntTpConfig) -> Self {
         let cache_dir = env::temp_dir().to_str().unwrap().to_owned() + "/anttp/cache/";
         CachingClient::create_tmp_dir(cache_dir.clone());
         Self {
-            client, cache_dir,
+            client, cache_dir, ant_tp_config
         }
     }
     
@@ -83,7 +85,7 @@ impl CachingClient {
         let mut path_parts = Vec::<String>::new();
         path_parts.push("ignore".to_string());
         path_parts.push(path_str.to_string());
-        match ArchiveHelper::new(archive).resolve_data_addr(path_parts) {
+        match ArchiveHelper::new(archive, self.ant_tp_config.clone()).resolve_data_addr(path_parts) {
             Ok(data_address) => {
                 info!("Downloading app-config [{}] with addr [{}] from archive [{}]", path_str, format!("{:x}", data_address.xorname()), format!("{:x}", archive_address_xorname));
                 match self.data_get_public(&data_address).await {

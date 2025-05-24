@@ -15,24 +15,26 @@ use log::{info, warn};
 use xor_name::XorName;
 use crate::archive_helper::{ArchiveAction, ArchiveHelper, DataState};
 use crate::caching_client::CachingClient;
-use crate::file_service::FileService;
-use crate::xor_helper::XorHelper;
+use crate::service::file_service::FileService;
+use crate::service::resolver_service::ResolverService;
 use tempdir::TempDir;
 use futures_util::{StreamExt as _};
+use crate::anttp_config::AntTpConfig;
 use crate::AppState;
 
-pub struct ArchiveService {
+pub struct PublicArchiveService {
     autonomi_client: Client,
     caching_autonomi_client: CachingClient,
     file_client: FileService,
-    xor_helper: XorHelper,
+    xor_helper: ResolverService,
     app_state: Data<AppState>,
+    ant_tp_config: AntTpConfig,
 }
 
-impl ArchiveService {
+impl PublicArchiveService {
     
-    pub fn new(autonomi_client: Client, caching_autonomi_client: CachingClient, file_client: FileService, xor_helper: XorHelper, app_state: Data<AppState>) -> Self {
-        ArchiveService { autonomi_client, caching_autonomi_client, file_client, xor_helper, app_state }
+    pub fn new(autonomi_client: Client, caching_autonomi_client: CachingClient, file_client: FileService, xor_helper: ResolverService, app_state: Data<AppState>, ant_tp_config: AntTpConfig) -> Self {
+        PublicArchiveService { autonomi_client, caching_autonomi_client, file_client, xor_helper, app_state, ant_tp_config }
     }
     
     pub async fn get_data(&self, archive: PublicArchive, xor_addr: XorName, request: HttpRequest, path_parts: Vec<String>) -> Result<HttpResponse, Error> {
@@ -46,7 +48,7 @@ impl ArchiveService {
         let (resolved_relative_path_route, has_route_map) = app_config.resolve_route(archive_relative_path.clone(), archive_file_name.clone());
 
         // resolve file name to chunk address
-        let archive_helper = ArchiveHelper::new(archive.clone());
+        let archive_helper = ArchiveHelper::new(archive.clone(), self.ant_tp_config.clone());
         let archive_info = archive_helper.resolve_archive_info(path_parts, request.clone(), resolved_relative_path_route.clone(), has_route_map);
 
         if archive_info.state == DataState::NotModified {

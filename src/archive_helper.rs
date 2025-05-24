@@ -7,11 +7,13 @@ use autonomi::files::PublicArchive;
 use chrono::DateTime;
 use log::{debug, info};
 use xor_name::XorName;
-use crate::xor_helper::XorHelper;
+use crate::anttp_config::AntTpConfig;
+use crate::service::resolver_service::ResolverService;
 
 #[derive(Clone)]
 pub struct ArchiveHelper {
-    archive: PublicArchive
+    archive: PublicArchive,
+    ant_tp_config: AntTpConfig
 }
 
 #[derive(Clone)]
@@ -39,8 +41,8 @@ impl ArchiveInfo {
 }
 
 impl ArchiveHelper {
-    pub fn new(public: PublicArchive) -> ArchiveHelper {
-        ArchiveHelper { archive: public }
+    pub fn new(public: PublicArchive, ant_tp_config: AntTpConfig) -> ArchiveHelper {
+        ArchiveHelper { archive: public, ant_tp_config }
     }
     
     pub fn list_files(&self, header_map: &HeaderMap) -> String{
@@ -115,7 +117,7 @@ impl ArchiveHelper {
 
     pub fn resolve_archive_info(&self, path_parts: Vec<String>, request: HttpRequest, resolved_relative_path_route: String, has_route_map: bool) -> ArchiveInfo {
         let request_path = request.path();
-        let xor_helper = XorHelper::new();
+        let xor_helper = ResolverService::new(self.ant_tp_config.clone());
         
         if self.has_moved_permanently(request_path, &resolved_relative_path_route) {
             debug!("has moved permanently");

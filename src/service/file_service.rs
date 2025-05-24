@@ -16,7 +16,7 @@ use serde::{Deserialize, Serialize};
 use xor_name::XorName;
 use crate::anttp_config::AntTpConfig;
 use crate::archive_helper::DataState;
-use crate::xor_helper::XorHelper;
+use crate::service::resolver_service::ResolverService;
 
 #[derive(Serialize, Deserialize)]
 enum DataMapLevel {
@@ -30,13 +30,13 @@ enum DataMapLevel {
 
 pub struct FileService {
     autonomi_client: Client,
-    xor_helper: XorHelper,
+    xor_helper: ResolverService,
     conn: ConnectionInfo,
     ant_tp_config: AntTpConfig,
 }
 
 impl FileService {
-    pub fn new(autonomi_client: Client, xor_helper: XorHelper, conn: ConnectionInfo, ant_tp_config: AntTpConfig) -> Self {
+    pub fn new(autonomi_client: Client, xor_helper: ResolverService, conn: ConnectionInfo, ant_tp_config: AntTpConfig) -> Self {
         FileService { autonomi_client, xor_helper, conn, ant_tp_config }
     }
 
@@ -85,8 +85,8 @@ impl FileService {
         
         let derived_range_to = if range_to == u64::MAX { total_size as u64 - 1 } else { range_to };
 
-        let chunk_channel = ChunkStreamer::new(xor_name.to_string(), data_map, self.autonomi_client.clone(), self.ant_tp_config.download_threads);
-        let chunk_receiver = chunk_channel.open(range_from, derived_range_to);
+        let chunk_streamer = ChunkStreamer::new(xor_name.to_string(), data_map, self.autonomi_client.clone(), self.ant_tp_config.download_threads);
+        let chunk_receiver = chunk_streamer.open(range_from, derived_range_to);
         
         let etag_header = ETag(EntityTag::new_strong(format!("{:x}", xor_name).to_owned()));
         let cors_allow_all = (header::ACCESS_CONTROL_ALLOW_ORIGIN, "*");
@@ -136,7 +136,7 @@ impl FileService {
     }
 
     fn build_cache_control_header(&self, xor_name: &XorName, is_resolved_file_name: bool) -> CacheControl {
-        if !is_resolved_file_name && self.xor_helper.is_xor(&format!("{:x}", xor_name)) {
+        if !is_resolved_file_name && self.xor_helper.is_immutable_address(&format!("{:x}", xor_name)) {
             CacheControl(vec![CacheDirective::MaxAge(u32::MAX), CacheDirective::Public]) // immutable
         } else {
             CacheControl(vec![CacheDirective::MaxAge(10u32), CacheDirective::Public]) // mutable
@@ -144,7 +144,7 @@ impl FileService {
     }
 
     fn build_expires_header(&self, xor_name: &XorName, is_resolved_file_name: bool) -> Expires {
-        if !is_resolved_file_name && self.xor_helper.is_xor(&format!("{:x}", xor_name)) {
+        if !is_resolved_file_name && self.xor_helper.is_immutable_address(&format!("{:x}", xor_name)) {
             Expires((SystemTime::now() + Duration::from_secs(u32::MAX as u64)).into()) // immutable
         } else {
             Expires((SystemTime::now() + Duration::from_secs(10u64)).into()) // mutable

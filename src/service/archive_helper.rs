@@ -7,12 +7,13 @@ use autonomi::files::PublicArchive;
 use chrono::DateTime;
 use log::{debug, info};
 use xor_name::XorName;
+use crate::client::caching_client::CachingClient;
 use crate::config::anttp_config::AntTpConfig;
 use crate::service::resolver_service::ResolverService;
 
 #[derive(Clone)]
 pub struct ArchiveHelper {
-    archive: PublicArchive,
+    public_archive: PublicArchive,
     ant_tp_config: AntTpConfig
 }
 
@@ -41,8 +42,8 @@ impl ArchiveInfo {
 }
 
 impl ArchiveHelper {
-    pub fn new(public: PublicArchive, ant_tp_config: AntTpConfig) -> ArchiveHelper {
-        ArchiveHelper { archive: public, ant_tp_config }
+    pub fn new(public_archive: PublicArchive, ant_tp_config: AntTpConfig) -> ArchiveHelper {
+        ArchiveHelper { public_archive, ant_tp_config }
     }
     
     pub fn list_files(&self, header_map: &HeaderMap) -> String{
@@ -58,7 +59,7 @@ impl ArchiveHelper {
         let mut output = "<html><body><ul>".to_string();
 
         // todo: Replace with contains() once keys are a more useful shape
-        for key in self.archive.map().keys() {
+        for key in self.public_archive.map().keys() {
             let filepath = key.to_str().unwrap().to_string().trim_start_matches("./").to_string();
             output.push_str(&format!("<li><a href=\"{}\">{}</a></li>\n", filepath, filepath));
         }
@@ -70,9 +71,9 @@ impl ArchiveHelper {
         let mut output = "[\n".to_string();
 
         let mut i = 1;
-        let count = self.archive.map().keys().len();
-        for key in self.archive.map().keys() {
-            let (_, metadata) = self.archive.map().get(key).unwrap();
+        let count = self.public_archive.map().keys().len();
+        for key in self.public_archive.map().keys() {
+            let (_, metadata) = self.public_archive.map().get(key).unwrap();
             let mtime_datetime = DateTime::from_timestamp_millis(metadata.modified as i64 * 1000).unwrap();
             let mtime_iso = mtime_datetime.format("%+");
             let filepath = key.to_str().unwrap().to_string().trim_start_matches("./").to_string();
@@ -90,13 +91,13 @@ impl ArchiveHelper {
     }
 
     pub fn resolve_data_addr(&self, path_parts: Vec<String>) -> Result<DataAddress, Error> {
-        self.archive.iter().for_each(|(path_buf, data_address, _)| debug!("archive entry: [{}] at [{:x}]", path_buf.to_str().unwrap().to_string().replace("\\", "/"), data_address.xorname()));
+        self.public_archive.iter().for_each(|(path_buf, data_address, _)| debug!("archive entry: [{}] at [{:x}]", path_buf.to_str().unwrap().to_string().replace("\\", "/"), data_address.xorname()));
 
         // todo: Replace with contains() once keys are a more useful shape
         let path_parts_string = path_parts[1..].join("/");
-        for key in self.archive.map().keys() {
+        for key in self.public_archive.map().keys() {
             if key.to_str().unwrap().to_string().replace("\\", "/").trim_start_matches("./").ends_with(path_parts_string.as_str()) {
-                let (data_addr, _) = self.archive.map().get(key).unwrap();
+                let (data_addr, _) = self.public_archive.map().get(key).unwrap();
                 return Ok(data_addr.clone())
             }
         }
@@ -105,19 +106,19 @@ impl ArchiveHelper {
 
     pub fn get_index(&self, request_path: String, resolved_filename_string: String) -> (String, XorName) {
         // hack to return index.html when present in directory root
-        for key in self.archive.map().keys() {
+        for key in self.public_archive.map().keys() {
             if key.ends_with(resolved_filename_string.to_string()) {
                 let path_string = request_path + key.to_str().unwrap();
-                let data_address = self.archive.map().get(key).unwrap().0;
+                let data_address = self.public_archive.map().get(key).unwrap().0;
                 return (path_string, *data_address.xorname())
             }
         }
         (String::new(), XorName::default())
     }
 
-    pub fn resolve_archive_info(&self, path_parts: Vec<String>, request: HttpRequest, resolved_relative_path_route: String, has_route_map: bool) -> ArchiveInfo {
+    pub fn resolve_archive_info(&self, path_parts: Vec<String>, request: HttpRequest, resolved_relative_path_route: String, has_route_map: bool, caching_client: CachingClient) -> ArchiveInfo {
         let request_path = request.path();
-        let xor_helper = ResolverService::new(self.ant_tp_config.clone());
+        let xor_helper = ResolverService::new(self.ant_tp_config.clone(), caching_client);
         
         if self.has_moved_permanently(request_path, &resolved_relative_path_route) {
             debug!("has moved permanently");

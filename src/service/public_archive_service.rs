@@ -9,68 +9,68 @@ use actix_web::web::Data;
 use ant_evm::AttoTokens;
 use autonomi::{Client, Wallet};
 use autonomi::client::payment::PaymentOption;
-use autonomi::files::{PublicArchive, UploadError};
+use autonomi::files::{UploadError};
 use autonomi::files::archive_public::ArchiveAddress;
-use log::{info, warn};
+use log::{debug, info, warn};
 use xor_name::XorName;
 use crate::service::archive_helper::{ArchiveAction, ArchiveHelper, DataState};
 use crate::client::caching_client::CachingClient;
 use crate::service::file_service::FileService;
-use crate::service::resolver_service::ResolverService;
+use crate::service::resolver_service::{ResolvedAddress, ResolverService};
 use tempdir::TempDir;
 use futures_util::{StreamExt as _};
 use crate::config::anttp_config::AntTpConfig;
-use crate::AppState;
+use crate::UploaderState;
 
 pub struct PublicArchiveService {
     autonomi_client: Client,
-    caching_autonomi_client: CachingClient,
     file_client: FileService,
-    xor_helper: ResolverService,
-    app_state: Data<AppState>,
+    resolver_service: ResolverService,
+    uploader_state: Data<UploaderState>,
     ant_tp_config: AntTpConfig,
+    caching_client: CachingClient,
 }
 
 impl PublicArchiveService {
     
-    pub fn new(autonomi_client: Client, caching_autonomi_client: CachingClient, file_client: FileService, xor_helper: ResolverService, app_state: Data<AppState>, ant_tp_config: AntTpConfig) -> Self {
-        PublicArchiveService { autonomi_client, caching_autonomi_client, file_client, xor_helper, app_state, ant_tp_config }
+    pub fn new(autonomi_client: Client, file_client: FileService, resolver_service: ResolverService, uploader_state: Data<UploaderState>, ant_tp_config: AntTpConfig, caching_client: CachingClient) -> Self {
+        PublicArchiveService { autonomi_client, file_client, resolver_service, uploader_state, ant_tp_config, caching_client }
     }
     
-    pub async fn get_data(&self, archive: PublicArchive, xor_addr: XorName, request: HttpRequest, path_parts: Vec<String>) -> Result<HttpResponse, Error> {
-        let (archive_addr, archive_file_name) = self.xor_helper.assign_path_parts(path_parts.clone());
-        info!("archive_addr [{}], archive_file_name [{}]", archive_addr, archive_file_name);
+    pub async fn get_data(&self, resolved_address: ResolvedAddress, request: HttpRequest, path_parts: Vec<String>) -> Result<HttpResponse, Error> {
+        let (archive_addr, archive_file_name) = self.resolver_service.assign_path_parts(path_parts.clone());
+        debug!("Get data for archive_addr [{}], archive_file_name [{}]", archive_addr, archive_file_name);
         
         // load app_config from archive and resolve route
-        let app_config = self.caching_autonomi_client.config_get_public(archive.clone(), xor_addr).await;
+        let app_config = self.caching_client.config_get_public(resolved_address.archive.clone(), resolved_address.xor_name).await;
         // resolve route
         let archive_relative_path = path_parts[1..].join("/").to_string();
         let (resolved_relative_path_route, has_route_map) = app_config.resolve_route(archive_relative_path.clone(), archive_file_name.clone());
 
         // resolve file name to chunk address
-        let archive_helper = ArchiveHelper::new(archive.clone(), self.ant_tp_config.clone());
-        let archive_info = archive_helper.resolve_archive_info(path_parts, request.clone(), resolved_relative_path_route.clone(), has_route_map);
+        let archive_helper = ArchiveHelper::new(resolved_address.archive.clone(), self.ant_tp_config.clone());
+        let archive_info = archive_helper.resolve_archive_info(path_parts, request.clone(), resolved_relative_path_route.clone(), has_route_map, self.caching_client.clone());
 
         if archive_info.state == DataState::NotModified {
-            info!("ETag matches for path [{}] at address [{}]. Client can use cached version", archive_info.path_string, format!("{:x}", archive_info.resolved_xor_addr));
+            debug!("ETag matches for path [{}] at address [{}]. Client can use cached version", archive_info.path_string, format!("{:x}", archive_info.resolved_xor_addr));
             Ok(HttpResponse::NotModified().into())
         } else if archive_info.action == ArchiveAction::Redirect {
-            info!("Redirect to archive directory [{}]", request.path().to_string() + "/");
+            debug!("Redirect to archive directory [{}]", request.path().to_string() + "/");
             Ok(HttpResponse::MovedPermanently()
                 .insert_header((header::LOCATION, request.path().to_string() + "/"))
                 .finish())
         } else if archive_info.action == ArchiveAction::NotFound {
-            warn!("Path not found {:?}", archive_info.path_string);
+            debug!("Path not found {:?}", archive_info.path_string);
             Err(ErrorNotFound(format!("File not found {:?}", archive_info.path_string)))
         } else if archive_info.action == ArchiveAction::Listing {
-            info!("List files in archive [{}]", archive_addr);
+            debug!("List files in archive [{}]", archive_addr);
             // todo: set header when js file
             Ok(HttpResponse::Ok()
-                .insert_header(ETag(EntityTag::new_strong(format!("{:x}", xor_addr).to_owned())))
+                .insert_header(ETag(EntityTag::new_strong(format!("{:x}", resolved_address.xor_name).to_owned())))
                 .insert_header((header::ACCESS_CONTROL_ALLOW_ORIGIN, "*"))
                 .body(archive_helper.list_files(request.headers()))) // todo: return .json / .body depending on accept header
         } else {
-            self.file_client.download_data_stream(archive_relative_path, archive_info.resolved_xor_addr, false, &request).await
+            self.file_client.download_data_stream(archive_relative_path, archive_info.resolved_xor_addr, resolved_address, &request).await
         }
     }
 
@@ -109,14 +109,14 @@ impl PublicArchiveService {
             }
         });
         let handle_id = handle.id(); // todo: change to ArchiveAddress or hash for security
-        self.app_state.upload_map.lock().unwrap().insert(handle_id.to_string(), handle);
+        self.uploader_state.upload_map.lock().unwrap().insert(handle_id.to_string(), handle);
 
         info!("Upload directory scheduled with handle id [{:?}]", handle_id.to_string());
         Ok(HttpResponse::Ok().body(format!("{:?}", handle_id.to_string())))
     }
 
     pub async fn get_status(&self, handle_id: String) -> Result<HttpResponse, Error> {
-        match self.app_state.upload_map.lock().unwrap().get_mut(&handle_id) {
+        match self.uploader_state.upload_map.lock().unwrap().get_mut(&handle_id) {
             Some(handle) => {
                 if handle.is_finished() {
                     let xorname = *handle.await.unwrap().xorname();

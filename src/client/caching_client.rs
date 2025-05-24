@@ -1,13 +1,17 @@
 use std::{env, fs};
 use std::fs::File;
 use std::io::{Read, Write};
-use autonomi::Client;
+use actix_web::web::Data;
+use autonomi::{Client, Pointer, PointerAddress};
 use autonomi::client::files::archive_public::{ArchiveAddress, PublicArchive};
 use autonomi::client::GetError;
 use autonomi::data::DataAddress;
+use autonomi::pointer::{PointerError};
+use autonomi::register::{RegisterAddress, RegisterError, RegisterValue};
 use bytes::Bytes;
 use log::{debug, info};
 use xor_name::XorName;
+use crate::{ClientCacheState};
 use crate::config::anttp_config::AntTpConfig;
 use crate::config::app_config::AppConfig;
 use crate::service::archive_helper::ArchiveHelper;
@@ -17,15 +21,16 @@ pub struct CachingClient {
     client: Client,
     cache_dir: String,
     ant_tp_config: AntTpConfig,
+    client_cache_state: Data<ClientCacheState>,
 }
 
 impl CachingClient {
 
-    pub fn new(client: Client, ant_tp_config: AntTpConfig) -> Self {
+    pub fn new(client: Client, ant_tp_config: AntTpConfig, client_cache_state: Data<ClientCacheState>) -> Self {
         let cache_dir = env::temp_dir().to_str().unwrap().to_owned() + "/anttp/cache/";
         CachingClient::create_tmp_dir(cache_dir.clone());
         Self {
-            client, cache_dir, ant_tp_config
+            client, cache_dir, ant_tp_config, client_cache_state,
         }
     }
     
@@ -39,24 +44,72 @@ impl CachingClient {
     pub async fn archive_get_public(&self, archive_address: ArchiveAddress) -> Result<PublicArchive, GetError> {
         let cached_data = self.read_file(archive_address).await;
         if !cached_data.is_empty() {
+            debug!("getting cached public archive for [{}] from local storage", archive_address.to_hex());
             Ok(PublicArchive::from_bytes(cached_data)?)
         } else {
+            debug!("getting non-cached public archive for [{}] from network", archive_address.to_hex());
             let data = self.client.data_get_public(&archive_address).await?;
             self.write_file(archive_address, data.to_vec()).await;
             Ok(PublicArchive::from_bytes(data)?)
         }
     }
 
-    pub async fn data_get_public(&self, addr: &DataAddress) -> Result<Bytes, GetError> {
+    pub async fn data_get_public(&self, addr: &DataAddress, ) -> Result<Bytes, GetError> {
         let cached_data = self.read_file(*addr).await;
         if !cached_data.is_empty() {
-            debug!("getting cached data for {:?} from local storage", addr);
+            debug!("getting cached data for [{}] from local storage", addr.to_hex());
             Ok(cached_data)
         } else {
-            debug!("getting non-cached data for {:?} from network", addr);
+            debug!("getting non-cached data for [{}] from network", addr.to_hex());
             let data = self.client.data_get_public(addr).await?;
             self.write_file(*addr, data.to_vec()).await;
             Ok(data)
+        }
+    }
+
+    pub async fn pointer_get(&self, address: &PointerAddress) -> Result<Pointer, PointerError> {
+        if self.client_cache_state.get_ref().pointer_cache.lock().unwrap().contains_key(address) {
+            debug!("getting cached pointer for [{}] from memory", address.to_hex());
+            match self.client_cache_state.get_ref().pointer_cache.lock().unwrap().get(address).unwrap().clone() {
+                Some(pointer) => Ok(pointer),
+                None => Err(PointerError::Serialization)
+            }
+        } else {
+            debug!("getting non-cached pointer for [{}] from network", address.to_hex());
+            match self.client.pointer_get(address).await {
+                Ok(pointer) => {
+                    self.client_cache_state.get_ref().pointer_cache.lock().unwrap().insert(address.clone(), Some(pointer.clone()));
+                    Ok(pointer)
+                }
+                Err(_) => {
+                    // cache mismatches to avoid repeated lookup
+                    // todo: add TTL + remove stale and/or do background update?
+                    self.client_cache_state.get_ref().pointer_cache.lock().unwrap().insert(address.clone(), None);
+                    Err(PointerError::Serialization)
+                }
+            }
+        }
+    }
+
+    pub async fn register_get(&self, address: &RegisterAddress) -> Result<RegisterValue, RegisterError> {
+        if self.client_cache_state.get_ref().register_cache.lock().unwrap().contains_key(address) {
+            debug!("getting cached register for [{}] from memory", address.to_hex());
+            match self.client_cache_state.get_ref().register_cache.lock().unwrap().get(address).unwrap().clone() {
+                Some(register_value) => Ok(register_value),
+                None => Err(RegisterError::PointerError(PointerError::Serialization))
+            }
+        } else {
+            debug!("getting non-cached register for [{}] from network", address.to_hex());
+            match self.client.register_get(address).await {
+                Ok(register_value) => {
+                    self.client_cache_state.get_ref().register_cache.lock().unwrap().insert(address.clone(), Some(register_value.clone()));
+                    Ok(register_value)
+                },
+                Err(_) => {
+                    self.client_cache_state.get_ref().register_cache.lock().unwrap().insert(address.clone(), None);
+                    Err(RegisterError::PointerError(PointerError::Serialization))
+                }
+            }
         }
     }
 

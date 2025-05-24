@@ -6,7 +6,7 @@ use autonomi::{Client, PointerAddress, PublicKey};
 use autonomi::data::DataAddress;
 use autonomi::files::archive_public::ArchiveAddress;
 use autonomi::files::PublicArchive;
-use autonomi::register::RegisterAddress;
+use autonomi::register::{RegisterAddress};
 use log::{debug, info, warn};
 use xor_name::XorName;
 use crate::config::anttp_config::AntTpConfig;
@@ -17,23 +17,25 @@ pub struct ResolvedAddress {
     pub is_found: bool,
     pub archive: PublicArchive,
     pub is_archive: bool,
-    pub xor_addr: XorName,
+    pub xor_name: XorName,
+    pub is_mutable: bool,
 }
 
 impl ResolvedAddress {
-    pub fn new(is_found: bool, archive: PublicArchive, is_archive: bool, xor_addr: XorName) -> Self {
-        ResolvedAddress { is_found, archive, is_archive, xor_addr }
+    pub fn new(is_found: bool, archive: PublicArchive, is_archive: bool, xor_name: XorName, is_mutable: bool) -> Self {
+        ResolvedAddress { is_found, archive, is_archive, xor_name, is_mutable }
     }
 }
 
 #[derive(Clone)]
 pub struct ResolverService {
-    ant_tp_config: AntTpConfig
+    ant_tp_config: AntTpConfig,
+    caching_client: CachingClient
 }
 
 impl ResolverService {
-    pub fn new(ant_tp_config: AntTpConfig) -> ResolverService {
-        ResolverService { ant_tp_config }
+    pub fn new(ant_tp_config: AntTpConfig, caching_client: CachingClient) -> ResolverService {
+        ResolverService { ant_tp_config, caching_client }
     }
 
     pub fn get_data_state(&self, headers: &HeaderMap, xor_name: &XorName) -> DataState {
@@ -53,62 +55,60 @@ impl ResolverService {
         }
     }
 
-    pub async fn resolve_archive_or_file(&self, autonomi_client: Client, caching_autonomi_client: &CachingClient, archive_directory: &String, archive_file_name: &String) -> ResolvedAddress {
+    pub async fn resolve_archive_or_file(&self, autonomi_client: Client, archive_directory: &String, archive_file_name: &String, is_resolved_mutable: bool) -> ResolvedAddress {
         if self.is_bookmark(archive_directory) {
             let resolved_bookmark = &self.resolve_bookmark(archive_directory).unwrap().to_string();
-            Box::pin(self.resolve_archive_or_file(autonomi_client, caching_autonomi_client, resolved_bookmark, archive_file_name)).await
+            Box::pin(self.resolve_archive_or_file(autonomi_client, resolved_bookmark, archive_file_name, true)).await
         } else if self.is_bookmark(archive_file_name) {
             let resolved_bookmark = &self.resolve_bookmark(archive_file_name).unwrap().to_string();
-            Box::pin(self.resolve_archive_or_file(autonomi_client, caching_autonomi_client, archive_directory, resolved_bookmark)).await
+            Box::pin(self.resolve_archive_or_file(autonomi_client, archive_directory, resolved_bookmark, true)).await
         } else if self.is_mutable_address(&archive_directory) {
-            info!("Analyze archive_directory [{:?}]", archive_directory);
-            // todo: cache result for short period through HTTP caching (return in type?)
-            match self.analyze_simple(autonomi_client.clone(), archive_directory).await {
+            match self.analyze_simple(archive_directory).await {
                 Some(data_address) => {
-                    Box::pin(self.resolve_archive_or_file(autonomi_client, caching_autonomi_client, &data_address.to_hex(), archive_file_name)).await
+                    Box::pin(self.resolve_archive_or_file(autonomi_client, &data_address.to_hex(), archive_file_name, true)).await
                 }
                 None => {
                     let archive_directory_xorname = self.str_to_xor_name(&archive_directory).unwrap();
                     info!("No public archive found at [{:x}]. Treating as XOR address", archive_directory_xorname);
-                    ResolvedAddress::new(false, PublicArchive::new(), false, archive_directory_xorname)
+                    ResolvedAddress::new(false, PublicArchive::new(), false, archive_directory_xorname, is_resolved_mutable)
                 }
             }
         } else if self.is_immutable_address(&archive_directory) {
             let archive_directory_xorname = self.str_to_xor_name(&archive_directory).unwrap();
             let archive_address = ArchiveAddress::new(archive_directory_xorname);
-            match caching_autonomi_client.archive_get_public(archive_address).await {
+            match self.caching_client.archive_get_public(archive_address).await {
                 Ok(public_archive) => {
                     info!("Found public archive at [{:x}]", archive_directory_xorname);
-                    ResolvedAddress::new(true, public_archive, true, archive_directory_xorname)
+                    ResolvedAddress::new(true, public_archive, true, archive_directory_xorname, is_resolved_mutable)
                 }
                 Err(_) => {
                     info!("No public archive found at [{:x}]. Treating as XOR address", archive_directory_xorname);
-                    ResolvedAddress::new(true, PublicArchive::new(), false, archive_directory_xorname)
+                    ResolvedAddress::new(true, PublicArchive::new(), false, archive_directory_xorname, is_resolved_mutable)
                 }
             }
         }
         else if self.is_immutable_address(&archive_file_name) {
             let archive_file_name_xorname = self.str_to_xor_name(&archive_file_name).unwrap();
             info!("Found XOR address [{:x}]", archive_file_name_xorname);
-            ResolvedAddress::new(true, PublicArchive::new(), false, archive_file_name_xorname)
+            ResolvedAddress::new(true, PublicArchive::new(), false, archive_file_name_xorname, is_resolved_mutable)
         } else {
             warn!("Failed to find archive or filename [{:?}]", archive_file_name);
-            ResolvedAddress::new(false, PublicArchive::new(), false, XorName::default())
+            ResolvedAddress::new(false, PublicArchive::new(), false, XorName::default(), is_resolved_mutable)
         }
     }
 
-    async fn analyze_simple(&self, autonomi_client: Client, address: &String) -> Option<DataAddress> {
+    async fn analyze_simple(&self, address: &String) -> Option<DataAddress> {
         // todo: analyze other types in a performant way - assume only pointers/registers for now
-        match autonomi_client.pointer_get(&PointerAddress::from_hex(address).unwrap()).await.ok() {
+        match self.caching_client.pointer_get(&PointerAddress::from_hex(address).unwrap()).await.ok() {
             Some(pointer) => {
-                info!("Analyze found pointer");
-                Some(DataAddress::from_hex(pointer.target().to_hex().as_str()).unwrap())
+                info!("Analyze found pointer at address [{}] with target [{}]", address, pointer.clone().target().to_hex());
+                Some(DataAddress::from_hex(pointer.clone().target().to_hex().as_str()).unwrap())
             }
             None => {
-                match autonomi_client.register_get(&RegisterAddress::from_hex(address).unwrap()).await.ok() {
+                match self.caching_client.register_get(&RegisterAddress::from_hex(address).unwrap()).await.ok() {
                     Some(register_value) => {
-                        info!("Analyze found register");
-                        Some(DataAddress::from_hex(hex::encode(register_value).as_str()).unwrap())
+                        info!("Analyze found register at address [{}] with value [{}]", address, hex::encode(register_value.clone()));
+                        Some(DataAddress::from_hex(hex::encode(register_value.clone()).as_str()).unwrap())
                     }
                     None => {
                         None
@@ -166,12 +166,13 @@ impl ResolverService {
     }
 
     pub fn is_bookmark(&self, alias: &String) -> bool {
-        //if alias == "" || self.is_mutable_address(alias) || self.is_immutable_address(alias) { return false; }
-        if alias == "" { return false; }
-        info!("Searching for bookmark [{}]", alias.clone());
-        let alias_with_delimiter = format!("{}=", alias);
-        self.ant_tp_config.bookmarks.iter().filter(|&s| s.starts_with(alias_with_delimiter.as_str())).next().is_some()
-        //self.ant_tp_config.bookmarks.contains(&alias)
+        if alias != "" {
+            debug!("Searching for bookmark [{}]", alias.clone());
+            let alias_with_delimiter = format!("{}=", alias);
+            self.ant_tp_config.bookmarks.iter().filter(|&s| s.starts_with(alias_with_delimiter.as_str())).next().is_some()
+        } else {
+            false
+        }
     }
     
     pub fn resolve_bookmark(&self, alias: &String) -> Option<String> {

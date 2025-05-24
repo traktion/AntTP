@@ -3,7 +3,6 @@ use std::time::{Duration, SystemTime};
 use actix_files::file_extension_to_mime;
 use actix_http::header;
 use actix_web::{Error, HttpRequest, HttpResponse};
-use actix_web::dev::ConnectionInfo;
 use actix_web::error::{ErrorNotFound};
 use actix_web::http::header::{CacheControl, CacheDirective, ContentLength, ContentRange, ContentRangeSpec, ContentType, ETag, EntityTag, Expires};
 use autonomi::{ChunkAddress, Client};
@@ -15,8 +14,8 @@ use self_encryption::DataMap;
 use serde::{Deserialize, Serialize};
 use xor_name::XorName;
 use crate::config::anttp_config::AntTpConfig;
-use crate::service::archive_helper::DataState;
-use crate::service::resolver_service::ResolverService;
+use crate::service::archive_helper::{DataState};
+use crate::service::resolver_service::{ResolvedAddress, ResolverService};
 
 #[derive(Serialize, Deserialize)]
 enum DataMapLevel {
@@ -31,24 +30,22 @@ enum DataMapLevel {
 pub struct FileService {
     autonomi_client: Client,
     xor_helper: ResolverService,
-    conn: ConnectionInfo,
     ant_tp_config: AntTpConfig,
 }
 
 impl FileService {
-    pub fn new(autonomi_client: Client, xor_helper: ResolverService, conn: ConnectionInfo, ant_tp_config: AntTpConfig) -> Self {
-        FileService { autonomi_client, xor_helper, conn, ant_tp_config }
+    pub fn new(autonomi_client: Client, xor_helper: ResolverService, ant_tp_config: AntTpConfig) -> Self {
+        FileService { autonomi_client, xor_helper, ant_tp_config }
     }
 
-    pub async fn get_data(&self, path_parts: Vec<String>, request: HttpRequest, xor_name: XorName, is_found: bool) -> Result<HttpResponse, Error> {
+    pub async fn get_data(&self, path_parts: Vec<String>, request: HttpRequest, resolved_address: ResolvedAddress) -> Result<HttpResponse, Error> {
         let (archive_addr, _) = self.xor_helper.assign_path_parts(path_parts.clone());
-        info!("archive_addr [{}]", archive_addr);
-
-        if self.xor_helper.get_data_state(request.headers(), &xor_name) == DataState::NotModified {
-            info!("ETag matches for path [{}] at address [{}]. Client can use cached version", archive_addr, format!("{:x}", xor_name).as_str());
-            let cache_control_header = self.build_cache_control_header(&xor_name, false);
-            let expires_header = self.build_expires_header(&xor_name, false);
-            let etag_header = ETag(EntityTag::new_strong(format!("{:x}", xor_name).to_owned()));
+        
+        if self.xor_helper.get_data_state(request.headers(), &resolved_address.xor_name) == DataState::NotModified {
+            info!("ETag matches for path [{}] at address [{}]. Client can use cached version", archive_addr, format!("{:x}", resolved_address.xor_name).as_str());
+            let cache_control_header = self.build_cache_control_header(&resolved_address.xor_name, resolved_address.is_mutable);
+            let expires_header = self.build_expires_header(&resolved_address.xor_name, resolved_address.is_mutable);
+            let etag_header = ETag(EntityTag::new_strong(format!("{:x}", resolved_address.xor_name).to_owned()));
             let cors_allow_all = (header::ACCESS_CONTROL_ALLOW_ORIGIN, "*");
             Ok(HttpResponse::NotModified()
                 .insert_header(cache_control_header)
@@ -56,10 +53,10 @@ impl FileService {
                 .insert_header(etag_header)
                 .insert_header(cors_allow_all)
                 .finish())
-        } else if !is_found {
-            Err(ErrorNotFound(format!("File not found {:?}", self.conn.host())))
+        //} else if !resolved_address.is_found {
+        //    Err(ErrorNotFound(format!("File not found {:?}", self.conn.host())))
         } else {
-            self.download_data_stream(archive_addr, xor_name, false, &request).await
+            self.download_data_stream(archive_addr, resolved_address.xor_name, resolved_address, &request).await
         }
     }
 
@@ -67,14 +64,13 @@ impl FileService {
         &self,
         path_str: String,
         xor_name: XorName,
-        is_resolved_file_name: bool,
+        resolved_address: ResolvedAddress,
         request: &HttpRequest,
     ) -> Result<HttpResponse, Error> {
         let (range_from, range_to, is_range_request) = self.get_range(&request);
 
-        info!("streaming item [{}] at addr [{}], range_from [{}], range_to [{}]", path_str, format!("{:x}", xor_name), range_from, range_to);
+        info!("Streaming item [{}] at addr [{}], range_from [{}], range_to [{}]", path_str, format!("{:x}", xor_name), range_from, range_to);
 
-        info!("getting data map from chunk [{:x}]", xor_name);
         let data_map_chunk = match self.autonomi_client.chunk_get(&ChunkAddress::new(xor_name)).await {
             Ok(chunk) => chunk,
             Err(e) => return Err(ErrorNotFound(format!("{}", e)))
@@ -91,11 +87,10 @@ impl FileService {
         let etag_header = ETag(EntityTag::new_strong(format!("{:x}", xor_name).to_owned()));
         let cors_allow_all = (header::ACCESS_CONTROL_ALLOW_ORIGIN, "*");
         
-        let cache_control_header = self.build_cache_control_header(&xor_name, is_resolved_file_name);
-        let expires_header = self.build_expires_header(&xor_name, is_resolved_file_name);
+        let cache_control_header = self.build_cache_control_header(&xor_name, resolved_address.is_mutable);
+        let expires_header = self.build_expires_header(&xor_name, resolved_address.is_mutable);
         let extension = Path::new(&path_str).extension().unwrap_or_default().to_str().unwrap_or_default();
         if is_range_request {
-            info!("return partial content for range {} to {}", range_from, derived_range_to);
             Ok(HttpResponse::PartialContent()
                 .insert_header(ContentRange(ContentRangeSpec::Bytes { range: Some((range_from, derived_range_to)), instance_length: Some(total_size as u64) }))
                 .insert_header(cache_control_header)
@@ -105,7 +100,6 @@ impl FileService {
                 .insert_header(self.get_content_type_from_filename(extension))
                 .streaming(chunk_receiver))
         } else {
-            info!("return full content as stream");
             Ok(HttpResponse::Ok()
                 .insert_header(ContentLength(total_size))
                 .insert_header(cache_control_header)
@@ -120,7 +114,6 @@ impl FileService {
     pub fn get_range(&self, request: &HttpRequest) -> (u64, u64, bool) {
         if let Some(range) = request.headers().get(header::RANGE) {
             let range_str = range.to_str().unwrap();
-            info!("get range: [{}]", range_str);
             let range_value = range_str.split_once("=").unwrap().1;
             // todo: cover comma separated too: https://docs.rs/actix-web/latest/actix_web/http/header/enum.Range.html
             if let Some((range_from_str, range_to_str)) = range_value.split_once("-") {
@@ -139,7 +132,7 @@ impl FileService {
         if !is_resolved_file_name && self.xor_helper.is_immutable_address(&format!("{:x}", xor_name)) {
             CacheControl(vec![CacheDirective::MaxAge(u32::MAX), CacheDirective::Public]) // immutable
         } else {
-            CacheControl(vec![CacheDirective::MaxAge(10u32), CacheDirective::Public]) // mutable
+            CacheControl(vec![CacheDirective::MaxAge(60u32), CacheDirective::Public]) // mutable
         }
     }
 
@@ -147,7 +140,7 @@ impl FileService {
         if !is_resolved_file_name && self.xor_helper.is_immutable_address(&format!("{:x}", xor_name)) {
             Expires((SystemTime::now() + Duration::from_secs(u32::MAX as u64)).into()) // immutable
         } else {
-            Expires((SystemTime::now() + Duration::from_secs(10u64)).into()) // mutable
+            Expires((SystemTime::now() + Duration::from_secs(60u64)).into()) // mutable
         }
     }
 

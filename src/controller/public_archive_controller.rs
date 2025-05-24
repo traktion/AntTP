@@ -5,10 +5,10 @@ use actix_web::web::Data;
 use ant_evm::EvmWallet;
 use autonomi::Client;
 use log::info;
-use crate::anttp_config::AntTpConfig;
+use crate::config::anttp_config::AntTpConfig;
 use crate::AppState;
 use crate::service::public_archive_service::PublicArchiveService;
-use crate::caching_client::CachingClient;
+use crate::client::caching_client::CachingClient;
 use crate::service::file_service::FileService;
 use crate::service::resolver_service::ResolverService;
 

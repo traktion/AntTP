@@ -3,7 +3,7 @@ use actix_web::web::Data;
 use ant_evm::EvmWallet;
 use autonomi::Client;
 use log::info;
-use crate::anttp_config::AntTpConfig;
+use crate::config::anttp_config::AntTpConfig;
 use crate::service::pointer_service::{Pointer, PointerService};
 
 pub async fn post_pointer(

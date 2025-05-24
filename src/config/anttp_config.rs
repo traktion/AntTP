@@ -22,7 +22,8 @@ pub struct AntTpConfig {
     pub app_private_key: String,
 
     #[arg(short, long, value_delimiter = ',', default_value =
-        "traktion-blog=b70a146f95b3ff237fa8140c4175f6a302c8250fe268aacdb47c2783f2b2ee6af5575410d07f6eae9ac7fb9ce95995e4,imim=959c2ba5b84e1a68fedc14caaae96e97cfff19ff381127844586b2e0cdd2afdfb1687086a5668bced9f3dc35c03c9bd7"
+        "traktion-blog=b70a146f95b3ff237fa8140c4175f6a302c8250fe268aacdb47c2783f2b2ee6af5575410d07f6eae9ac7fb9ce95995e4,\
+        imim=959c2ba5b84e1a68fedc14caaae96e97cfff19ff381127844586b2e0cdd2afdfb1687086a5668bced9f3dc35c03c9bd7"
     )]
     pub bookmarks: Vec<String>,
 

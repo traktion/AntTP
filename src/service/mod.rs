@@ -3,3 +3,4 @@ pub mod file_service;
 pub mod register_service;
 pub mod pointer_service;
 pub mod resolver_service;
+pub mod archive_helper;

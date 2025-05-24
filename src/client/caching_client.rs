@@ -8,9 +8,9 @@ use autonomi::data::DataAddress;
 use bytes::Bytes;
 use log::{debug, info};
 use xor_name::XorName;
-use crate::anttp_config::AntTpConfig;
-use crate::app_config::AppConfig;
-use crate::archive_helper::ArchiveHelper;
+use crate::config::anttp_config::AntTpConfig;
+use crate::config::app_config::AppConfig;
+use crate::service::archive_helper::ArchiveHelper;
 
 #[derive(Clone)]
 pub struct CachingClient {

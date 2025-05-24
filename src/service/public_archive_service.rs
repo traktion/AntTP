@@ -13,13 +13,13 @@ use autonomi::files::{PublicArchive, UploadError};
 use autonomi::files::archive_public::ArchiveAddress;
 use log::{info, warn};
 use xor_name::XorName;
-use crate::archive_helper::{ArchiveAction, ArchiveHelper, DataState};
-use crate::caching_client::CachingClient;
+use crate::service::archive_helper::{ArchiveAction, ArchiveHelper, DataState};
+use crate::client::caching_client::CachingClient;
 use crate::service::file_service::FileService;
 use crate::service::resolver_service::ResolverService;
 use tempdir::TempDir;
 use futures_util::{StreamExt as _};
-use crate::anttp_config::AntTpConfig;
+use crate::config::anttp_config::AntTpConfig;
 use crate::AppState;
 
 pub struct PublicArchiveService {

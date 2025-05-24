@@ -6,7 +6,7 @@ use autonomi::client::payment::PaymentOption;
 use autonomi::pointer::PointerTarget;
 use log::{info, warn};
 use serde::{Deserialize, Serialize};
-use crate::anttp_config::AntTpConfig;
+use crate::config::anttp_config::AntTpConfig;
 
 #[derive(Serialize, Deserialize)]
 pub struct Pointer {

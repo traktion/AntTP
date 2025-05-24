@@ -14,8 +14,8 @@ use log::{error, info};
 use self_encryption::DataMap;
 use serde::{Deserialize, Serialize};
 use xor_name::XorName;
-use crate::anttp_config::AntTpConfig;
-use crate::archive_helper::DataState;
+use crate::config::anttp_config::AntTpConfig;
+use crate::service::archive_helper::DataState;
 use crate::service::resolver_service::ResolverService;
 
 #[derive(Serialize, Deserialize)]

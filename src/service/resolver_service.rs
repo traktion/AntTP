@@ -9,9 +9,9 @@ use autonomi::files::PublicArchive;
 use autonomi::register::RegisterAddress;
 use log::{debug, info, warn};
 use xor_name::XorName;
-use crate::anttp_config::AntTpConfig;
-use crate::caching_client::CachingClient;
-use crate::archive_helper::{DataState};
+use crate::config::anttp_config::AntTpConfig;
+use crate::client::caching_client::CachingClient;
+use crate::service::archive_helper::{DataState};
 
 pub struct ResolvedAddress {
     pub is_found: bool,

@@ -7,7 +7,7 @@ use autonomi::files::PublicArchive;
 use chrono::DateTime;
 use log::{debug, info};
 use xor_name::XorName;
-use crate::anttp_config::AntTpConfig;
+use crate::config::anttp_config::AntTpConfig;
 use crate::service::resolver_service::ResolverService;
 
 #[derive(Clone)]

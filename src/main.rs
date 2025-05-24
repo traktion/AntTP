@@ -1,9 +1,7 @@
-mod anttp_config;
-mod caching_client;
-mod app_config;
-mod archive_helper;
 mod controller;
 mod service;
+mod config;
+mod client;
 
 use std::collections::HashMap;
 use std::sync::Mutex;
@@ -17,7 +15,7 @@ use ant_evm::EvmWallet;
 use autonomi::files::archive_public::ArchiveAddress;
 use awc::Client as AwcClient;
 use tokio::task::JoinHandle;
-use crate::anttp_config::AntTpConfig;
+use config::anttp_config::AntTpConfig;
 use crate::controller::file_controller::get_public_data;
 use crate::controller::pointer_controller::{get_pointer, post_pointer, put_pointer};
 use crate::controller::public_archive_controller::{get_status_public_archive, post_public_archive};

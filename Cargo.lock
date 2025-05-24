@@ -1180,7 +1180,6 @@ dependencies = [
  "chrono",
  "chunk-streamer",
  "clap",
- "color-eyre",
  "env_logger",
  "futures-util",
  "globset",

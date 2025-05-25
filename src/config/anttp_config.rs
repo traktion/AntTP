@@ -29,6 +29,9 @@ pub struct AntTpConfig {
 
     #[arg(short, long)]
     pub uploads_disabled: bool,
+
+    #[arg(short, long, default_value_t = 60)]
+    pub cached_mutable_ttl: u64,
 }
 
 impl AntTpConfig {
@@ -46,6 +49,7 @@ impl AntTpConfig {
             info!("App private key: [*****]");
         }
         info!("Bookmarks {:?}", ant_to_config.bookmarks);
+        info!("Cached mutable TTL {:?}", ant_to_config.cached_mutable_ttl);
         ant_to_config
     }
 }

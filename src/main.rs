@@ -18,6 +18,7 @@ use autonomi::register::{RegisterAddress, RegisterValue};
 use awc::Client as AwcClient;
 use tokio::task::JoinHandle;
 use config::anttp_config::AntTpConfig;
+use crate::client::cache_item::CacheItem;
 use crate::controller::file_controller::get_public_data;
 use crate::controller::pointer_controller::{get_pointer, post_pointer, put_pointer};
 use crate::controller::public_archive_controller::{get_status_public_archive, post_public_archive};
@@ -38,8 +39,8 @@ impl UploaderState {
 }
 
 struct ClientCacheState {
-    pointer_cache: Mutex<HashMap<PointerAddress, Option<Pointer>>>,
-    register_cache: Mutex<HashMap<RegisterAddress, Option<RegisterValue>>>,
+    pointer_cache: Mutex<HashMap<PointerAddress, CacheItem<Pointer>>>,
+    register_cache: Mutex<HashMap<RegisterAddress, CacheItem<RegisterValue>>>,
 }
 
 impl ClientCacheState {

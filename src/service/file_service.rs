@@ -40,7 +40,7 @@ impl FileService {
 
     pub async fn get_data(&self, path_parts: Vec<String>, request: HttpRequest, resolved_address: ResolvedAddress) -> Result<HttpResponse, Error> {
         let (archive_addr, _) = self.xor_helper.assign_path_parts(path_parts.clone());
-        
+
         if self.xor_helper.get_data_state(request.headers(), &resolved_address.xor_name) == DataState::NotModified {
             info!("ETag matches for path [{}] at address [{}]. Client can use cached version", archive_addr, format!("{:x}", resolved_address.xor_name).as_str());
             let cache_control_header = self.build_cache_control_header(&resolved_address.xor_name, resolved_address.is_mutable);
@@ -132,7 +132,7 @@ impl FileService {
         if !is_resolved_file_name && self.xor_helper.is_immutable_address(&format!("{:x}", xor_name)) {
             CacheControl(vec![CacheDirective::MaxAge(u32::MAX), CacheDirective::Public]) // immutable
         } else {
-            CacheControl(vec![CacheDirective::MaxAge(60u32), CacheDirective::Public]) // mutable
+            CacheControl(vec![CacheDirective::MaxAge(self.ant_tp_config.cached_mutable_ttl as u32), CacheDirective::Public]) // mutable
         }
     }
 
@@ -140,7 +140,7 @@ impl FileService {
         if !is_resolved_file_name && self.xor_helper.is_immutable_address(&format!("{:x}", xor_name)) {
             Expires((SystemTime::now() + Duration::from_secs(u32::MAX as u64)).into()) // immutable
         } else {
-            Expires((SystemTime::now() + Duration::from_secs(60u64)).into()) // mutable
+            Expires((SystemTime::now() + Duration::from_secs(self.ant_tp_config.cached_mutable_ttl)).into()) // mutable
         }
     }
 

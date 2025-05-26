@@ -53,8 +53,6 @@ impl FileService {
                 .insert_header(etag_header)
                 .insert_header(cors_allow_all)
                 .finish())
-        //} else if !resolved_address.is_found {
-        //    Err(ErrorNotFound(format!("File not found {:?}", self.conn.host())))
         } else {
             self.download_data_stream(archive_addr, resolved_address.xor_name, resolved_address, &request).await
         }

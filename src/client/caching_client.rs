@@ -2,12 +2,14 @@ use std::{env, fs};
 use std::fs::File;
 use std::io::{Read, Write};
 use actix_web::web::Data;
-use autonomi::{Client, Pointer, PointerAddress};
+use ant_evm::AttoTokens;
+use autonomi::{Client, Pointer, PointerAddress, SecretKey};
 use autonomi::client::files::archive_public::{ArchiveAddress, PublicArchive};
 use autonomi::client::GetError;
+use autonomi::client::payment::PaymentOption;
 use autonomi::data::DataAddress;
-use autonomi::pointer::{PointerError};
-use autonomi::register::{RegisterAddress, RegisterError, RegisterValue};
+use autonomi::pointer::{PointerError, PointerTarget};
+use autonomi::register::{RegisterAddress, RegisterError, RegisterHistory, RegisterValue};
 use bytes::Bytes;
 use log::{debug, info};
 use xor_name::XorName;
@@ -68,6 +70,23 @@ impl CachingClient {
         }
     }
 
+    pub async fn pointer_create(
+        &self,
+        owner: &SecretKey,
+        target: PointerTarget,
+        payment_option: PaymentOption,
+    ) -> Result<(AttoTokens, PointerAddress), PointerError> {
+        self.client.pointer_create(owner, target, payment_option).await
+    }
+
+    pub async fn pointer_update(
+        &self,
+        owner: &SecretKey,
+        target: PointerTarget,
+    ) -> Result<(), PointerError> {
+        self.client.pointer_update(owner, target).await
+    }
+
     pub async fn pointer_get(&self, address: &PointerAddress) -> Result<Pointer, PointerError> {
         if self.client_cache_state.get_ref().pointer_cache.lock().unwrap().contains_key(address)
             && !self.client_cache_state.get_ref().pointer_cache.lock().unwrap().get(address).unwrap().has_expired() {
@@ -104,6 +123,24 @@ impl CachingClient {
         }
     }
 
+    pub async fn register_create(
+        &self,
+        owner: &SecretKey,
+        initial_value: RegisterValue,
+        payment_option: PaymentOption,
+    ) -> Result<(AttoTokens, RegisterAddress), RegisterError> {
+        self.client.register_create(owner, initial_value, payment_option).await
+    }
+
+    pub async fn register_update(
+        &self,
+        owner: &SecretKey,
+        new_value: RegisterValue,
+        payment_option: PaymentOption,
+    ) -> Result<AttoTokens, RegisterError> {
+        self.client.register_update(owner, new_value, payment_option).await
+    }
+
     pub async fn register_get(&self, address: &RegisterAddress) -> Result<RegisterValue, RegisterError> {
         if self.client_cache_state.get_ref().register_cache.lock().unwrap().contains_key(address)
             && !self.client_cache_state.get_ref().register_cache.lock().unwrap().get(address).unwrap().has_expired() {
@@ -138,6 +175,10 @@ impl CachingClient {
                 Err(RegisterError::PointerError(PointerError::Serialization))
             }
         }
+    }
+
+    pub fn register_history(&self, addr: &RegisterAddress) -> RegisterHistory {
+        self.client.register_history(addr)
     }
 
     pub async fn write_file(&self, archive_address: ArchiveAddress, data: Vec<u8>) {

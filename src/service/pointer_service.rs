@@ -6,6 +6,7 @@ use autonomi::client::payment::PaymentOption;
 use autonomi::pointer::PointerTarget;
 use log::{info, warn};
 use serde::{Deserialize, Serialize};
+use crate::client::caching_client::CachingClient;
 use crate::config::anttp_config::AntTpConfig;
 
 #[derive(Serialize, Deserialize)]
@@ -24,15 +25,15 @@ impl Pointer {
 }
 
 pub struct PointerService {
-    autonomi_client: Client,
+    caching_client: CachingClient,
     ant_tp_config: AntTpConfig,
 }
 
 // todo: create/update different PointerTarget types
 impl PointerService {
 
-    pub fn new(autonomi_client: Client, ant_tp_config: AntTpConfig) -> Self {
-        PointerService { autonomi_client, ant_tp_config }
+    pub fn new(caching_client: CachingClient, ant_tp_config: AntTpConfig) -> Self {
+        PointerService { caching_client, ant_tp_config }
     }
 
     pub async fn create_pointer(&self, pointer: Pointer, evm_wallet: Wallet) -> Result<HttpResponse, Error> {
@@ -41,7 +42,7 @@ impl PointerService {
 
         let chunk_address = ChunkAddress::from_hex(pointer.target.clone().as_str()).unwrap();
         info!("Create pointer from name [{}] for chunk [{}]", pointer.name.clone().unwrap(), chunk_address);
-        match self.autonomi_client
+        match self.caching_client
             .pointer_create(&pointer_key, PointerTarget::ChunkAddress(chunk_address), PaymentOption::from(&evm_wallet))
             .await {
                 Ok((cost, pointer_address)) => {
@@ -67,7 +68,7 @@ impl PointerService {
 
         let chunk_address = ChunkAddress::from_hex(pointer.target.clone().as_str()).unwrap();
         info!("Update pointer with name [{}] for chunk [{}]", pointer.name.clone().unwrap(), chunk_address);
-        match self.autonomi_client
+        match self.caching_client
             .pointer_update(&pointer_key, PointerTarget::ChunkAddress(chunk_address))
             .await {
             Ok(()) => {
@@ -84,7 +85,7 @@ impl PointerService {
 
     pub async fn get_pointer(&self, address: String) -> Result<HttpResponse, Error> {
         let pointer_address = PointerAddress::from_hex(address.as_str()).unwrap();
-        match self.autonomi_client.pointer_get(&pointer_address).await {
+        match self.caching_client.pointer_get(&pointer_address).await {
             Ok(pointer) => {
                 info!("Retrieved pointer at address [{}] value [{}]", address, pointer.target().to_hex());
                 let response_pointer = Pointer::new(

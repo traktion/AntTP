@@ -27,7 +27,6 @@ pub async fn get_public_data(
     let path_parts = get_path_parts(&conn.host(), &path.into_inner(), ant_tp_config.clone(), caching_client.clone());
     let (archive_addr, archive_file_name) = resolver_service.assign_path_parts(path_parts.clone());
 
-    //let (is_found, archive, is_archive, xor_addr) = xor_helper.resolve_archive_or_file(autonomi_client.clone(), &caching_autonomi_client, &archive_addr, &archive_file_name).await;
     let resolved_address = resolver_service.resolve_archive_or_file(autonomi_client.clone(), &archive_addr, &archive_file_name, false).await;
     let file_service = FileService::new(autonomi_client.clone(), resolver_service.clone(), ant_tp_config.clone());
 

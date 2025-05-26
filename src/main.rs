@@ -32,7 +32,7 @@ struct UploaderState {
 
 impl UploaderState {
     pub fn new() -> Self {
-        UploaderState { 
+        UploaderState {
             upload_map: Mutex::new(HashMap::<String, JoinHandle<ArchiveAddress>>::new()),
         }
     }

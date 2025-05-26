@@ -6,6 +6,7 @@ use autonomi::client::payment::PaymentOption;
 use autonomi::register::{RegisterAddress};
 use log::{info, warn};
 use serde::{Deserialize, Serialize};
+use crate::client::caching_client::CachingClient;
 use crate::config::anttp_config::AntTpConfig;
 
 #[derive(Serialize, Deserialize)]
@@ -23,14 +24,14 @@ impl Register {
 }
 
 pub struct RegisterService {
-    autonomi_client: Client,
+    caching_client: CachingClient,
     ant_tp_config: AntTpConfig,
 }
 
 impl RegisterService {
 
-    pub fn new(autonomi_client: Client, ant_tp_config: AntTpConfig) -> Self {
-        RegisterService { autonomi_client, ant_tp_config }
+    pub fn new(caching_client: CachingClient, ant_tp_config: AntTpConfig) -> Self {
+        RegisterService { caching_client, ant_tp_config }
     }
 
     pub async fn create_register(&self, register: Register, evm_wallet: Wallet) -> Result<HttpResponse, Error> {
@@ -39,7 +40,7 @@ impl RegisterService {
 
         info!("Create register from name [{}] and content [{}]", register.name.clone().unwrap(), register.content);
         let content = Client::register_value_from_bytes(hex::decode(register.content.clone()).unwrap().as_slice()).unwrap();
-        match self.autonomi_client
+        match self.caching_client
             .register_create(&register_key, content, PaymentOption::from(&evm_wallet))
             .await {
                 Ok((cost, register_address)) => {
@@ -66,7 +67,7 @@ impl RegisterService {
 
         info!("Update register with name [{}] and content [{}]", register.name.clone().unwrap(), register.content);
         let content = Client::register_value_from_bytes(hex::decode(register.content.clone()).unwrap().as_slice()).unwrap();
-        match self.autonomi_client
+        match self.caching_client
             .register_update(&register_key, content, PaymentOption::from(&evm_wallet))
             .await {
             Ok(cost) => {
@@ -83,7 +84,7 @@ impl RegisterService {
 
     pub async fn get_register(&self, address: String) -> Result<HttpResponse, Error> {
         let register_address = RegisterAddress::from_hex(address.as_str()).unwrap();
-        match self.autonomi_client.register_get(&register_address).await {
+        match self.caching_client.register_get(&register_address).await {
             Ok(content) => {
                 info!("Retrieved register at address [{}] value [{}]", register_address, hex::encode(content));
                 let response_register = Register::new(
@@ -99,7 +100,7 @@ impl RegisterService {
 
     pub async fn get_register_history(&self, address: String) -> Result<HttpResponse, Error> {
         let register_address = RegisterAddress::from_hex(address.as_str()).unwrap();
-        match self.autonomi_client.register_history(&register_address).collect().await {
+        match self.caching_client.register_history(&register_address).collect().await {
             Ok(content_vec) => {
                 let content_flattened: String = content_vec.iter().map(|&c|hex::encode(c)).collect();
                 info!("Retrieved register history [{}] at address [{}]", content_flattened, register_address);

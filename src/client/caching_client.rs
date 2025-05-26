@@ -76,7 +76,14 @@ impl CachingClient {
         target: PointerTarget,
         payment_option: PaymentOption,
     ) -> Result<(AttoTokens, PointerAddress), PointerError> {
-        self.client.pointer_create(owner, target, payment_option).await
+        let client_clone = self.client.clone();
+        let owner_clone = owner.clone();
+        tokio::spawn(async move {
+            info!("creating pointer async");
+            client_clone.pointer_create(&owner_clone, target, payment_option).await
+        });
+        let address = PointerAddress::new(owner.public_key());
+        Ok((AttoTokens::zero(), address))
     }
 
     pub async fn pointer_update(
@@ -84,7 +91,13 @@ impl CachingClient {
         owner: &SecretKey,
         target: PointerTarget,
     ) -> Result<(), PointerError> {
-        self.client.pointer_update(owner, target).await
+        let client_clone = self.client.clone();
+        let owner_clone = owner.clone();
+        tokio::spawn(async move {
+            info!("updating pointer async");
+            client_clone.pointer_update(&owner_clone, target).await
+        });
+        Ok(())
     }
 
     pub async fn pointer_get(&self, address: &PointerAddress) -> Result<Pointer, PointerError> {
@@ -129,7 +142,13 @@ impl CachingClient {
         initial_value: RegisterValue,
         payment_option: PaymentOption,
     ) -> Result<(AttoTokens, RegisterAddress), RegisterError> {
-        self.client.register_create(owner, initial_value, payment_option).await
+        let client_clone = self.client.clone();
+        let owner_clone = owner.clone();
+        tokio::spawn(async move {
+            info!("creating register async");
+            client_clone.register_create(&owner_clone, initial_value, payment_option).await
+        });
+        Ok((AttoTokens::zero(), RegisterAddress::new(owner.clone().public_key())))
     }
 
     pub async fn register_update(
@@ -138,7 +157,13 @@ impl CachingClient {
         new_value: RegisterValue,
         payment_option: PaymentOption,
     ) -> Result<AttoTokens, RegisterError> {
-        self.client.register_update(owner, new_value, payment_option).await
+        let client_clone = self.client.clone();
+        let owner_clone = owner.clone();
+        tokio::spawn(async move {
+            info!("updating register async");
+            client_clone.register_update(&owner_clone, new_value, payment_option).await
+        });
+        Ok(AttoTokens::zero())
     }
 
     pub async fn register_get(&self, address: &RegisterAddress) -> Result<RegisterValue, RegisterError> {

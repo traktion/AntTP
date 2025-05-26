@@ -78,8 +78,9 @@ impl CachingClient {
     ) -> Result<(AttoTokens, PointerAddress), PointerError> {
         let client_clone = self.client.clone();
         let owner_clone = owner.clone();
+        // todo: move to job processor
         tokio::spawn(async move {
-            info!("creating pointer async");
+            debug!("creating pointer async");
             client_clone.pointer_create(&owner_clone, target, payment_option).await
         });
         let address = PointerAddress::new(owner.public_key());
@@ -93,8 +94,9 @@ impl CachingClient {
     ) -> Result<(), PointerError> {
         let client_clone = self.client.clone();
         let owner_clone = owner.clone();
+        // todo: move to job processor
         tokio::spawn(async move {
-            info!("updating pointer async");
+            debug!("updating pointer async");
             client_clone.pointer_update(&owner_clone, target).await
         });
         Ok(())
@@ -144,8 +146,9 @@ impl CachingClient {
     ) -> Result<(AttoTokens, RegisterAddress), RegisterError> {
         let client_clone = self.client.clone();
         let owner_clone = owner.clone();
+        // todo: move to job processor
         tokio::spawn(async move {
-            info!("creating register async");
+            debug!("creating register async");
             client_clone.register_create(&owner_clone, initial_value, payment_option).await
         });
         Ok((AttoTokens::zero(), RegisterAddress::new(owner.clone().public_key())))
@@ -159,8 +162,9 @@ impl CachingClient {
     ) -> Result<AttoTokens, RegisterError> {
         let client_clone = self.client.clone();
         let owner_clone = owner.clone();
+        // todo: move to job processor
         tokio::spawn(async move {
-            info!("updating register async");
+            debug!("updating register async");
             client_clone.register_update(&owner_clone, new_value, payment_option).await
         });
         Ok(AttoTokens::zero())

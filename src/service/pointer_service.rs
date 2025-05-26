@@ -29,7 +29,6 @@ pub struct PointerService {
     ant_tp_config: AntTpConfig,
 }
 
-// todo: create/update different PointerTarget types
 impl PointerService {
 
     pub fn new(caching_client: CachingClient, ant_tp_config: AntTpConfig) -> Self {

@@ -136,7 +136,7 @@ impl FileService {
 
     fn build_expires_header(&self, xor_name: &XorName, is_resolved_file_name: bool) -> Expires {
         if !is_resolved_file_name && self.xor_helper.is_immutable_address(&format!("{:x}", xor_name)) {
-            Expires((SystemTime::now() + Duration::from_secs(u32::MAX as u64)).into()) // immutable
+            Expires((SystemTime::now() + Duration::from_secs(u64::from(u32::MAX))).into()) // immutable
         } else {
             Expires((SystemTime::now() + Duration::from_secs(self.ant_tp_config.cached_mutable_ttl)).into()) // mutable
         }

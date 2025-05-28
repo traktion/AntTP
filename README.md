@@ -272,10 +272,10 @@ Why not take a look and start your own immutable blog today?
   - [x] Add streaming support for all other data requested
 - [ ] Advanced Autonomi API integration
   - [ ] REST API
-    - [ ] Pointer
+    - [x] Pointer
     - [ ] Scratchpad
     - [ ] Graph
-    - [ ] Register
+    - [x] Register
     - [ ] Chunk (in addition to file support, which is already implemented)
     - [ ] BLS support
       - [ ] Create, sign, verify
@@ -315,3 +315,9 @@ Why not take a look and start your own immutable blog today?
 - [ ] Accounting features
   - [ ] Bandwidth usage/tracking
   - [ ] Payments for data uploads (i.e. for public proxies)
+
+## Donations
+
+If you like AntTP and want to support continued development, any tokens would be gratefully received:
+
+ETH, ANT or other ETH based tokens: 0x2662A9d8889678cD46F483C950eDfe344456E04e

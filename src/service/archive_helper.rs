@@ -104,7 +104,7 @@ impl ArchiveHelper {
         Err(ErrorInternalServerError(format!("Failed to find item [{}] in archive", path_parts_string)))
     }
 
-    pub fn get_index(&self, request_path: String, resolved_filename_string: String) -> (String, XorName) {
+    pub fn resolve_file_from_archive(&self, request_path: String, resolved_filename_string: String) -> (String, XorName) {
         // hack to return index.html when present in directory root
         for key in self.public_archive.map().keys() {
             if key.ends_with(resolved_filename_string.to_string()) {
@@ -126,7 +126,7 @@ impl ArchiveHelper {
         } else if has_route_map {
             // retrieve route map index
             debug!("retrieve route map index");
-            let (resolved_relative_path_route, resolved_xor_addr) = self.get_index(request_path.to_string(), resolved_relative_path_route);
+            let (resolved_relative_path_route, resolved_xor_addr) = self.resolve_file_from_archive(request_path.to_string(), resolved_relative_path_route);
             ArchiveInfo::new(resolved_relative_path_route, resolved_xor_addr, ArchiveAction::Data, xor_helper.get_data_state(request.headers(), &resolved_xor_addr))
         } else if !resolved_relative_path_route.is_empty() {
             // retrieve path and data address

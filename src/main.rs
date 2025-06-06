@@ -21,19 +21,19 @@ use config::anttp_config::AntTpConfig;
 use crate::client::cache_item::CacheItem;
 use crate::controller::file_controller::get_public_data;
 use crate::controller::pointer_controller::{get_pointer, post_pointer, put_pointer};
-use crate::controller::public_archive_controller::{get_status_public_archive, post_public_archive};
+use crate::controller::public_archive_controller::{get_status_public_archive, post_public_archive, put_public_archive};
 use crate::controller::register_controller::{get_register, get_register_history, post_register, put_register};
 
 const DEFAULT_LOGGING: &'static str = "info,anttp=info,ant_api=warn,ant_client=warn,ant_networking=off,ant_bootstrap=error,chunk_streamer=error";
 
 struct UploaderState {
-    upload_map: Mutex<HashMap::<String, JoinHandle<ArchiveAddress>>>
+    upload_map: Mutex<HashMap::<String, JoinHandle<Option<ArchiveAddress>>>>
 }
 
 impl UploaderState {
     pub fn new() -> Self {
         UploaderState {
-            upload_map: Mutex::new(HashMap::<String, JoinHandle<ArchiveAddress>>::new()),
+            upload_map: Mutex::new(HashMap::<String, JoinHandle<Option<ArchiveAddress>>>::new()),
         }
     }
 }
@@ -95,6 +95,7 @@ async fn main() -> std::io::Result<()> {
         if !app_config.uploads_disabled {
             app = app
                 .route("/api/v1/public_archive", web::post().to(post_public_archive))
+                .route("/api/v1/public_archive/{address}", web::put().to(put_public_archive))
                 .route("/api/v1/register", web::post().to(post_register))
                 .route("/api/v1/register/{address}", web::put().to(put_register))
                 .route("/api/v1/pointer", web::post().to(post_pointer))

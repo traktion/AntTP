@@ -24,7 +24,25 @@ pub async fn post_public_archive(
     let evm_wallet = evm_wallet_data.get_ref().clone();
 
     info!("Creating new archive from multipart POST");
-    archive_service.post_data(payload, evm_wallet).await
+    archive_service.create_public_archive(payload, evm_wallet).await
+}
+
+pub async fn put_public_archive(
+    path: web::Path<String>,
+    payload: Multipart,
+    autonomi_client_data: Data<Client>,
+    evm_wallet_data: Data<EvmWallet>,
+    uploader_state: Data<UploaderState>,
+    client_cache_state: Data<ClientCacheState>,
+    ant_tp_config: Data<AntTpConfig>,
+)
+    -> impl Responder {
+    let address = path.into_inner();
+    let archive_service = build_archive_service(autonomi_client_data.get_ref().clone(), uploader_state, ant_tp_config.clone(), client_cache_state);
+    let evm_wallet = evm_wallet_data.get_ref().clone();
+
+    info!("Updating [{}] archive from multipart PUT", address);
+    archive_service.update_public_archive(address, payload, evm_wallet).await
 }
 
 pub async fn get_status_public_archive(

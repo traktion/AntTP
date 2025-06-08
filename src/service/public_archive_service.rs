@@ -10,10 +10,9 @@ use actix_web::http::header::{ETag, EntityTag};
 use actix_web::{Error, HttpRequest, HttpResponse};
 use actix_web::error::{ErrorNotFound};
 use actix_web::web::Data;
-use ant_evm::AttoTokens;
 use autonomi::{Client, Wallet};
 use autonomi::client::payment::PaymentOption;
-use autonomi::files::{Metadata, UploadError};
+use autonomi::files::{Metadata, PublicArchive};
 use autonomi::files::archive_public::ArchiveAddress;
 use log::{debug, info, warn};
 use crate::service::archive_helper::{ArchiveAction, ArchiveHelper, DataState};
@@ -24,9 +23,9 @@ use futures_util::{StreamExt as _};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use crate::config::anttp_config::AntTpConfig;
-use crate::UploaderState;
+use crate::{UploadState, UploaderState};
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct Upload {
     id: String,
     status: String,
@@ -45,14 +44,15 @@ pub struct PublicArchiveService {
     file_client: FileService,
     resolver_service: ResolverService,
     uploader_state: Data<UploaderState>,
+    upload_state: Data<UploadState>,
     ant_tp_config: AntTpConfig,
     caching_client: CachingClient,
 }
 
 impl PublicArchiveService {
     
-    pub fn new(autonomi_client: Client, file_client: FileService, resolver_service: ResolverService, uploader_state: Data<UploaderState>, ant_tp_config: AntTpConfig, caching_client: CachingClient) -> Self {
-        PublicArchiveService { autonomi_client, file_client, resolver_service, uploader_state, ant_tp_config, caching_client }
+    pub fn new(autonomi_client: Client, file_client: FileService, resolver_service: ResolverService, uploader_state: Data<UploaderState>, upload_state: Data<UploadState>, ant_tp_config: AntTpConfig, caching_client: CachingClient) -> Self {
+        PublicArchiveService { autonomi_client, file_client, resolver_service, uploader_state, upload_state, ant_tp_config, caching_client }
     }
     
     pub async fn get_data(&self, resolved_address: ResolvedAddress, request: HttpRequest, path_parts: Vec<String>) -> Result<HttpResponse, Error> {
@@ -92,60 +92,24 @@ impl PublicArchiveService {
         }
     }
 
-    pub async fn create_public_archive(&self, mut payload: Multipart, evm_wallet: Wallet) -> Result<HttpResponse, Error> {
-        let random_name = Uuid::new_v4();
-        let tmp_dir = env::temp_dir().as_path().join(random_name.to_string());
-        create_dir(tmp_dir.clone()).unwrap();
-        info!("Created temporary directory for archive with prefix: {:?}", tmp_dir.to_str());
-
-        while let Some(item) =  payload.next().await {
-            let mut field = item.unwrap();
-
-            let filename = field.content_disposition().unwrap().get_filename().expect("Failed to get filename from multipart field");
-            let file_path = tmp_dir.clone().join(filename);
-
-            info!("Creating temporary file for archive: {:?}", file_path.to_str().unwrap());
-            let mut tmp_file = File::create(file_path.clone()).unwrap();
-
-            while let Some(chunk) = field.next().await {
-                tmp_file.write_all(&chunk.unwrap()).unwrap();
-            }
-            tmp_file.flush().unwrap().size();
-        }
-
-        let local_client = self.autonomi_client.clone();
-        let handle = tokio::spawn(async move {
-            info!("Uploading chunks to autonomi network");
-            let result: Result<(AttoTokens, ArchiveAddress), UploadError> = local_client
-                .dir_upload_public(tmp_dir, PaymentOption::Wallet(evm_wallet))
-                .await;
-            match result {
-                Ok((_, archive_address)) => {
-                    info!("Uploaded directory to network at [{:?}]", archive_address);
-                    Some(archive_address)
-                }
-                Err(e) => {
-                    warn!("Failed to upload directory to network: [{:?}]", e);
-                    None
-                }
-            }
-        });
-        let task_id = Uuid::new_v4();
-        self.uploader_state.upload_map.lock().unwrap().insert(task_id.to_string(), handle);
-
-        info!("Upload directory scheduled with handle id [{:?}]", task_id.to_string());
-        let upload_response = Upload::new(task_id.to_string(), "scheduled".to_string(), "".to_string(), None);
-        Ok(HttpResponse::Ok().json(upload_response))
+    pub async fn create_public_archive(&self, payload: Multipart, evm_wallet: Wallet) -> Result<HttpResponse, Error> {
+        info!("Uploading new public archive to the network");
+        self.update_public_archive_common(payload, evm_wallet, PublicArchive::new()).await
     }
 
-    pub async fn update_public_archive(&self, address: String, mut payload: Multipart, evm_wallet: Wallet) -> Result<HttpResponse, Error> {
-        let mut public_archive = match self.autonomi_client.archive_get_public(&ArchiveAddress::from_hex(address.as_str()).unwrap()).await {
-            Ok(public_archive) => public_archive,
+    pub async fn update_public_archive(&self, address: String, payload: Multipart, evm_wallet: Wallet) -> Result<HttpResponse, Error> {
+        match self.autonomi_client.archive_get_public(&ArchiveAddress::from_hex(address.as_str()).unwrap()).await {
+            Ok(public_archive) => {
+                info!("Uploading updated public archive to the network [{:?}]", public_archive);
+                self.update_public_archive_common(payload, evm_wallet, public_archive).await
+            }
             Err(e) => {
                 return Err(ErrorNotFound(format!("Upload task not found: [{:?}]", e)));
             }
-        };
+        }
+    }
 
+    pub async fn update_public_archive_common(&self, mut payload: Multipart, evm_wallet: Wallet, mut public_archive: PublicArchive) -> Result<HttpResponse, Error> {
         let random_name = Uuid::new_v4();
         let tmp_dir = env::temp_dir().as_path().join(random_name.to_string());
         create_dir(tmp_dir.clone()).unwrap();
@@ -188,12 +152,12 @@ impl PublicArchiveService {
                 let filename = path.file_name().unwrap().to_str().unwrap().to_string();
                 // todo: derive path for CLI uploads with subdirs, or just migrate archive to move all files to root (better!)?
                 let target_path = PathBuf::from(format!("./{}", filename));
-                info!("Adding file [{:?}] at address [{}] to public archive at [{}]", target_path, data_address.to_hex(), address.clone());
+                info!("Adding file [{:?}] at address [{}] to public archive", target_path, data_address.to_hex());
                 public_archive.add_file(target_path, data_address, custom_metadata);
             }
             info!("public archive [{:?}]", public_archive);
 
-            info!("Uploading updated public archive to the network [{:?}]", public_archive);
+            info!("Uploading public archive to the network [{:?}]", public_archive);
             match local_client.archive_put_public(&public_archive, PaymentOption::Wallet(evm_wallet)).await {
                 Ok((cost, archive_address)) => {
                     info!("Uploaded public archive to network at [{:?}] for cost [{:?}]", archive_address, cost);
@@ -208,7 +172,7 @@ impl PublicArchiveService {
             }
         });
         let task_id = Uuid::new_v4();
-        self.uploader_state.upload_map.lock().unwrap().insert(task_id.to_string(), handle);
+        self.uploader_state.uploader_map.lock().unwrap().insert(task_id.to_string(), handle);
 
         info!("Upload directory scheduled with handle id [{:?}]", task_id.to_string());
         let upload_response = Upload::new(task_id.to_string(), "scheduled".to_string(), "".to_string(), None);
@@ -218,19 +182,30 @@ impl PublicArchiveService {
     pub async fn get_status(&self, task_id: String) -> Result<HttpResponse, Error> {
         // todo: update response with message containing a reason for success/failure
         // todo: rewrite - can't poll join handle multiple times after completion (bug!)
-        let upload_response = match self.uploader_state.upload_map.lock().unwrap().get_mut(&task_id) {
+        let _ = match self.upload_state.upload_map.lock().unwrap().get_mut(&task_id) {
+            Some(uploader_state) => return Ok(HttpResponse::Ok().json(uploader_state)),
+            None => false 
+        };
+            
+        let upload_response = match self.uploader_state.uploader_map.lock().unwrap().get_mut(&task_id) {
             Some(handle) => {
                 if handle.is_finished() {
                     match handle.await {
                         Ok(archive_address) => {
                             if archive_address.is_some() {
-                                Upload::new(task_id.to_string(), "succeeded".to_string(), "".to_string(), Some(archive_address.unwrap().to_hex()))
+                                let upload = Upload::new(task_id.to_string(), "succeeded".to_string(), "".to_string(), Some(archive_address.unwrap().to_hex()));
+                                self.upload_state.upload_map.lock().unwrap().insert(task_id.to_string(), upload.clone());
+                                upload
                             } else {
-                                Upload::new(task_id.to_string(), "failed".to_string(), "Missing address".to_string(), None)
+                                let upload = Upload::new(task_id.to_string(), "failed".to_string(), "Missing address".to_string(), None);
+                                self.upload_state.upload_map.lock().unwrap().insert(task_id.to_string(), upload.clone());
+                                upload
                             }
                         }
                         Err(e) => {
-                            Upload::new(task_id.to_string(), "failed".to_string(), e.to_string(), None)
+                            let upload = Upload::new(task_id.to_string(), "failed".to_string(), e.to_string(), None);
+                            self.upload_state.upload_map.lock().unwrap().insert(task_id.to_string(), upload.clone());
+                            upload
                         }
                     }
                 } else {
@@ -242,7 +217,7 @@ impl PublicArchiveService {
             }
         };
         if upload_response.status == "failed" || upload_response.status == "succeeded" {
-            self.uploader_state.upload_map.lock().unwrap().remove(&task_id);
+            self.uploader_state.uploader_map.lock().unwrap().remove(&task_id);
         }
         Ok(HttpResponse::Ok().json(upload_response))
     }

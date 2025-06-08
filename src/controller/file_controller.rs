@@ -5,7 +5,7 @@ use actix_web::web::Data;
 use autonomi::Client;
 use log::info;
 use crate::config::anttp_config::AntTpConfig;
-use crate::{UploaderState, ClientCacheState};
+use crate::{UploaderState, ClientCacheState, UploadState};
 use crate::service::public_archive_service::PublicArchiveService;
 use crate::client::caching_client::CachingClient;
 use crate::service::file_service::FileService;
@@ -17,6 +17,7 @@ pub async fn get_public_data(
     autonomi_client_data: Data<Client>,
     conn: ConnectionInfo,
     uploader_state_data: Data<UploaderState>,
+    upload_state_data: Data<UploadState>,
     client_cache_state_data: Data<ClientCacheState>,
     ant_tp_config_data: Data<AntTpConfig>,
 ) -> impl Responder {
@@ -37,7 +38,7 @@ pub async fn get_public_data(
         file_service.get_data(path_parts, request, resolved_address).await
     } else {
         info!("Retrieving file from public archive [{:x}]", resolved_address.xor_name);
-        let public_archive_service = PublicArchiveService::new(autonomi_client, file_service, resolver_service, uploader_state_data, ant_tp_config, caching_client.clone());
+        let public_archive_service = PublicArchiveService::new(autonomi_client, file_service, resolver_service, uploader_state_data, upload_state_data, ant_tp_config, caching_client.clone());
         public_archive_service.get_data(resolved_address, request, path_parts).await
     }
 }

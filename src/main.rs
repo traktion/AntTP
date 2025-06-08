@@ -23,17 +23,30 @@ use crate::controller::file_controller::get_public_data;
 use crate::controller::pointer_controller::{get_pointer, post_pointer, put_pointer};
 use crate::controller::public_archive_controller::{get_status_public_archive, post_public_archive, put_public_archive};
 use crate::controller::register_controller::{get_register, get_register_history, post_register, put_register};
+use crate::service::public_archive_service::Upload;
 
 const DEFAULT_LOGGING: &'static str = "info,anttp=info,ant_api=warn,ant_client=warn,ant_networking=off,ant_bootstrap=error,chunk_streamer=error";
 
+struct UploadState {
+    upload_map: Mutex<HashMap::<String, Upload>>
+}
+
+impl UploadState {
+    pub fn new() -> Self {
+        UploadState {
+            upload_map: Mutex::new(HashMap::<String, Upload>::new()),
+        }
+    }
+}
+
 struct UploaderState {
-    upload_map: Mutex<HashMap::<String, JoinHandle<Option<ArchiveAddress>>>>
+    uploader_map: Mutex<HashMap::<String, JoinHandle<Option<ArchiveAddress>>>>
 }
 
 impl UploaderState {
     pub fn new() -> Self {
         UploaderState {
-            upload_map: Mutex::new(HashMap::<String, JoinHandle<Option<ArchiveAddress>>>::new()),
+            uploader_map: Mutex::new(HashMap::<String, JoinHandle<Option<ArchiveAddress>>>::new()),
         }
     }
 }
@@ -72,6 +85,7 @@ async fn main() -> std::io::Result<()> {
     };
 
     let uploader_state = Data::new(UploaderState::new());
+    let upload_state = Data::new(UploadState::new());
     let client_cache_state = Data::new(ClientCacheState::new());
 
     info!("Starting listener");
@@ -91,6 +105,7 @@ async fn main() -> std::io::Result<()> {
             .app_data(Data::new(AwcClient::default()))
             .app_data(Data::new(evm_wallet.clone()))
             .app_data(uploader_state.clone())
+            .app_data(upload_state.clone())
             .app_data(client_cache_state.clone());
         if !app_config.uploads_disabled {
             app = app

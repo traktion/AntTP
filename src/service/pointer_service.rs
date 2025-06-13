@@ -14,13 +14,13 @@ pub struct Pointer {
     name: Option<String>,
     target: String,
     address: Option<String>,
+    counter: Option<u32>,
     cost: Option<AttoTokens>,
-    counter: Option<u32>
 }
 
 impl Pointer {
-    pub fn new(name: Option<String>, target: String, address: Option<String>, cost: Option<AttoTokens>, counter: Option<u32>) -> Self {
-        Pointer { name, target, address, cost, counter } 
+    pub fn new(name: Option<String>, target: String, address: Option<String>, counter: Option<u32>, cost: Option<AttoTokens>) -> Self {
+        Pointer { name, target, address, counter, cost } 
     }
 }
 
@@ -46,7 +46,7 @@ impl PointerService {
             .await {
                 Ok((cost, pointer_address)) => {
                     info!("Created pointer at [{}] for [{}] attos", pointer_address.to_hex(), cost);
-                    let response_pointer = Pointer::new(pointer.name, pointer.target, Some(pointer_address.to_hex()), Some(cost), None);
+                    let response_pointer = Pointer::new(pointer.name, pointer.target, Some(pointer_address.to_hex()), None, Some(cost));
                     Ok(HttpResponse::Created().json(response_pointer))
                 }
                 Err(e) => {
@@ -88,12 +88,12 @@ impl PointerService {
             Ok(pointer) => {
                 info!("Retrieved pointer at address [{}] value [{}]", address, pointer.target().to_hex());
                 let response_pointer = Pointer::new(
-                    None, pointer.target().to_hex(), Some(address), None, Some(pointer.counter()));
+                    None, pointer.target().to_hex(), Some(address), Some(pointer.counter()), None);
                 Ok(HttpResponse::Ok().json(response_pointer).into())
             }
             Err(e) => {
-                warn!("Failed to retrieve register at address [{}]: [{:?}]", address, e);
-                Err(ErrorInternalServerError("Failed to retrieve register at address"))
+                warn!("Failed to retrieve pointer at address [{}]: [{:?}]", address, e);
+                Err(ErrorInternalServerError("Failed to retrieve pointer at address"))
             }
         }
     }

@@ -10,7 +10,7 @@ use autonomi::client::GetError;
 use bytes::Bytes;
 use chunk_streamer::chunk_streamer::ChunkStreamer;
 use log::{error, info};
-use self_encryption::DataMap;
+use self_encryption::{DataMap};
 use serde::{Deserialize, Serialize};
 use xor_name::XorName;
 use crate::config::anttp_config::AntTpConfig;
@@ -81,6 +81,15 @@ impl FileService {
 
         let chunk_streamer = ChunkStreamer::new(xor_name.to_string(), data_map, self.autonomi_client.clone(), self.ant_tp_config.download_threads);
         let chunk_receiver = chunk_streamer.open(range_from, derived_range_to);
+
+        // experimental, higher performance, chunk streamer
+        /*let chunk_receiver = chunk_stream::chunked_stream(
+            self.autonomi_client.clone(),
+            self.ant_tp_config.download_threads,
+            data_map.clone(),
+            range_from,
+            derived_range_to,
+        );*/
         
         let etag_header = ETag(EntityTag::new_strong(format!("{:x}", xor_name).to_owned()));
         let cors_allow_all = (header::ACCESS_CONTROL_ALLOW_ORIGIN, "*");

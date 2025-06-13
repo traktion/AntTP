@@ -13,7 +13,7 @@ use actix_web::web::Data;
 use ant_evm::EvmNetwork::ArbitrumOne;
 use ant_evm::EvmWallet;
 use autonomi::files::archive_public::ArchiveAddress;
-use autonomi::{Pointer, PointerAddress};
+use autonomi::{Pointer, PointerAddress, Scratchpad, ScratchpadAddress};
 use autonomi::register::{RegisterAddress, RegisterValue};
 use awc::Client as AwcClient;
 use tokio::task::JoinHandle;
@@ -22,7 +22,9 @@ use crate::client::cache_item::CacheItem;
 use crate::controller::file_controller::get_public_data;
 use crate::controller::pointer_controller::{get_pointer, post_pointer, put_pointer};
 use crate::controller::public_archive_controller::{get_status_public_archive, post_public_archive, put_public_archive};
+use crate::controller::public_scratchpad_controller::{get_public_scratchpad, post_public_scratchpad, put_public_scratchpad};
 use crate::controller::register_controller::{get_register, get_register_history, post_register, put_register};
+use crate::controller::scratchpad_controller::{get_scratchpad, post_scratchpad, put_scratchpad};
 use crate::service::public_archive_service::Upload;
 
 const DEFAULT_LOGGING: &'static str = "info,anttp=info,ant_api=warn,ant_client=warn,ant_networking=off,ant_bootstrap=error,chunk_streamer=error";
@@ -54,13 +56,15 @@ impl UploaderState {
 struct ClientCacheState {
     pointer_cache: Mutex<HashMap<PointerAddress, CacheItem<Pointer>>>,
     register_cache: Mutex<HashMap<RegisterAddress, CacheItem<RegisterValue>>>,
+    scratchpad_cache: Mutex<HashMap<ScratchpadAddress, CacheItem<Scratchpad>>>,
 }
 
 impl ClientCacheState {
     pub fn new() -> Self {
         ClientCacheState {
             pointer_cache: Mutex::new(HashMap::new()),
-            register_cache: Mutex::new(HashMap::new())
+            register_cache: Mutex::new(HashMap::new()),
+            scratchpad_cache: Mutex::new(HashMap::new())
         }
     }
 }
@@ -99,6 +103,8 @@ async fn main() -> std::io::Result<()> {
             .route("/api/v1/register/{address}", web::get().to(get_register))
             .route("/api/v1/register_history/{address}", web::get().to(get_register_history))
             .route("/api/v1/pointer/{address}", web::get().to(get_pointer))
+            .route("/api/v1/scratchpad/{address}/{name}", web::get().to(get_scratchpad))
+            .route("/api/v1/public_scratchpad/{address}", web::get().to(get_public_scratchpad))
             .route("/{path:.*}", web::get().to(get_public_data))
             .app_data(Data::new(app_config.clone()))
             .app_data(Data::new(autonomi_client.clone()))
@@ -114,7 +120,11 @@ async fn main() -> std::io::Result<()> {
                 .route("/api/v1/register", web::post().to(post_register))
                 .route("/api/v1/register/{address}", web::put().to(put_register))
                 .route("/api/v1/pointer", web::post().to(post_pointer))
-                .route("/api/v1/pointer/{address}", web::put().to(put_pointer));
+                .route("/api/v1/pointer/{address}", web::put().to(put_pointer))
+                .route("/api/v1/scratchpad", web::post().to(post_scratchpad))
+                .route("/api/v1/scratchpad/{address}", web::put().to(put_scratchpad))
+                .route("/api/v1/public_scratchpad", web::post().to(post_public_scratchpad))
+                .route("/api/v1/public_scratchpad/{address}", web::put().to(put_public_scratchpad));
         };
         if app_config.static_file_directory != "" {
             app.service(Files::new("/static", app_config.static_file_directory.clone()))

@@ -3,13 +3,14 @@ use std::fs::File;
 use std::io::{Read, Write};
 use actix_web::web::Data;
 use ant_evm::AttoTokens;
-use autonomi::{Client, Pointer, PointerAddress, SecretKey};
+use autonomi::{Client, Pointer, PointerAddress, ScratchpadAddress, SecretKey};
 use autonomi::client::files::archive_public::{ArchiveAddress, PublicArchive};
 use autonomi::client::GetError;
 use autonomi::client::payment::PaymentOption;
 use autonomi::data::DataAddress;
 use autonomi::pointer::{PointerError, PointerTarget};
 use autonomi::register::{RegisterAddress, RegisterError, RegisterHistory, RegisterValue};
+use autonomi::scratchpad::{Scratchpad, ScratchpadError};
 use bytes::Bytes;
 use log::{debug, info};
 use xor_name::XorName;
@@ -250,6 +251,140 @@ impl CachingClient {
                 }
             }
             Err(_e) => AppConfig::default()
+        }
+    }
+
+    pub async fn scratchpad_create(
+        &self,
+        owner: &SecretKey,
+        content_type: u64,
+        initial_data: &Bytes,
+        payment_option: PaymentOption,
+    ) -> Result<(AttoTokens, ScratchpadAddress), ScratchpadError> {
+        let client_clone = self.client.clone();
+        let owner_clone = owner.clone();
+        let initial_data_clone = initial_data.clone();
+        // todo: move to job processor
+        tokio::spawn(async move {
+            debug!("creating scratchpad async");
+            client_clone.scratchpad_create(&owner_clone, content_type, &initial_data_clone, payment_option).await
+        });
+        let address = ScratchpadAddress::new(owner.public_key());
+        Ok((AttoTokens::zero(), address))
+    }
+
+    pub async fn scratchpad_create_public(
+        &self,
+        owner: &SecretKey,
+        content_type: u64,
+        initial_data: &Bytes,
+        payment_option: PaymentOption,
+    ) -> Result<(AttoTokens, ScratchpadAddress), ScratchpadError> {
+        let address = ScratchpadAddress::new(owner.public_key());
+        let already_exists = self.scratchpad_check_existance(&address).await?;
+        if already_exists {
+            return Err(ScratchpadError::ScratchpadAlreadyExists(address));
+        }
+
+        let counter = 0;
+        let signature = owner.sign(Scratchpad::bytes_for_signature(
+            address,
+            content_type,
+            &initial_data.clone(),
+            counter,
+        ));
+        let scratchpad = Scratchpad::new_with_signature(owner.public_key(), content_type, initial_data.clone(), counter, signature);
+        let client_clone = self.client.clone();
+        tokio::spawn(async move {
+            debug!("creating scratchpad async");
+            client_clone.scratchpad_put(scratchpad, payment_option).await
+        });
+        Ok((AttoTokens::zero(), address))
+    }
+
+    pub async fn scratchpad_update_public(
+        &self,
+        owner: &SecretKey,
+        content_type: u64,
+        data: &Bytes,
+        payment_option: PaymentOption,
+        counter: u64,
+    ) -> Result<(), ScratchpadError> {
+        let address = ScratchpadAddress::new(owner.public_key());
+
+        let version = counter + 1;
+        let signature = owner.sign(Scratchpad::bytes_for_signature(
+            address,
+            content_type,
+            &data.clone(),
+            version,
+        ));
+        let scratchpad = Scratchpad::new_with_signature(owner.public_key(), content_type, data.clone(), version, signature);
+        let client_clone = self.client.clone();
+        tokio::spawn(async move {
+            debug!("creating scratchpad async");
+            client_clone.scratchpad_put(scratchpad, payment_option).await
+        });
+        Ok(())
+    }
+
+    pub async fn scratchpad_check_existance(
+        &self,
+        address: &ScratchpadAddress,
+    ) -> Result<bool, ScratchpadError> {
+        self.client.scratchpad_check_existance(address).await
+    }
+
+    pub async fn scratchpad_update(
+        &self,
+        owner: &SecretKey,
+        content_type: u64,
+        data: &Bytes,
+    ) -> Result<(), ScratchpadError> {
+        let client_clone = self.client.clone();
+        let owner_clone = owner.clone();
+        let data_clone = data.clone();
+        // todo: move to job processor
+        tokio::spawn(async move {
+            debug!("updating scratchpad async");
+            client_clone.scratchpad_update(&owner_clone, content_type, &data_clone).await
+        });
+        Ok(())
+    }
+
+    pub async fn scratchpad_get(&self, address: &ScratchpadAddress) -> Result<Scratchpad, ScratchpadError> {
+        if self.client_cache_state.get_ref().scratchpad_cache.lock().unwrap().contains_key(address)
+            && !self.client_cache_state.get_ref().scratchpad_cache.lock().unwrap().get(address).unwrap().has_expired() {
+            debug!("getting cached scratchpad for [{}] from memory", address.to_hex());
+            match self.client_cache_state.get_ref().scratchpad_cache.lock().unwrap().get(address) {
+                Some(cache_item) => {
+                    debug!("getting cached scratchpad for [{}] from memory", address.to_hex());
+                    match cache_item.item.clone() {
+                        Some(scratchpad) => Ok(scratchpad),
+                        None => Err(ScratchpadError::Serialization)
+                    }
+                }
+                None => Err(ScratchpadError::Serialization)
+            }
+        } else {
+            self.scratchpad_get_uncached(address).await
+        }
+    }
+
+    async fn scratchpad_get_uncached(&self, address: &ScratchpadAddress) -> Result<Scratchpad, ScratchpadError> {
+        debug!("getting uncached scratchpad for [{}] from network", address.to_hex());
+        match self.client.scratchpad_get(address).await {
+            Ok(scratchpad) => {
+                debug!("found scratchpad for address [{}]", address.to_hex());
+                self.client_cache_state.get_ref().scratchpad_cache.lock().unwrap().insert(address.clone(), CacheItem::new(Some(scratchpad.clone()), self.ant_tp_config.clone().cached_mutable_ttl));
+                Ok(scratchpad)
+            }
+            Err(_) => {
+                // cache mismatches to avoid repeated lookup
+                debug!("found no scratchpad for address [{}]", address.to_hex());
+                self.client_cache_state.get_ref().scratchpad_cache.lock().unwrap().insert(address.clone(), CacheItem::new(None, self.ant_tp_config.clone().cached_mutable_ttl));
+                Err(ScratchpadError::Serialization)
+            }
         }
     }
 }

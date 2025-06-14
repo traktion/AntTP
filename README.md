@@ -35,17 +35,31 @@ List help from binary:
 `anttp --help`
 
 ```
-AntTP is a HTTP proxy which serves data from Autonomi over conventional HTTP connections
+AntTP is an HTTP proxy which serves data from Autonomi over conventional HTTP connections
 
 Usage: anttp [OPTIONS]
 
 Options:
-  -l, --listen-address <LISTEN_ADDRESS>                [default: 0.0.0.0:8080]
-  -s, --static-file-directory <STATIC_FILE_DIRECTORY>  [default: ]
-  -w, --wallet-private-key <WALLET_PRIVATE_KEY>        [default: ]
-  -d, --download-threads <DOWNLOAD_THREADS>            [default: 8]
-  -h, --help                                           Print help
-  -V, --version                                        Print version
+  -l, --listen-address <LISTEN_ADDRESS>
+          [default: 0.0.0.0:8080]
+  -s, --static-file-directory <STATIC_FILE_DIRECTORY>
+          [default: ]
+  -w, --wallet-private-key <WALLET_PRIVATE_KEY>
+          [default: ]
+  -d, --download-threads <DOWNLOAD_THREADS>
+          [default: 8]
+  -a, --app-private-key <APP_PRIVATE_KEY>
+          [default: ]
+  -b, --bookmarks <BOOKMARKS>
+          [default: traktion-blog=b70a146f95b3ff237fa8140c4175f6a302c8250fe268aacdb47c2783f2b2ee6af5575410d07f6eae9ac7fb9ce95995e4,imim=959c2ba5b84e1a68fedc14caaae96e97cfff19ff381127844586b2e0cdd2afdfb1687086a5668bced9f3dc35c03c9bd7]
+  -u, --uploads-disabled
+          
+  -c, --cached-mutable-ttl <CACHED_MUTABLE_TTL>
+          [default: 60]
+  -h, --help
+          Print help
+  -V, --version
+          Print version
 ```
 
 Run binary with defaults
@@ -273,10 +287,10 @@ Why not take a look and start your own immutable blog today?
 - [ ] Advanced Autonomi API integration
   - [ ] REST API
     - [x] Pointer
-    - [ ] Scratchpad
+    - [x] Scratchpad
     - [ ] Graph
     - [x] Register
-    - [ ] Chunk (in addition to file support, which is already implemented)
+    - [x] Chunk
     - [ ] BLS support
       - [ ] Create, sign, verify
       - [ ] Derived keys

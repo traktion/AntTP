@@ -5,3 +5,4 @@ pub mod pointer_service;
 pub mod resolver_service;
 pub mod archive_helper;
 pub mod scratchpad_service;
+pub mod chunk_service;

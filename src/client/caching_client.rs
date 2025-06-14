@@ -3,9 +3,9 @@ use std::fs::File;
 use std::io::{Read, Write};
 use actix_web::web::Data;
 use ant_evm::AttoTokens;
-use autonomi::{Client, Pointer, PointerAddress, ScratchpadAddress, SecretKey};
+use autonomi::{Chunk, ChunkAddress, Client, Pointer, PointerAddress, ScratchpadAddress, SecretKey};
 use autonomi::client::files::archive_public::{ArchiveAddress, PublicArchive};
-use autonomi::client::GetError;
+use autonomi::client::{GetError, PutError};
 use autonomi::client::payment::PaymentOption;
 use autonomi::data::DataAddress;
 use autonomi::pointer::{PointerError, PointerTarget};
@@ -37,7 +37,7 @@ impl CachingClient {
             client, cache_dir, ant_tp_config, client_cache_state,
         }
     }
-    
+
     fn create_tmp_dir(cache_dir: String) {
         if !fs::exists(cache_dir.clone()).unwrap() {
             fs::create_dir_all(cache_dir.clone()).unwrap_or_default()
@@ -130,11 +130,11 @@ impl CachingClient {
                 self.client_cache_state.get_ref().pointer_cache.lock().unwrap().insert(address.clone(), CacheItem::new(Some(pointer.clone()), self.ant_tp_config.clone().cached_mutable_ttl));
                 Ok(pointer)
             }
-            Err(_) => {
+            Err(e) => {
                 // cache mismatches to avoid repeated lookup
                 debug!("found no pointer for address [{}]", address.to_hex());
                 self.client_cache_state.get_ref().pointer_cache.lock().unwrap().insert(address.clone(), CacheItem::new(None, self.ant_tp_config.clone().cached_mutable_ttl));
-                Err(PointerError::Serialization)
+                Err(e)
             }
         }
     }
@@ -198,11 +198,11 @@ impl CachingClient {
                 self.client_cache_state.get_ref().register_cache.lock().unwrap().insert(address.clone(), CacheItem::new(Some(register_value.clone()), self.ant_tp_config.clone().cached_mutable_ttl));
                 Ok(register_value)
             },
-            Err(_) => {
+            Err(e) => {
                 // cache mismatches to avoid repeated lookup
                 debug!("found no register value for address [{}]", address.to_hex());
                 self.client_cache_state.get_ref().register_cache.lock().unwrap().insert(address.clone(), CacheItem::new(None, self.ant_tp_config.clone().cached_mutable_ttl));
-                Err(RegisterError::PointerError(PointerError::Serialization))
+                Err(e)
             }
         }
     }
@@ -379,11 +379,62 @@ impl CachingClient {
                 self.client_cache_state.get_ref().scratchpad_cache.lock().unwrap().insert(address.clone(), CacheItem::new(Some(scratchpad.clone()), self.ant_tp_config.clone().cached_mutable_ttl));
                 Ok(scratchpad)
             }
-            Err(_) => {
+            Err(e) => {
                 // cache mismatches to avoid repeated lookup
                 debug!("found no scratchpad for address [{}]", address.to_hex());
                 self.client_cache_state.get_ref().scratchpad_cache.lock().unwrap().insert(address.clone(), CacheItem::new(None, self.ant_tp_config.clone().cached_mutable_ttl));
-                Err(ScratchpadError::Serialization)
+                Err(e)
+            }
+        }
+    }
+
+    pub async fn chunk_put(
+        &self,
+        chunk: &Chunk,
+        payment_option: PaymentOption,
+    ) -> Result<(AttoTokens, ChunkAddress), PutError> {
+        let client_clone = self.client.clone();
+        let chunk_clone = chunk.clone();
+        // todo: move to job processor
+        tokio::spawn(async move {
+            debug!("creating chunk async");
+            client_clone.chunk_put(&chunk_clone, payment_option).await
+        });
+        Ok((AttoTokens::zero(), chunk.address))
+    }
+
+    pub async fn chunk_get(&self, address: &ChunkAddress) -> Result<Chunk, GetError> {
+        if self.client_cache_state.get_ref().chunk_cache.lock().unwrap().contains_key(address)
+            && !self.client_cache_state.get_ref().chunk_cache.lock().unwrap().get(address).unwrap().has_expired() {
+            debug!("getting cached chunk for [{}] from memory", address.to_hex());
+            match self.client_cache_state.get_ref().chunk_cache.lock().unwrap().get(address) {
+                Some(cache_item) => {
+                    debug!("getting cached chunk for [{}] from memory", address.to_hex());
+                    match cache_item.item.clone() {
+                        Some(chunk) => Ok(chunk),
+                        None => Err(GetError::InvalidDataMap(rmp_serde::decode::Error::Uncategorized("Failed to find chunk in cache".to_string())))
+                    }
+                }
+                None => Err(GetError::InvalidDataMap(rmp_serde::decode::Error::Uncategorized("Failed to find chunk in cache".to_string())))
+            }
+        } else {
+            self.chunk_get_uncached(address).await
+        }
+    }
+
+    async fn chunk_get_uncached(&self, address: &ChunkAddress) -> Result<Chunk, GetError> {
+        debug!("getting uncached chunk for [{}] from network", address.to_hex());
+        match self.client.chunk_get(address).await {
+            Ok(chunk) => {
+                debug!("found chunk for address [{}]", address.to_hex());
+                self.client_cache_state.get_ref().chunk_cache.lock().unwrap().insert(address.clone(), CacheItem::new(Some(chunk.clone()), self.ant_tp_config.clone().cached_mutable_ttl));
+                Ok(chunk)
+            }
+            Err(e) => {
+                // cache mismatches to avoid repeated lookup
+                debug!("found no chunk for address [{}]", address.to_hex());
+                self.client_cache_state.get_ref().chunk_cache.lock().unwrap().insert(address.clone(), CacheItem::new(None, self.ant_tp_config.clone().cached_mutable_ttl));
+                Err(e)
             }
         }
     }

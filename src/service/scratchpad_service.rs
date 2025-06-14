@@ -17,13 +17,13 @@ pub struct Scratchpad {
     pub address: Option<String>,
     pub data_encoding: Option<u64>,
     pub signature: Option<bool>,
-    pub content: String,
+    pub content: Option<String>,
     pub counter: Option<u64>,
     pub cost: Option<AttoTokens>,
 }
 
 impl Scratchpad {
-    pub fn new(name: Option<String>, address: Option<String>, data_encoding: Option<u64>, signature: Option<bool>, content: String, counter: Option<u64>, cost: Option<AttoTokens>) -> Self {
+    pub fn new(name: Option<String>, address: Option<String>, data_encoding: Option<u64>, signature: Option<bool>, content: Option<String>, counter: Option<u64>, cost: Option<AttoTokens>) -> Self {
         Scratchpad { name, address, data_encoding, signature, content, counter, cost }
     }
 }
@@ -43,8 +43,9 @@ impl ScratchpadService {
         let app_secret_key = SecretKey::from_hex(self.ant_tp_config.app_private_key.clone().as_str()).unwrap();
         let scratchpad_key = Client::register_key_from_name(&app_secret_key, scratchpad.name.clone().unwrap().as_str());
 
-        info!("Create scratchpad from name [{}] for data sized [{}]", scratchpad.name.clone().unwrap(), scratchpad.content.len());
-        let decoded_content = match BASE64_STANDARD.decode(scratchpad.content.clone()) {
+        let content = scratchpad.content.clone().unwrap_or_else(|| "".to_ascii_lowercase());
+        info!("Create scratchpad from name [{}] for data sized [{}]", scratchpad.name.clone().unwrap(), content.len());
+        let decoded_content = match BASE64_STANDARD.decode(content.clone()) {
             Ok(b) => b,
             Err(_) => Vec::new(),
         };
@@ -79,11 +80,9 @@ impl ScratchpadService {
             return Err(ErrorPreconditionFailed(format!("Address [{}] is not derived from name [{}].", address.clone(), scratchpad.name.clone().unwrap())));
         }
 
-        info!("Update {}scratchpad with name [{}] with data sized [{}]", if !is_encrypted { "public " } else { "" }, scratchpad.name.clone().unwrap(), scratchpad.content.len());
-        let decoded_content = match BASE64_STANDARD.decode(scratchpad.content.clone()) {
-            Ok(b) => b,
-            Err(_) => Vec::new(),
-        };
+        let content = scratchpad.content.clone().unwrap_or_else(|| "".to_ascii_lowercase());
+        info!("Update {}scratchpad with name [{}] with data sized [{}]", if !is_encrypted { "public " } else { "" }, scratchpad.name.clone().unwrap(), content.len());
+        let decoded_content = BASE64_STANDARD.decode(content.clone()).unwrap_or_else(|_| Vec::new());
         let result = if is_encrypted {
             self.caching_client.scratchpad_update(&scratchpad_key, 1, &Bytes::from(decoded_content.clone())).await
         } else {
@@ -123,7 +122,7 @@ impl ScratchpadService {
                 } else {
                     BASE64_STANDARD.encode(scratchpad.encrypted_data())
                 };
-                let response_scratchpad = Scratchpad::new(None, Some(address), Some(scratchpad.data_encoding()), Some(scratchpad.verify_signature()), content, Some(scratchpad.counter()), None);
+                let response_scratchpad = Scratchpad::new(None, Some(address), Some(scratchpad.data_encoding()), Some(scratchpad.verify_signature()), Some(content), Some(scratchpad.counter()), None);
                 Ok(HttpResponse::Ok().json(response_scratchpad).into())
             }
             Err(e) => {

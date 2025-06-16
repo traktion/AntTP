@@ -5,7 +5,7 @@ use log::{debug, info};
 
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
-pub(crate) struct AppConfig {
+pub struct AppConfig {
     route_map: HashMap<String, String>
 }
 

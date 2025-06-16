@@ -9,6 +9,17 @@ use crate::ClientCacheState;
 use crate::config::anttp_config::AntTpConfig;
 use crate::service::chunk_service::{Chunk, ChunkService};
 
+#[utoipa::path(
+    post,
+    path = "/api/v1/chunk/{address}",
+    request_body(
+        content = Chunk
+    ),
+    responses(
+        (status = 200, description = "Chunk found successfully", body = Chunk),
+        (status = NOT_FOUND, description = "Chunk was not found")
+    ),
+)]
 pub async fn post_chunk(
     autonomi_client_data: Data<Client>,
     evm_wallet_data: Data<EvmWallet>,
@@ -28,6 +39,17 @@ pub async fn post_chunk(
     chunk_service.create_chunk(chunk.into_inner(), evm_wallet).await
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/v1/binary/chunk/{address}",
+    request_body(
+        content_type = "application/octet-stream"
+    ),
+    responses(
+        (status = 200, description = "Chunk found successfully", body = Chunk),
+        (status = NOT_FOUND, description = "Chunk was not found")
+    ),
+)]
 pub async fn post_chunk_binary(
     autonomi_client_data: Data<Client>,
     evm_wallet_data: Data<EvmWallet>,
@@ -54,6 +76,17 @@ pub async fn post_chunk_binary(
     }
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/v1/chunk/{address}",
+    responses(
+        (status = 200, description = "Chunk found successfully", body = Chunk),
+        (status = NOT_FOUND, description = "Chunk was not found")
+    ),
+    params(
+        ("address" = String, Path, description = "Chunk address"),
+    )
+)]
 pub async fn get_chunk(
     path: web::Path<String>,
     autonomi_client_data: Data<Client>,
@@ -72,6 +105,17 @@ pub async fn get_chunk(
     chunk_service.get_chunk(address).await
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/v1/binary/chunk/{address}",
+    responses(
+        (status = 200, description = "Chunk found successfully", content_type = "application/octet-stream"),
+        (status = NOT_FOUND, description = "Chunk was not found")
+    ),
+    params(
+        ("address" = String, Path, description = "Chunk address"),
+    )
+)]
 pub async fn get_chunk_binary(
     path: web::Path<String>,
     autonomi_client_data: Data<Client>,

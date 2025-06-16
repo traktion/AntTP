@@ -17,16 +17,12 @@ use autonomi::{Chunk, ChunkAddress, Pointer, PointerAddress, Scratchpad, Scratch
 use autonomi::register::{RegisterAddress, RegisterValue};
 use awc::Client as AwcClient;
 use tokio::task::JoinHandle;
+use utoipa_swagger_ui::SwaggerUi;
 use config::anttp_config::AntTpConfig;
 use crate::client::cache_item::CacheItem;
-use crate::controller::chunk_controller::{get_chunk, get_chunk_binary, post_chunk, post_chunk_binary};
-use crate::controller::file_controller::get_public_data;
-use crate::controller::pointer_controller::{get_pointer, post_pointer, put_pointer};
-use crate::controller::public_archive_controller::{get_status_public_archive, post_public_archive, put_public_archive};
-use crate::controller::public_scratchpad_controller::{get_public_scratchpad, post_public_scratchpad, put_public_scratchpad};
-use crate::controller::register_controller::{get_register, get_register_history, post_register, put_register};
-use crate::controller::scratchpad_controller::{get_scratchpad, post_scratchpad, put_scratchpad};
 use crate::service::public_archive_service::Upload;
+use utoipa::{OpenApi};
+use crate::controller::{chunk_controller, file_controller, pointer_controller, public_archive_controller, public_scratchpad_controller, register_controller, private_scratchpad_controller};
 
 const DEFAULT_LOGGING: &'static str = "info,anttp=info,ant_api=warn,ant_client=warn,ant_networking=off,ant_bootstrap=error,chunk_streamer=error";
 
@@ -75,6 +71,31 @@ impl ClientCacheState {
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     // init logging from RUST_LOG env var with info as default
+
+    #[derive(OpenApi)]
+    #[openapi(paths(
+        chunk_controller::get_chunk,
+        chunk_controller::get_chunk_binary,
+        chunk_controller::post_chunk,
+        chunk_controller::post_chunk_binary,
+        pointer_controller::get_pointer,
+        pointer_controller::post_pointer,
+        pointer_controller::put_pointer,
+        public_archive_controller::get_status_public_archive,
+        public_archive_controller::post_public_archive,
+        public_archive_controller::put_public_archive,
+        public_scratchpad_controller::get_public_scratchpad,
+        public_scratchpad_controller::post_public_scratchpad,
+        public_scratchpad_controller::put_public_scratchpad,
+        register_controller::get_register,
+        register_controller::get_register_history,
+        register_controller::post_register,
+        register_controller::put_register,
+        private_scratchpad_controller::get_private_scratchpad,
+        private_scratchpad_controller::post_private_scratchpad,
+        private_scratchpad_controller::put_private_scratchpad,
+    ))]
+    struct ApiDoc;
     env_logger::Builder::from_env(env_logger::Env::default()
         .default_filter_or(DEFAULT_LOGGING))
         .init();
@@ -102,15 +123,16 @@ async fn main() -> std::io::Result<()> {
 
         let mut app = App::new()
             .wrap(logger)
-            .route("/api/v1/public_archive/status/{id}", web::get().to(get_status_public_archive))
-            .route("/api/v1/register/{address}", web::get().to(get_register))
-            .route("/api/v1/register_history/{address}", web::get().to(get_register_history))
-            .route("/api/v1/pointer/{address}", web::get().to(get_pointer))
-            .route("/api/v1/scratchpad/{address}/{name}", web::get().to(get_scratchpad))
-            .route("/api/v1/public_scratchpad/{address}", web::get().to(get_public_scratchpad))
-            .route("/api/v1/chunk/{address}", web::get().to(get_chunk))
-            .route("/api/v1/binary/chunk/{address}", web::get().to(get_chunk_binary))
-            .route("/{path:.*}", web::get().to(get_public_data))
+            .service(SwaggerUi::new("/swagger-ui/{_:.*}").url("/api-docs/openapi.json", ApiDoc::openapi()))
+            .route("/api/v1/chunk/{address}", web::get().to(chunk_controller::get_chunk))
+            .route("/api/v1/binary/chunk/{address}", web::get().to(chunk_controller::get_chunk_binary))
+            .route("/api/v1/pointer/{address}", web::get().to(pointer_controller::get_pointer))
+            .route("/api/v1/public_archive/status/{id}", web::get().to(public_archive_controller::get_status_public_archive))
+            .route("/api/v1/public_scratchpad/{address}", web::get().to(public_scratchpad_controller::get_public_scratchpad))
+            .route("/api/v1/register/{address}", web::get().to(register_controller::get_register))
+            .route("/api/v1/register_history/{address}", web::get().to(register_controller::get_register_history))
+            .route("/api/v1/private_scratchpad/{address}/{name}", web::get().to(private_scratchpad_controller::get_private_scratchpad))
+            .route("/{path:.*}", web::get().to(file_controller::get_public_data))
             .app_data(Data::new(app_config.clone()))
             .app_data(Data::new(autonomi_client.clone()))
             .app_data(Data::new(AwcClient::default()))
@@ -120,18 +142,18 @@ async fn main() -> std::io::Result<()> {
             .app_data(client_cache_state.clone());
         if !app_config.uploads_disabled {
             app = app
-                .route("/api/v1/multipart/public_archive", web::post().to(post_public_archive))
-                .route("/api/v1/multipart/public_archive/{address}", web::put().to(put_public_archive))
-                .route("/api/v1/register", web::post().to(post_register))
-                .route("/api/v1/register/{address}", web::put().to(put_register))
-                .route("/api/v1/pointer", web::post().to(post_pointer))
-                .route("/api/v1/pointer/{address}", web::put().to(put_pointer))
-                .route("/api/v1/scratchpad", web::post().to(post_scratchpad))
-                .route("/api/v1/scratchpad/{address}", web::put().to(put_scratchpad))
-                .route("/api/v1/public_scratchpad", web::post().to(post_public_scratchpad))
-                .route("/api/v1/public_scratchpad/{address}", web::put().to(put_public_scratchpad))
-                .route("/api/v1/chunk", web::post().to(post_chunk))
-                .route("/api/v1/binary/chunk", web::post().to(post_chunk_binary));
+                .route("/api/v1/chunk", web::post().to(chunk_controller::post_chunk))
+                .route("/api/v1/binary/chunk", web::post().to(chunk_controller::post_chunk_binary))
+                .route("/api/v1/pointer", web::post().to(pointer_controller::post_pointer))
+                .route("/api/v1/pointer/{address}", web::put().to(pointer_controller::put_pointer))
+                .route("/api/v1/multipart/public_archive", web::post().to(public_archive_controller::post_public_archive))
+                .route("/api/v1/multipart/public_archive/{address}", web::put().to(public_archive_controller::put_public_archive))
+                .route("/api/v1/public_scratchpad", web::post().to(public_scratchpad_controller::post_public_scratchpad))
+                .route("/api/v1/public_scratchpad/{address}", web::put().to(public_scratchpad_controller::put_public_scratchpad))
+                .route("/api/v1/register", web::post().to(register_controller::post_register))
+                .route("/api/v1/register/{address}", web::put().to(register_controller::put_register))
+                .route("/api/v1/private_scratchpad", web::post().to(private_scratchpad_controller::post_private_scratchpad))
+                .route("/api/v1/private_scratchpad/{address}", web::put().to(private_scratchpad_controller::put_private_scratchpad));
         };
         if app_config.static_file_directory != "" {
             app.service(Files::new("/static", app_config.static_file_directory.clone()))

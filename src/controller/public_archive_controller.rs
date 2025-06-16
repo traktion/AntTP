@@ -6,11 +6,21 @@ use autonomi::Client;
 use log::info;
 use crate::config::anttp_config::AntTpConfig;
 use crate::{UploaderState, ClientCacheState, UploadState};
-use crate::service::public_archive_service::PublicArchiveService;
+use crate::service::public_archive_service::{PublicArchiveService, Upload};
 use crate::client::caching_client::CachingClient;
 use crate::service::file_service::FileService;
 use crate::service::resolver_service::ResolverService;
 
+#[utoipa::path(
+    post,
+    path = "/api/v1/multipart/public_archive",
+    request_body(
+        content_type = "multipart/form-data"
+    ),
+    responses(
+        (status = OK, description = "Public archive created successfully", body = Upload)
+    ),
+)]
 pub async fn post_public_archive(
     payload: Multipart,
     autonomi_client_data: Data<Client>,
@@ -28,6 +38,16 @@ pub async fn post_public_archive(
     archive_service.create_public_archive(payload, evm_wallet).await
 }
 
+#[utoipa::path(
+    put,
+    path = "/api/v1/multipart/public_archive",
+    request_body(
+        content_type = "multipart/form-data"
+    ),
+    responses(
+        (status = OK, description = "Public archive updated successfully", body = Upload)
+    ),
+)]
 pub async fn put_public_archive(
     path: web::Path<String>,
     payload: Multipart,
@@ -47,6 +67,17 @@ pub async fn put_public_archive(
     archive_service.update_public_archive(address, payload, evm_wallet).await
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/v1/public_archive/status/{id}",
+    responses(
+        (status = 200, description = "Id found successfully", body = Upload),
+        (status = NOT_FOUND, description = "Id was not found")
+    ),
+    params(
+        ("id" = String, Path, description = "Id of upload"),
+    )
+)]
 pub async fn get_status_public_archive(
     path: web::Path<String>,
     autonomi_client_data: Data<Client>,

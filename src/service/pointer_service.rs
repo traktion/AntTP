@@ -1,25 +1,25 @@
 use actix_web::{Error, HttpResponse};
 use actix_web::error::{ErrorInternalServerError, ErrorPreconditionFailed};
-use ant_evm::{AttoTokens};
 use autonomi::{ChunkAddress, Client, PointerAddress, SecretKey, Wallet};
 use autonomi::client::payment::PaymentOption;
 use autonomi::pointer::PointerTarget;
 use log::{info, warn};
 use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 use crate::client::caching_client::CachingClient;
 use crate::config::anttp_config::AntTpConfig;
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, ToSchema)]
 pub struct Pointer {
     name: Option<String>,
     target: String,
     address: Option<String>,
     counter: Option<u32>,
-    cost: Option<AttoTokens>,
+    cost: Option<String>,
 }
 
 impl Pointer {
-    pub fn new(name: Option<String>, target: String, address: Option<String>, counter: Option<u32>, cost: Option<AttoTokens>) -> Self {
+    pub fn new(name: Option<String>, target: String, address: Option<String>, counter: Option<u32>, cost: Option<String>) -> Self {
         Pointer { name, target, address, counter, cost } 
     }
 }
@@ -46,7 +46,7 @@ impl PointerService {
             .await {
                 Ok((cost, pointer_address)) => {
                     info!("Created pointer at [{}] for [{}] attos", pointer_address.to_hex(), cost);
-                    let response_pointer = Pointer::new(pointer.name, pointer.target, Some(pointer_address.to_hex()), None, Some(cost));
+                    let response_pointer = Pointer::new(pointer.name, pointer.target, Some(pointer_address.to_hex()), None, Some(cost.to_string()));
                     Ok(HttpResponse::Created().json(response_pointer))
                 }
                 Err(e) => {

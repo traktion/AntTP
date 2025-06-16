@@ -1,24 +1,24 @@
 use actix_web::{Error, HttpResponse};
 use actix_web::error::{ErrorInternalServerError, ErrorPreconditionFailed};
-use ant_evm::{AttoTokens};
 use autonomi::{Client, SecretKey, Wallet};
 use autonomi::client::payment::PaymentOption;
 use autonomi::register::{RegisterAddress};
 use log::{info, warn};
 use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 use crate::client::caching_client::CachingClient;
 use crate::config::anttp_config::AntTpConfig;
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, ToSchema)]
 pub struct Register {
     name: Option<String>,
     content: String,
     address: Option<String>,
-    cost: Option<AttoTokens>,
+    cost: Option<String>,
 }
 
 impl Register {
-    pub fn new(name: Option<String>, content: String, address: Option<String>, cost: Option<AttoTokens>) -> Self {
+    pub fn new(name: Option<String>, content: String, address: Option<String>, cost: Option<String>) -> Self {
         Register { name, content, address, cost } 
     }
 }
@@ -46,7 +46,7 @@ impl RegisterService {
                 Ok((cost, register_address)) => {
                     info!("Created register at [{}] for [{}] attos", register_address.to_hex(), cost);
                     let response_register = Register::new(
-                        register.name, register.content, Some(register_address.to_hex()), Some(cost));
+                        register.name, register.content, Some(register_address.to_hex()), Some(cost.to_string()));
                     Ok(HttpResponse::Created().json(response_register))
                 }
                 Err(e) => {
@@ -72,7 +72,7 @@ impl RegisterService {
             .await {
             Ok(cost) => {
                 info!("Updated register with name [{}] for [{}] attos", register.name.clone().unwrap(), cost);
-                let response_register = Register::new(Some(register.name.unwrap()), register.content, Some(address), Some(cost));
+                let response_register = Register::new(Some(register.name.unwrap()), register.content, Some(address), Some(cost.to_string()));
                 Ok(HttpResponse::Ok().json(response_register))
             }
             Err(e) => {

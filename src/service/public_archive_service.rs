@@ -21,11 +21,12 @@ use crate::service::file_service::FileService;
 use crate::service::resolver_service::{ResolvedAddress, ResolverService};
 use futures_util::{StreamExt as _};
 use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 use uuid::Uuid;
 use crate::config::anttp_config::AntTpConfig;
 use crate::{UploadState, UploaderState};
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, ToSchema)]
 pub struct Upload {
     id: String,
     status: String,

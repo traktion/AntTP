@@ -1,7 +1,6 @@
 use actix_web::{Error, HttpResponse};
 use actix_web::error::{ErrorInternalServerError};
 use actix_web::http::header::{ContentLength, ContentType};
-use ant_evm::{AttoTokens};
 use autonomi::{ChunkAddress, Wallet};
 use autonomi::client::chunk as autonomi_chunk;
 use autonomi::client::payment::PaymentOption;
@@ -10,17 +9,18 @@ use base64::prelude::BASE64_STANDARD;
 use bytes::{Bytes};
 use log::{info, warn};
 use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 use crate::client::caching_client::CachingClient;
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, ToSchema)]
 pub struct Chunk {
     content: Option<String>,
     address: Option<String>,
-    cost: Option<AttoTokens>,
+    cost: Option<String>,
 }
 
 impl Chunk {
-    pub fn new(content: Option<String>, address: Option<String>, cost: Option<AttoTokens>) -> Self {
+    pub fn new(content: Option<String>, address: Option<String>, cost: Option<String>) -> Self {
         Chunk { content, address, cost }
     }
 }
@@ -50,7 +50,7 @@ impl ChunkService {
 
         self.create_chunk_raw(chunk_data, evm_wallet).await
     }
-    
+
     pub async fn create_chunk_raw(&self, chunk: autonomi_chunk::Chunk, evm_wallet: Wallet) -> Result<HttpResponse, Error> {
         info!("Create chunk at address [{}]", chunk.address.to_hex());
         match self.caching_client
@@ -58,7 +58,7 @@ impl ChunkService {
             .await {
             Ok((cost, chunk_address)) => {
                 info!("Created chunk at [{}] for [{}] attos", chunk_address.to_hex(), cost);
-                let response_chunk = Chunk::new(None, Some(chunk_address.to_hex()), Some(cost));
+                let response_chunk = Chunk::new(None, Some(chunk_address.to_hex()), Some(cost.to_string()));
                 Ok(HttpResponse::Created().json(response_chunk))
             }
             Err(e) => {
@@ -74,7 +74,7 @@ impl ChunkService {
         match self.caching_client.chunk_get(&chunk_address).await {
             Ok(chunk) => {
                 info!("Retrieved chunk at address [{}]", address);
-                
+
                 // todo: add caching headers (etag, etc)
                 Ok(HttpResponse::Ok()
                     .insert_header(ContentType::octet_stream())

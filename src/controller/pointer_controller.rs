@@ -8,6 +8,16 @@ use crate::ClientCacheState;
 use crate::config::anttp_config::AntTpConfig;
 use crate::service::pointer_service::{Pointer, PointerService};
 
+#[utoipa::path(
+    post,
+    path = "/api/v1/pointer",
+    request_body(
+        content = Pointer
+    ),
+    responses(
+        (status = CREATED, description = "Chunk created successfully", body = Pointer)
+    ),
+)]
 pub async fn post_pointer(
     autonomi_client_data: Data<Client>,
     evm_wallet_data: Data<EvmWallet>,
@@ -28,6 +38,16 @@ pub async fn post_pointer(
     pointer_service.create_pointer(pointer.into_inner(), evm_wallet).await
 }
 
+#[utoipa::path(
+    put,
+    path = "/api/v1/pointer/{address}",
+    request_body(
+        content = Pointer
+    ),
+    responses(
+        (status = OK, description = "Pointer updated successfully", body = Pointer)
+    ),
+)]
 pub async fn put_pointer(
     path: web::Path<String>,
     autonomi_client_data: Data<Client>,
@@ -48,6 +68,17 @@ pub async fn put_pointer(
     pointer_service.update_pointer(address, pointer.into_inner()).await
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/v1/pointer/{address}",
+    responses(
+        (status = OK, description = "Pointer found successfully", body = Pointer),
+        (status = NOT_FOUND, description = "Pointer was not found")
+    ),
+    params(
+        ("address" = String, Path, description = "Pointer address"),
+    )
+)]
 pub async fn get_pointer(
     path: web::Path<String>,
     autonomi_client_data: Data<Client>,

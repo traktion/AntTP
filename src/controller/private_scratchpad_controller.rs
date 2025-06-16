@@ -8,7 +8,17 @@ use crate::ClientCacheState;
 use crate::config::anttp_config::AntTpConfig;
 use crate::service::scratchpad_service::{Scratchpad, ScratchpadService};
 
-pub async fn post_scratchpad(
+#[utoipa::path(
+    post,
+    path = "/api/v1/private_scratchpad",
+    request_body(
+        content = Scratchpad
+    ),
+    responses(
+        (status = CREATED, description = "Private scratchpad created successfully", body = Scratchpad)
+    ),
+)]
+pub async fn post_private_scratchpad(
     autonomi_client_data: Data<Client>,
     evm_wallet_data: Data<EvmWallet>,
     ant_tp_config_data: Data<AntTpConfig>,
@@ -24,11 +34,21 @@ pub async fn post_scratchpad(
         ant_tp_config_data.get_ref().clone(),
     );
 
-    info!("Creating new scratchpad");
+    info!("Creating new private scratchpad");
     scratchpad_service.create_scratchpad(scratchpad.into_inner(), evm_wallet, true).await
 }
 
-pub async fn put_scratchpad(
+#[utoipa::path(
+    put,
+    path = "/api/v1/private_scratchpad/{address}",
+    request_body(
+        content = Scratchpad
+    ),
+    responses(
+        (status = OK, description = "Private scratchpad updated successfully", body = Scratchpad)
+    ),
+)]
+pub async fn put_private_scratchpad(
     path: web::Path<String>,
     autonomi_client_data: Data<Client>,
     evm_wallet_data: Data<EvmWallet>,
@@ -46,11 +66,23 @@ pub async fn put_scratchpad(
         ant_tp_config_data.get_ref().clone(),
     );
 
-    info!("Updating scratchpad");
+    info!("Updating private scratchpad");
     scratchpad_service.update_scratchpad(address, scratchpad.into_inner(), evm_wallet, true).await
 }
 
-pub async fn get_scratchpad(
+#[utoipa::path(
+    get,
+    path = "/api/v1/private_scratchpad/{address}/{name}",
+    responses(
+        (status = OK, description = "Private scratchpad found successfully", body = Scratchpad),
+        (status = NOT_FOUND, description = "Private scratchpad was not found")
+    ),
+    params(
+        ("address" = String, Path, description = "Private scratchpad address"),
+        ("name" = String, Path, description = "Private scratchpad name"),
+    )
+)]
+pub async fn get_private_scratchpad(
     path: web::Path<(String, Option<String>)>,
     autonomi_client_data: Data<Client>,
     ant_tp_config_data: Data<AntTpConfig>,
@@ -65,6 +97,6 @@ pub async fn get_scratchpad(
         ant_tp_config_data.get_ref().clone(),
     );
 
-    info!("Getting scratchpad at [{}] with name [{}]", address, name.clone().unwrap_or("".to_string()));
+    info!("Getting private scratchpad at [{}] with name [{}]", address, name.clone().unwrap_or("".to_string()));
     scratchpad_service.get_scratchpad(address, name, true).await
 }

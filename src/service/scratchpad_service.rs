@@ -1,6 +1,5 @@
 use actix_web::{Error, HttpResponse};
 use actix_web::error::{ErrorInternalServerError, ErrorPreconditionFailed};
-use ant_evm::{AttoTokens};
 use autonomi::{Client, ScratchpadAddress, SecretKey, Wallet};
 use autonomi::client::payment::PaymentOption;
 use base64::Engine;
@@ -8,10 +7,11 @@ use base64::prelude::BASE64_STANDARD;
 use bytes::Bytes;
 use log::{info, warn};
 use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 use crate::client::caching_client::CachingClient;
 use crate::config::anttp_config::AntTpConfig;
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, ToSchema)]
 pub struct Scratchpad {
     pub name: Option<String>,
     pub address: Option<String>,
@@ -19,11 +19,11 @@ pub struct Scratchpad {
     pub signature: Option<bool>,
     pub content: Option<String>,
     pub counter: Option<u64>,
-    pub cost: Option<AttoTokens>,
+    pub cost: Option<String>,
 }
 
 impl Scratchpad {
-    pub fn new(name: Option<String>, address: Option<String>, data_encoding: Option<u64>, signature: Option<bool>, content: Option<String>, counter: Option<u64>, cost: Option<AttoTokens>) -> Self {
+    pub fn new(name: Option<String>, address: Option<String>, data_encoding: Option<u64>, signature: Option<bool>, content: Option<String>, counter: Option<u64>, cost: Option<String>) -> Self {
         Scratchpad { name, address, data_encoding, signature, content, counter, cost }
     }
 }
@@ -61,7 +61,7 @@ impl ScratchpadService {
         match result {
             Ok((cost, scratchpad_address)) => {
                 info!("Created {}scratchpad at [{}] for [{}] attos", if !is_encrypted { "public " } else { "" }, scratchpad_address.to_hex(), cost);
-                let response_scratchpad = Scratchpad::new(scratchpad.name, Some(scratchpad_address.to_hex()), None, None, scratchpad.content, None, Some(cost));
+                let response_scratchpad = Scratchpad::new(scratchpad.name, Some(scratchpad_address.to_hex()), None, None, scratchpad.content, None, Some(cost.to_string()));
                 Ok(HttpResponse::Created().json(response_scratchpad))
             }
             Err(e) => {

@@ -8,6 +8,16 @@ use crate::ClientCacheState;
 use crate::config::anttp_config::AntTpConfig;
 use crate::service::register_service::{Register, RegisterService};
 
+#[utoipa::path(
+    post,
+    path = "/api/v1/register",
+    request_body(
+        content = Register
+    ),
+    responses(
+        (status = CREATED, description = "Register created successfully", body = Register)
+    ),
+)]
 pub async fn post_register(
     autonomi_client_data: Data<Client>,
     ant_tp_config_data: Data<AntTpConfig>,
@@ -28,6 +38,16 @@ pub async fn post_register(
     register_service.create_register(register.into_inner(), evm_wallet).await
 }
 
+#[utoipa::path(
+    put,
+    path = "/api/v1/register/{address}",
+    request_body(
+        content = Register
+    ),
+    responses(
+        (status = OK, description = "Register updated successfully", body = Register)
+    ),
+)]
 pub async fn put_register(
     autonomi_client_data: Data<Client>,
     ant_tp_config_data: Data<AntTpConfig>,
@@ -50,6 +70,17 @@ pub async fn put_register(
     register_service.update_register(address, register.into_inner(), evm_wallet).await
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/v1/register/{address}",
+    responses(
+        (status = OK, description = "Register found successfully", body = Register),
+        (status = NOT_FOUND, description = "Register was not found")
+    ),
+    params(
+        ("address" = String, Path, description = "Register address"),
+    )
+)]
 pub async fn get_register(
     autonomi_client_data: Data<Client>,
     ant_tp_config_data: Data<AntTpConfig>,
@@ -69,6 +100,17 @@ pub async fn get_register(
     register_service.get_register(address).await
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/v1/register_history/{address}",
+    responses(
+        (status = OK, description = "Register history found successfully", body = [Register]),
+        (status = NOT_FOUND, description = "Register history was not found")
+    ),
+    params(
+        ("address" = String, Path, description = "Register address"),
+    )
+)]
 pub async fn get_register_history(
     autonomi_client_data: Data<Client>,
     ant_tp_config_data: Data<AntTpConfig>,

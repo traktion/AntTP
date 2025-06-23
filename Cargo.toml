@@ -41,3 +41,4 @@ uuid = "1.17.0"
 base64 = "0.22.1"
 utoipa = "5"
 utoipa-swagger-ui = { version = "9", features = ["actix-web"] }
+once_cell = "1.21.3"

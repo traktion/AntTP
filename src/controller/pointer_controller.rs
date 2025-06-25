@@ -15,7 +15,7 @@ use crate::service::pointer_service::{Pointer, PointerService};
         content = Pointer
     ),
     responses(
-        (status = CREATED, description = "Chunk created successfully", body = Pointer)
+        (status = CREATED, description = "Pointer created successfully", body = Pointer)
     ),
 )]
 pub async fn post_pointer(

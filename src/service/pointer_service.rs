@@ -12,15 +12,15 @@ use crate::config::anttp_config::AntTpConfig;
 #[derive(Serialize, Deserialize, ToSchema)]
 pub struct Pointer {
     name: Option<String>,
-    target: String,
+    content: String,
     address: Option<String>,
     counter: Option<u32>,
     cost: Option<String>,
 }
 
 impl Pointer {
-    pub fn new(name: Option<String>, target: String, address: Option<String>, counter: Option<u32>, cost: Option<String>) -> Self {
-        Pointer { name, target, address, counter, cost } 
+    pub fn new(name: Option<String>, content: String, address: Option<String>, counter: Option<u32>, cost: Option<String>) -> Self {
+        Pointer { name, content, address, counter, cost } 
     }
 }
 
@@ -39,20 +39,20 @@ impl PointerService {
         let app_secret_key = SecretKey::from_hex(self.ant_tp_config.app_private_key.clone().as_str()).unwrap();
         let pointer_key = Client::register_key_from_name(&app_secret_key, pointer.name.clone().unwrap().as_str());
 
-        let chunk_address = ChunkAddress::from_hex(pointer.target.clone().as_str()).unwrap();
+        let chunk_address = ChunkAddress::from_hex(pointer.content.clone().as_str()).unwrap();
         info!("Create pointer from name [{}] for chunk [{}]", pointer.name.clone().unwrap(), chunk_address);
         match self.caching_client
             .pointer_create(&pointer_key, PointerTarget::ChunkAddress(chunk_address), PaymentOption::from(&evm_wallet))
             .await {
                 Ok((cost, pointer_address)) => {
                     info!("Created pointer at [{}] for [{}] attos", pointer_address.to_hex(), cost);
-                    let response_pointer = Pointer::new(pointer.name, pointer.target, Some(pointer_address.to_hex()), None, Some(cost.to_string()));
+                    let response_pointer = Pointer::new(pointer.name, pointer.content, Some(pointer_address.to_hex()), None, Some(cost.to_string()));
                     Ok(HttpResponse::Created().json(response_pointer))
                 }
                 Err(e) => {
                     // todo: refine error handling to return appropriate messages / payloads
                     warn!("Failed to create pointer: [{:?}]", e);
-                    Err(ErrorInternalServerError("Failed to create pointer:"))
+                    Err(ErrorInternalServerError("Failed to create pointer"))
                 }
         }
     }
@@ -65,14 +65,14 @@ impl PointerService {
             return Err(ErrorPreconditionFailed(format!("Address [{}] is not derived from name [{}].", address.clone(), pointer.name.clone().unwrap())));
         }
 
-        let chunk_address = ChunkAddress::from_hex(pointer.target.clone().as_str()).unwrap();
+        let chunk_address = ChunkAddress::from_hex(pointer.content.clone().as_str()).unwrap();
         info!("Update pointer with name [{}] for chunk [{}]", pointer.name.clone().unwrap(), chunk_address);
         match self.caching_client
             .pointer_update(&pointer_key, PointerTarget::ChunkAddress(chunk_address))
             .await {
             Ok(()) => {
                 info!("Updated pointer with name [{}]", pointer.name.clone().unwrap());
-                let response_pointer = Pointer::new(pointer.name, pointer.target, Some(address), None, None);
+                let response_pointer = Pointer::new(pointer.name, pointer.content, Some(address), None, None);
                 Ok(HttpResponse::Ok().json(response_pointer))
             }
             Err(e) => {

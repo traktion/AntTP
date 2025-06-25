@@ -13,7 +13,7 @@ use actix_web::web::Data;
 use ant_evm::EvmNetwork::ArbitrumOne;
 use ant_evm::EvmWallet;
 use autonomi::files::archive_public::ArchiveAddress;
-use autonomi::{Chunk, ChunkAddress, Pointer, PointerAddress, Scratchpad, ScratchpadAddress};
+use autonomi::{Chunk, ChunkAddress, GraphEntry, GraphEntryAddress, Pointer, PointerAddress, Scratchpad, ScratchpadAddress};
 use autonomi::register::{RegisterAddress, RegisterValue};
 use awc::Client as AwcClient;
 use tokio::task::JoinHandle;
@@ -22,7 +22,7 @@ use config::anttp_config::AntTpConfig;
 use crate::client::cache_item::CacheItem;
 use crate::service::public_archive_service::Upload;
 use utoipa::{OpenApi};
-use crate::controller::{chunk_controller, file_controller, pointer_controller, public_archive_controller, public_scratchpad_controller, register_controller, private_scratchpad_controller};
+use crate::controller::{chunk_controller, file_controller, pointer_controller, public_archive_controller, public_scratchpad_controller, register_controller, private_scratchpad_controller, graph_controller};
 
 pub struct UploadState {
     upload_map: Mutex<HashMap::<String, Upload>>
@@ -53,6 +53,7 @@ pub struct ClientCacheState {
     register_cache: Mutex<HashMap<RegisterAddress, CacheItem<RegisterValue>>>,
     scratchpad_cache: Mutex<HashMap<ScratchpadAddress, CacheItem<Scratchpad>>>,
     chunk_cache: Mutex<HashMap<ChunkAddress, CacheItem<Chunk>>>,
+    graph_entry_cache: Mutex<HashMap<GraphEntryAddress, CacheItem<GraphEntry>>>,
 }
 
 impl ClientCacheState {
@@ -61,7 +62,8 @@ impl ClientCacheState {
             pointer_cache: Mutex::new(HashMap::new()),
             register_cache: Mutex::new(HashMap::new()),
             scratchpad_cache: Mutex::new(HashMap::new()),
-            chunk_cache: Mutex::new(HashMap::new())
+            chunk_cache: Mutex::new(HashMap::new()),
+            graph_entry_cache: Mutex::new(HashMap::new())
         }
     }
 }
@@ -73,7 +75,6 @@ pub async fn run_server(app_config: AntTpConfig) -> std::io::Result<()> {
         chunk_controller::get_chunk_binary,
         chunk_controller::post_chunk,
         chunk_controller::post_chunk_binary,
-        //file_controller::get_public_data,
         pointer_controller::get_pointer,
         pointer_controller::post_pointer,
         pointer_controller::put_pointer,
@@ -90,6 +91,8 @@ pub async fn run_server(app_config: AntTpConfig) -> std::io::Result<()> {
         private_scratchpad_controller::get_private_scratchpad,
         private_scratchpad_controller::post_private_scratchpad,
         private_scratchpad_controller::put_private_scratchpad,
+        graph_controller::get_graph_entry,
+        graph_controller::post_graph_entry,
     ))]
     struct ApiDoc;
 
@@ -124,6 +127,7 @@ pub async fn run_server(app_config: AntTpConfig) -> std::io::Result<()> {
             .route("/api/v1/register/{address}", web::get().to(register_controller::get_register))
             .route("/api/v1/register_history/{address}", web::get().to(register_controller::get_register_history))
             .route("/api/v1/private_scratchpad/{address}/{name}", web::get().to(private_scratchpad_controller::get_private_scratchpad))
+            .route("/api/v1/graph_entry/{address}", web::get().to(graph_controller::get_graph_entry))
             .route("/{path:.*}", web::get().to(file_controller::get_public_data))
             .app_data(Data::new(app_config.clone()))
             .app_data(Data::new(autonomi_client.clone()))
@@ -145,7 +149,8 @@ pub async fn run_server(app_config: AntTpConfig) -> std::io::Result<()> {
                 .route("/api/v1/register", web::post().to(register_controller::post_register))
                 .route("/api/v1/register/{address}", web::put().to(register_controller::put_register))
                 .route("/api/v1/private_scratchpad", web::post().to(private_scratchpad_controller::post_private_scratchpad))
-                .route("/api/v1/private_scratchpad/{address}", web::put().to(private_scratchpad_controller::put_private_scratchpad));
+                .route("/api/v1/private_scratchpad/{address}", web::put().to(private_scratchpad_controller::put_private_scratchpad))
+                .route("/api/v1/graph_entry", web::post().to(graph_controller::post_graph_entry));
         };
         if app_config.static_file_directory != "" {
             app.service(Files::new("/static", app_config.static_file_directory.clone()))

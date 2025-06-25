@@ -3,11 +3,12 @@ use std::fs::File;
 use std::io::{Read, Write};
 use actix_web::web::Data;
 use ant_evm::AttoTokens;
-use autonomi::{Chunk, ChunkAddress, Client, Pointer, PointerAddress, ScratchpadAddress, SecretKey};
+use autonomi::{Chunk, ChunkAddress, Client, GraphEntry, GraphEntryAddress, Pointer, PointerAddress, ScratchpadAddress, SecretKey};
 use autonomi::client::files::archive_public::{ArchiveAddress, PublicArchive};
 use autonomi::client::{GetError, PutError};
 use autonomi::client::payment::PaymentOption;
 use autonomi::data::DataAddress;
+use autonomi::graph::GraphError;
 use autonomi::pointer::{PointerError, PointerTarget};
 use autonomi::register::{RegisterAddress, RegisterError, RegisterHistory, RegisterValue};
 use autonomi::scratchpad::{Scratchpad, ScratchpadError};
@@ -434,6 +435,63 @@ impl CachingClient {
                 // cache mismatches to avoid repeated lookup
                 debug!("found no chunk for address [{}]", address.to_hex());
                 self.client_cache_state.get_ref().chunk_cache.lock().unwrap().insert(address.clone(), CacheItem::new(None, self.ant_tp_config.clone().cached_mutable_ttl));
+                Err(e)
+            }
+        }
+    }
+
+    pub async fn graph_entry_put(
+        &self,
+        entry: GraphEntry,
+        payment_option: PaymentOption,
+    ) -> Result<(AttoTokens, GraphEntryAddress), GraphError> {
+        let client_clone = self.client.clone();
+        let address = entry.address();
+        // todo: move to job processor
+        tokio::spawn(async move {
+            debug!("creating graph entry async");
+            client_clone.graph_entry_put(entry, payment_option).await
+        });
+        Ok((AttoTokens::zero(), address))
+    }
+
+    pub async fn graph_entry_get(
+        &self,
+        address: &GraphEntryAddress,
+    ) -> Result<GraphEntry, GraphError> {
+        if self.client_cache_state.get_ref().graph_entry_cache.lock().unwrap().contains_key(address)
+            && !self.client_cache_state.get_ref().graph_entry_cache.lock().unwrap().get(address).unwrap().has_expired() {
+            debug!("getting cached graph for [{}] from memory", address.to_hex());
+            match self.client_cache_state.get_ref().graph_entry_cache.lock().unwrap().get(address) {
+                Some(cache_item) => {
+                    debug!("getting cached graph for [{}] from memory", address.to_hex());
+                    match cache_item.item.clone() {
+                        Some(graph) => Ok(graph),
+                        None => Err(GraphError::Serialization)
+                    }
+                }
+                None => Err(GraphError::Serialization)
+            }
+        } else {
+            self.graph_entry_get_uncached(address).await
+        }
+    }
+
+    pub async fn graph_entry_get_uncached(
+        &self,
+        address: &GraphEntryAddress,
+    ) -> Result<GraphEntry, GraphError> {
+        debug!("getting uncached graph entry for [{}] from network", address.to_hex());
+        match self.client.graph_entry_get(address).await {
+            Ok(graph_entry) => {
+                debug!("found graph entry for address [{}]",  address.to_hex());
+                self.client_cache_state.get_ref().graph_entry_cache.lock().unwrap().insert(address.clone(), CacheItem::new(Some(graph_entry.clone()), self.ant_tp_config.clone().cached_mutable_ttl));
+                Ok(graph_entry)
+            }
+            Err(e) => {
+                // cache mismatches to avoid repeated lookup
+                debug!("found no graph entry for address [{}]", address.to_hex());
+                self.client_cache_state.get_ref().graph_entry_cache.lock().unwrap().insert(address.clone(), CacheItem::new(None, self.ant_tp_config.clone().cached_mutable_ttl));
                 Err(e)
             }
         }

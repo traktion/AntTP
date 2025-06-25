@@ -19,7 +19,7 @@ AntTP was formally known as sn_httpd.
 
 - Data retrieval from Autonomic using archives for human readable naming `/[ARCHIVE_XOR_ADDRESS]/[MY_FILE_NAME]`. Enables
   regular static sites to be uploaded as an archive, with files browsed by file name. E.g.
-- http://localhost:8080/91d16e58e9164bccd29a8fd8d25218a61d8253b51c26119791b2633ff4f6b309/autonomi/david-irvine-autonomi-founder.jpg
+- http://localhost:18888/91d16e58e9164bccd29a8fd8d25218a61d8253b51c26119791b2633ff4f6b309/autonomi/david-irvine-autonomi-founder.jpg
 - Proxy server to allow `http://[ARCHIVE_XOR_ADDRESS]/[MY_FILE_NAME]` to be resolved. Allows
   sites to pivot from a 'root' directory and a smoother user experience. E.g.
 - - http://91d16e58e9164bccd29a8fd8d25218a61d8253b51c26119791b2633ff4f6b309/autonomi/david-irvine-autonomi-founder.jpg
@@ -41,7 +41,7 @@ Usage: anttp [OPTIONS]
 
 Options:
   -l, --listen-address <LISTEN_ADDRESS>
-          [default: 0.0.0.0:8080]
+          [default: 0.0.0.0:18888]
   -s, --static-file-directory <STATIC_FILE_DIRECTORY>
           [default: ]
   -w, --wallet-private-key <WALLET_PRIVATE_KEY>
@@ -96,7 +96,7 @@ Configuring a browser to use AntTP as a proxy is easy. Any regular web browser t
 - Type 'proxy' in the `Find in Settings` input box
 - Click `Settings...` button
 - Click `Manual proxy configuration`
-- Enter `127.0.0.1` in the `HTTP Proxy` input box and `8080` in the `Port` input box (or whichever non-default IP/port you are using)
+- Enter `127.0.0.1` in the `HTTP Proxy` input box and `18888` in the `Port` input box (or whichever non-default IP/port you are using)
 - Check the `Also use this proxy for HTTPS` check box
 - Check the `SOCKS v5` check box
 - Check the `Proxy DNS when using SOCKS v5` check box
@@ -110,7 +110,7 @@ See the example screenshot below:
 
 Brave browser only uses system wide proxy settings, unless it is launched with proxy arguments:
 
-`brave --proxy-server="127.0.0.1:8080" http://a0f6fa2b08e868060fe6e57018e3f73294821feaf3fdcf9cd636ac3d11e7e2ac/BegBlag.mp3`
+`brave --proxy-server="127.0.0.1:18888" http://a0f6fa2b08e868060fe6e57018e3f73294821feaf3fdcf9cd636ac3d11e7e2ac/BegBlag.mp3`
 
 (or whichever non-default IP/port you are using)
 
@@ -200,11 +200,11 @@ At address: 600d4bbc3d7f316c2fe014ca6986c6ea62200be316e34bd307ae3aa68f8e3cfc`
 
 The 'At address' is the archive address, which you can now reference the uploaded files like:
 
-Via a proxy (to localhost:8080):
+Via a proxy (to localhost:18888):
 `http://a0f6fa2b08e868060fe6e57018e3f73294821feaf3fdcf9cd636ac3d11e7e2ac/BegBlag.mp3` 
 
 Or via direct request:
-`http://localhost:8080/a0f6fa2b08e868060fe6e57018e3f73294821feaf3fdcf9cd636ac3d11e7e2ac/BegBlag.mp3`
+`http://localhost:18888/a0f6fa2b08e868060fe6e57018e3f73294821feaf3fdcf9cd636ac3d11e7e2ac/BegBlag.mp3`
 
 ## Web Application Customisation
 

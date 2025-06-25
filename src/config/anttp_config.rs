@@ -6,7 +6,7 @@ use clap::Parser;
 #[derive(Clone, Parser, Debug)]
 #[command(version, about, long_about = None)]
 pub struct AntTpConfig {
-    #[arg(short, long, default_value = "0.0.0.0:8080")]
+    #[arg(short, long, default_value = "0.0.0.0:18888")]
     pub listen_address: SocketAddr,
 
     #[arg(short, long, default_value = "")]

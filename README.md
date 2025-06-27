@@ -330,6 +330,12 @@ Why not take a look and start your own immutable blog today?
   - [ ] Bandwidth usage/tracking
   - [ ] Payments for data uploads (i.e. for public proxies)
 
+## Codebase to Tutorial
+
+Codebase to Tutorial generated an excellent AI summary of the application and how the code fits together.
+
+I'd encourage a read, especially if you'd like to contribute: https://code2tutorial.com/tutorial/1d641ea9-4262-4b45-a489-21eb249a406e/index.md
+
 ## Donations
 
 If you like AntTP and want to support continued development, any tokens would be gratefully received:

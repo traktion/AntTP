@@ -14,12 +14,12 @@ pub struct Pointer {
     name: Option<String>,
     content: String,
     address: Option<String>,
-    counter: Option<u32>,
+    counter: Option<u64>,
     cost: Option<String>,
 }
 
 impl Pointer {
-    pub fn new(name: Option<String>, content: String, address: Option<String>, counter: Option<u32>, cost: Option<String>) -> Self {
+    pub fn new(name: Option<String>, content: String, address: Option<String>, counter: Option<u64>, cost: Option<String>) -> Self {
         Pointer { name, content, address, counter, cost } 
     }
 }

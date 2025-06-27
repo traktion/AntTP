@@ -333,7 +333,7 @@ impl CachingClient {
         &self,
         address: &ScratchpadAddress,
     ) -> Result<bool, ScratchpadError> {
-        self.client.scratchpad_check_existance(address).await
+        self.client.scratchpad_check_existence(address).await
     }
 
     pub async fn scratchpad_update(
@@ -467,10 +467,10 @@ impl CachingClient {
                     debug!("getting cached graph for [{}] from memory", address.to_hex());
                     match cache_item.item.clone() {
                         Some(graph) => Ok(graph),
-                        None => Err(GraphError::Serialization)
+                        None => Err(GraphError::Serialization("Failed to fetch item from cache".to_string()))
                     }
                 }
-                None => Err(GraphError::Serialization)
+                None => Err(GraphError::Serialization("Failed to find item in cache".to_string()))
             }
         } else {
             self.graph_entry_get_uncached(address).await

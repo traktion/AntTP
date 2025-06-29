@@ -1,5 +1,5 @@
 use std::net::SocketAddr;
-use autonomi::SecretKey;
+use autonomi::{Multiaddr, SecretKey};
 use log::info;
 use clap::Parser;
 
@@ -33,13 +33,16 @@ pub struct AntTpConfig {
 
     #[arg(short, long, default_value_t = 60)]
     pub cached_mutable_ttl: u64,
+
+    #[arg(short, long, value_delimiter = ',')]
+    pub peers: Vec<Multiaddr>,
 }
 
 impl AntTpConfig {
 
     pub fn read_args() -> AntTpConfig {
         let ant_to_config = AntTpConfig::parse();
-        info!("Listen address [{}]", ant_to_config.listen_address);
+        info!("Listen address: [{}]", ant_to_config.listen_address);
         info!("Static file directory: [{}]", ant_to_config.static_file_directory);
         info!("Wallet private key: [*****]");
         info!("Download threads: [{}]", ant_to_config.download_threads);
@@ -49,8 +52,9 @@ impl AntTpConfig {
         } else {
             info!("App private key: [*****]");
         }
-        info!("Bookmarks {:?}", ant_to_config.bookmarks);
-        info!("Cached mutable TTL {:?}", ant_to_config.cached_mutable_ttl);
+        info!("Bookmarks: {:?}", ant_to_config.bookmarks);
+        info!("Cached mutable TTL: {:?}", ant_to_config.cached_mutable_ttl);
+        info!("Peers: {:?}", ant_to_config.peers);
         ant_to_config
     }
 }

@@ -16,7 +16,7 @@ use actix_web::dev::ServerHandle;
 use actix_web::web::Data;
 use actix_web::{App, HttpServer, middleware::Logger, web};
 use ant_evm::EvmNetwork::ArbitrumOne;
-use ant_evm::EvmWallet;
+use ant_evm::{EvmWallet};
 use autonomi::files::archive_public::ArchiveAddress;
 use autonomi::register::{RegisterAddress, RegisterValue};
 use autonomi::{Chunk, ChunkAddress, GraphEntry, GraphEntryAddress, Pointer, PointerAddress, Scratchpad, ScratchpadAddress};
@@ -107,10 +107,17 @@ pub async fn run_server(app_config: AntTpConfig) -> std::io::Result<()> {
     let listen_address = app_config.listen_address.clone();
     let wallet_private_key = app_config.wallet_private_key.clone();
 
-    // initialise safe network connection and files api
-    let autonomi_client = Client::init()
-        .await
-        .expect("Failed to connect to Autonomi Network");
+    // initialise safe network connection
+    let autonomi_client = if app_config.peers.clone().is_empty() {
+        Client::init()
+            .await
+            .expect("Failed to connect to Autonomi Network.") 
+    } else {
+        Client::init_with_peers(app_config.peers.clone())
+            .await
+            .expect("Failed to connect to Autonomi Network.")
+    };
+
     let evm_wallet = if !wallet_private_key.is_empty() {
         EvmWallet::new_from_private_key(ArbitrumOne, wallet_private_key.as_str())
             .expect("Failed to instantiate EvmWallet.")

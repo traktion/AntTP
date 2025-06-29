@@ -60,7 +60,7 @@ impl ArchiveHelper {
 
         // todo: Replace with contains() once keys are a more useful shape
         for key in self.public_archive.map().keys() {
-            let filepath = key.to_str().unwrap().to_string().trim_start_matches("./").to_string();
+            let filepath = key.to_str().unwrap().to_string().trim_start_matches("./").trim_start_matches("/").to_string();
             output.push_str(&format!("<li><a href=\"{}\">{}</a></li>\n", filepath, filepath));
         }
         output.push_str("</ul></body></html>");
@@ -76,8 +76,7 @@ impl ArchiveHelper {
             let (_, metadata) = self.public_archive.map().get(key).unwrap();
             let mtime_datetime = DateTime::from_timestamp_millis(metadata.modified as i64 * 1000).unwrap();
             let mtime_iso = mtime_datetime.format("%+");
-            let filepath = key.to_str().unwrap().to_string().trim_start_matches("./").to_string();
-            output.push_str("{");
+            let filepath = key.to_str().unwrap().to_string().trim_start_matches("./").trim_start_matches("/").to_string();            output.push_str("{");
             output.push_str(&format!("\"name\": \"{}\", \"type\": \"file\", \"mtime\": \"{}\", \"size\": \"{}\"", filepath, mtime_iso, metadata.size));
             output.push_str("}");
             if i < count {
@@ -96,7 +95,7 @@ impl ArchiveHelper {
         // todo: Replace with contains() once keys are a more useful shape
         let path_parts_string = path_parts[1..].join("/");
         for key in self.public_archive.map().keys() {
-            if key.to_str().unwrap().to_string().replace("\\", "/").trim_start_matches("./").ends_with(path_parts_string.as_str()) {
+            if key.to_str().unwrap().to_string().replace("\\", "/").trim_start_matches("./").trim_start_matches("/").ends_with(path_parts_string.as_str()) {
                 let (data_addr, _) = self.public_archive.map().get(key).unwrap();
                 return Ok(data_addr.clone())
             }

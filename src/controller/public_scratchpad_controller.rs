@@ -10,7 +10,7 @@ use crate::service::scratchpad_service::{Scratchpad, ScratchpadService};
 
 #[utoipa::path(
     post,
-    path = "/api/v1/public_scratchpad",
+    path = "/anttp-0/public_scratchpad",
     request_body(
         content = Scratchpad
     ),
@@ -40,7 +40,7 @@ pub async fn post_public_scratchpad(
 
 #[utoipa::path(
     put,
-    path = "/api/v1/public_scratchpad/{address}",
+    path = "/anttp-0/public_scratchpad/{address}",
     request_body(
         content = Scratchpad
     ),
@@ -72,7 +72,7 @@ pub async fn put_public_scratchpad(
 
 #[utoipa::path(
     get,
-    path = "/api/v1/public_scratchpad/{address}",
+    path = "/anttp-0/public_scratchpad/{address}",
     responses(
         (status = OK, description = "Public scratchpad found successfully", body = Scratchpad),
         (status = NOT_FOUND, description = "Public scratchpad was not found")

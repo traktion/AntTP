@@ -288,7 +288,7 @@ Why not take a look and start your own immutable blog today?
   - [ ] REST API
     - [x] Pointer
     - [x] Scratchpad
-    - [ ] Graph
+    - [x] Graph
     - [x] Register
     - [x] Chunk
     - [ ] BLS support

@@ -10,7 +10,7 @@ use crate::service::graph_service::{GraphEntry, GraphService};
 
 #[utoipa::path(
     post,
-    path = "/api/v1/graph_entry",
+    path = "/anttp-0/graph_entry",
     request_body(
         content = GraphEntry
     ),
@@ -40,7 +40,7 @@ pub async fn post_graph_entry(
 
 #[utoipa::path(
     get,
-    path = "/api/v1/graph_entry/{address}",
+    path = "/anttp-0/graph_entry/{address}",
     responses(
         (status = OK, description = "Graph entry found successfully", body = GraphEntry),
         (status = NOT_FOUND, description = "Graph entry was not found")

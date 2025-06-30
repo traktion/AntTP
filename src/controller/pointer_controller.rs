@@ -10,7 +10,7 @@ use crate::service::pointer_service::{Pointer, PointerService};
 
 #[utoipa::path(
     post,
-    path = "/api/v1/pointer",
+    path = "/anttp-0/pointer",
     request_body(
         content = Pointer
     ),
@@ -40,7 +40,7 @@ pub async fn post_pointer(
 
 #[utoipa::path(
     put,
-    path = "/api/v1/pointer/{address}",
+    path = "/anttp-0/pointer/{address}",
     request_body(
         content = Pointer
     ),
@@ -70,7 +70,7 @@ pub async fn put_pointer(
 
 #[utoipa::path(
     get,
-    path = "/api/v1/pointer/{address}",
+    path = "/anttp-0/pointer/{address}",
     responses(
         (status = OK, description = "Pointer found successfully", body = Pointer),
         (status = NOT_FOUND, description = "Pointer was not found")

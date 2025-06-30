@@ -10,7 +10,7 @@ use crate::service::register_service::{Register, RegisterService};
 
 #[utoipa::path(
     post,
-    path = "/api/v1/register",
+    path = "/anttp-0/register",
     request_body(
         content = Register
     ),
@@ -40,7 +40,7 @@ pub async fn post_register(
 
 #[utoipa::path(
     put,
-    path = "/api/v1/register/{address}",
+    path = "/anttp-0/register/{address}",
     request_body(
         content = Register
     ),
@@ -72,7 +72,7 @@ pub async fn put_register(
 
 #[utoipa::path(
     get,
-    path = "/api/v1/register/{address}",
+    path = "/anttp-0/register/{address}",
     responses(
         (status = OK, description = "Register found successfully", body = Register),
         (status = NOT_FOUND, description = "Register was not found")
@@ -102,7 +102,7 @@ pub async fn get_register(
 
 #[utoipa::path(
     get,
-    path = "/api/v1/register_history/{address}",
+    path = "/anttp-0/register_history/{address}",
     responses(
         (status = OK, description = "Register history found successfully", body = [Register]),
         (status = NOT_FOUND, description = "Register history was not found")

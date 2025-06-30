@@ -11,7 +11,7 @@ use crate::service::chunk_service::{Chunk, ChunkService};
 
 #[utoipa::path(
     post,
-    path = "/api/v1/chunk/{address}",
+    path = "/anttp-0/chunk/{address}",
     request_body(
         content = Chunk
     ),
@@ -41,7 +41,7 @@ pub async fn post_chunk(
 
 #[utoipa::path(
     post,
-    path = "/api/v1/binary/chunk/{address}",
+    path = "/anttp-0/binary/chunk/{address}",
     request_body(
         content_type = "application/octet-stream"
     ),
@@ -78,7 +78,7 @@ pub async fn post_chunk_binary(
 
 #[utoipa::path(
     get,
-    path = "/api/v1/chunk/{address}",
+    path = "/anttp-0/chunk/{address}",
     responses(
         (status = 200, description = "Chunk found successfully", body = Chunk),
         (status = NOT_FOUND, description = "Chunk was not found")
@@ -107,7 +107,7 @@ pub async fn get_chunk(
 
 #[utoipa::path(
     get,
-    path = "/api/v1/binary/chunk/{address}",
+    path = "/anttp-0/binary/chunk/{address}",
     responses(
         (status = 200, description = "Chunk found successfully", content_type = "application/octet-stream"),
         (status = NOT_FOUND, description = "Chunk was not found")

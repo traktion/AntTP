@@ -32,6 +32,8 @@ use utoipa_swagger_ui::SwaggerUi;
 
 static SERVER_HANDLE: Lazy<Mutex<Option<ServerHandle>>> = Lazy::new(|| Mutex::new(None));
 
+const API_BASE: &'static str = "/anttp-0/";
+
 pub struct UploadState {
     upload_map: Mutex<HashMap<String, Upload>>,
 }
@@ -111,7 +113,7 @@ pub async fn run_server(app_config: AntTpConfig) -> std::io::Result<()> {
     let autonomi_client = if app_config.peers.clone().is_empty() {
         Client::init()
             .await
-            .expect("Failed to connect to Autonomi Network.") 
+            .expect("Failed to connect to Autonomi Network.")
     } else {
         Client::init_with_peers(app_config.peers.clone())
             .await
@@ -141,38 +143,41 @@ pub async fn run_server(app_config: AntTpConfig) -> std::io::Result<()> {
                     .url("/api-docs/openapi.json", ApiDoc::openapi()),
             )
             .route(
-                "/api/v1/chunk/{address}",
+                format!("{}chunk/{{address}}", API_BASE).as_str(),
                 web::get().to(chunk_controller::get_chunk),
             )
             .route(
-                "/api/v1/binary/chunk/{address}",
+                format!("{}binary/chunk/{{address}}", API_BASE).as_str(),
                 web::get().to(chunk_controller::get_chunk_binary),
             )
             .route(
-                "/api/v1/pointer/{address}",
+                format!("{}pointer/{{address}}", API_BASE).as_str(),
                 web::get().to(pointer_controller::get_pointer),
             )
             .route(
-                "/api/v1/public_archive/status/{id}",
+                format!("{}public_archive/status/{{id}}", API_BASE).as_str(),
                 web::get().to(public_archive_controller::get_status_public_archive),
             )
             .route(
-                "/api/v1/public_scratchpad/{address}",
+                format!("{}public_scratchpad/{{address}}", API_BASE).as_str(),
                 web::get().to(public_scratchpad_controller::get_public_scratchpad),
             )
             .route(
-                "/api/v1/register/{address}",
+                format!("{}register/{{address}}", API_BASE).as_str(),
                 web::get().to(register_controller::get_register),
             )
             .route(
-                "/api/v1/register_history/{address}",
+                format!("{}register_history/{{address}}", API_BASE).as_str(),
                 web::get().to(register_controller::get_register_history),
             )
             .route(
-                "/api/v1/private_scratchpad/{address}/{name}",
+                format!("{}private_scratchpad/{{address}}/{{name}}", API_BASE).as_str(),
                 web::get().to(private_scratchpad_controller::get_private_scratchpad),
             )
-            .route("/api/v1/graph_entry/{address}", web::get().to(graph_controller::get_graph_entry))
+            .route(
+                format!("{}graph_entry/{{address}}", API_BASE).as_str(),
+                web::get().to(graph_controller::get_graph_entry)
+            )
             .route(
                 "/{path:.*}",
                 web::get().to(file_controller::get_public_data),
@@ -188,54 +193,56 @@ pub async fn run_server(app_config: AntTpConfig) -> std::io::Result<()> {
         if !app_config.uploads_disabled {
             app = app
                 .route(
-                    "/api/v1/chunk",
+                    format!("{}chunk", API_BASE).as_str(),
                     web::post().to(chunk_controller::post_chunk),
                 )
                 .route(
-                    "/api/v1/binary/chunk",
+                    format!("{}binary/chunk", API_BASE).as_str(),
                     web::post().to(chunk_controller::post_chunk_binary),
                 )
                 .route(
-                    "/api/v1/pointer",
+                    format!("{}pointer", API_BASE).as_str(),
                     web::post().to(pointer_controller::post_pointer),
                 )
                 .route(
-                    "/api/v1/pointer/{address}",
+                    format!("{}pointer/{{address}}", API_BASE).as_str(),
                     web::put().to(pointer_controller::put_pointer),
                 )
                 .route(
-                    "/api/v1/multipart/public_archive",
+                    format!("{}multipart/public_archive", API_BASE).as_str(),
                     web::post().to(public_archive_controller::post_public_archive),
                 )
                 .route(
-                    "/api/v1/multipart/public_archive/{address}",
+                    format!("{}multipart/public_archive/{{address}}", API_BASE).as_str(),
                     web::put().to(public_archive_controller::put_public_archive),
                 )
                 .route(
-                    "/api/v1/public_scratchpad",
+                    format!("{}public_scratchpad", API_BASE).as_str(),
                     web::post().to(public_scratchpad_controller::post_public_scratchpad),
                 )
                 .route(
-                    "/api/v1/public_scratchpad/{address}",
+                    format!("{}public_scratchpad/{{address}}", API_BASE).as_str(),
                     web::put().to(public_scratchpad_controller::put_public_scratchpad),
                 )
                 .route(
-                    "/api/v1/register",
+                    format!("{}register", API_BASE).as_str(),
                     web::post().to(register_controller::post_register),
                 )
                 .route(
-                    "/api/v1/register/{address}",
+                    format!("{}register/{{address}}", API_BASE).as_str(),
                     web::put().to(register_controller::put_register),
                 )
                 .route(
-                    "/api/v1/private_scratchpad",
+                    format!("{}private_scratchpad", API_BASE).as_str(),
                     web::post().to(private_scratchpad_controller::post_private_scratchpad),
                 )
                 .route(
-                    "/api/v1/private_scratchpad/{address}",
+                    format!("{}private_scratchpad/{{address}}", API_BASE).as_str(),
                     web::put().to(private_scratchpad_controller::put_private_scratchpad),
                 )
-                .route("/api/v1/graph_entry", web::post().to(graph_controller::post_graph_entry));
+                .route(
+                    format!("{}graph_entry", API_BASE).as_str(),
+                    web::post().to(graph_controller::post_graph_entry));
         };
 
         if app_config.static_file_directory != "" {

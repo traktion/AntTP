@@ -13,7 +13,7 @@ use crate::service::resolver_service::ResolverService;
 
 #[utoipa::path(
     post,
-    path = "/api/v1/multipart/public_archive",
+    path = "/anttp-0/multipart/public_archive",
     request_body(
         content_type = "multipart/form-data"
     ),
@@ -40,7 +40,7 @@ pub async fn post_public_archive(
 
 #[utoipa::path(
     put,
-    path = "/api/v1/multipart/public_archive",
+    path = "/anttp-0/multipart/public_archive",
     request_body(
         content_type = "multipart/form-data"
     ),
@@ -69,7 +69,7 @@ pub async fn put_public_archive(
 
 #[utoipa::path(
     get,
-    path = "/api/v1/public_archive/status/{id}",
+    path = "/anttp-0/public_archive/status/{id}",
     responses(
         (status = 200, description = "Id found successfully", body = Upload),
         (status = NOT_FOUND, description = "Id was not found")

@@ -3,7 +3,7 @@ use std::fs::File;
 use std::io::{Read, Write};
 use actix_web::web::Data;
 use ant_evm::AttoTokens;
-use autonomi::{Chunk, ChunkAddress, Client, GraphEntry, GraphEntryAddress, Pointer, PointerAddress, ScratchpadAddress, SecretKey};
+use autonomi::{Chunk, ChunkAddress, Client, GraphEntry, GraphEntryAddress, Pointer, PointerAddress, PublicKey, ScratchpadAddress, SecretKey};
 use autonomi::client::files::archive_public::{ArchiveAddress, PublicArchive};
 use autonomi::client::{GetError, PutError};
 use autonomi::client::payment::PaymentOption;
@@ -32,7 +32,11 @@ pub struct CachingClient {
 impl CachingClient {
 
     pub fn new(client: Client, ant_tp_config: AntTpConfig, client_cache_state: Data<ClientCacheState>) -> Self {
-        let cache_dir = env::temp_dir().to_str().unwrap().to_owned() + "/anttp/cache/";
+        let cache_dir = if ant_tp_config.map_cache_directory.is_empty() {
+            env::temp_dir().to_str().unwrap().to_owned() + "/anttp/cache/"
+        } else {
+            ant_tp_config.map_cache_directory.clone()
+        };
         CachingClient::create_tmp_dir(cache_dir.clone());
         Self {
             client, cache_dir, ant_tp_config, client_cache_state,
@@ -75,6 +79,7 @@ impl CachingClient {
     pub async fn pointer_create(
         &self,
         owner: &SecretKey,
+        address: PublicKey,
         target: PointerTarget,
         payment_option: PaymentOption,
     ) -> Result<(AttoTokens, PointerAddress), PointerError> {
@@ -83,15 +88,16 @@ impl CachingClient {
         // todo: move to job processor
         tokio::spawn(async move {
             debug!("creating pointer async");
-            client_clone.pointer_create(&owner_clone, target, payment_option).await
+            client_clone.pointer_create(&owner_clone, target, address, payment_option).await
         });
-        let address = PointerAddress::new(owner.public_key());
-        Ok((AttoTokens::zero(), address))
+        let pointer_address = PointerAddress::new(address);
+        Ok((AttoTokens::zero(), pointer_address))
     }
 
     pub async fn pointer_update(
         &self,
         owner: &SecretKey,
+        address: PublicKey,
         target: PointerTarget,
     ) -> Result<(), PointerError> {
         let client_clone = self.client.clone();
@@ -99,7 +105,7 @@ impl CachingClient {
         // todo: move to job processor
         tokio::spawn(async move {
             debug!("updating pointer async");
-            client_clone.pointer_update(&owner_clone, target).await
+            client_clone.pointer_update(&owner_clone, target, address).await
         });
         Ok(())
     }

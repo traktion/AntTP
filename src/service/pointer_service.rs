@@ -37,12 +37,15 @@ impl PointerService {
 
     pub async fn create_pointer(&self, pointer: Pointer, evm_wallet: Wallet) -> Result<HttpResponse, Error> {
         let app_secret_key = SecretKey::from_hex(self.ant_tp_config.app_private_key.clone().as_str()).unwrap();
-        let pointer_key = Client::register_key_from_name(&app_secret_key, pointer.name.clone().unwrap().as_str());
+        let owner_key = Client::register_key_from_name(&app_secret_key, pointer.name.clone().unwrap().as_str());
 
+        let app_secret_key2 = SecretKey::from_hex("646dd9cae2c6ec140b9c5527084e8db2a04d7e68dc35a832bc1d1e020cfd45be").unwrap();
+        let address_key = Client::register_key_from_name(&app_secret_key2, pointer.name.clone().unwrap().as_str());
+        
         let chunk_address = ChunkAddress::from_hex(pointer.content.clone().as_str()).unwrap();
-        info!("Create pointer from name [{}] for chunk [{}]", pointer.name.clone().unwrap(), chunk_address);
+        info!("Create pointer from name [{}] for target [{}] at address [{}]", pointer.name.clone().unwrap(), chunk_address, address_key.public_key().to_hex());
         match self.caching_client
-            .pointer_create(&pointer_key, PointerTarget::ChunkAddress(chunk_address), PaymentOption::from(&evm_wallet))
+            .pointer_create(&owner_key, address_key.public_key(), PointerTarget::ChunkAddress(chunk_address), PaymentOption::from(&evm_wallet))
             .await {
                 Ok((cost, pointer_address)) => {
                     info!("Created pointer at [{}] for [{}] attos", pointer_address.to_hex(), cost);
@@ -57,22 +60,22 @@ impl PointerService {
         }
     }
 
-    pub async fn update_pointer(&self, address: String, pointer: Pointer) -> Result<HttpResponse, Error> {
+    pub async fn update_pointer(&self, name: String, pointer: Pointer) -> Result<HttpResponse, Error> {
         let app_secret_key = SecretKey::from_hex(self.ant_tp_config.app_private_key.clone().as_str()).unwrap();
-        let pointer_key = Client::register_key_from_name(&app_secret_key, pointer.name.clone().unwrap().as_str());
-        if address.clone() != pointer_key.public_key().to_hex() {
-            warn!("Address [{}] is not derived from name [{}].", address.clone(), pointer.name.clone().unwrap());
-            return Err(ErrorPreconditionFailed(format!("Address [{}] is not derived from name [{}].", address.clone(), pointer.name.clone().unwrap())));
-        }
+        let owner_key = Client::register_key_from_name(&app_secret_key, pointer.name.clone().unwrap().as_str());
+
+        let app_secret_key2 = SecretKey::from_hex("646dd9cae2c6ec140b9c5527084e8db2a04d7e68dc35a832bc1d1e020cfd45be").unwrap();
+        let address_key = Client::register_key_from_name(&app_secret_key2, name.clone().as_str());
+        //let new_address_key = Client::register_key_from_name(&app_secret_key2, pointer.name.clone().unwrap().as_str());
 
         let chunk_address = ChunkAddress::from_hex(pointer.content.clone().as_str()).unwrap();
-        info!("Update pointer with name [{}] for chunk [{}]", pointer.name.clone().unwrap(), chunk_address);
+        info!("Update pointer with name [{}] for target [{}] at address [{}]", name.clone(), chunk_address, address_key.public_key().to_hex());
         match self.caching_client
-            .pointer_update(&pointer_key, PointerTarget::ChunkAddress(chunk_address))
+            .pointer_update(&owner_key, address_key.public_key(), PointerTarget::ChunkAddress(chunk_address))
             .await {
             Ok(()) => {
                 info!("Updated pointer with name [{}]", pointer.name.clone().unwrap());
-                let response_pointer = Pointer::new(pointer.name, pointer.content, Some(address), None, None);
+                let response_pointer = Pointer::new(pointer.name, pointer.content, Some(address_key.public_key().to_hex()), None, None);
                 Ok(HttpResponse::Ok().json(response_pointer))
             }
             Err(e) => {
@@ -82,17 +85,20 @@ impl PointerService {
         }
     }
 
-    pub async fn get_pointer(&self, address: String) -> Result<HttpResponse, Error> {
-        let pointer_address = PointerAddress::from_hex(address.as_str()).unwrap();
+    pub async fn get_pointer(&self, name: String) -> Result<HttpResponse, Error> {
+        let app_secret_key2 = SecretKey::from_hex("646dd9cae2c6ec140b9c5527084e8db2a04d7e68dc35a832bc1d1e020cfd45be").unwrap();
+        let address_key = Client::register_key_from_name(&app_secret_key2, name.clone().as_str());
+        
+        let pointer_address = PointerAddress::from_hex(address_key.public_key().to_hex().as_str()).unwrap();
         match self.caching_client.pointer_get(&pointer_address).await {
             Ok(pointer) => {
-                info!("Retrieved pointer at address [{}] value [{}]", address, pointer.target().to_hex());
+                info!("Retrieved pointer with name [{}] at address [{}] with value [{}]", name, pointer_address.to_hex(), pointer.target().to_hex());
                 let response_pointer = Pointer::new(
-                    None, pointer.target().to_hex(), Some(address), Some(pointer.counter()), None);
+                    None, pointer.target().to_hex(), Some(address_key.public_key().to_hex()), Some(pointer.counter()), None);
                 Ok(HttpResponse::Ok().json(response_pointer).into())
             }
             Err(e) => {
-                warn!("Failed to retrieve pointer at address [{}]: [{:?}]", address, e);
+                warn!("Failed to retrieve pointer with name [{}] at address [{}]: [{:?}]", name, pointer_address.to_hex(), e);
                 Err(ErrorInternalServerError("Failed to retrieve pointer at address"))
             }
         }

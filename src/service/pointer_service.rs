@@ -1,6 +1,6 @@
 use actix_web::{Error, HttpResponse};
 use actix_web::error::{ErrorInternalServerError, ErrorPreconditionFailed};
-use autonomi::{ChunkAddress, Client, PointerAddress, SecretKey, Wallet};
+use autonomi::{ChunkAddress, Client, PointerAddress, PublicKey, SecretKey, Wallet};
 use autonomi::client::payment::PaymentOption;
 use autonomi::pointer::PointerTarget;
 use log::{info, warn};
@@ -16,11 +16,12 @@ pub struct Pointer {
     address: Option<String>,
     counter: Option<u64>,
     cost: Option<String>,
+    owner: Option<String>
 }
 
 impl Pointer {
-    pub fn new(name: Option<String>, content: String, address: Option<String>, counter: Option<u64>, cost: Option<String>) -> Self {
-        Pointer { name, content, address, counter, cost } 
+    pub fn new(name: Option<String>, content: String, address: Option<String>, counter: Option<u64>, cost: Option<String>, owner: Option<String>) -> Self {
+        Pointer { name, content, address, counter, cost, owner } 
     }
 }
 
@@ -37,19 +38,26 @@ impl PointerService {
 
     pub async fn create_pointer(&self, pointer: Pointer, evm_wallet: Wallet) -> Result<HttpResponse, Error> {
         let app_secret_key = SecretKey::from_hex(self.ant_tp_config.app_private_key.clone().as_str()).unwrap();
-        let owner_key = Client::register_key_from_name(&app_secret_key, pointer.name.clone().unwrap().as_str());
+        let signing_key = Client::register_key_from_name(&app_secret_key, pointer.name.clone().unwrap().as_str());
+        
+        // use pointer.owner if provided, else fall bock to original owner 
+        let owner_key = match &pointer.owner {
+            Some(owner) => PublicKey::from_hex(owner.as_str()).unwrap(),
+            None => signing_key.public_key()
+        };
 
         let app_secret_key2 = SecretKey::from_hex("646dd9cae2c6ec140b9c5527084e8db2a04d7e68dc35a832bc1d1e020cfd45be").unwrap();
         let address_key = Client::register_key_from_name(&app_secret_key2, pointer.name.clone().unwrap().as_str());
         
         let chunk_address = ChunkAddress::from_hex(pointer.content.clone().as_str()).unwrap();
-        info!("Create pointer from name [{}] for target [{}] at address [{}]", pointer.name.clone().unwrap(), chunk_address, address_key.public_key().to_hex());
+        info!("Create pointer from name [{}] and owner [{}] for target [{}] at address [{}]",
+            pointer.name.clone().unwrap_or("".to_string()), owner_key.to_hex(), chunk_address, address_key.public_key().to_hex());
         match self.caching_client
-            .pointer_create(&owner_key, address_key.public_key(), PointerTarget::ChunkAddress(chunk_address), PaymentOption::from(&evm_wallet))
+            .pointer_create(owner_key, address_key.public_key(), PointerTarget::ChunkAddress(chunk_address), &signing_key, PaymentOption::from(&evm_wallet))
             .await {
                 Ok((cost, pointer_address)) => {
                     info!("Created pointer at [{}] for [{}] attos", pointer_address.to_hex(), cost);
-                    let response_pointer = Pointer::new(pointer.name, pointer.content, Some(pointer_address.to_hex()), None, Some(cost.to_string()));
+                    let response_pointer = Pointer::new(pointer.name, pointer.content, Some(pointer_address.to_hex()), None, Some(cost.to_string()), pointer.owner);
                     Ok(HttpResponse::Created().json(response_pointer))
                 }
                 Err(e) => {
@@ -62,20 +70,26 @@ impl PointerService {
 
     pub async fn update_pointer(&self, name: String, pointer: Pointer) -> Result<HttpResponse, Error> {
         let app_secret_key = SecretKey::from_hex(self.ant_tp_config.app_private_key.clone().as_str()).unwrap();
-        let owner_key = Client::register_key_from_name(&app_secret_key, pointer.name.clone().unwrap().as_str());
+        let signing_key = Client::register_key_from_name(&app_secret_key, pointer.name.clone().unwrap().as_str());
+        
+        // use pointer.owner if provided, else fall bock to original owner 
+        let owner_key = match &pointer.owner {
+            Some(owner) => PublicKey::from_hex(owner.as_str()).unwrap(),
+            None => signing_key.public_key()
+        };
 
         let app_secret_key2 = SecretKey::from_hex("646dd9cae2c6ec140b9c5527084e8db2a04d7e68dc35a832bc1d1e020cfd45be").unwrap();
         let address_key = Client::register_key_from_name(&app_secret_key2, name.clone().as_str());
-        //let new_address_key = Client::register_key_from_name(&app_secret_key2, pointer.name.clone().unwrap().as_str());
 
         let chunk_address = ChunkAddress::from_hex(pointer.content.clone().as_str()).unwrap();
-        info!("Update pointer with name [{}] for target [{}] at address [{}]", name.clone(), chunk_address, address_key.public_key().to_hex());
+        info!("Update pointer with name [{}] and owner [{}] for target [{}] at address [{}]",
+            name.clone(), owner_key.to_hex(), chunk_address, address_key.public_key().to_hex());
         match self.caching_client
-            .pointer_update(&owner_key, address_key.public_key(), PointerTarget::ChunkAddress(chunk_address))
+            .pointer_update(owner_key, address_key.public_key(), PointerTarget::ChunkAddress(chunk_address), &signing_key)
             .await {
             Ok(()) => {
                 info!("Updated pointer with name [{}]", pointer.name.clone().unwrap());
-                let response_pointer = Pointer::new(pointer.name, pointer.content, Some(address_key.public_key().to_hex()), None, None);
+                let response_pointer = Pointer::new(pointer.name, pointer.content, Some(address_key.public_key().to_hex()), None, None, pointer.owner);
                 Ok(HttpResponse::Ok().json(response_pointer))
             }
             Err(e) => {
@@ -94,7 +108,7 @@ impl PointerService {
             Ok(pointer) => {
                 info!("Retrieved pointer with name [{}] at address [{}] with value [{}]", name, pointer_address.to_hex(), pointer.target().to_hex());
                 let response_pointer = Pointer::new(
-                    None, pointer.target().to_hex(), Some(address_key.public_key().to_hex()), Some(pointer.counter()), None);
+                    None, pointer.target().to_hex(), Some(address_key.public_key().to_hex()), Some(pointer.counter()), None, Some(pointer.owner().to_hex()));
                 Ok(HttpResponse::Ok().json(response_pointer).into())
             }
             Err(e) => {

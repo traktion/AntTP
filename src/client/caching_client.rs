@@ -78,40 +78,44 @@ impl CachingClient {
 
     pub async fn pointer_create(
         &self,
-        owner: &SecretKey,
+        owner: PublicKey,
         address: PublicKey,
         target: PointerTarget,
+        signing_key: &SecretKey,
         payment_option: PaymentOption,
     ) -> Result<(AttoTokens, PointerAddress), PointerError> {
         let client_clone = self.client.clone();
         let owner_clone = owner.clone();
+        let signing_key_clone = signing_key.clone();
         // todo: move to job processor
-        tokio::spawn(async move {
+        //tokio::spawn(async move {
             debug!("creating pointer async");
-            client_clone.pointer_create(&owner_clone, target, address, payment_option).await
-        });
-        let pointer_address = PointerAddress::new(address);
-        Ok((AttoTokens::zero(), pointer_address))
+            client_clone.pointer_create(owner_clone, target, address, &signing_key_clone, payment_option).await
+        //});
+        //let pointer_address = PointerAddress::new(address);
+        //Ok((AttoTokens::zero(), pointer_address))
     }
 
     pub async fn pointer_update(
         &self,
-        owner: &SecretKey,
+        owner: PublicKey,
         address: PublicKey,
         target: PointerTarget,
+        signing_key: &SecretKey,
     ) -> Result<(), PointerError> {
         let client_clone = self.client.clone();
         let owner_clone = owner.clone();
+        let signing_key_clone = signing_key.clone();
         // todo: move to job processor
-        tokio::spawn(async move {
+        //tokio::spawn(async move {
             debug!("updating pointer async");
-            client_clone.pointer_update(&owner_clone, target, address).await
-        });
-        Ok(())
+            client_clone.pointer_update(owner_clone, target, address, &signing_key_clone).await
+        //});
+        //Ok(())
     }
 
     pub async fn pointer_get(&self, address: &PointerAddress) -> Result<Pointer, PointerError> {
-        if self.client_cache_state.get_ref().pointer_cache.lock().unwrap().contains_key(address)
+        /*if self.client_cache_state.get_ref().pointer_cache.lock().unwrap().contains_key(address)
             && !self.client_cache_state.get_ref().pointer_cache.lock().unwrap().get(address).unwrap().has_expired() {
             debug!("getting cached pointer for [{}] from memory", address.to_hex());
             match self.client_cache_state.get_ref().pointer_cache.lock().unwrap().get(address) {
@@ -124,9 +128,9 @@ impl CachingClient {
                 }
                 None => Err(PointerError::Serialization)
             }
-        } else {
+        } else {*/
             self.pointer_get_uncached(address).await
-        }
+        //}
     }
 
     async fn pointer_get_uncached(&self, address: &PointerAddress) -> Result<Pointer, PointerError> {

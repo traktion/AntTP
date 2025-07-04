@@ -15,15 +15,14 @@ use crate::service::archive_helper::{DataState};
 
 pub struct ResolvedAddress {
     pub is_found: bool,
-    pub archive: PublicArchive,
-    pub is_archive: bool,
+    pub archive: Option<PublicArchive>,
     pub xor_name: XorName,
     pub is_mutable: bool,
 }
 
 impl ResolvedAddress {
-    pub fn new(is_found: bool, archive: PublicArchive, is_archive: bool, xor_name: XorName, is_mutable: bool) -> Self {
-        ResolvedAddress { is_found, archive, is_archive, xor_name, is_mutable }
+    pub fn new(is_found: bool, archive: Option<PublicArchive>, xor_name: XorName, is_mutable: bool) -> Self {
+        ResolvedAddress { is_found, archive: archive, xor_name, is_mutable }
     }
 }
 
@@ -55,7 +54,7 @@ impl ResolverService {
         }
     }
 
-    pub async fn resolve_archive_or_file(&self, autonomi_client: Client, archive_directory: &String, archive_file_name: &String, is_resolved_mutable: bool) -> ResolvedAddress {
+    pub async fn resolve_archive_or_file(&self, autonomi_client: Client, archive_directory: &String, archive_file_name: &String, is_resolved_mutable: bool) -> Option<ResolvedAddress> {
         if self.is_bookmark(archive_directory) {
             let resolved_bookmark = &self.resolve_bookmark(archive_directory).unwrap().to_string();
             Box::pin(self.resolve_archive_or_file(autonomi_client, resolved_bookmark, archive_file_name, true)).await
@@ -70,7 +69,7 @@ impl ResolverService {
                 None => {
                     let archive_directory_xorname = self.str_to_xor_name(&archive_directory).unwrap();
                     info!("No public archive found at [{:x}]. Treating as XOR address", archive_directory_xorname);
-                    ResolvedAddress::new(false, PublicArchive::new(), false, archive_directory_xorname, is_resolved_mutable)
+                    None
                 }
             }
         } else if self.is_immutable_address(&archive_directory) {
@@ -79,21 +78,21 @@ impl ResolverService {
             match self.caching_client.archive_get_public(archive_address).await {
                 Ok(public_archive) => {
                     info!("Found public archive at [{:x}]", archive_directory_xorname);
-                    ResolvedAddress::new(true, public_archive, true, archive_directory_xorname, is_resolved_mutable)
+                    Some(ResolvedAddress::new(true, Some(public_archive), archive_directory_xorname, is_resolved_mutable))
                 }
                 Err(_) => {
                     info!("No public archive found at [{:x}]. Treating as XOR address", archive_directory_xorname);
-                    ResolvedAddress::new(true, PublicArchive::new(), false, archive_directory_xorname, is_resolved_mutable)
+                    Some(ResolvedAddress::new(true, None, archive_directory_xorname, is_resolved_mutable))
                 }
             }
         }
         else if self.is_immutable_address(&archive_file_name) {
             let archive_file_name_xorname = self.str_to_xor_name(&archive_file_name).unwrap();
             info!("Found XOR address [{:x}]", archive_file_name_xorname);
-            ResolvedAddress::new(true, PublicArchive::new(), false, archive_file_name_xorname, is_resolved_mutable)
+            Some(ResolvedAddress::new(true, None, archive_file_name_xorname, is_resolved_mutable))
         } else {
             warn!("Failed to find archive or filename [{:?}]", archive_file_name);
-            ResolvedAddress::new(false, PublicArchive::new(), false, XorName::default(), is_resolved_mutable)
+            None
         }
     }
 

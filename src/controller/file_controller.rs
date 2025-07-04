@@ -28,18 +28,19 @@ pub async fn get_public_data(
     let path_parts = get_path_parts(&conn.host(), &path.into_inner(), ant_tp_config.clone(), caching_client.clone());
     let (archive_addr, archive_file_name) = resolver_service.assign_path_parts(path_parts.clone());
 
-    let resolved_address = resolver_service.resolve_archive_or_file(autonomi_client.clone(), &archive_addr, &archive_file_name, false).await;
-    let file_service = FileService::new(autonomi_client.clone(), resolver_service.clone(), ant_tp_config.clone());
-
-    if !resolved_address.is_found {
-        Err(ErrorNotFound(format!("File not found {:?}", conn.host())))
-    } else if !resolved_address.is_archive {
-        info!("Retrieving file from XOR [{:x}]", resolved_address.xor_name);
-        file_service.get_data(resolved_address, request, path_parts).await
-    } else {
-        info!("Retrieving file from public archive [{:x}]", resolved_address.xor_name);
-        let public_archive_service = PublicArchiveService::new(autonomi_client, file_service, resolver_service, uploader_state_data, upload_state_data, ant_tp_config, caching_client.clone());
-        public_archive_service.get_data(resolved_address, request, path_parts).await
+    match resolver_service.resolve_archive_or_file(autonomi_client.clone(), &archive_addr, &archive_file_name, false).await {
+        Some(resolved_address) => {
+            let file_service = FileService::new(autonomi_client.clone(), resolver_service.clone(), ant_tp_config.clone());
+            if resolved_address.archive.is_some() {
+                info!("Retrieving file from public archive [{:x}]", resolved_address.xor_name);
+                let public_archive_service = PublicArchiveService::new(autonomi_client, file_service, resolver_service, uploader_state_data, upload_state_data, ant_tp_config, caching_client.clone());
+                public_archive_service.get_data(resolved_address, request, path_parts).await
+            } else {
+                info!("Retrieving file from XOR [{:x}]", resolved_address.xor_name);
+                file_service.get_data(resolved_address, request, path_parts).await
+            }
+        },
+        None => Err(ErrorNotFound(format!("File not found {:?}", conn.host())))
     }
 }
 

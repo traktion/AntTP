@@ -57,17 +57,19 @@ impl PublicArchiveService {
     }
     
     pub async fn get_data(&self, resolved_address: ResolvedAddress, request: HttpRequest, path_parts: Vec<String>) -> Result<HttpResponse, Error> {
+        let archive = resolved_address.archive.clone().expect("Archive not found");
         let (archive_addr, archive_file_name) = self.resolver_service.assign_path_parts(path_parts.clone());
         debug!("Get data for archive_addr [{}], archive_file_name [{}]", archive_addr, archive_file_name);
-        
+
+
         // load app_config from archive and resolve route
-        let app_config = self.caching_client.config_get_public(resolved_address.archive.clone(), resolved_address.xor_name).await;
+        let app_config = self.caching_client.config_get_public(archive.clone(), resolved_address.xor_name).await;
         // resolve route
         let archive_relative_path = path_parts[1..].join("/").to_string();
         let (resolved_relative_path_route, has_route_map) = app_config.resolve_route(archive_relative_path.clone(), archive_file_name.clone());
 
         // resolve file name to chunk address
-        let archive_helper = ArchiveHelper::new(resolved_address.archive.clone(), self.ant_tp_config.clone());
+        let archive_helper = ArchiveHelper::new(archive.clone(), self.ant_tp_config.clone());
         let archive_info = archive_helper.resolve_archive_info(path_parts, request.clone(), resolved_relative_path_route.clone(), has_route_map, self.caching_client.clone());
 
         if archive_info.state == DataState::NotModified {

@@ -35,7 +35,7 @@ pub async fn get_public_data(
         Err(ErrorNotFound(format!("File not found {:?}", conn.host())))
     } else if !resolved_address.is_archive {
         info!("Retrieving file from XOR [{:x}]", resolved_address.xor_name);
-        file_service.get_data(path_parts, request, resolved_address).await
+        file_service.get_data(resolved_address, request, path_parts).await
     } else {
         info!("Retrieving file from public archive [{:x}]", resolved_address.xor_name);
         let public_archive_service = PublicArchiveService::new(autonomi_client, file_service, resolver_service, uploader_state_data, upload_state_data, ant_tp_config, caching_client.clone());

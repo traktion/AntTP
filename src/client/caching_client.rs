@@ -14,6 +14,7 @@ use autonomi::register::{RegisterAddress, RegisterError, RegisterHistory, Regist
 use autonomi::scratchpad::{Scratchpad, ScratchpadError};
 use bytes::Bytes;
 use log::{debug, info};
+use rmp_serde::decode;
 use xor_name::XorName;
 use crate::{ClientCacheState};
 use crate::client::cache_item::CacheItem;
@@ -46,16 +47,23 @@ impl CachingClient {
     }
 
     /// Fetch an archive from the network
-    pub async fn archive_get_public(&self, archive_address: ArchiveAddress) -> Result<PublicArchive, GetError> {
+    pub async fn archive_get_public(&self, archive_address: ArchiveAddress) -> Result<PublicArchive, decode::Error> {
         let cached_data = self.read_file(archive_address).await;
         if !cached_data.is_empty() {
             debug!("getting cached public archive for [{}] from local storage", archive_address.to_hex());
             Ok(PublicArchive::from_bytes(cached_data)?)
         } else {
             debug!("getting uncached public archive for [{}] from network", archive_address.to_hex());
-            let data = self.client.data_get_public(&archive_address).await?;
-            self.write_file(archive_address, data.to_vec()).await;
-            Ok(PublicArchive::from_bytes(data)?)
+            match self.client.data_get_public(&archive_address).await {
+                Ok(data) => match PublicArchive::from_bytes(data.clone()) {
+                    Ok(public_archive) => {
+                        self.write_file(archive_address, data.to_vec()).await;
+                        Ok(public_archive)
+                    },
+                    Err(err) => Err(err)
+                },
+                Err(err) => Err(decode::Error::Uncategorized(format!("Failed to retrieve public data: {:?}", err)))
+            }
         }
     }
 
@@ -413,10 +421,10 @@ impl CachingClient {
                     debug!("getting cached chunk for [{}] from memory", address.to_hex());
                     match cache_item.item.clone() {
                         Some(chunk) => Ok(chunk),
-                        None => Err(GetError::InvalidDataMap(rmp_serde::decode::Error::Uncategorized("Failed to find chunk in cache".to_string())))
+                        None => Err(GetError::InvalidDataMap(decode::Error::Uncategorized("Failed to find chunk in cache".to_string())))
                     }
                 }
-                None => Err(GetError::InvalidDataMap(rmp_serde::decode::Error::Uncategorized("Failed to find chunk in cache".to_string())))
+                None => Err(GetError::InvalidDataMap(decode::Error::Uncategorized("Failed to find chunk in cache".to_string())))
             }
         } else {
             self.chunk_get_uncached(address).await

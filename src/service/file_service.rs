@@ -38,8 +38,9 @@ impl FileService {
         FileService { autonomi_client, xor_helper, ant_tp_config }
     }
 
-    pub async fn get_data(&self, path_parts: Vec<String>, request: HttpRequest, resolved_address: ResolvedAddress) -> Result<HttpResponse, Error> {
+    pub async fn get_data(&self, resolved_address: ResolvedAddress, request: HttpRequest, path_parts: Vec<String>) -> Result<HttpResponse, Error> {
         let (archive_addr, _) = self.xor_helper.assign_path_parts(path_parts.clone());
+        let archive_relative_path = path_parts[1..].join("/").to_string();
 
         if self.xor_helper.get_data_state(request.headers(), &resolved_address.xor_name) == DataState::NotModified {
             info!("ETag matches for path [{}] at address [{}]. Client can use cached version", archive_addr, format!("{:x}", resolved_address.xor_name).as_str());
@@ -54,7 +55,7 @@ impl FileService {
                 .insert_header(cors_allow_all)
                 .finish())
         } else {
-            self.download_data_stream(archive_addr, resolved_address.xor_name, resolved_address, &request).await
+            self.download_data_stream(archive_relative_path, resolved_address.xor_name, resolved_address, &request).await
         }
     }
 

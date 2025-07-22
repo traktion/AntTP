@@ -11,7 +11,7 @@ use crate::service::chunk_service::{Chunk, ChunkService};
 
 #[utoipa::path(
     post,
-    path = "/anttp-0/chunk/{address}",
+    path = "/anttp-0/chunk",
     request_body(
         content = Chunk
     ),

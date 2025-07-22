@@ -15,11 +15,11 @@ use actix_files::Files;
 use actix_web::dev::ServerHandle;
 use actix_web::web::Data;
 use actix_web::{App, HttpServer, middleware::Logger, web};
-use ant_evm::EvmNetwork::ArbitrumOne;
+use ant_evm::EvmNetwork::{ArbitrumOne, ArbitrumSepoliaTest};
 use ant_evm::{EvmWallet};
 use autonomi::files::archive_public::ArchiveAddress;
 use autonomi::register::{RegisterAddress, RegisterValue};
-use autonomi::{Chunk, ChunkAddress, GraphEntry, GraphEntryAddress, Pointer, PointerAddress, Scratchpad, ScratchpadAddress};
+use autonomi::{Chunk, ChunkAddress, ClientConfig, ClientOperatingStrategy, GraphEntry, GraphEntryAddress, InitialPeersConfig, Network, Pointer, PointerAddress, Scratchpad, ScratchpadAddress};
 use awc::Client as AwcClient;
 use config::anttp_config::AntTpConfig;
 use log::info;
@@ -110,21 +110,38 @@ pub async fn run_server(app_config: AntTpConfig) -> std::io::Result<()> {
     let wallet_private_key = app_config.wallet_private_key.clone();
 
     // initialise safe network connection
-    let autonomi_client = if app_config.peers.clone().is_empty() {
-        Client::init()
+    let (autonomi_client, evm_network) = if app_config.peers.clone().is_empty() {
+        (Client::init()
             .await
-            .expect("Failed to connect to Autonomi Network.")
+            .expect("Failed to connect to Autonomi Network."), ArbitrumOne)
     } else {
-        Client::init_with_peers(app_config.peers.clone())
-            .await
-            .expect("Failed to connect to Autonomi Network.")
+        let evm_network = match app_config.evm_network.to_lowercase().as_str() {
+            "local" => Network::new(true).unwrap(),
+            "arbitrumsepoliatest" => ArbitrumSepoliaTest,
+            _ => ArbitrumOne
+        };
+        let autonomi_client = Client::init_with_config(ClientConfig{
+            init_peers_config: InitialPeersConfig {
+                first: false,
+                addrs: app_config.peers.clone(),
+                network_contacts_url: vec![],
+                local: true,
+                ignore_cache: false,
+                bootstrap_cache_dir: None,
+            },
+            evm_network: evm_network.clone(),
+            strategy: ClientOperatingStrategy::default(),
+            network_id: Some(1),
+        }).await.expect("Failed to connect to Autonomi Network.");
+
+        (autonomi_client, evm_network.clone())
     };
 
     let evm_wallet = if !wallet_private_key.is_empty() {
-        EvmWallet::new_from_private_key(ArbitrumOne, wallet_private_key.as_str())
+        EvmWallet::new_from_private_key(evm_network, wallet_private_key.as_str())
             .expect("Failed to instantiate EvmWallet.")
     } else {
-        EvmWallet::new_with_random_wallet(ArbitrumOne)
+        EvmWallet::new_with_random_wallet(evm_network)
     };
 
     let uploader_state = Data::new(UploaderState::new());

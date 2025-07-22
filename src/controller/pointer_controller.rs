@@ -41,6 +41,9 @@ pub async fn post_pointer(
 #[utoipa::path(
     put,
     path = "/anttp-0/pointer/{address}",
+    params(
+        ("address", description = "Address of pointer")
+    ),
     request_body(
         content = Pointer
     ),
@@ -71,6 +74,9 @@ pub async fn put_pointer(
 #[utoipa::path(
     get,
     path = "/anttp-0/pointer/{address}",
+        params(
+        ("address" = String, Path, description = "Pointer address"),
+    ),
     responses(
         (status = OK, description = "Pointer found successfully", body = Pointer),
         (status = NOT_FOUND, description = "Pointer was not found")

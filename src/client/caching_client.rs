@@ -33,7 +33,11 @@ pub struct CachingClient {
 impl CachingClient {
 
     pub fn new(client: Client, ant_tp_config: AntTpConfig, client_cache_state: Data<ClientCacheState>) -> Self {
-        let cache_dir = env::temp_dir().to_str().unwrap().to_owned() + "/anttp/cache/";
+        let cache_dir = if ant_tp_config.map_cache_directory.is_empty() {
+            env::temp_dir().to_str().unwrap().to_owned() + "/anttp/cache/"
+        } else {
+            ant_tp_config.map_cache_directory.clone()
+        };
         CachingClient::create_tmp_dir(cache_dir.clone());
         Self {
             client, cache_dir, ant_tp_config, client_cache_state,

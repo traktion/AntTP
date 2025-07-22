@@ -36,25 +36,33 @@ pub struct AntTpConfig {
 
     #[arg(short, long, value_delimiter = ',')]
     pub peers: Vec<Multiaddr>,
+
+    #[arg(short, long, default_value = "")]
+    pub map_cache_directory: String,
+
+    #[arg(short, long, default_value = "")]
+    pub evm_network: String
 }
 
 impl AntTpConfig {
 
     pub fn read_args() -> AntTpConfig {
-        let ant_to_config = AntTpConfig::parse();
-        info!("Listen address: [{}]", ant_to_config.listen_address);
-        info!("Static file directory: [{}]", ant_to_config.static_file_directory);
+        let ant_tp_config = AntTpConfig::parse();
+        info!("Listen address: [{}]", ant_tp_config.listen_address);
+        info!("Static file directory: [{}]", ant_tp_config.static_file_directory);
         info!("Wallet private key: [*****]");
-        info!("Download threads: [{}]", ant_to_config.download_threads);
-        info!("Uploads disabled: [{}]", ant_to_config.uploads_disabled);
-        if ant_to_config.app_private_key.is_empty() {
+        info!("Download threads: [{}]", ant_tp_config.download_threads);
+        info!("Uploads disabled: [{}]", ant_tp_config.uploads_disabled);
+        if ant_tp_config.app_private_key.is_empty() {
             info!("No app private key provided. Try this one: [{:?}]", SecretKey::random().to_hex());
         } else {
             info!("App private key: [*****]");
         }
-        info!("Bookmarks: {:?}", ant_to_config.bookmarks);
-        info!("Cached mutable TTL: {:?}", ant_to_config.cached_mutable_ttl);
-        info!("Peers: {:?}", ant_to_config.peers);
-        ant_to_config
+        info!("Bookmarks: {:?}", ant_tp_config.bookmarks);
+        info!("Cached mutable TTL: {:?}", ant_tp_config.cached_mutable_ttl);
+        info!("Peers: {:?}", ant_tp_config.peers);
+        info!("Map cache directory: {:?}", ant_tp_config.map_cache_directory);
+        info!("EVM network: {:?}", ant_tp_config.evm_network);
+        ant_tp_config
     }
 }

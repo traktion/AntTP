@@ -7,6 +7,7 @@ use autonomi::client::payment::PaymentOption;
 use base64::Engine;
 use base64::prelude::BASE64_STANDARD;
 use bytes::{Bytes};
+use chunk_streamer::chunk_streamer::ChunkGetter;
 use log::{info, warn};
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;

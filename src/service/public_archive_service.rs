@@ -42,7 +42,7 @@ impl Upload {
 
 pub struct PublicArchiveService {
     autonomi_client: Client,
-    file_client: FileService,
+    file_client: FileService<CachingClient>,
     resolver_service: ResolverService,
     uploader_state: Data<UploaderState>,
     upload_state: Data<UploadState>,
@@ -52,7 +52,7 @@ pub struct PublicArchiveService {
 
 impl PublicArchiveService {
     
-    pub fn new(autonomi_client: Client, file_client: FileService, resolver_service: ResolverService, uploader_state: Data<UploaderState>, upload_state: Data<UploadState>, ant_tp_config: AntTpConfig, caching_client: CachingClient) -> Self {
+    pub fn new(autonomi_client: Client, file_client: FileService<CachingClient>, resolver_service: ResolverService, uploader_state: Data<UploaderState>, upload_state: Data<UploadState>, ant_tp_config: AntTpConfig, caching_client: CachingClient) -> Self {
         PublicArchiveService { autonomi_client, file_client, resolver_service, uploader_state, upload_state, ant_tp_config, caching_client }
     }
     

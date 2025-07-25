@@ -5,10 +5,10 @@ use actix_http::header;
 use actix_web::{Error, HttpRequest, HttpResponse};
 use actix_web::error::{ErrorNotFound};
 use actix_web::http::header::{CacheControl, CacheDirective, ContentLength, ContentRange, ContentRangeSpec, ContentType, ETag, EntityTag, Expires};
-use autonomi::{ChunkAddress, Client};
+use autonomi::{ChunkAddress};
 use autonomi::client::GetError;
 use bytes::Bytes;
-use chunk_streamer::chunk_streamer::ChunkStreamer;
+use chunk_streamer::chunk_streamer::{ChunkGetter, ChunkStreamer};
 use log::{error, info};
 use self_encryption::{DataMap};
 use serde::{Deserialize, Serialize};
@@ -27,15 +27,15 @@ enum DataMapLevel {
     Additional(DataMap),
 }
 
-pub struct FileService {
-    autonomi_client: Client,
+pub struct FileService<T> {
+    chunk_getter: T,
     xor_helper: ResolverService,
     ant_tp_config: AntTpConfig,
 }
 
-impl FileService {
-    pub fn new(autonomi_client: Client, xor_helper: ResolverService, ant_tp_config: AntTpConfig) -> Self {
-        FileService { autonomi_client, xor_helper, ant_tp_config }
+impl<T: ChunkGetter> FileService<T> {
+    pub fn new(autonomi_client: T, xor_helper: ResolverService, ant_tp_config: AntTpConfig) -> Self {
+        FileService { chunk_getter: autonomi_client, xor_helper, ant_tp_config }
     }
 
     pub async fn get_data(&self, resolved_address: ResolvedAddress, request: HttpRequest, path_parts: Vec<String>) -> Result<HttpResponse, Error> {
@@ -70,7 +70,7 @@ impl FileService {
 
         info!("Streaming item [{}] at addr [{}], range_from [{}], range_to [{}]", path_str, format!("{:x}", xor_name), range_from, range_to);
 
-        let data_map_chunk = match self.autonomi_client.chunk_get(&ChunkAddress::new(xor_name)).await {
+        let data_map_chunk = match self.chunk_getter.chunk_get(&ChunkAddress::new(xor_name)).await {
             Ok(chunk) => chunk,
             Err(e) => return Err(ErrorNotFound(format!("{}", e)))
         };
@@ -80,7 +80,7 @@ impl FileService {
         
         let derived_range_to = if range_to == u64::MAX { total_size as u64 - 1 } else { range_to };
 
-        let chunk_streamer = ChunkStreamer::new(xor_name.to_string(), data_map, self.autonomi_client.clone(), self.ant_tp_config.download_threads);
+        let chunk_streamer = ChunkStreamer::new(xor_name.to_string(), data_map, self.chunk_getter.clone(), self.ant_tp_config.download_threads);
         let chunk_receiver = chunk_streamer.open(range_from, derived_range_to);
 
         // experimental, higher performance, chunk streamer

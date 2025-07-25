@@ -3,6 +3,7 @@ use actix_web::dev::ConnectionInfo;
 use actix_web::error::ErrorNotFound;
 use actix_web::web::Data;
 use autonomi::Client;
+use foyer::HybridCache;
 use log::info;
 use crate::config::anttp_config::AntTpConfig;
 use crate::{UploaderState, ClientCacheState, UploadState};
@@ -20,17 +21,18 @@ pub async fn get_public_data(
     upload_state_data: Data<UploadState>,
     client_cache_state_data: Data<ClientCacheState>,
     ant_tp_config_data: Data<AntTpConfig>,
+    hybrid_cache_data: Data<HybridCache<String, Vec<u8>>>,
 ) -> impl Responder {
     let ant_tp_config = ant_tp_config_data.get_ref().clone();
     let autonomi_client = autonomi_client_data.get_ref().clone();
-    let caching_client = CachingClient::new(autonomi_client.clone(), ant_tp_config.clone(), client_cache_state_data);
+    let caching_client = CachingClient::new(autonomi_client.clone(), ant_tp_config.clone(), client_cache_state_data, hybrid_cache_data);
     let resolver_service = ResolverService::new(ant_tp_config.clone(), caching_client.clone());
     let path_parts = get_path_parts(&conn.host(), &path.into_inner(), ant_tp_config.clone(), caching_client.clone());
     let (archive_addr, archive_file_name) = resolver_service.assign_path_parts(path_parts.clone());
 
     match resolver_service.resolve_archive_or_file(autonomi_client.clone(), &archive_addr, &archive_file_name, false).await {
         Some(resolved_address) => {
-            let file_service = FileService::new(autonomi_client.clone(), resolver_service.clone(), ant_tp_config.clone());
+            let file_service = FileService::new(caching_client.clone(), resolver_service.clone(), ant_tp_config.clone());
             if resolved_address.archive.is_some() {
                 info!("Retrieving file from public archive [{:x}]", resolved_address.xor_name);
                 let public_archive_service = PublicArchiveService::new(autonomi_client, file_service, resolver_service, uploader_state_data, upload_state_data, ant_tp_config, caching_client.clone());

@@ -3,6 +3,7 @@ use std::fs::File;
 use std::io::{Read, Write};
 use actix_web::web::Data;
 use ant_evm::AttoTokens;
+use async_trait::async_trait;
 use autonomi::{Chunk, ChunkAddress, Client, GraphEntry, GraphEntryAddress, Pointer, PointerAddress, ScratchpadAddress, SecretKey};
 use autonomi::client::files::archive_public::{ArchiveAddress, PublicArchive};
 use autonomi::client::{GetError, PutError};
@@ -12,7 +13,8 @@ use autonomi::graph::GraphError;
 use autonomi::pointer::{PointerError, PointerTarget};
 use autonomi::register::{RegisterAddress, RegisterError, RegisterHistory, RegisterValue};
 use autonomi::scratchpad::{Scratchpad, ScratchpadError};
-use bytes::Bytes;
+use chunk_streamer::chunk_streamer::ChunkGetter;
+use foyer::HybridCache;
 use log::{debug, info};
 use rmp_serde::decode;
 use xor_name::XorName;
@@ -21,6 +23,7 @@ use crate::client::cache_item::CacheItem;
 use crate::config::anttp_config::AntTpConfig;
 use crate::config::app_config::AppConfig;
 use crate::service::archive_helper::ArchiveHelper;
+use bytes::{Bytes};
 
 #[derive(Clone)]
 pub struct CachingClient {
@@ -28,11 +31,33 @@ pub struct CachingClient {
     cache_dir: String,
     ant_tp_config: AntTpConfig,
     client_cache_state: Data<ClientCacheState>,
+    hybrid_cache: Data<HybridCache<String, Vec<u8>>>,
+}
+
+#[async_trait]
+impl ChunkGetter for CachingClient {
+     async fn chunk_get(&self, address: &ChunkAddress) -> Result<Chunk, GetError> {
+        if self.hybrid_cache.get_ref().contains(&address.to_hex()) {
+            debug!("found chunk for [{}] in hybrid cache", address.to_hex());
+            match self.hybrid_cache.get_ref().get(&address.to_hex()).await {
+                Ok(maybe_cache_entry) => match maybe_cache_entry {
+                    Some(cache_entry) => {
+                        info!("retrieved chunk for [{}] from hybrid cache", address.to_hex());
+                        Ok(Chunk::new(Bytes::copy_from_slice(cache_entry.value().as_slice())))
+                    },
+                    None => Err(GetError::RecordNotFound)
+                }
+                Err(_) => Err(GetError::RecordNotFound)
+            }
+        } else {
+            self.chunk_get_uncached(address).await
+        }
+    }
 }
 
 impl CachingClient {
 
-    pub fn new(client: Client, ant_tp_config: AntTpConfig, client_cache_state: Data<ClientCacheState>) -> Self {
+    pub fn new(client: Client, ant_tp_config: AntTpConfig, client_cache_state: Data<ClientCacheState>, hybrid_cache: Data<HybridCache<String, Vec<u8>>>) -> Self {
         let cache_dir = if ant_tp_config.map_cache_directory.is_empty() {
             env::temp_dir().to_str().unwrap().to_owned() + "/anttp/cache/"
         } else {
@@ -40,7 +65,7 @@ impl CachingClient {
         };
         CachingClient::create_tmp_dir(cache_dir.clone());
         Self {
-            client, cache_dir, ant_tp_config, client_cache_state,
+            client, cache_dir, ant_tp_config, client_cache_state, hybrid_cache,
         }
     }
 
@@ -52,16 +77,24 @@ impl CachingClient {
 
     /// Fetch an archive from the network
     pub async fn archive_get_public(&self, archive_address: ArchiveAddress) -> Result<PublicArchive, decode::Error> {
-        let cached_data = self.read_file(archive_address).await;
-        if !cached_data.is_empty() {
-            debug!("getting cached public archive for [{}] from local storage", archive_address.to_hex());
-            Ok(PublicArchive::from_bytes(cached_data)?)
+        if self.hybrid_cache.get_ref().contains(&archive_address.to_hex()) {
+            debug!("found public archive for [{}] in hybrid cache", archive_address.to_hex());
+            match self.hybrid_cache.get_ref().get(&archive_address.to_hex()).await {
+                Ok(maybe_cache_entry) => match maybe_cache_entry {
+                    Some(cache_entry) => {
+                        info!("retrieved public archive for [{}] from hybrid cache", archive_address.to_hex());
+                        Ok(PublicArchive::from_bytes(Bytes::from(cache_entry.value().to_vec()))?)
+                    },
+                    None => Err(decode::Error::Uncategorized(format!("Failed to find public data at [{}] in hybrid cache", archive_address.to_hex())))
+                }
+                Err(err) => Err(decode::Error::Uncategorized(format!("Failed to retrieve public data at [{}] from hybrid cache: {:?}", archive_address.to_hex(), err))),
+            }
         } else {
-            debug!("getting uncached public archive for [{}] from network", archive_address.to_hex());
             match self.client.data_get_public(&archive_address).await {
                 Ok(data) => match PublicArchive::from_bytes(data.clone()) {
                     Ok(public_archive) => {
-                        self.write_file(archive_address, data.to_vec()).await;
+                        info!("retrieved public archive for [{}] from network", archive_address.to_hex());
+                        self.hybrid_cache.get_ref().insert(archive_address.to_hex(), data.clone().to_vec());
                         Ok(public_archive)
                     },
                     Err(err) => Err(err)
@@ -72,14 +105,22 @@ impl CachingClient {
     }
 
     pub async fn data_get_public(&self, addr: &DataAddress, ) -> Result<Bytes, GetError> {
-        let cached_data = self.read_file(*addr).await;
-        if !cached_data.is_empty() {
-            debug!("getting cached data for [{}] from local storage", addr.to_hex());
-            Ok(cached_data)
+        if self.hybrid_cache.get_ref().contains(&addr.to_hex()) {
+            debug!("found public data for [{}] from hybrid cache", addr.to_hex());
+            match self.hybrid_cache.get_ref().get(&addr.to_hex()).await {
+                Ok(maybe_cache_entry) => match maybe_cache_entry {
+                    Some(cache_entry) => {
+                        info!("retrieved public data for [{}] from hybrid cache", addr.to_hex());
+                        Ok(Bytes::copy_from_slice(cache_entry.value()))
+                    },
+                    None => Err(GetError::RecordNotFound)
+                }
+                Err(_) => Err(GetError::RecordNotFound),
+            }
         } else {
-            debug!("getting uncached data for [{}] from network", addr.to_hex());
+            info!("getting uncached data for [{}] from network", addr.to_hex());
             let data = self.client.data_get_public(addr).await?;
-            self.write_file(*addr, data.to_vec()).await;
+            self.hybrid_cache.get_ref().insert(addr.to_hex(), data.to_vec());
             Ok(data)
         }
     }
@@ -144,10 +185,23 @@ impl CachingClient {
                 Ok(pointer)
             }
             Err(e) => {
-                // cache mismatches to avoid repeated lookup
                 debug!("found no pointer for address [{}]", address.to_hex());
-                self.client_cache_state.get_ref().pointer_cache.lock().unwrap().insert(address.clone(), CacheItem::new(None, self.ant_tp_config.clone().cached_mutable_ttl));
-                Err(e)
+                if self.client_cache_state.get_ref().pointer_cache.lock().unwrap().contains_key(address) {
+                    debug!("getting stale cached pointer for [{}] from memory", address.to_hex());
+                    match self.client_cache_state.get_ref().pointer_cache.lock().unwrap().get(address) {
+                        Some(cache_item) => {
+                            match cache_item.item.clone() {
+                                Some(pointer) => Ok(pointer),
+                                None => Err(PointerError::Serialization)
+                            }
+                        }
+                        None => Err(PointerError::Serialization)
+                    }
+                } else {
+                    // cache mismatches to avoid repeated lookup
+                    self.client_cache_state.get_ref().pointer_cache.lock().unwrap().insert(address.clone(), CacheItem::new(None, self.ant_tp_config.clone().cached_mutable_ttl));
+                    Err(e)
+                }
             }
         }
     }
@@ -212,10 +266,23 @@ impl CachingClient {
                 Ok(register_value)
             },
             Err(e) => {
-                // cache mismatches to avoid repeated lookup
                 debug!("found no register value for address [{}]", address.to_hex());
-                self.client_cache_state.get_ref().register_cache.lock().unwrap().insert(address.clone(), CacheItem::new(None, self.ant_tp_config.clone().cached_mutable_ttl));
-                Err(e)
+                if self.client_cache_state.get_ref().register_cache.lock().unwrap().contains_key(address) {
+                    debug!("getting stale cached register for [{}] from memory", address.to_hex());
+                    match self.client_cache_state.get_ref().register_cache.lock().unwrap().get(address) {
+                        Some(cache_item) => {
+                            match cache_item.item.clone() {
+                                Some(register_value) => Ok(register_value),
+                                None => Err(RegisterError::PointerError(PointerError::Serialization))
+                            }
+                        }
+                        None => Err(RegisterError::PointerError(PointerError::Serialization))
+                    }
+                } else {
+                    // cache mismatches to avoid repeated lookup
+                    self.client_cache_state.get_ref().register_cache.lock().unwrap().insert(address.clone(), CacheItem::new(None, self.ant_tp_config.clone().cached_mutable_ttl));
+                    Err(e)
+                }
             }
         }
     }
@@ -416,37 +483,17 @@ impl CachingClient {
         Ok((AttoTokens::zero(), chunk.address))
     }
 
-    pub async fn chunk_get(&self, address: &ChunkAddress) -> Result<Chunk, GetError> {
-        if self.client_cache_state.get_ref().chunk_cache.lock().unwrap().contains_key(address)
-            && !self.client_cache_state.get_ref().chunk_cache.lock().unwrap().get(address).unwrap().has_expired() {
-            debug!("getting cached chunk for [{}] from memory", address.to_hex());
-            match self.client_cache_state.get_ref().chunk_cache.lock().unwrap().get(address) {
-                Some(cache_item) => {
-                    debug!("getting cached chunk for [{}] from memory", address.to_hex());
-                    match cache_item.item.clone() {
-                        Some(chunk) => Ok(chunk),
-                        None => Err(GetError::InvalidDataMap(decode::Error::Uncategorized("Failed to find chunk in cache".to_string())))
-                    }
-                }
-                None => Err(GetError::InvalidDataMap(decode::Error::Uncategorized("Failed to find chunk in cache".to_string())))
-            }
-        } else {
-            self.chunk_get_uncached(address).await
-        }
-    }
-
     async fn chunk_get_uncached(&self, address: &ChunkAddress) -> Result<Chunk, GetError> {
         debug!("getting uncached chunk for [{}] from network", address.to_hex());
         match self.client.chunk_get(address).await {
             Ok(chunk) => {
-                debug!("found chunk for address [{}]", address.to_hex());
-                self.client_cache_state.get_ref().chunk_cache.lock().unwrap().insert(address.clone(), CacheItem::new(Some(chunk.clone()), self.ant_tp_config.clone().cached_mutable_ttl));
+                debug!("found chunk for address [{}] - storing in hybrid cache", address.to_hex());
+                self.hybrid_cache.get_ref().insert(address.to_hex(), chunk.value.to_vec());
                 Ok(chunk)
             }
             Err(e) => {
                 // cache mismatches to avoid repeated lookup
                 debug!("found no chunk for address [{}]", address.to_hex());
-                self.client_cache_state.get_ref().chunk_cache.lock().unwrap().insert(address.clone(), CacheItem::new(None, self.ant_tp_config.clone().cached_mutable_ttl));
                 Err(e)
             }
         }

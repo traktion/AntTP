@@ -2,6 +2,7 @@ use actix_web::{web, Responder};
 use actix_web::web::Data;
 use ant_evm::EvmWallet;
 use autonomi::Client;
+use foyer::HybridCache;
 use log::info;
 use crate::client::caching_client::CachingClient;
 use crate::ClientCacheState;
@@ -24,13 +25,14 @@ pub async fn post_public_scratchpad(
     ant_tp_config_data: Data<AntTpConfig>,
     scratchpad: web::Json<Scratchpad>,
     client_cache_state: Data<ClientCacheState>,
+    hybrid_cache_data: Data<HybridCache<String, Vec<u8>>>,
 ) -> impl Responder {
     let evm_wallet = evm_wallet_data.get_ref().clone();
 
     let autonomi_client = autonomi_client_data.get_ref();
     let ant_tp_config = ant_tp_config_data.get_ref();
     let scratchpad_service = ScratchpadService::new(
-        CachingClient::new(autonomi_client.clone(), ant_tp_config.clone(), client_cache_state),
+        CachingClient::new(autonomi_client.clone(), ant_tp_config.clone(), client_cache_state, hybrid_cache_data),
         ant_tp_config_data.get_ref().clone(),
     );
 
@@ -55,6 +57,7 @@ pub async fn put_public_scratchpad(
     ant_tp_config_data: Data<AntTpConfig>,
     scratchpad: web::Json<Scratchpad>,
     client_cache_state: Data<ClientCacheState>,
+    hybrid_cache_data: Data<HybridCache<String, Vec<u8>>>,
 ) -> impl Responder {
     let address = path.into_inner();
 
@@ -62,7 +65,7 @@ pub async fn put_public_scratchpad(
     let autonomi_client = autonomi_client_data.get_ref();
     let ant_tp_config = ant_tp_config_data.get_ref();
     let scratchpad_service = ScratchpadService::new(
-        CachingClient::new(autonomi_client.clone(), ant_tp_config.clone(), client_cache_state),
+        CachingClient::new(autonomi_client.clone(), ant_tp_config.clone(), client_cache_state, hybrid_cache_data),
         ant_tp_config_data.get_ref().clone(),
     );
 
@@ -86,13 +89,14 @@ pub async fn get_public_scratchpad(
     autonomi_client_data: Data<Client>,
     ant_tp_config_data: Data<AntTpConfig>,
     client_cache_state: Data<ClientCacheState>,
+    hybrid_cache_data: Data<HybridCache<String, Vec<u8>>>,
 ) -> impl Responder {
     let address = path.into_inner();
 
     let autonomi_client = autonomi_client_data.get_ref();
     let ant_tp_config = ant_tp_config_data.get_ref();
     let scratchpad_service = ScratchpadService::new(
-        CachingClient::new(autonomi_client.clone(), ant_tp_config.clone(), client_cache_state),
+        CachingClient::new(autonomi_client.clone(), ant_tp_config.clone(), client_cache_state, hybrid_cache_data),
         ant_tp_config_data.get_ref().clone(),
     );
 

@@ -1,7 +1,7 @@
 use std::convert::TryInto;
 use actix_http::header::{HeaderMap, IF_NONE_MATCH};
 use actix_web::Error;
-use actix_web::error::{ErrorBadRequest};
+use actix_web::error::{ErrorBadGateway, ErrorBadRequest};
 use autonomi::{Client, PointerAddress, PublicKey};
 use autonomi::data::DataAddress;
 use autonomi::files::archive_public::ArchiveAddress;
@@ -80,8 +80,8 @@ impl ResolverService {
                     info!("Found public archive at [{:x}]", archive_directory_xorname);
                     Some(ResolvedAddress::new(true, Some(public_archive), archive_directory_xorname, is_resolved_mutable))
                 }
-                Err(_) => {
-                    info!("No public archive found at [{:x}]. Treating as XOR address", archive_directory_xorname);
+                Err(e) => {
+                    info!("No public archive found at [{:x}] due to error [{}]. Treating as XOR address", archive_directory_xorname, e.to_string());
                     Some(ResolvedAddress::new(true, None, archive_directory_xorname, is_resolved_mutable))
                 }
             }
@@ -196,9 +196,10 @@ impl ResolverService {
     fn str_to_xor_name(&self, str: &String) -> Result<XorName, Error> {
         match hex::decode(str) {
             Ok(bytes) => {
-                let xor_name_bytes: [u8; 32] = bytes
-                    .try_into()
-                    .expect("Failed to parse XorName from hex string");
+                let xor_name_bytes: [u8; 32] = match bytes.try_into() {
+                    Ok(bytes) => bytes,
+                    Err(_) => return Err(ErrorBadGateway("Failed to parse XorName from hex string")),
+                };
                 Ok(XorName(xor_name_bytes))
             },
             Err(_) => {

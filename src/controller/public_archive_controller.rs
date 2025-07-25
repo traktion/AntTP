@@ -3,6 +3,7 @@ use actix_web::{web, Responder};
 use actix_web::web::Data;
 use ant_evm::EvmWallet;
 use autonomi::Client;
+use foyer::HybridCache;
 use log::info;
 use crate::config::anttp_config::AntTpConfig;
 use crate::{UploaderState, ClientCacheState, UploadState};
@@ -29,9 +30,10 @@ pub async fn post_public_archive(
     upload_state: Data<UploadState>,
     client_cache_state: Data<ClientCacheState>,
     ant_tp_config: Data<AntTpConfig>,
+    hybrid_cache_data: Data<HybridCache<String, Vec<u8>>>,
 )
     -> impl Responder {
-    let archive_service = build_archive_service(autonomi_client_data.get_ref().clone(), uploader_state, upload_state, ant_tp_config.clone(), client_cache_state);
+    let archive_service = build_archive_service(autonomi_client_data.get_ref().clone(), uploader_state, upload_state, ant_tp_config.clone(), client_cache_state, hybrid_cache_data);
     let evm_wallet = evm_wallet_data.get_ref().clone();
 
     info!("Creating new archive from multipart POST");
@@ -57,10 +59,11 @@ pub async fn put_public_archive(
     upload_state: Data<UploadState>,
     client_cache_state: Data<ClientCacheState>,
     ant_tp_config: Data<AntTpConfig>,
+    hybrid_cache_data: Data<HybridCache<String, Vec<u8>>>,
 )
     -> impl Responder {
     let address = path.into_inner();
-    let archive_service = build_archive_service(autonomi_client_data.get_ref().clone(), uploader_state, upload_state, ant_tp_config.clone(), client_cache_state);
+    let archive_service = build_archive_service(autonomi_client_data.get_ref().clone(), uploader_state, upload_state, ant_tp_config.clone(), client_cache_state, hybrid_cache_data);
     let evm_wallet = evm_wallet_data.get_ref().clone();
 
     info!("Updating [{}] archive from multipart PUT", address);
@@ -85,18 +88,19 @@ pub async fn get_status_public_archive(
     upload_state: Data<UploadState>,
     ant_tp_config: Data<AntTpConfig>,
     client_cache_state: Data<ClientCacheState>,
+    hybrid_cache_data: Data<HybridCache<String, Vec<u8>>>,
 ) -> impl Responder {
     let id = path.into_inner();
-    let archive_service = build_archive_service(autonomi_client_data.get_ref().clone(), uploader_state, upload_state, ant_tp_config.clone(), client_cache_state);
+    let archive_service = build_archive_service(autonomi_client_data.get_ref().clone(), uploader_state, upload_state, ant_tp_config.clone(), client_cache_state, hybrid_cache_data);
 
     info!("Checking upload status for [{:?}]", id);
     archive_service.get_status(id).await
 }
 
-fn build_archive_service(autonomi_client: Client, uploader_state: Data<UploaderState>, upload_state: Data<UploadState>, ant_tp_config_data: Data<AntTpConfig>, client_cache_state: Data<ClientCacheState>) -> PublicArchiveService {
+fn build_archive_service(autonomi_client: Client, uploader_state: Data<UploaderState>, upload_state: Data<UploadState>, ant_tp_config_data: Data<AntTpConfig>, client_cache_state: Data<ClientCacheState>, hybrid_cache_data: Data<HybridCache<String, Vec<u8>>>) -> PublicArchiveService {
     let ant_tp_config = ant_tp_config_data.get_ref();
-    let caching_client = CachingClient::new(autonomi_client.clone(), ant_tp_config.clone(), client_cache_state);
+    let caching_client = CachingClient::new(autonomi_client.clone(), ant_tp_config.clone(), client_cache_state, hybrid_cache_data);
     let resolver_service = ResolverService::new(ant_tp_config.clone(), caching_client.clone());
-    let file_service = FileService::new(autonomi_client.clone(), resolver_service.clone(), ant_tp_config.clone());
+    let file_service = FileService::new(caching_client.clone(), resolver_service.clone(), ant_tp_config.clone());
     PublicArchiveService::new(autonomi_client, file_service, resolver_service, uploader_state, upload_state, ant_tp_config.clone(), caching_client)
 }

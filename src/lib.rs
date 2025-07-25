@@ -170,11 +170,11 @@ pub async fn run_server(app_config: AntTpConfig) -> std::io::Result<()> {
         .with_compression(Compression::None) // as chunks are already compressed
         .with_runtime_options(RuntimeOptions::Separated {
             read_runtime_options: TokioRuntimeOptions {
-                worker_threads: 4,
+                worker_threads: app_config.download_threads,
                 max_blocking_threads: 8,
             },
             write_runtime_options: TokioRuntimeOptions {
-                worker_threads: 4,
+                worker_threads: app_config.download_threads,
                 max_blocking_threads: 8,
             },
         })

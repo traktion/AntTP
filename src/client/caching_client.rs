@@ -15,7 +15,7 @@ use autonomi::register::{RegisterAddress, RegisterError, RegisterHistory, Regist
 use autonomi::scratchpad::{Scratchpad, ScratchpadError};
 use chunk_streamer::chunk_streamer::ChunkGetter;
 use foyer::HybridCache;
-use log::{debug, info};
+use log::{debug, error, info};
 use rmp_serde::decode;
 use xor_name::XorName;
 use crate::{ClientCacheState};
@@ -36,21 +36,28 @@ pub struct CachingClient {
 
 #[async_trait]
 impl ChunkGetter for CachingClient {
-     async fn chunk_get(&self, address: &ChunkAddress) -> Result<Chunk, GetError> {
-        if self.hybrid_cache.get_ref().contains(&address.to_hex()) {
-            debug!("found chunk for [{}] in hybrid cache", address.to_hex());
-            match self.hybrid_cache.get_ref().get(&address.to_hex()).await {
-                Ok(maybe_cache_entry) => match maybe_cache_entry {
-                    Some(cache_entry) => {
-                        info!("retrieved chunk for [{}] from hybrid cache", address.to_hex());
-                        Ok(Chunk::new(Bytes::copy_from_slice(cache_entry.value().as_slice())))
-                    },
-                    None => Err(GetError::RecordNotFound)
+    async fn chunk_get(&self, address: &ChunkAddress) -> Result<Chunk, GetError> {
+        let local_client = self.client.clone();
+        let local_address = address.clone();
+        let local_hybrid_cache = self.hybrid_cache.clone();
+        match self.hybrid_cache.get_ref().fetch(local_address.to_hex(), || async move {
+            match local_client.chunk_get(&local_address).await {
+                Ok(chunk) => {
+                    info!("retrieved chunk for [{}] from network - storing in hybrid cache", local_address.to_hex());
+                    info!("hybrid cache stats [{:?}], memory cache usage [{:?}]", local_hybrid_cache.statistics(), local_hybrid_cache.memory().usage());
+                    Ok(chunk.value.to_vec())
                 }
-                Err(_) => Err(GetError::RecordNotFound)
+                Err(err) => {
+                    error!("Failed to retrieve chunk for [{}] from network {:?}", local_address.to_hex(), err);
+                    Err(foyer::Error::other(format!("Failed to retrieve chunk for [{}] from network {:?}", local_address.to_hex(), err)))
+                }
             }
-        } else {
-            self.chunk_get_uncached(address).await
+        }).await {
+            Ok(cache_entry) => {
+                info!("retrieved chunk for [{}] from hybrid cache", address.to_hex());
+                Ok(Chunk::new(Bytes::copy_from_slice(cache_entry.value().as_slice())))
+            },
+            Err(_) => Err(GetError::RecordNotFound)
         }
     }
 }
@@ -77,30 +84,42 @@ impl CachingClient {
 
     /// Fetch an archive from the network
     pub async fn archive_get_public(&self, archive_address: ArchiveAddress) -> Result<PublicArchive, decode::Error> {
-        if self.hybrid_cache.get_ref().contains(&archive_address.to_hex()) {
-            debug!("found public archive for [{}] in hybrid cache", archive_address.to_hex());
-            match self.hybrid_cache.get_ref().get(&archive_address.to_hex()).await {
-                Ok(maybe_cache_entry) => match maybe_cache_entry {
-                    Some(cache_entry) => {
-                        info!("retrieved public archive for [{}] from hybrid cache", archive_address.to_hex());
-                        Ok(PublicArchive::from_bytes(Bytes::from(cache_entry.value().to_vec()))?)
-                    },
-                    None => Err(decode::Error::Uncategorized(format!("Failed to find public data at [{}] in hybrid cache", archive_address.to_hex())))
-                }
-                Err(err) => Err(decode::Error::Uncategorized(format!("Failed to retrieve public data at [{}] from hybrid cache: {:?}", archive_address.to_hex(), err))),
-            }
-        } else {
-            match self.client.data_get_public(&archive_address).await {
-                Ok(data) => match PublicArchive::from_bytes(data.clone()) {
+        let local_client = self.client.clone();
+        let local_address = archive_address.clone();
+        let local_hybrid_cache = self.hybrid_cache.clone();
+        match self.hybrid_cache.get_ref().fetch(local_address.to_hex(), || async move {
+            match local_client.data_get_public(&archive_address).await {
+                // confirm that serialisation can be successful, before returning the data
+                Ok(data) => match PublicArchive::from_bytes(data) {
                     Ok(public_archive) => {
-                        info!("retrieved public archive for [{}] from network", archive_address.to_hex());
-                        self.hybrid_cache.get_ref().insert(archive_address.to_hex(), data.clone().to_vec());
-                        Ok(public_archive)
+                        match public_archive.to_bytes() {
+                            Ok(bytes) => {
+                                info!("retrieved public archive for [{}] from network - storing in hybrid cache", local_address.to_hex());
+                                info!("hybrid cache stats [{:?}], memory cache usage [{:?}]", local_hybrid_cache.statistics(), local_hybrid_cache.memory().usage());
+                                Ok(bytes.to_vec())
+                            },
+                            Err(err) => {
+                                error!("Failed to convert public archive to bytes for [{}] from network {:?}", local_address.to_hex(), err);
+                                Err(foyer::Error::other(format!("Failed to convert public archive to bytes for [{}] from network {:?}", local_address.to_hex(), err)))
+                            }
+                        }
                     },
-                    Err(err) => Err(err)
+                    Err(err) => {
+                        error!("Failed to deserialize public archive for [{}] from network {:?}", local_address.to_hex(), err);
+                        Err(foyer::Error::other(format!("Failed to deserialize public archive for [{}] from network {:?}", local_address.to_hex(), err)))
+                    }
                 },
-                Err(err) => Err(decode::Error::Uncategorized(format!("Failed to retrieve public data: {:?}", err)))
+                Err(err) => {
+                    error!("Failed to retrieve public archive for [{}] from network {:?}", local_address.to_hex(), err);
+                    Err(foyer::Error::other(format!("Failed to retrieve public archive for [{}] from network {:?}", local_address.to_hex(), err)))
+                }
             }
+        }).await {
+            Ok(cache_entry) => {
+                info!("retrieved public archive for [{}] from hybrid cache", archive_address.to_hex());
+                PublicArchive::from_bytes(Bytes::from(cache_entry.value().to_vec()))
+            },
+            Err(err) => Err(decode::Error::Uncategorized(format!("Failed to retrieve public data at [{}] from hybrid cache: {:?}", archive_address.to_hex(), err))),
         }
     }
 
@@ -483,12 +502,13 @@ impl CachingClient {
         Ok((AttoTokens::zero(), chunk.address))
     }
 
-    async fn chunk_get_uncached(&self, address: &ChunkAddress) -> Result<Chunk, GetError> {
+    /*async fn chunk_get_uncached(&self, address: &ChunkAddress) -> Result<Chunk, GetError> {
         debug!("getting uncached chunk for [{}] from network", address.to_hex());
         match self.client.chunk_get(address).await {
             Ok(chunk) => {
-                debug!("found chunk for address [{}] - storing in hybrid cache", address.to_hex());
-                self.hybrid_cache.get_ref().insert(address.to_hex(), chunk.value.to_vec());
+                info!("found chunk for address [{}] - storing in hybrid cache", address.to_hex());
+                //self.hybrid_cache.get_ref().insert(address.to_hex(), chunk.value.to_vec());
+                //info!("hybrid cache stats [{:?}], memory cache usage [{:?}]", self.hybrid_cache.statistics(), self.hybrid_cache.memory().usage());
                 Ok(chunk)
             }
             Err(e) => {
@@ -497,7 +517,7 @@ impl CachingClient {
                 Err(e)
             }
         }
-    }
+    }*/
 
     pub async fn graph_entry_put(
         &self,

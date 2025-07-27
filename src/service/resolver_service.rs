@@ -68,7 +68,7 @@ impl ResolverService {
                 }
                 None => {
                     let archive_directory_xorname = self.str_to_xor_name(&archive_directory).unwrap();
-                    info!("No public archive found at [{:x}]. Treating as XOR address", archive_directory_xorname);
+                    info!("No mutable data found at [{:x}]", archive_directory_xorname);
                     None
                 }
             }

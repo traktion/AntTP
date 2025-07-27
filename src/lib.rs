@@ -28,7 +28,7 @@ use std::collections::HashMap;
 use std::env;
 use std::path::Path;
 use std::sync::Mutex;
-use foyer::{Compression, DirectFsDeviceOptions, Engine, HybridCache, HybridCacheBuilder, HybridCachePolicy, LruConfig, RecoverMode, RuntimeOptions, SmallEngineOptions, TokioRuntimeOptions};
+use foyer::{Compression, DirectFsDeviceOptions, Engine, HybridCache, HybridCacheBuilder, HybridCachePolicy, LargeEngineOptions, LfuConfig, RecoverMode, RuntimeOptions, TokioRuntimeOptions};
 use tokio::task::JoinHandle;
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
@@ -158,12 +158,10 @@ pub async fn run_server(app_config: AntTpConfig) -> std::io::Result<()> {
         .with_name("anttp-hybrid-cache")
         .with_flush_on_close(true)
         .with_policy(HybridCachePolicy::WriteOnInsertion)
-        .memory(app_config.immutable_memory_cache_size * 1024 * 1024)
+        .memory(app_config.immutable_memory_cache_size)
         .with_shards(4)
-        .with_eviction_config(LruConfig {
-            high_priority_pool_ratio: 0.1,
-        })
-        .storage(Engine::Small(SmallEngineOptions::default())) // use large object disk cache engine only
+        .with_eviction_config(LfuConfig::default())
+        .storage(Engine::Large(LargeEngineOptions::default())) // use large object disk cache engine only
         .with_device_options(DirectFsDeviceOptions::new(Path::new(cache_dir.as_str()))
             .with_capacity(app_config.immutable_disk_cache_size * 1024 * 1024))
         .with_recover_mode(RecoverMode::Quiet)

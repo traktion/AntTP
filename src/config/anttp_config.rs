@@ -46,7 +46,7 @@ pub struct AntTpConfig {
     #[arg(long, default_value_t = 1024)]
     pub immutable_disk_cache_size: usize,
 
-    #[arg(long, default_value_t = 16)]
+    #[arg(long, default_value_t = 32)]
     pub immutable_memory_cache_size: usize
 }
 
@@ -70,7 +70,7 @@ impl AntTpConfig {
         info!("Map cache directory: {:?}", ant_tp_config.map_cache_directory);
         info!("EVM network: {:?}", ant_tp_config.evm_network);
         info!("Immutable disk cache size (MB): {:?}", ant_tp_config.immutable_disk_cache_size);
-        info!("Immutable memory cache size (MB): {:?}", ant_tp_config.immutable_memory_cache_size);
+        info!("Immutable memory cache size (slots): {:?}", ant_tp_config.immutable_memory_cache_size);
         ant_tp_config
     }
 }

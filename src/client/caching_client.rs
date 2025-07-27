@@ -502,23 +502,6 @@ impl CachingClient {
         Ok((AttoTokens::zero(), chunk.address))
     }
 
-    /*async fn chunk_get_uncached(&self, address: &ChunkAddress) -> Result<Chunk, GetError> {
-        debug!("getting uncached chunk for [{}] from network", address.to_hex());
-        match self.client.chunk_get(address).await {
-            Ok(chunk) => {
-                info!("found chunk for address [{}] - storing in hybrid cache", address.to_hex());
-                //self.hybrid_cache.get_ref().insert(address.to_hex(), chunk.value.to_vec());
-                //info!("hybrid cache stats [{:?}], memory cache usage [{:?}]", self.hybrid_cache.statistics(), self.hybrid_cache.memory().usage());
-                Ok(chunk)
-            }
-            Err(e) => {
-                // cache mismatches to avoid repeated lookup
-                debug!("found no chunk for address [{}]", address.to_hex());
-                Err(e)
-            }
-        }
-    }*/
-
     pub async fn graph_entry_put(
         &self,
         entry: GraphEntry,

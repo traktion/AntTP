@@ -2,7 +2,7 @@ use std::convert::TryInto;
 use actix_http::header::{HeaderMap, IF_NONE_MATCH};
 use actix_web::Error;
 use actix_web::error::{ErrorBadGateway, ErrorBadRequest};
-use autonomi::{Client, PointerAddress, PublicKey};
+use autonomi::{PointerAddress, PublicKey};
 use autonomi::data::DataAddress;
 use autonomi::files::archive_public::ArchiveAddress;
 use autonomi::files::PublicArchive;
@@ -54,17 +54,17 @@ impl ResolverService {
         }
     }
 
-    pub async fn resolve_archive_or_file(&self, autonomi_client: Client, archive_directory: &String, archive_file_name: &String, is_resolved_mutable: bool) -> Option<ResolvedAddress> {
+    pub async fn resolve_archive_or_file(&self, archive_directory: &String, archive_file_name: &String, is_resolved_mutable: bool) -> Option<ResolvedAddress> {
         if self.is_bookmark(archive_directory) {
             let resolved_bookmark = &self.resolve_bookmark(archive_directory).unwrap().to_string();
-            Box::pin(self.resolve_archive_or_file(autonomi_client, resolved_bookmark, archive_file_name, true)).await
+            Box::pin(self.resolve_archive_or_file(resolved_bookmark, archive_file_name, true)).await
         } else if self.is_bookmark(archive_file_name) {
             let resolved_bookmark = &self.resolve_bookmark(archive_file_name).unwrap().to_string();
-            Box::pin(self.resolve_archive_or_file(autonomi_client, archive_directory, resolved_bookmark, true)).await
+            Box::pin(self.resolve_archive_or_file(archive_directory, resolved_bookmark, true)).await
         } else if self.is_mutable_address(&archive_directory) {
             match self.analyze_simple(archive_directory).await {
                 Some(data_address) => {
-                    Box::pin(self.resolve_archive_or_file(autonomi_client, &data_address.to_hex(), archive_file_name, true)).await
+                    Box::pin(self.resolve_archive_or_file(&data_address.to_hex(), archive_file_name, true)).await
                 }
                 None => {
                     let archive_directory_xorname = self.str_to_xor_name(&archive_directory).unwrap();

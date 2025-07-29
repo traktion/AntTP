@@ -14,7 +14,8 @@ use autonomi::{Client, Wallet};
 use autonomi::client::payment::PaymentOption;
 use autonomi::files::{Metadata, PublicArchive};
 use autonomi::files::archive_public::ArchiveAddress;
-use log::{debug, info, warn};
+use bytes::{BufMut, BytesMut};
+use log::{debug, error, info, warn};
 use crate::service::archive_helper::{ArchiveAction, ArchiveHelper, DataState};
 use crate::client::caching_client::CachingClient;
 use crate::service::file_service::FileService;
@@ -23,8 +24,10 @@ use futures_util::{StreamExt as _};
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 use uuid::Uuid;
+use xor_name::XorName;
 use crate::config::anttp_config::AntTpConfig;
 use crate::{UploadState, UploaderState};
+use crate::config::app_config::AppConfig;
 
 #[derive(Serialize, Deserialize, Clone, ToSchema)]
 pub struct Upload {
@@ -61,16 +64,16 @@ impl PublicArchiveService {
         let (archive_addr, archive_file_name) = self.resolver_service.assign_path_parts(path_parts.clone());
         debug!("Get data for archive_addr [{}], archive_file_name [{}]", archive_addr, archive_file_name);
 
-
         // load app_config from archive and resolve route
-        let app_config = self.caching_client.config_get_public(archive.clone(), resolved_address.xor_name).await;
+        //let app_config = self.caching_client.config_get_public(archive.clone(), resolved_address.xor_name).await;
+        let app_config = self.config_get_public(archive.clone(), resolved_address.xor_name).await;
         // resolve route
         let archive_relative_path = path_parts[1..].join("/").to_string();
         let (resolved_relative_path_route, has_route_map) = app_config.resolve_route(archive_relative_path.clone(), archive_file_name.clone());
 
         // resolve file name to chunk address
         let archive_helper = ArchiveHelper::new(archive.clone(), self.ant_tp_config.clone());
-        let archive_info = archive_helper.resolve_archive_info(path_parts, request.clone(), resolved_relative_path_route.clone(), has_route_map, self.caching_client.clone());
+        let archive_info = archive_helper.resolve_archive_info(path_parts, request.clone(), resolved_relative_path_route.clone(), has_route_map, self.caching_client.clone()).await;
 
         if archive_info.state == DataState::NotModified {
             debug!("ETag matches for path [{}] at address [{}]. Client can use cached version", archive_info.path_string, format!("{:x}", archive_info.resolved_xor_addr));
@@ -91,7 +94,43 @@ impl PublicArchiveService {
                 .insert_header((header::ACCESS_CONTROL_ALLOW_ORIGIN, "*"))
                 .body(archive_helper.list_files(request.headers()))) // todo: return .json / .body depending on accept header
         } else {
-            self.file_client.download_data_stream(archive_relative_path, archive_info.resolved_xor_addr, resolved_address, &request).await
+            self.file_client.download_data_stream(archive_relative_path, archive_info.resolved_xor_addr, resolved_address, &request, archive_info.offset, archive_info.limit).await
+        }
+    }
+
+    pub async fn config_get_public(&self, archive: PublicArchive, archive_address_xorname: XorName) -> AppConfig {
+        let path_str = "app-conf.json";
+        let mut path_parts = Vec::<String>::new();
+        path_parts.push("ignore".to_string());
+        path_parts.push(path_str.to_string());
+        match ArchiveHelper::new(archive, self.ant_tp_config.clone()).resolve_tarchive_addr(path_parts, self.caching_client.clone()).await {
+            Some(data_address_offset) => {
+                info!("Downloading app-config [{}] with addr [{}] from archive [{}]", path_str, format!("{:x}", data_address_offset.data_address.xorname()), format!("{:x}", archive_address_xorname));
+                match self.file_client.download_data(*data_address_offset.data_address.xorname(), data_address_offset.offset, data_address_offset.limit).await {
+                    Ok(mut data) => {
+                        let mut buf = BytesMut::new();
+                        let mut has_data = true;
+                        while has_data {
+                            match data.next().await {
+                                Some(item) => match item {
+                                    Ok(bytes) => buf.put(bytes),
+                                    Err(e) => {
+                                        error!("Error streaming app-config from archive: {}", e);
+                                        has_data = false
+                                    },
+                                },
+                                None => has_data = false
+                            };
+                        }
+                        let json = String::from_utf8(buf.to_vec()).unwrap_or(String::new());
+                        debug!("json [{}], raw [{:?}]", json, buf.to_vec());
+                        //serde_json::from_str(&json.as_str().trim()).unwrap_or(AppConfig::default())
+                        serde_json::from_str(&json.as_str().trim()).expect(format!("failed to deserialize json [{}]", json).as_str())
+                    },
+                    Err(_) => AppConfig::default()
+                }
+            },
+            None => AppConfig::default()
         }
     }
 

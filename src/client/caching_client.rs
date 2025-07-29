@@ -84,30 +84,24 @@ impl CachingClient {
 
     /// Fetch an archive from the network
     pub async fn archive_get_public(&self, archive_address: ArchiveAddress) -> Result<PublicArchive, decode::Error> {
+        match self.data_get_public(&archive_address).await {
+            Ok(bytes) => PublicArchive::from_bytes(bytes),
+            Err(err) => Err(decode::Error::Uncategorized(format!("Failed to retrieve public archive at [{}] from hybrid cache: {:?}", archive_address.to_hex(), err))),
+        }
+    }
+
+    pub async fn data_get_public(&self, addr: &DataAddress) -> Result<Bytes, GetError> {
+        // todo: re-implement to use chunk-streamer (to cache each chunk instead of whole thing)
         let local_client = self.client.clone();
-        let local_address = archive_address.clone();
+        let local_address = addr.clone();
         let local_hybrid_cache = self.hybrid_cache.clone();
-        match self.hybrid_cache.get_ref().fetch(local_address.to_hex(), || async move {
-            match local_client.data_get_public(&archive_address).await {
+        match self.hybrid_cache.get_ref().fetch(format!("pd{}", local_address.to_hex()), || async move {
+            match local_client.data_get_public(&local_address).await {
                 // confirm that serialisation can be successful, before returning the data
-                Ok(data) => match PublicArchive::from_bytes(data) {
-                    Ok(public_archive) => {
-                        match public_archive.to_bytes() {
-                            Ok(bytes) => {
-                                info!("retrieved public archive for [{}] from network - storing in hybrid cache", local_address.to_hex());
-                                info!("hybrid cache stats [{:?}], memory cache usage [{:?}]", local_hybrid_cache.statistics(), local_hybrid_cache.memory().usage());
-                                Ok(bytes.to_vec())
-                            },
-                            Err(err) => {
-                                error!("Failed to convert public archive to bytes for [{}] from network {:?}", local_address.to_hex(), err);
-                                Err(foyer::Error::other(format!("Failed to convert public archive to bytes for [{}] from network {:?}", local_address.to_hex(), err)))
-                            }
-                        }
-                    },
-                    Err(err) => {
-                        error!("Failed to deserialize public archive for [{}] from network {:?}", local_address.to_hex(), err);
-                        Err(foyer::Error::other(format!("Failed to deserialize public archive for [{}] from network {:?}", local_address.to_hex(), err)))
-                    }
+                Ok(data) => {
+                    info!("retrieved public archive for [{}] from network - storing in hybrid cache", local_address.to_hex());
+                    info!("hybrid cache stats [{:?}], memory cache usage [{:?}]", local_hybrid_cache.statistics(), local_hybrid_cache.memory().usage());
+                    Ok(data.to_vec())
                 },
                 Err(err) => {
                     error!("Failed to retrieve public archive for [{}] from network {:?}", local_address.to_hex(), err);
@@ -116,31 +110,10 @@ impl CachingClient {
             }
         }).await {
             Ok(cache_entry) => {
-                info!("retrieved public archive for [{}] from hybrid cache", archive_address.to_hex());
-                PublicArchive::from_bytes(Bytes::from(cache_entry.value().to_vec()))
+                info!("retrieved public archive for [{}] from hybrid cache", addr.to_hex());
+                Ok(Bytes::from(cache_entry.value().to_vec()))
             },
-            Err(err) => Err(decode::Error::Uncategorized(format!("Failed to retrieve public data at [{}] from hybrid cache: {:?}", archive_address.to_hex(), err))),
-        }
-    }
-
-    pub async fn data_get_public(&self, addr: &DataAddress, ) -> Result<Bytes, GetError> {
-        if self.hybrid_cache.get_ref().contains(&addr.to_hex()) {
-            debug!("found public data for [{}] from hybrid cache", addr.to_hex());
-            match self.hybrid_cache.get_ref().get(&addr.to_hex()).await {
-                Ok(maybe_cache_entry) => match maybe_cache_entry {
-                    Some(cache_entry) => {
-                        info!("retrieved public data for [{}] from hybrid cache", addr.to_hex());
-                        Ok(Bytes::copy_from_slice(cache_entry.value()))
-                    },
-                    None => Err(GetError::RecordNotFound)
-                }
-                Err(_) => Err(GetError::RecordNotFound),
-            }
-        } else {
-            info!("getting uncached data for [{}] from network", addr.to_hex());
-            let data = self.client.data_get_public(addr).await?;
-            self.hybrid_cache.get_ref().insert(addr.to_hex(), data.to_vec());
-            Ok(data)
+            Err(_) => Err(GetError::RecordNotFound),
         }
     }
 
@@ -335,21 +308,19 @@ impl CachingClient {
         let mut path_parts = Vec::<String>::new();
         path_parts.push("ignore".to_string());
         path_parts.push(path_str.to_string());
-        match ArchiveHelper::new(archive, self.ant_tp_config.clone()).resolve_data_addr(path_parts) {
-            Ok(data_address) => {
-                info!("Downloading app-config [{}] with addr [{}] from archive [{}]", path_str, format!("{:x}", data_address.xorname()), format!("{:x}", archive_address_xorname));
-                match self.data_get_public(&data_address).await {
+        match ArchiveHelper::new(archive, self.ant_tp_config.clone()).resolve_tarchive_addr(path_parts, self.clone()).await {
+            Some(data_address_offset) => {
+                info!("Downloading app-config [{}] with addr [{}] from archive [{}]", path_str, format!("{:x}", data_address_offset.data_address.xorname()), format!("{:x}", archive_address_xorname));
+                match self.data_get_public(&data_address_offset.data_address).await {
                     Ok(data) => {
                         let json = String::from_utf8(data.to_vec()).unwrap_or(String::new());
                         debug!("json [{}]", json);
-                        let config: AppConfig = serde_json::from_str(&json.as_str())
-                            .unwrap_or(AppConfig::default());
-                        config
+                        serde_json::from_str(&json.as_str()).unwrap_or(AppConfig::default())
                     }
                     Err(_e) => AppConfig::default()
                 }
             }
-            Err(_e) => AppConfig::default()
+            None => AppConfig::default()
         }
     }
 

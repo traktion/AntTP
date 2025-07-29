@@ -1,14 +1,13 @@
 use std::path::PathBuf;
 use actix_http::header::HeaderMap;
-use actix_web::{Error, HttpRequest};
-use actix_web::error::ErrorInternalServerError;
-use autonomi::data::{DataAddress};
+use actix_web::{HttpRequest};
 use autonomi::files::PublicArchive;
 use chrono::DateTime;
-use log::{debug, info};
+use log::{debug, error, info};
 use xor_name::XorName;
 use crate::client::caching_client::CachingClient;
 use crate::config::anttp_config::AntTpConfig;
+use crate::service::archive::{Archive, DataAddressOffset};
 use crate::service::resolver_service::ResolverService;
 
 #[derive(Clone)]
@@ -23,6 +22,8 @@ pub struct ArchiveInfo {
     pub resolved_xor_addr: XorName,
     pub action: ArchiveAction,
     pub state: DataState,
+    pub offset: u64,
+    pub limit: u64,
 }
 
 #[derive(Clone, PartialEq, Eq)]
@@ -36,8 +37,8 @@ pub enum DataState {
 }
 
 impl ArchiveInfo {
-    pub fn new(path_string: String, resolved_xor_addr: XorName, action: ArchiveAction, state: DataState) -> ArchiveInfo {
-        ArchiveInfo { path_string, resolved_xor_addr, action, state }
+    pub fn new(path_string: String, resolved_xor_addr: XorName, action: ArchiveAction, state: DataState, offset: u64, limit: u64) -> ArchiveInfo {
+        ArchiveInfo { path_string, resolved_xor_addr, action, state, offset, limit }
     }
 }
 
@@ -89,7 +90,7 @@ impl ArchiveHelper {
         output
     }
 
-    pub fn resolve_data_addr(&self, path_parts: Vec<String>) -> Result<DataAddress, Error> {
+    pub fn resolve_data_addr(&self, path_parts: Vec<String>) -> Option<DataAddressOffset> {
         self.public_archive.iter().for_each(|(path_buf, data_address, _)| debug!("archive entry: [{}] at [{:x}]", path_buf.to_str().unwrap().to_string().replace("\\", "/"), data_address.xorname()));
 
         // todo: Replace with contains() once keys are a more useful shape
@@ -97,13 +98,87 @@ impl ArchiveHelper {
         for key in self.public_archive.map().keys() {
             if key.to_str().unwrap().to_string().replace("\\", "/").trim_start_matches("./").trim_start_matches("/").ends_with(path_parts_string.as_str()) {
                 let (data_addr, _) = self.public_archive.map().get(key).unwrap();
-                return Ok(data_addr.clone())
+                return Some(
+                    DataAddressOffset {
+                        data_address: data_addr.clone(), path: path_parts_string, offset: 0, limit: u64::MAX
+                    }
+                )
             }
         }
-        Err(ErrorInternalServerError(format!("Failed to find item [{}] in archive", path_parts_string)))
+        None
+    }
+
+    // todo: generate a Vec[DataAddressOffset] for repeated searches
+    pub async fn resolve_tarchive_addr(&self, path_parts: Vec<String>, caching_client: CachingClient) -> Option<DataAddressOffset> {
+        let path_parts_string = path_parts[1..].join("/");
+        debug!("resolve_tarchive_addr with path_parts [{}]", path_parts_string);
+        let maybe_archive_tar_idx = self.public_archive
+            .map()
+            .keys()
+            .find(|key| key.to_str().unwrap()
+                .to_string()
+                .replace("\\", "/")
+                .trim_start_matches("./")
+                .trim_start_matches("/")
+                .ends_with("archive.tar.idx"));
+
+        let maybe_archive_tar = self.public_archive
+            .map()
+            .keys()
+            .find(|key| key
+                .to_str().unwrap()
+                .to_string()
+                .replace("\\", "/")
+                .trim_start_matches("./")
+                .trim_start_matches("/")
+                .ends_with("archive.tar"));
+
+        if maybe_archive_tar_idx.is_none() || maybe_archive_tar.is_none() {
+            return self.resolve_data_addr(path_parts);
+        }
+
+        let archive_tar_idx = maybe_archive_tar_idx.unwrap();
+        let archive_tar = maybe_archive_tar.unwrap();
+        let (tar_data_addr, _) = self.public_archive.map().get(&archive_tar.clone()).unwrap();
+        let (tar_idx_data_addr, _) = self.public_archive.map().get(&archive_tar_idx.clone()).unwrap();
+        match caching_client.data_get_public(tar_idx_data_addr).await {
+            Ok(data) => {
+                match String::from_utf8(data.to_vec()) {
+                    Ok(tar_index) => {
+                        for entry in tar_index.split('\n') {
+                            debug!("entry: [{:?}]", entry);
+                            if entry.contains(&path_parts_string) {
+                                let entry_str = entry.to_string();
+                                let parts = entry_str.split(' ').collect::<Vec<&str>>();
+                                debug!("parts: [{:?}]", parts);
+                                return Some(
+                                    DataAddressOffset {
+                                        data_address: *tar_data_addr,
+                                        // file names can have spaces, so index from right and join on left
+                                        path: parts.get(..parts.len()-3)?.join(" ").as_str().to_string(),
+                                        offset: parts.get( parts.len()-2).expect("offset missing from tar").parse::<u64>().unwrap_or_else(|_| 0),
+                                        limit: parts.get(parts.len()-1).expect("limit missing from tar").parse::<u64>().unwrap_or_else(|_| u64::MAX)
+                                    }
+                                )
+                            }
+                        }
+                        None
+                    },
+                    Err(err) => {
+                        error!("Failed to parse public data for tar index [{}]", err);
+                        None
+                    }
+                }
+            },
+            Err(err) => {
+                error!("Failed to get public data for tar index [{}]", err);
+                None
+            }
+        }
     }
 
     pub fn resolve_file_from_archive(&self, request_path: String, resolved_filename_string: String) -> (String, XorName) {
+        // todo: return from tarchive index too
         // hack to return index.html when present in directory root
         for key in self.public_archive.map().keys() {
             if key.ends_with(resolved_filename_string.to_string()) {
@@ -115,35 +190,55 @@ impl ArchiveHelper {
         (String::new(), XorName::default())
     }
 
-    pub fn resolve_archive_info(&self, path_parts: Vec<String>, request: HttpRequest, resolved_relative_path_route: String, has_route_map: bool, caching_client: CachingClient) -> ArchiveInfo {
+    pub async fn resolve_archive_info(&self, path_parts: Vec<String>, request: HttpRequest, resolved_relative_path_route: String, has_route_map: bool, caching_client: CachingClient) -> ArchiveInfo {
         let request_path = request.path();
-        let xor_helper = ResolverService::new(self.ant_tp_config.clone(), caching_client);
+        let xor_helper = ResolverService::new(self.ant_tp_config.clone(), caching_client.clone());
         
         if self.has_moved_permanently(request_path, &resolved_relative_path_route) {
             debug!("has moved permanently");
-            ArchiveInfo::new(resolved_relative_path_route, XorName::default(), ArchiveAction::Redirect, DataState::Modified)
+            ArchiveInfo::new(resolved_relative_path_route, XorName::default(), ArchiveAction::Redirect, DataState::Modified, 0, 0)
         } else if has_route_map {
-            // retrieve route map index
             debug!("retrieve route map index");
-            let (resolved_relative_path_route, resolved_xor_addr) = self.resolve_file_from_archive(request_path.to_string(), resolved_relative_path_route);
-            ArchiveInfo::new(resolved_relative_path_route, resolved_xor_addr, ArchiveAction::Data, xor_helper.get_data_state(request.headers(), &resolved_xor_addr))
-        } else if !resolved_relative_path_route.is_empty() {
-            // retrieve path and data address
-            debug!("retrieve path and data address");
-            match self.resolve_data_addr(path_parts.clone()) {
-                Ok(resolved_data_address) => {
+            let archive = Archive::build(self.public_archive.clone(), caching_client.clone()).await;
+            match archive.find(resolved_relative_path_route.clone()) {
+                Some(data_address_offset) => {
                     let path_buf = &PathBuf::from(resolved_relative_path_route.clone());
-                    info!("Resolved path [{}], path_buf [{}] to xor address [{}]", resolved_relative_path_route, path_buf.display(), format!("{:x}", resolved_data_address.xorname()));
-                    ArchiveInfo::new(resolved_relative_path_route, *resolved_data_address.xorname(), ArchiveAction::Data, xor_helper.get_data_state(request.headers(), resolved_data_address.xorname()))
+                    info!("Resolved path [{}], path_buf [{}] to xor address [{}]", resolved_relative_path_route, path_buf.display(), format!("{:x}", *data_address_offset.data_address.xorname()));
+                    ArchiveInfo::new(
+                        format!("{}{}", request_path.to_string(), data_address_offset.path.clone()),
+                        *data_address_offset.data_address.xorname(),
+                        ArchiveAction::Data,
+                        xor_helper.get_data_state(request.headers(), data_address_offset.data_address.xorname()),
+                        data_address_offset.offset,
+                        data_address_offset.limit
+                    )
                 }
-                Err(_err) => {
-                    ArchiveInfo::new(resolved_relative_path_route, XorName::default(), ArchiveAction::NotFound, DataState::Modified)
+                None => ArchiveInfo::new(resolved_relative_path_route, XorName::default(), ArchiveAction::NotFound, DataState::Modified, 0, 0)
+            }
+            /*let (resolved_relative_path_route, resolved_xor_addr) = self.resolve_file_from_archive(request_path.to_string(), resolved_relative_path_route);
+            ArchiveInfo::new(resolved_relative_path_route, resolved_xor_addr, ArchiveAction::Data, xor_helper.get_data_state(request.headers(), &resolved_xor_addr), 0, 0)*/
+        } else if !resolved_relative_path_route.is_empty() {
+            debug!("retrieve path and data address");
+            let archive = Archive::build(self.public_archive.clone(), caching_client.clone()).await;
+            match archive.find(path_parts[1..].join("/")) {
+                Some(data_address_offset) => {
+                    let path_buf = &PathBuf::from(resolved_relative_path_route.clone());
+                    info!("Resolved path [{}], path_buf [{}] to xor address [{}]", resolved_relative_path_route, path_buf.display(), format!("{:x}", *data_address_offset.data_address.xorname()));
+                    ArchiveInfo::new(
+                        resolved_relative_path_route,
+                        *data_address_offset.data_address.xorname(),
+                        ArchiveAction::Data,
+                        xor_helper.get_data_state(request.headers(), data_address_offset.data_address.xorname()),
+                        data_address_offset.offset,
+                        data_address_offset.limit
+                    )
                 }
+                None => ArchiveInfo::new(resolved_relative_path_route, XorName::default(), ArchiveAction::NotFound, DataState::Modified, 0, 0)
             }
         } else {
             // retrieve file listing
             info!("retrieve file listing");
-            ArchiveInfo::new(resolved_relative_path_route, XorName::default(), ArchiveAction::Listing, DataState::Modified)
+            ArchiveInfo::new(resolved_relative_path_route, XorName::default(), ArchiveAction::Listing, DataState::Modified, 0, 0)
         }
     }
 

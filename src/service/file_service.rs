@@ -3,13 +3,13 @@ use std::time::{Duration, SystemTime};
 use actix_files::file_extension_to_mime;
 use actix_http::header;
 use actix_web::{Error, HttpRequest, HttpResponse};
-use actix_web::error::{ErrorNotFound};
+use actix_web::error::{ErrorInternalServerError, ErrorNotFound};
 use actix_web::http::header::{CacheControl, CacheDirective, ContentLength, ContentRange, ContentRangeSpec, ContentType, ETag, EntityTag, Expires};
 use autonomi::{ChunkAddress};
-use autonomi::client::GetError;
 use bytes::Bytes;
+use chunk_streamer::chunk_receiver::ChunkReceiver;
 use chunk_streamer::chunk_streamer::{ChunkGetter, ChunkStreamer};
-use log::{error, info};
+use log::{debug, info};
 use self_encryption::{DataMap};
 use serde::{Deserialize, Serialize};
 use xor_name::XorName;
@@ -55,7 +55,7 @@ impl<T: ChunkGetter> FileService<T> {
                 .insert_header(cors_allow_all)
                 .finish())
         } else {
-            self.download_data_stream(archive_relative_path, resolved_address.xor_name, resolved_address, &request).await
+            self.download_data_stream(archive_relative_path, resolved_address.xor_name, resolved_address, &request, 0, 0).await
         }
     }
 
@@ -65,19 +65,26 @@ impl<T: ChunkGetter> FileService<T> {
         xor_name: XorName,
         resolved_address: ResolvedAddress,
         request: &HttpRequest,
+        offset_modifier: u64,
+        limit_modifier: u64,
     ) -> Result<HttpResponse, Error> {
-        let (range_from, range_to, is_range_request) = self.get_range(&request);
+        let (range_from, range_to, is_range_request) = self.get_range(&request, offset_modifier, limit_modifier);
 
-        info!("Streaming item [{}] at addr [{}], range_from [{}], range_to [{}]", path_str, format!("{:x}", xor_name), range_from, range_to);
+        info!("Streaming item [{}] at addr [{}], range_from [{}], range_to [{}]",
+            path_str, format!("{:x}", xor_name), range_from, range_to);
 
         let data_map_chunk = match self.chunk_getter.chunk_get(&ChunkAddress::new(xor_name)).await {
             Ok(chunk) => chunk,
-            Err(e) => return Err(ErrorNotFound(format!("{}", e)))
+            Err(e) => return Err(ErrorNotFound(format!("chunk not found [{}]", e)))
         };
-        
-        let data_map = self.get_data_map_from_bytes(&data_map_chunk.value);
+        //debug!("data_map_chunk: [{:?}]", data_map_chunk.value.slice(..4*1024));
+
+        let data_map = match self.get_data_map_from_bytes(&data_map_chunk.value) {
+            Ok(data_map) => data_map,
+            Err(e) => return Err(ErrorInternalServerError(format!("invalid data map [{}]", e)))
+        };
         let total_size = data_map.file_size();
-        
+
         let derived_range_to = if range_to == u64::MAX { total_size as u64 - 1 } else { range_to };
 
         let chunk_streamer = ChunkStreamer::new(xor_name.to_string(), data_map, self.chunk_getter.clone(), self.ant_tp_config.download_threads);
@@ -119,20 +126,54 @@ impl<T: ChunkGetter> FileService<T> {
         }
     }
 
-    pub fn get_range(&self, request: &HttpRequest) -> (u64, u64, bool) {
+    pub async fn download_data(&self, xor_name: XorName, offset: u64, limit: u64) -> Result<ChunkReceiver, Error> {
+        debug!("download data xor_name: [{}], offset: [{}], limit: [{}]", xor_name.clone(), offset, limit);
+        let data_map_chunk = match self.chunk_getter.chunk_get(&ChunkAddress::new(xor_name)).await {
+            Ok(chunk) => chunk,
+            Err(e) => return Err(ErrorNotFound(format!("chunk not found [{}]", e)))
+        };
+
+        let data_map = match self.get_data_map_from_bytes(&data_map_chunk.value) {
+            Ok(data_map) => data_map,
+            Err(e) => return Err(ErrorInternalServerError(format!("invalid data map [{}]", e)))
+        };
+        let total_size = data_map.file_size();
+
+        let derived_range_to = if limit == u64::MAX { total_size as u64 - 1 } else { offset + limit - 1 };
+
+        let chunk_streamer = ChunkStreamer::new(xor_name.to_string(), data_map, self.chunk_getter.clone(), self.ant_tp_config.download_threads);
+        Ok(chunk_streamer.open(offset, derived_range_to))
+    }
+
+    pub fn get_range(&self, request: &HttpRequest, offset_modifier: u64, limit_modifier: u64) -> (u64, u64, bool) {
+        let range_from = 0 + offset_modifier;
+        let range_to= if limit_modifier != 0 {
+            range_from + limit_modifier
+        } else {
+            u64::MAX
+        };
         if let Some(range) = request.headers().get(header::RANGE) {
             let range_str = range.to_str().unwrap();
             let range_value = range_str.split_once("=").unwrap().1;
             // todo: cover comma separated too: https://docs.rs/actix-web/latest/actix_web/http/header/enum.Range.html
             if let Some((range_from_str, range_to_str)) = range_value.split_once("-") {
-                let range_from = range_from_str.parse::<u64>().unwrap_or_else(|_| 0);
-                let range_to = range_to_str.parse::<u64>().unwrap_or_else(|_| u64::MAX);
-                (range_from, range_to, true)
+                let range_from_override = range_from_str.parse::<u64>().unwrap_or_else(|_| 0) + offset_modifier;
+                let range_to_override = match range_to_str.parse::<u64>() {
+                    Ok(range_to_value) => range_to_value + limit_modifier,
+                    Err(_) => {
+                        if limit_modifier != 0 {
+                            range_from_override + limit_modifier
+                        } else {
+                            u64::MAX
+                        }
+                    }
+                };
+                (range_from_override, range_to_override, true)
             } else {
-                (0, u64::MAX, true)
+                (range_from, range_to, true)
             }
         } else {
-            (0, u64::MAX, false)
+            (range_from, range_to, false)
         }
     }
 
@@ -161,15 +202,13 @@ impl<T: ChunkGetter> FileService<T> {
         }
     }
 
-    pub fn get_data_map_from_bytes(&self, data_map_bytes: &Bytes) -> DataMap {
-        let data_map_level: DataMapLevel = rmp_serde::from_slice(data_map_bytes)
-            .map_err(GetError::InvalidDataMap)
-            .inspect_err(|err| error!("Error deserializing data map: {err:?}"))
-            .expect("failed to parse data map level");
-
-        match data_map_level {
-            DataMapLevel::First(map) => map,
-            DataMapLevel::Additional(map) => map,
+    pub fn get_data_map_from_bytes(&self, data_map_bytes: &Bytes) -> Result<DataMap, Error> {
+        match rmp_serde::from_slice(data_map_bytes) {
+            Ok(data_map_level) => match data_map_level {
+                DataMapLevel::First(map) => Ok(map),
+                DataMapLevel::Additional(map) => Ok(map),
+            },
+            Err(e) => Err(ErrorInternalServerError(format!("data map format invalid [{}]", e)))
         }
     }
 }

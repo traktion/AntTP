@@ -30,7 +30,7 @@ pub async fn get_public_data(
     let path_parts = get_path_parts(&conn.host(), &path.into_inner(), ant_tp_config.clone(), caching_client.clone());
     let (archive_addr, archive_file_name) = resolver_service.assign_path_parts(path_parts.clone());
 
-    match resolver_service.resolve_archive_or_file(autonomi_client.clone(), &archive_addr, &archive_file_name, false).await {
+    match resolver_service.resolve_archive_or_file(&archive_addr, &archive_file_name, false).await {
         Some(resolved_address) => {
             let file_service = FileService::new(caching_client.clone(), resolver_service.clone(), ant_tp_config.clone());
             if resolved_address.archive.is_some() {

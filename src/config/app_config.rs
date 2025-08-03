@@ -17,13 +17,13 @@ impl AppConfig {
         }
     }
     
-    pub fn resolve_route(&self, relative_path: String, archive_file_name: String) -> (String, bool) {
-        debug!("resolving route [{}] in archive [{}]", relative_path, archive_file_name);
+    pub fn resolve_route(&self, search_string: String, archive_file_name: String) -> (String, bool) {
+        debug!("resolving route [{}] in archive [{}]", search_string, archive_file_name);
         for (key, value) in self.route_map.clone() {
             let glob = Glob::new(key.as_str()).unwrap().compile_matcher();
-            debug!("route mapper comparing path [{}] with glob [{}]", relative_path, key);
-            if glob.is_match(&relative_path) {
-                info!("route mapper resolved path [{}] to [{}] with glob [{}]", relative_path, key, value);
+            debug!("route mapper comparing path [{}] with glob [{}]", search_string, key);
+            if glob.is_match(&search_string) {
+                info!("route mapper resolved path [{}] to [{}] with glob [{}]", search_string, key, value);
                 return (value, true);
             }
         };

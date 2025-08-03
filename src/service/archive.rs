@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use autonomi::data::DataAddress;
 use autonomi::files::PublicArchive;
+use bytes::Bytes;
 use log::{debug, error};
 use crate::client::caching_client::CachingClient;
 
@@ -48,55 +49,62 @@ impl Archive {
             return Archive::build_from_public_archive(public_archive);
         }
 
-        let mut data_address_offsets = HashMap::new();
         let archive_tar_idx = maybe_archive_tar_idx.unwrap();
         let archive_tar = maybe_archive_tar.unwrap();
         let (tar_data_addr, _) = public_archive.map().get(&archive_tar.clone()).unwrap();
         let (tar_idx_data_addr, _) = public_archive.map().get(&archive_tar_idx.clone()).unwrap();
         match caching_client.data_get_public(tar_idx_data_addr).await {
             Ok(data) => {
-                match String::from_utf8(data.to_vec()) {
-                    Ok(tar_index) => {
-                        for entry in tar_index.split('\n') {
-                            if entry.is_empty() {
-                                continue;
-                            }
-                            let entry_str = entry.to_string();
-                            let parts = entry_str.split(' ').collect::<Vec<&str>>();
-                            debug!("parts: [{:?}]", parts);
-
-                            // todo: handle file names with spaces (maybe %20 though)?
-                            let path_string = parts.get(parts.len()-3)
-                                .expect("path missing from tar")
-                                //.join(" ").as_str()
-                                .replace("\\", "/")
-                                .trim_start_matches("./")
-                                .trim_start_matches("/")
-                                .to_string();
-                            let offset = parts.get( parts.len()-2).expect("offset missing from tar").parse::<u64>().unwrap_or_else(|_| 0);
-                            let limit = parts.get(parts.len()-1).expect("limit missing from tar").parse::<u64>().unwrap_or_else(|_| u64::MAX) - 1;
-
-                            let data_address_offset = DataAddressOffset {
-                                data_address: *tar_data_addr,
-                                // file names can have spaces, so index from right and join on left
-                                path: path_string.clone(),
-                                offset: offset,
-                                limit: limit
-                            };
-                            debug!("insert into archive: path_string [{}], data address offset: [{:?}]", path_string, data_address_offset);
-                            data_address_offsets.insert(
-                                path_string.clone(),
-                                data_address_offset
-                            );
-                        }
-                    },
-                    Err(err) => {
-                        error!("Failed to parse public data for tar index [{}]", err);
-                    }
-                }
+                Self::build_from_bytes(tar_data_addr, data)
             },
             Err(err) => {
                 error!("Failed to get public data for tar index [{}]", err);
+                Archive::new(HashMap::new())
+            }
+        }
+    }
+
+    pub fn build_from_bytes(tar_data_addr: &DataAddress, data: Bytes) -> Self{
+        let mut data_address_offsets = HashMap::new();
+        match String::from_utf8(data.to_vec()) {
+            Ok(tar_index) => {
+                for entry in tar_index.split('\n') {
+                    if entry.is_empty() {
+                        continue;
+                    }
+                    let entry_str = entry.to_string();
+                    let parts = entry_str.split(' ').collect::<Vec<&str>>();
+                    debug!("parts: [{:?}]", parts);
+                    if parts.len() < 3 {
+                        continue;
+                    }
+
+                    // todo: handle file names with spaces (maybe %20 though)?
+                    let path_string = parts.get(parts.len() - 3)
+                        .expect("path missing from tar")
+                        .replace("\\", "/")
+                        .trim_start_matches("./")
+                        .trim_start_matches("/")
+                        .to_string();
+                    let offset = parts.get(parts.len() - 2).expect("offset missing from tar").parse::<u64>().unwrap_or_else(|_| 0);
+                    let limit = parts.get(parts.len() - 1).expect("limit missing from tar").parse::<u64>().unwrap_or_else(|_| u64::MAX) - 1;
+
+                    let data_address_offset = DataAddressOffset {
+                        data_address: *tar_data_addr,
+                        // file names can have spaces, so index from right and join on left
+                        path: path_string.clone(),
+                        offset: offset,
+                        limit: limit
+                    };
+                    debug!("insert into archive: path_string [{}], data address offset: [{:?}]", path_string, data_address_offset);
+                    data_address_offsets.insert(
+                        path_string.clone(),
+                        data_address_offset
+                    );
+                }
+            },
+            Err(err) => {
+                error!("Failed to parse public data for tar index [{}]", err);
             }
         }
         debug!("data_address_offsets size [{}]", data_address_offsets.len());

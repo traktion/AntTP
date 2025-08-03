@@ -107,11 +107,11 @@ impl PublicArchiveService {
             Some(data_address_offset) => {
                 info!("Downloading app-config [{}] with addr [{}] from archive [{}]", path_str, format!("{:x}", data_address_offset.data_address.xorname()), format!("{:x}", archive_address_xorname));
                 match self.file_client.download_data(*data_address_offset.data_address.xorname(), data_address_offset.offset, data_address_offset.limit).await {
-                    Ok(mut data) => {
+                    Ok(mut chunk_receiver) => {
                         let mut buf = BytesMut::new();
                         let mut has_data = true;
                         while has_data {
-                            match data.next().await {
+                            match chunk_receiver.next().await {
                                 Some(item) => match item {
                                     Ok(bytes) => buf.put(bytes),
                                     Err(e) => {
@@ -126,7 +126,7 @@ impl PublicArchiveService {
                         debug!("json [{}], raw [{:?}]", json, buf.to_vec());
                         //serde_json::from_str(&json.as_str().trim()).unwrap_or(AppConfig::default())
                         serde_json::from_str(&json.as_str().trim()).expect(format!("failed to deserialize json [{}]", json).as_str())
-                    },
+                    }
                     Err(_) => AppConfig::default()
                 }
             },

@@ -1,6 +1,6 @@
 [package]
 name = "anttp"
-version = "0.9.1"
+version = "0.9.2"
 edition = "2024"
 authors = ["Paul Green"]
 description = "AntTP is an HTTP proxy which serves data from Autonomi over conventional HTTP connections"
@@ -23,7 +23,7 @@ log = "0.4.27"
 env_logger = "0.11.8"
 serde = "1.0.219"
 serde_json = "1.0.140"
-autonomi = "0.5.2"
+autonomi = "0.5.3"
 ant-evm = "0.1.16"
 xor_name = "5.0.0"
 hex = "0.4.3"

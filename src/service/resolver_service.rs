@@ -5,23 +5,23 @@ use actix_web::error::{ErrorBadGateway, ErrorBadRequest};
 use autonomi::{PointerAddress, PublicKey};
 use autonomi::data::DataAddress;
 use autonomi::files::archive_public::ArchiveAddress;
-use autonomi::files::PublicArchive;
 use autonomi::register::{RegisterAddress};
 use log::{debug, info, warn};
 use xor_name::XorName;
 use crate::config::anttp_config::AntTpConfig;
 use crate::client::caching_client::CachingClient;
+use crate::service::archive::Archive;
 use crate::service::archive_helper::{DataState};
 
 pub struct ResolvedAddress {
     pub is_found: bool,
-    pub archive: Option<PublicArchive>,
+    pub archive: Option<Archive>,
     pub xor_name: XorName,
     pub is_mutable: bool,
 }
 
 impl ResolvedAddress {
-    pub fn new(is_found: bool, archive: Option<PublicArchive>, xor_name: XorName, is_mutable: bool) -> Self {
+    pub fn new(is_found: bool, archive: Option<Archive>, xor_name: XorName, is_mutable: bool) -> Self {
         ResolvedAddress { is_found, archive: archive, xor_name, is_mutable }
     }
 }
@@ -56,12 +56,15 @@ impl ResolverService {
 
     pub async fn resolve_archive_or_file(&self, archive_directory: &String, archive_file_name: &String, is_resolved_mutable: bool) -> Option<ResolvedAddress> {
         if self.is_bookmark(archive_directory) {
+            debug!("found bookmark for [{}]", archive_directory);
             let resolved_bookmark = &self.resolve_bookmark(archive_directory).unwrap().to_string();
             Box::pin(self.resolve_archive_or_file(resolved_bookmark, archive_file_name, true)).await
         } else if self.is_bookmark(archive_file_name) {
+            debug!("found bookmark for [{}]", archive_file_name);
             let resolved_bookmark = &self.resolve_bookmark(archive_file_name).unwrap().to_string();
             Box::pin(self.resolve_archive_or_file(archive_directory, resolved_bookmark, true)).await
         } else if self.is_mutable_address(&archive_directory) {
+            debug!("found mutable address for [{}]", archive_directory);
             match self.analyze_simple(archive_directory).await {
                 Some(data_address) => {
                     Box::pin(self.resolve_archive_or_file(&data_address.to_hex(), archive_file_name, true)).await
@@ -73,20 +76,21 @@ impl ResolverService {
                 }
             }
         } else if self.is_immutable_address(&archive_directory) {
+            debug!("found immutable address for [{}]", archive_directory);
             let archive_directory_xorname = self.str_to_xor_name(&archive_directory).unwrap();
+
             let archive_address = ArchiveAddress::new(archive_directory_xorname);
-            match self.caching_client.archive_get_public(archive_address).await {
-                Ok(public_archive) => {
-                    info!("Found public archive at [{:x}]", archive_directory_xorname);
-                    Some(ResolvedAddress::new(true, Some(public_archive), archive_directory_xorname, is_resolved_mutable))
+            match self.caching_client.archive_get(archive_address).await {
+                Ok(archive) => {
+                    info!("Found archive at [{:x}]", archive_directory_xorname);
+                    Some(ResolvedAddress::new(true, Some(archive), archive_directory_xorname, is_resolved_mutable))
                 }
                 Err(e) => {
-                    info!("No public archive found at [{:x}] due to error [{}]. Treating as XOR address", archive_directory_xorname, e.to_string());
+                    info!("No archive found at [{:x}] due to error [{}]. Treating as XOR address", archive_directory_xorname, e.to_string());
                     Some(ResolvedAddress::new(true, None, archive_directory_xorname, is_resolved_mutable))
                 }
             }
-        }
-        else if self.is_immutable_address(&archive_file_name) {
+        } else if self.is_immutable_address(&archive_file_name) {
             let archive_file_name_xorname = self.str_to_xor_name(&archive_file_name).unwrap();
             info!("Found XOR address [{:x}]", archive_file_name_xorname);
             Some(ResolvedAddress::new(true, None, archive_file_name_xorname, is_resolved_mutable))

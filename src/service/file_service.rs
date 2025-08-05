@@ -13,22 +13,17 @@ use chunk_streamer::chunk_streamer::{ChunkGetter, ChunkStreamer};
 use futures_util::StreamExt;
 use log::{debug, error, info};
 use self_encryption::{DataMap};
-use serde::{Deserialize, Serialize};
 use xor_name::XorName;
+use crate::client::caching_client::CachingClient;
 use crate::config::anttp_config::AntTpConfig;
 use crate::config::app_config::AppConfig;
 use crate::service::archive::Archive;
 use crate::service::archive_helper::{DataState};
 use crate::service::resolver_service::{ResolvedAddress, ResolverService};
 
-#[derive(Serialize, Deserialize)]
-enum DataMapLevel {
-    // Holds the data map to the source data.
-    First(DataMap),
-    // Holds the data map of an _additional_ level of chunks
-    // resulting from chunking up a previous level data map.
-    // This happens when that previous level data map was too big to fit in a chunk itself.
-    Additional(DataMap),
+pub struct Range {
+    pub start: u64,
+    pub end: u64,
 }
 
 pub struct FileService<T> {
@@ -76,34 +71,25 @@ impl<T: ChunkGetter> FileService<T> {
             Ok(chunk) => chunk,
             Err(e) => return Err(ErrorNotFound(format!("chunk not found [{}]", e)))
         };
-        //debug!("data_map_chunk: [{:?}]", data_map_chunk.value.slice(..4*1024));
 
-        let data_map = match self.get_data_map_from_bytes(&data_map_chunk.value) {
+        let data_map = match CachingClient::get_data_map_from_bytes(&data_map_chunk.value) {
             Ok(data_map) => data_map,
             Err(e) => return Err(ErrorInternalServerError(format!("invalid data map [{}]", e)))
         };
         let total_size = data_map.file_size();
 
-        // check if tarchive
-        let (range_from, range_to, is_range_request) = if total_size > 512 {
-            // https://www.gnu.org/software/tar/manual/html_node/Standard.html
-            let tar_magic = self.download_stream(xor_name, data_map.clone(), 257, 261).await.to_vec();
-            if String::from_utf8(tar_magic.clone()).unwrap_or(String::new()) == "ustar" {
-                debug!("found ustar tag in tar file");
-                let (range_from, range_to, is_range_request) = self.get_range_from_tar_archive(&path_str, xor_name, &data_map, total_size).await;
-                if range_from != 0 && range_to != 0 {
-                    (range_from, range_to, is_range_request)
-                } else {
-                    self.get_range(&request, offset_modifier, limit_modifier)
-                }
-            } else {
-                debug!("no tar file found [{:?}]", tar_magic);
-                self.get_range(&request, offset_modifier, limit_modifier)
+        /*// check if tarchive
+        let (range_from, range_to, is_range_request) = if self.is_tarchive(xor_name, total_size, &data_map).await {
+            match self.get_range_from_tar_archive(&path_str, xor_name, &data_map, total_size).await {
+                Some((range_from, range_to, is_range_request)) => (range_from, range_to, is_range_request),
+                None => return Err(ErrorNotFound(format!("file [{}] not found in tarchive [{}]", path_str, xor_name)))
             }
         } else {
             debug!("small file - not tar");
             self.get_range(&request, offset_modifier, limit_modifier)
-        };
+        };*/
+
+        let (range_from, range_to, is_range_request) = self.get_range(&request, offset_modifier, limit_modifier);
 
         info!("Streaming item [{}] at addr [{}], range_from [{}], range_to [{}]",
             path_str, format!("{:x}", xor_name), range_from, range_to);
@@ -112,15 +98,6 @@ impl<T: ChunkGetter> FileService<T> {
 
         let chunk_streamer = ChunkStreamer::new(xor_name.to_string(), data_map, self.chunk_getter.clone(), self.ant_tp_config.download_threads);
         let chunk_receiver = chunk_streamer.open(range_from, derived_range_to);
-
-        // experimental, higher performance, chunk streamer
-        /*let chunk_receiver = chunk_stream::chunked_stream(
-            self.autonomi_client.clone(),
-            self.ant_tp_config.download_threads,
-            data_map.clone(),
-            range_from,
-            derived_range_to,
-        );*/
         
         let etag_header = ETag(EntityTag::new_strong(format!("{:x}", xor_name).to_owned()));
         let cors_allow_all = (header::ACCESS_CONTROL_ALLOW_ORIGIN, "*");
@@ -149,7 +126,40 @@ impl<T: ChunkGetter> FileService<T> {
         }
     }
 
-    async fn get_range_from_tar_archive(&self, path_str: &String, xor_name: XorName, data_map: &DataMap, total_size: usize) -> (u64, u64, bool) {
+    async fn get_range_from_tar_archive(&self, path_str: &String, xor_name: XorName, data_map: &DataMap, total_size: usize) -> Option<(u64, u64, bool)> {
+        match self.get_archive_from_tar(xor_name, data_map, total_size).await {
+            Some(archive) => {
+                let resolved_path_str = match archive.find("app-conf.json".to_string()) {
+                    Some(idx) => {
+                        let buf = self.download_stream(xor_name, data_map.clone(), idx.offset, idx.offset + idx.limit).await;
+                        let json = String::from_utf8(buf.to_vec()).unwrap_or(String::new());
+                        debug!("json [{}], raw [{:?}]", json, buf.to_vec());
+                        let app_config: AppConfig = serde_json::from_str(&json.as_str().trim()).expect(format!("failed to deserialize json [{}]", json).as_str());
+                        let (resolved_path, has_found) = app_config.resolve_route(path_str.clone(), path_str.clone());
+                        if has_found {
+                            resolved_path
+                        } else {
+                            path_str.clone()
+                        }
+                    },
+                    None => path_str.clone(),
+                };
+                match archive.find(resolved_path_str.clone()) {
+                    Some(data_address_offset) => {
+                        debug!("path_str [{}] was found in archive.tar.idx", xor_name);
+                        Some((data_address_offset.offset, data_address_offset.offset + data_address_offset.limit, false))
+                    },
+                    None => {
+                        debug!("path_str [{}] was not found in archive.tar.idx", resolved_path_str);
+                        None
+                    },
+                }
+            },
+            None => None
+        }
+    }
+
+    async fn get_archive_from_tar(&self, xor_name: XorName, data_map: &DataMap, total_size: usize) -> Option<Archive> {
         let trailer_bytes = self.download_stream(xor_name, data_map.clone(), total_size as u64 - 10240, total_size as u64).await;
         match String::from_utf8(trailer_bytes.to_vec()) {
             Ok(trailer) => {
@@ -159,43 +169,31 @@ impl<T: ChunkGetter> FileService<T> {
                         let app_config_range_start = idx + 512;
                         let app_config_range_to = 10240;
                         debug!("creating archive with range_from [{}] and range_to [{}]", app_config_range_start, app_config_range_to);
-                        let archive = Archive::build_from_bytes(
-                            &DataAddress::new(xor_name),
-                            Bytes::copy_from_slice(&trailer_bytes[app_config_range_start..app_config_range_to])
-                        );
-                        let resolved_path_str = match archive.find("app-conf.json".to_string()) {
-                            Some(idx) => {
-                                let buf = self.download_stream(xor_name, data_map.clone(), idx.offset, idx.offset + idx.limit).await;
-                                let json = String::from_utf8(buf.to_vec()).unwrap_or(String::new());
-                                debug!("json [{}], raw [{:?}]", json, buf.to_vec());
-                                let app_config: AppConfig = serde_json::from_str(&json.as_str().trim()).expect(format!("failed to deserialize json [{}]", json).as_str());
-                                let (resolved_path, has_found) = app_config.resolve_route(path_str.clone(), path_str.clone());
-                                if has_found {
-                                    resolved_path
-                                } else {
-                                    path_str.clone()
-                                }
-                            },
-                            None => path_str.clone(),
-                        };
-                        match archive.find(resolved_path_str.clone()) {
-                            Some(data_address_offset) => {
-                                debug!("path_str [{}] was found in archive.tar.idx", xor_name);
-                                return (data_address_offset.offset, data_address_offset.offset + data_address_offset.limit, false);
-                            },
-                            None => debug!("path_str [{}] was not found in archive.tar.idx", resolved_path_str),
-                        };
+                        Some(
+                            Archive::build_from_tar(&DataAddress::new(xor_name), Bytes::copy_from_slice(&trailer_bytes[app_config_range_start..app_config_range_to]))
+                        )
                     },
                     None => {
                         debug!("no archive.tar.idx found in tar trailer");
+                        None
                     }
                 }
-            }
+            },
             Err(_) => {
                 debug!("no tar trailer found");
+                None
             }
         }
-        (0, 0, false)
+    }
+
+    pub async fn is_tarchive(&self, xor_name: XorName, total_size: usize, data_map: &DataMap) -> bool {
+        // https://www.gnu.org/software/tar/manual/html_node/Standard.html
+        if total_size > 512 {
+            let tar_magic = self.download_stream(xor_name, data_map.clone(), 257, 261).await.to_vec();
+            String::from_utf8(tar_magic.clone()).unwrap_or(String::new()) == "ustar"
+        } else {
+            false
+        }
     }
 
     pub async fn download_data(&self, xor_name: XorName, offset: u64, limit: u64) -> Result<ChunkReceiver, Error> {
@@ -205,7 +203,7 @@ impl<T: ChunkGetter> FileService<T> {
             Err(e) => return Err(ErrorNotFound(format!("chunk not found [{}]", e)))
         };
 
-        let data_map = match self.get_data_map_from_bytes(&data_map_chunk.value) {
+        let data_map = match CachingClient::get_data_map_from_bytes(&data_map_chunk.value) {
             Ok(data_map) => data_map,
             Err(e) => return Err(ErrorInternalServerError(format!("invalid data map [{}]", e)))
         };
@@ -271,16 +269,6 @@ impl<T: ChunkGetter> FileService<T> {
             ContentType(file_extension_to_mime(extension))
         } else {
             ContentType(mime::TEXT_HTML) // default to text/html
-        }
-    }
-
-    pub fn get_data_map_from_bytes(&self, data_map_bytes: &Bytes) -> Result<DataMap, Error> {
-        match rmp_serde::from_slice(data_map_bytes) {
-            Ok(data_map_level) => match data_map_level {
-                DataMapLevel::First(map) => Ok(map),
-                DataMapLevel::Additional(map) => Ok(map),
-            },
-            Err(e) => Err(ErrorInternalServerError(format!("data map format invalid [{}]", e)))
         }
     }
 

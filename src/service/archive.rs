@@ -16,6 +16,7 @@ pub struct DataAddressOffset {
     pub path: String,
     pub offset: u64,
     pub limit: u64,
+    pub modified: u64,
 }
 
 impl Archive {
@@ -55,7 +56,7 @@ impl Archive {
         let (tar_idx_data_addr, _) = public_archive.map().get(&archive_tar_idx.clone()).unwrap();
         match caching_client.data_get_public(tar_idx_data_addr).await {
             Ok(data) => {
-                Self::build_from_bytes(tar_data_addr, data)
+                Self::build_from_tar(tar_data_addr, data)
             },
             Err(err) => {
                 error!("Failed to get public data for tar index [{}]", err);
@@ -64,7 +65,7 @@ impl Archive {
         }
     }
 
-    pub fn build_from_bytes(tar_data_addr: &DataAddress, data: Bytes) -> Self{
+    pub fn build_from_tar(tar_data_addr: &DataAddress, data: Bytes) -> Self{
         let mut data_address_offsets = HashMap::new();
         match String::from_utf8(data.to_vec()) {
             Ok(tar_index) => {
@@ -94,7 +95,8 @@ impl Archive {
                         // file names can have spaces, so index from right and join on left
                         path: path_string.clone(),
                         offset: offset,
-                        limit: limit
+                        limit: limit,
+                        modified: 1, // todo: derive modified epoch millis
                     };
                     debug!("insert into archive: path_string [{}], data address offset: [{:?}]", path_string, data_address_offset);
                     data_address_offsets.insert(
@@ -123,14 +125,15 @@ impl Archive {
                 .trim_start_matches("/")
                 .to_string();
 
-            let (data_addr, _) = public_archive.map().get(key).unwrap();
+            let (data_addr, metadata) = public_archive.map().get(key).unwrap();
             data_address_offsets.insert(
                 key_string.clone(),
                 DataAddressOffset {
                     data_address: data_addr.clone(),
                     path: key_string.clone(),
                     offset: 0,
-                    limit: u64::MAX
+                    limit: u64::MAX,
+                    modified: metadata.modified
                 }
             );
         }
@@ -146,5 +149,9 @@ impl Archive {
             }
         }
         None
+    }
+    
+    pub fn map(&self) -> &HashMap<String, DataAddressOffset> {
+        &self.data_address_offsets
     }
 }

@@ -1,6 +1,8 @@
 use std::{env, fs};
 use std::fs::File;
 use std::io::{Read, Write};
+use actix_web::Error;
+use actix_web::error::ErrorInternalServerError;
 use actix_web::web::Data;
 use ant_evm::AttoTokens;
 use async_trait::async_trait;
@@ -13,17 +15,28 @@ use autonomi::graph::GraphError;
 use autonomi::pointer::{PointerError, PointerTarget};
 use autonomi::register::{RegisterAddress, RegisterError, RegisterHistory, RegisterValue};
 use autonomi::scratchpad::{Scratchpad, ScratchpadError};
-use chunk_streamer::chunk_streamer::ChunkGetter;
+use chunk_streamer::chunk_streamer::{ChunkGetter, ChunkStreamer};
 use foyer::HybridCache;
 use log::{debug, error, info};
 use rmp_serde::decode;
-use xor_name::XorName;
 use crate::{ClientCacheState};
 use crate::client::cache_item::CacheItem;
 use crate::config::anttp_config::AntTpConfig;
-use crate::config::app_config::AppConfig;
-use crate::service::archive_helper::ArchiveHelper;
-use bytes::{Bytes};
+use bytes::{BufMut, Bytes, BytesMut};
+use futures_util::StreamExt;
+use self_encryption::DataMap;
+use serde::{Deserialize, Serialize};
+use crate::service::archive::Archive;
+
+#[derive(Serialize, Deserialize)]
+enum DataMapLevel {
+    // Holds the data map to the source data.
+    First(DataMap),
+    // Holds the data map of an _additional_ level of chunks
+    // resulting from chunking up a previous level data map.
+    // This happens when that previous level data map was too big to fit in a chunk itself.
+    Additional(DataMap),
+}
 
 #[derive(Clone)]
 pub struct CachingClient {
@@ -45,7 +58,7 @@ impl ChunkGetter for CachingClient {
                 Ok(chunk) => {
                     info!("retrieved chunk for [{}] from network - storing in hybrid cache", local_address.to_hex());
                     info!("hybrid cache stats [{:?}], memory cache usage [{:?}]", local_hybrid_cache.statistics(), local_hybrid_cache.memory().usage());
-                    Ok(chunk.value.to_vec())
+                    Ok(Vec::from(chunk.value))
                 }
                 Err(err) => {
                     error!("Failed to retrieve chunk for [{}] from network {:?}", local_address.to_hex(), err);
@@ -55,7 +68,7 @@ impl ChunkGetter for CachingClient {
         }).await {
             Ok(cache_entry) => {
                 info!("retrieved chunk for [{}] from hybrid cache", address.to_hex());
-                Ok(Chunk::new(Bytes::copy_from_slice(cache_entry.value().as_slice())))
+                Ok(Chunk::new(Bytes::from(cache_entry.value().to_vec())))
             },
             Err(_) => Err(GetError::RecordNotFound)
         }
@@ -82,6 +95,19 @@ impl CachingClient {
         }
     }
 
+    pub async fn archive_get(&self, archive_address: ArchiveAddress) -> Result<Archive, decode::Error> {
+        match self.data_get_public(&archive_address).await {
+            Ok(bytes) => match PublicArchive::from_bytes(bytes) {
+                Ok(public_archive) => Ok(Archive::build_from_public_archive(public_archive)),
+                Err(err) => Err(decode::Error::Uncategorized(format!("Failed to create archive from public archive at [{}] from hybrid cache: {:?}", archive_address.to_hex(), err))),
+            },
+            Err(_) => match self.get_archive_from_tar(&archive_address).await {
+                Ok(bytes) => Ok(Archive::build_from_tar(&archive_address, bytes)),
+                Err(err) => Err(decode::Error::Uncategorized(format!("Failed to retrieve public archive at [{}] from hybrid cache: {:?}", archive_address.to_hex(), err))),
+            }
+        }
+    }
+
     /// Fetch an archive from the network
     pub async fn archive_get_public(&self, archive_address: ArchiveAddress) -> Result<PublicArchive, decode::Error> {
         match self.data_get_public(&archive_address).await {
@@ -91,17 +117,17 @@ impl CachingClient {
     }
 
     pub async fn data_get_public(&self, addr: &DataAddress) -> Result<Bytes, GetError> {
-        // todo: re-implement to use chunk-streamer (to cache each chunk instead of whole thing)
-        let local_client = self.client.clone();
+        let local_caching_client = self.clone();
         let local_address = addr.clone();
         let local_hybrid_cache = self.hybrid_cache.clone();
         match self.hybrid_cache.get_ref().fetch(format!("pd{}", local_address.to_hex()), || async move {
-            match local_client.data_get_public(&local_address).await {
+            let bytes = local_caching_client.download_stream(local_address, 0, 4194304).await;
+            match PublicArchive::from_bytes(bytes.clone()) {
                 // confirm that serialisation can be successful, before returning the data
-                Ok(data) => {
+                Ok(_) => {
                     info!("retrieved public archive for [{}] from network - storing in hybrid cache", local_address.to_hex());
                     info!("hybrid cache stats [{:?}], memory cache usage [{:?}]", local_hybrid_cache.statistics(), local_hybrid_cache.memory().usage());
-                    Ok(data.to_vec())
+                    Ok(Vec::from(bytes))
                 },
                 Err(err) => {
                     error!("Failed to retrieve public archive for [{}] from network {:?}", local_address.to_hex(), err);
@@ -111,6 +137,43 @@ impl CachingClient {
         }).await {
             Ok(cache_entry) => {
                 info!("retrieved public archive for [{}] from hybrid cache", addr.to_hex());
+                Ok(Bytes::from(cache_entry.value().to_vec()))
+            },
+            Err(_) => Err(GetError::RecordNotFound),
+        }
+    }
+
+    pub async fn get_archive_from_tar(&self, addr: &DataAddress) -> Result<Bytes, GetError> {
+        let local_caching_client = self.clone();
+        let local_address = addr.clone();
+        let local_hybrid_cache = self.hybrid_cache.clone();
+        match self.hybrid_cache.get_ref().fetch(format!("tar{}", local_address.to_hex()), || async move {
+            let trailer_bytes = local_caching_client.download_stream(local_address, -10240, 0).await;
+            match String::from_utf8(trailer_bytes.to_vec()) {
+                Ok(trailer) => {
+                    match trailer.find("archive.tar.idx") {
+                        Some(idx) => {
+                            debug!("archive.tar.idx was found in archive.tar");
+                            let app_config_range_start = idx + 512;
+                            let app_config_range_to = 10240;
+                            info!("retrieved tarchive for [{}] with range_from [{}] and range_to [{}] from network - storing in hybrid cache", local_address.to_hex(), app_config_range_start, app_config_range_to);
+                            info!("hybrid cache stats [{:?}], memory cache usage [{:?}]", local_hybrid_cache.statistics(), local_hybrid_cache.memory().usage());
+                            Ok(Vec::from(Bytes::copy_from_slice(&trailer_bytes[app_config_range_start..app_config_range_to])))
+                        },
+                        None => {
+                            debug!("no archive.tar.idx found in tar trailer");
+                            Err(foyer::Error::other(format!("Failed to retrieve archive.tar.idx in tar trailer for [{}] from network", local_address.to_hex())))
+                        }
+                    }
+                },
+                Err(_) => {
+                    debug!("no tar trailer found");
+                    Err(foyer::Error::other(format!("Failed to retrieve tar trailer for [{}] from network", local_address.to_hex())))
+                }
+            }
+        }).await {
+            Ok(cache_entry) => {
+                info!("retrieved tarchive for [{}] from hybrid cache", addr.to_hex());
                 Ok(Bytes::from(cache_entry.value().to_vec()))
             },
             Err(_) => Err(GetError::RecordNotFound),
@@ -303,7 +366,7 @@ impl CachingClient {
         }
     }
 
-    pub async fn config_get_public(&self, archive: PublicArchive, archive_address_xorname: XorName) -> AppConfig {
+    /*pub async fn config_get_public(&self, archive: PublicArchive, archive_address_xorname: XorName) -> AppConfig {
         let path_str = "app-conf.json";
         let mut path_parts = Vec::<String>::new();
         path_parts.push("ignore".to_string());
@@ -322,7 +385,7 @@ impl CachingClient {
             }
             None => AppConfig::default()
         }
-    }
+    }*/
 
     pub async fn scratchpad_create(
         &self,
@@ -527,6 +590,56 @@ impl CachingClient {
                 self.client_cache_state.get_ref().graph_entry_cache.lock().unwrap().insert(address.clone(), CacheItem::new(None, self.ant_tp_config.clone().cached_mutable_ttl));
                 Err(e)
             }
+        }
+    }
+
+    pub async fn download_stream(
+        &self,
+        addr: DataAddress,
+        range_from: i64,
+        range_to: i64,
+    ) -> Bytes {
+        let data_map_chunk = self.chunk_get(&ChunkAddress::new(*addr.xorname())).await.expect("failed to download data map chunk");
+
+        let data_map = CachingClient::get_data_map_from_bytes(data_map_chunk.value()).expect("Failed to get data map");
+        let derived_range_from: u64 = if range_from < 0 {
+            (data_map.file_size() as u64) - (range_from.abs() as u64)
+        } else {
+            range_from as u64
+        };
+        let derived_range_to: u64 = if range_to <= 0 {
+            (data_map.file_size() as u64) - (range_to.abs() as u64)
+        } else {
+            range_to as u64
+        };
+
+        let chunk_streamer = ChunkStreamer::new(addr.xorname().to_string(), data_map, self.clone(), self.ant_tp_config.download_threads);
+        let mut chunk_receiver = chunk_streamer.open(derived_range_from, derived_range_to);
+
+        let mut buf = BytesMut::new();
+        let mut has_data = true;
+        while has_data {
+            match chunk_receiver.next().await {
+                Some(item) => match item {
+                    Ok(bytes) => buf.put(bytes),
+                    Err(e) => {
+                        error!("Error streaming app-config from archive: {}", e);
+                        has_data = false
+                    },
+                },
+                None => has_data = false
+            };
+        }
+        buf.freeze()
+    }
+
+    pub fn get_data_map_from_bytes(data_map_bytes: &Bytes) -> Result<DataMap, Error> {
+        match rmp_serde::from_slice(data_map_bytes) {
+            Ok(data_map_level) => match data_map_level {
+                DataMapLevel::First(map) => Ok(map),
+                DataMapLevel::Additional(map) => Ok(map),
+            },
+            Err(e) => Err(ErrorInternalServerError(format!("data map format invalid [{}]", e)))
         }
     }
 }

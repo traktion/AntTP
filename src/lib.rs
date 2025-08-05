@@ -111,38 +111,36 @@ pub async fn run_server(app_config: AntTpConfig) -> std::io::Result<()> {
     let wallet_private_key = app_config.wallet_private_key.clone();
 
     // initialise safe network connection
-    let (autonomi_client, evm_network) = if app_config.peers.clone().is_empty() {
-        (Client::init()
-            .await
-            .expect("Failed to connect to Autonomi Network."), ArbitrumOne)
-    } else {
-        let evm_network = match app_config.evm_network.to_lowercase().as_str() {
-            "local" => Network::new(true).unwrap(),
-            "arbitrumsepoliatest" => ArbitrumSepoliaTest,
-            _ => ArbitrumOne
-        };
-        let bootstrap_cache_config = Some(BootstrapCacheConfig::new(false).unwrap());
-        
-        let mut strategy = ClientOperatingStrategy::default();
-        strategy.chunk_cache_enabled = false; // disable cache to avoid double-caching
-
-        let autonomi_client = Client::init_with_config(ClientConfig{
-            bootstrap_cache_config: bootstrap_cache_config.clone(),
-            init_peers_config: InitialPeersConfig {
-                first: false,
-                addrs: app_config.peers.clone(),
-                network_contacts_url: vec![],
-                local: true,
-                ignore_cache: false,
-                bootstrap_cache_dir: Some(bootstrap_cache_config.unwrap().cache_dir),
-            },
-            evm_network: evm_network.clone(),
-            strategy: strategy,
-            network_id: Some(1),
-        }).await.expect("Failed to connect to Autonomi Network.");
-
-        (autonomi_client, evm_network.clone())
+    let evm_network = match app_config.evm_network.to_lowercase().as_str() {
+        "local" => Network::new(true).unwrap(),
+        "arbitrumsepoliatest" => ArbitrumSepoliaTest,
+        _ => ArbitrumOne
     };
+    let bootstrap_cache_config = Some(BootstrapCacheConfig::new(false).unwrap());
+
+    let initial_peers_config = if app_config.peers.clone().is_empty() {
+        InitialPeersConfig::default()
+    } else {
+        InitialPeersConfig {
+            first: false,
+            addrs: app_config.peers.clone(),
+            network_contacts_url: vec![],
+            local: true,
+            ignore_cache: false,
+            bootstrap_cache_dir: Some(bootstrap_cache_config.clone().unwrap().cache_dir),
+        }
+    };
+
+    let mut strategy = ClientOperatingStrategy::default();
+    strategy.chunk_cache_enabled = false; // disable cache to avoid double-caching
+
+    let autonomi_client = Client::init_with_config(ClientConfig {
+        bootstrap_cache_config: bootstrap_cache_config.clone(),
+        init_peers_config: initial_peers_config,
+        evm_network: evm_network.clone(),
+        strategy: strategy,
+        network_id: Some(1),
+    }).await.expect("Failed to connect to Autonomi Network.");
 
     let evm_wallet = if !wallet_private_key.is_empty() {
         EvmWallet::new_from_private_key(evm_network, wallet_private_key.as_str())

@@ -28,6 +28,7 @@ use xor_name::XorName;
 use crate::config::anttp_config::AntTpConfig;
 use crate::{UploadState, UploaderState};
 use crate::config::app_config::AppConfig;
+use crate::service::archive::Archive;
 
 #[derive(Serialize, Deserialize, Clone, ToSchema)]
 pub struct Upload {
@@ -65,8 +66,7 @@ impl PublicArchiveService {
         debug!("Get data for archive_addr [{}], archive_file_name [{}]", archive_addr, archive_file_name);
 
         // load app_config from archive and resolve route
-        //let app_config = self.caching_client.config_get_public(archive.clone(), resolved_address.xor_name).await;
-        let app_config = self.config_get_public(archive.clone(), resolved_address.xor_name).await;
+        let app_config = self.get_app_config(archive.clone(), resolved_address.xor_name).await;
         // resolve route
         let archive_relative_path = path_parts[1..].join("/").to_string();
         let (resolved_relative_path_route, has_route_map) = app_config.resolve_route(archive_relative_path.clone(), archive_file_name.clone());
@@ -98,12 +98,12 @@ impl PublicArchiveService {
         }
     }
 
-    pub async fn config_get_public(&self, archive: PublicArchive, archive_address_xorname: XorName) -> AppConfig {
+    pub async fn get_app_config(&self, archive: Archive, archive_address_xorname: XorName) -> AppConfig {
         let path_str = "app-conf.json";
         let mut path_parts = Vec::<String>::new();
         path_parts.push("ignore".to_string());
         path_parts.push(path_str.to_string());
-        match ArchiveHelper::new(archive, self.ant_tp_config.clone()).resolve_tarchive_addr(path_parts, self.caching_client.clone()).await {
+        match archive.find("app-conf.json".to_string()) {
             Some(data_address_offset) => {
                 info!("Downloading app-config [{}] with addr [{}] from archive [{}]", path_str, format!("{:x}", data_address_offset.data_address.xorname()), format!("{:x}", archive_address_xorname));
                 match self.file_client.download_data(*data_address_offset.data_address.xorname(), data_address_offset.offset, data_address_offset.limit).await {
@@ -124,8 +124,7 @@ impl PublicArchiveService {
                         }
                         let json = String::from_utf8(buf.to_vec()).unwrap_or(String::new());
                         debug!("json [{}], raw [{:?}]", json, buf.to_vec());
-                        //serde_json::from_str(&json.as_str().trim()).unwrap_or(AppConfig::default())
-                        serde_json::from_str(&json.as_str().trim()).expect(format!("failed to deserialize json [{}]", json).as_str())
+                        serde_json::from_str(&json.as_str().trim()).unwrap_or(AppConfig::default())
                     }
                     Err(_) => AppConfig::default()
                 }

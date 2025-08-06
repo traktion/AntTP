@@ -22,7 +22,7 @@ pub struct ArchiveInfo {
     pub action: ArchiveAction,
     pub state: DataState,
     pub offset: u64,
-    pub limit: u64,
+    pub size: u64,
 }
 
 #[derive(Clone, PartialEq, Eq)]
@@ -36,8 +36,8 @@ pub enum DataState {
 }
 
 impl ArchiveInfo {
-    pub fn new(path_string: String, resolved_xor_addr: XorName, action: ArchiveAction, state: DataState, offset: u64, limit: u64) -> ArchiveInfo {
-        ArchiveInfo { path_string, resolved_xor_addr, action, state, offset, limit }
+    pub fn new(path_string: String, resolved_xor_addr: XorName, action: ArchiveAction, state: DataState, offset: u64, size: u64) -> ArchiveInfo {
+        ArchiveInfo { path_string, resolved_xor_addr, action, state, offset, size }
     }
 }
 
@@ -77,7 +77,7 @@ impl ArchiveHelper {
             let mtime_datetime = DateTime::from_timestamp_millis(value.modified as i64 * 1000).unwrap();
             let mtime_iso = mtime_datetime.format("%+");
             let filepath = key.trim_start_matches("./").trim_start_matches("/").to_string();            output.push_str("{");
-            output.push_str(&format!("\"name\": \"{}\", \"type\": \"file\", \"mtime\": \"{}\", \"size\": \"{}\"", filepath, mtime_iso, value.limit));
+            output.push_str(&format!("\"name\": \"{}\", \"type\": \"file\", \"mtime\": \"{}\", \"size\": \"{}\"", filepath, mtime_iso, value.size));
             output.push_str("}");
             if i < count {
                 output.push_str(",");
@@ -154,7 +154,7 @@ impl ArchiveHelper {
                                         // file names can have spaces, so index from right and join on left
                                         path: parts.get(..parts.len()-3)?.join(" ").as_str().to_string(),
                                         offset: parts.get( parts.len()-2).expect("offset missing from tar").parse::<u64>().unwrap_or_else(|_| 0),
-                                        limit: parts.get(parts.len()-1).expect("limit missing from tar").parse::<u64>().unwrap_or_else(|_| u64::MAX),
+                                        size: parts.get(parts.len()-1).expect("limit missing from tar").parse::<u64>().unwrap_or_else(|_| u64::MAX),
                                         modified: tar_data_address_offset.modified,
                                     }
                                 )
@@ -207,13 +207,11 @@ impl ArchiveHelper {
                         ArchiveAction::Data,
                         xor_helper.get_data_state(request.headers(), data_address_offset.data_address.xorname()),
                         data_address_offset.offset,
-                        data_address_offset.limit
+                        data_address_offset.size
                     )
                 }
                 None => ArchiveInfo::new(resolved_relative_path_route, XorName::default(), ArchiveAction::NotFound, DataState::Modified, 0, 0)
             }
-            /*let (resolved_relative_path_route, resolved_xor_addr) = self.resolve_file_from_archive(request_path.to_string(), resolved_relative_path_route);
-            ArchiveInfo::new(resolved_relative_path_route, resolved_xor_addr, ArchiveAction::Data, xor_helper.get_data_state(request.headers(), &resolved_xor_addr), 0, 0)*/
         } else if !resolved_relative_path_route.is_empty() {
             debug!("retrieve path and data address");
             match self.archive.find(path_parts[1..].join("/")) {
@@ -226,7 +224,7 @@ impl ArchiveHelper {
                         ArchiveAction::Data,
                         xor_helper.get_data_state(request.headers(), data_address_offset.data_address.xorname()),
                         data_address_offset.offset,
-                        data_address_offset.limit
+                        data_address_offset.size
                     )
                 }
                 None => ArchiveInfo::new(resolved_relative_path_route, XorName::default(), ArchiveAction::NotFound, DataState::Modified, 0, 0)

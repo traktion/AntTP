@@ -15,7 +15,7 @@ pub struct DataAddressOffset {
     pub data_address: DataAddress,
     pub path: String,
     pub offset: u64,
-    pub limit: u64,
+    pub size: u64,
     pub modified: u64,
 }
 
@@ -95,7 +95,7 @@ impl Archive {
                         // file names can have spaces, so index from right and join on left
                         path: path_string.clone(),
                         offset: offset,
-                        limit: limit,
+                        size: limit,
                         modified: 1, // todo: derive modified epoch millis
                     };
                     debug!("insert into archive: path_string [{}], data address offset: [{:?}]", path_string, data_address_offset);
@@ -132,7 +132,7 @@ impl Archive {
                     data_address: data_addr.clone(),
                     path: key_string.clone(),
                     offset: 0,
-                    limit: u64::MAX,
+                    size: u64::MAX,
                     modified: metadata.modified
                 }
             );

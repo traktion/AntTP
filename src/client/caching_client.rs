@@ -26,6 +26,7 @@ use bytes::{BufMut, Bytes, BytesMut};
 use futures_util::StreamExt;
 use self_encryption::DataMap;
 use serde::{Deserialize, Serialize};
+use tokio::join;
 use crate::service::archive::Archive;
 
 #[derive(Serialize, Deserialize)]
@@ -96,12 +97,13 @@ impl CachingClient {
     }
 
     pub async fn archive_get(&self, archive_address: ArchiveAddress) -> Result<Archive, decode::Error> {
-        match self.data_get_public(&archive_address).await {
+        let (public_archive, tarchive) = join!(self.data_get_public(&archive_address), self.get_archive_from_tar(&archive_address));
+        match public_archive {
             Ok(bytes) => match PublicArchive::from_bytes(bytes) {
                 Ok(public_archive) => Ok(Archive::build_from_public_archive(public_archive)),
                 Err(err) => Err(decode::Error::Uncategorized(format!("Failed to create archive from public archive at [{}] from hybrid cache: {:?}", archive_address.to_hex(), err))),
             },
-            Err(_) => match self.get_archive_from_tar(&archive_address).await {
+            Err(_) => match tarchive {
                 Ok(bytes) => Ok(Archive::build_from_tar(&archive_address, bytes)),
                 Err(err) => Err(decode::Error::Uncategorized(format!("Failed to retrieve public archive at [{}] from hybrid cache: {:?}", archive_address.to_hex(), err))),
             }
@@ -121,7 +123,8 @@ impl CachingClient {
         let local_address = addr.clone();
         let local_hybrid_cache = self.hybrid_cache.clone();
         match self.hybrid_cache.get_ref().fetch(format!("pd{}", local_address.to_hex()), || async move {
-            let bytes = local_caching_client.download_stream(local_address, 0, 4194304).await;
+            // todo: optimise range_to to first chunk length (to avoid downloading other chunks when not needed)
+            let bytes = local_caching_client.download_stream(local_address, 0, 524288).await;
             match PublicArchive::from_bytes(bytes.clone()) {
                 // confirm that serialisation can be successful, before returning the data
                 Ok(_) => {
@@ -148,17 +151,18 @@ impl CachingClient {
         let local_address = addr.clone();
         let local_hybrid_cache = self.hybrid_cache.clone();
         match self.hybrid_cache.get_ref().fetch(format!("tar{}", local_address.to_hex()), || async move {
+            // todo: confirm whether checking header for tar signature improves performance/reliability
             let trailer_bytes = local_caching_client.download_stream(local_address, -10240, 0).await;
             match String::from_utf8(trailer_bytes.to_vec()) {
                 Ok(trailer) => {
                     match trailer.find("archive.tar.idx") {
                         Some(idx) => {
                             debug!("archive.tar.idx was found in archive.tar");
-                            let app_config_range_start = idx + 512;
-                            let app_config_range_to = 10240;
-                            info!("retrieved tarchive for [{}] with range_from [{}] and range_to [{}] from network - storing in hybrid cache", local_address.to_hex(), app_config_range_start, app_config_range_to);
+                            let archive_idx_range_start = idx + 512;
+                            let archive_idx_range_to = 10240;
+                            info!("retrieved tarchive for [{}] with range_from [{}] and range_to [{}] from network - storing in hybrid cache", local_address.to_hex(), archive_idx_range_start, archive_idx_range_to);
                             info!("hybrid cache stats [{:?}], memory cache usage [{:?}]", local_hybrid_cache.statistics(), local_hybrid_cache.memory().usage());
-                            Ok(Vec::from(Bytes::copy_from_slice(&trailer_bytes[app_config_range_start..app_config_range_to])))
+                            Ok(Vec::from(Bytes::copy_from_slice(&trailer_bytes[archive_idx_range_start..archive_idx_range_to])))
                         },
                         None => {
                             debug!("no archive.tar.idx found in tar trailer");
@@ -179,6 +183,17 @@ impl CachingClient {
             Err(_) => Err(GetError::RecordNotFound),
         }
     }
+
+    // todo: is this needed? see above
+    /*pub async fn is_tarchive(&self, xor_name: XorName, total_size: usize, data_map: &DataMap) -> bool {
+        // https://www.gnu.org/software/tar/manual/html_node/Standard.html
+        if total_size > 512 {
+            let tar_magic = self.download_stream(xor_name, data_map.clone(), 257, 261).await.to_vec();
+            String::from_utf8(tar_magic.clone()).unwrap_or(String::new()) == "ustar"
+        } else {
+            false
+        }
+    }*/
 
     pub async fn pointer_create(
         &self,
@@ -365,27 +380,6 @@ impl CachingClient {
             }
         }
     }
-
-    /*pub async fn config_get_public(&self, archive: PublicArchive, archive_address_xorname: XorName) -> AppConfig {
-        let path_str = "app-conf.json";
-        let mut path_parts = Vec::<String>::new();
-        path_parts.push("ignore".to_string());
-        path_parts.push(path_str.to_string());
-        match ArchiveHelper::new(archive, self.ant_tp_config.clone()).resolve_tarchive_addr(path_parts, self.clone()).await {
-            Some(data_address_offset) => {
-                info!("Downloading app-config [{}] with addr [{}] from archive [{}]", path_str, format!("{:x}", data_address_offset.data_address.xorname()), format!("{:x}", archive_address_xorname));
-                match self.data_get_public(&data_address_offset.data_address).await {
-                    Ok(data) => {
-                        let json = String::from_utf8(data.to_vec()).unwrap_or(String::new());
-                        debug!("json [{}]", json);
-                        serde_json::from_str(&json.as_str()).unwrap_or(AppConfig::default())
-                    }
-                    Err(_e) => AppConfig::default()
-                }
-            }
-            None => AppConfig::default()
-        }
-    }*/
 
     pub async fn scratchpad_create(
         &self,
@@ -616,14 +610,14 @@ impl CachingClient {
         let chunk_streamer = ChunkStreamer::new(addr.xorname().to_string(), data_map, self.clone(), self.ant_tp_config.download_threads);
         let mut chunk_receiver = chunk_streamer.open(derived_range_from, derived_range_to);
 
-        let mut buf = BytesMut::new();
+        let mut buf = BytesMut::with_capacity(usize::try_from(derived_range_to - derived_range_from).expect("Failed to convert range from u64 to usize"));
         let mut has_data = true;
         while has_data {
             match chunk_receiver.next().await {
                 Some(item) => match item {
                     Ok(bytes) => buf.put(bytes),
                     Err(e) => {
-                        error!("Error streaming app-config from archive: {}", e);
+                        error!("Error downloading stream from data address [{}] with range [{} - {}]: {}", addr.to_hex(), derived_range_from, derived_range_to, e);
                         has_data = false
                     },
                 },

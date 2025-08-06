@@ -94,7 +94,7 @@ impl PublicArchiveService {
                 .insert_header((header::ACCESS_CONTROL_ALLOW_ORIGIN, "*"))
                 .body(archive_helper.list_files(request.headers()))) // todo: return .json / .body depending on accept header
         } else {
-            self.file_client.download_data_stream(archive_relative_path, archive_info.resolved_xor_addr, resolved_address, &request, archive_info.offset, archive_info.limit).await
+            self.file_client.download_data_stream(archive_relative_path, archive_info.resolved_xor_addr, resolved_address, &request, archive_info.offset, archive_info.size).await
         }
     }
 
@@ -103,11 +103,12 @@ impl PublicArchiveService {
         let mut path_parts = Vec::<String>::new();
         path_parts.push("ignore".to_string());
         path_parts.push(path_str.to_string());
-        match archive.find("app-conf.json".to_string()) {
+        match archive.find(path_str.to_string()) {
             Some(data_address_offset) => {
                 info!("Downloading app-config [{}] with addr [{}] from archive [{}]", path_str, format!("{:x}", data_address_offset.data_address.xorname()), format!("{:x}", archive_address_xorname));
-                match self.file_client.download_data(*data_address_offset.data_address.xorname(), data_address_offset.offset, data_address_offset.limit).await {
+                match self.file_client.download_data(*data_address_offset.data_address.xorname(), data_address_offset.offset, data_address_offset.size).await {
                     Ok(mut chunk_receiver) => {
+                        // todo: optimise buffer sizes
                         let mut buf = BytesMut::new();
                         let mut has_data = true;
                         while has_data {

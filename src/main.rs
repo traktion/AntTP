@@ -1,6 +1,6 @@
 use anttp::config::anttp_config::AntTpConfig;
 
-const DEFAULT_LOGGING: &'static str = "info,anttp=debug,ant_api=warn,ant_client=warn,autonomi::networking=error,ant_bootstrap=error,chunk_streamer=error";
+const DEFAULT_LOGGING: &'static str = "info,anttp=info,ant_api=warn,ant_client=warn,autonomi::networking=error,ant_bootstrap=error,chunk_streamer=error";
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {

@@ -43,6 +43,9 @@ pub async fn post_register(
 #[utoipa::path(
     put,
     path = "/anttp-0/register/{address}",
+    params(
+        ("address", description = "Address of pointer")
+    ),
     request_body(
         content = Register
     ),

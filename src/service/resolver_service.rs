@@ -102,6 +102,7 @@ impl ResolverService {
 
     async fn analyze_simple(&self, address: &String) -> Option<DataAddress> {
         // todo: analyze other types in a performant way - assume only pointers/registers for now
+        // todo: could do both + join, but it may slow get pointer response
         match self.caching_client.pointer_get(&PointerAddress::from_hex(address).unwrap()).await.ok() {
             Some(pointer) => {
                 info!("Analyze found pointer at address [{}] with target [{}]", address, pointer.clone().target().to_hex());

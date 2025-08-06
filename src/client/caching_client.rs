@@ -597,14 +597,26 @@ impl CachingClient {
 
         let data_map = CachingClient::get_data_map_from_bytes(data_map_chunk.value()).expect("Failed to get data map");
         let derived_range_from: u64 = if range_from < 0 {
-            (data_map.file_size() as u64) - (range_from.abs() as u64)
+            let size = u64::try_from(data_map.file_size()).unwrap();
+            let from = u64::try_from(range_from.abs()).unwrap();
+            if from < size {
+                size - from
+            } else {
+                0
+            }
         } else {
-            range_from as u64
+            u64::try_from(range_from).unwrap()
         };
         let derived_range_to: u64 = if range_to <= 0 {
-            (data_map.file_size() as u64) - (range_to.abs() as u64)
+            let size = u64::try_from(data_map.file_size()).unwrap();
+            let to= u64::try_from(range_to.abs()).unwrap();
+            if to < size {
+                size - to
+            } else {
+                0
+            }
         } else {
-            range_to as u64
+            u64::try_from(range_to).unwrap()
         };
 
         let chunk_streamer = ChunkStreamer::new(addr.xorname().to_string(), data_map, self.clone(), self.ant_tp_config.download_threads);

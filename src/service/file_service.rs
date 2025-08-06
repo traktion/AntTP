@@ -51,7 +51,7 @@ impl<T: ChunkGetter> FileService<T> {
                 .insert_header(cors_allow_all)
                 .finish())
         } else {
-            self.download_data_stream(archive_relative_path, resolved_address.xor_name, resolved_address, &request, 0, 0).await
+            self.download_data_stream(archive_relative_path, resolved_address.xor_name, resolved_address, &request,  0, 0).await
         }
     }
 
@@ -62,7 +62,7 @@ impl<T: ChunkGetter> FileService<T> {
         resolved_address: ResolvedAddress,
         request: &HttpRequest,
         offset_modifier: u64,
-        limit_modifier: u64,
+        size_modifier: u64,
     ) -> Result<HttpResponse, Error> {
         let data_map_chunk = match self.chunk_getter.chunk_get(&ChunkAddress::new(xor_name)).await {
             Ok(chunk) => chunk,
@@ -74,8 +74,14 @@ impl<T: ChunkGetter> FileService<T> {
             Err(e) => return Err(ErrorInternalServerError(format!("invalid data map [{}]", e)))
         };
         let total_size = data_map.file_size();
+        // todo: refactor this +/- sizing to simplify
+        let file_size = if size_modifier > 0 {
+            size_modifier + 1
+        } else {
+            u64::try_from(total_size).unwrap()
+        };
 
-        let (range_from, range_to, is_range_request) = self.get_range(&request, offset_modifier, limit_modifier);
+        let (range_from, range_to, is_range_request) = self.get_range(&request, offset_modifier, size_modifier);
 
         info!("Streaming item [{}] at addr [{}], range_from [{}], range_to [{}]",
             path_str, format!("{:x}", xor_name), range_from, range_to);
@@ -93,7 +99,7 @@ impl<T: ChunkGetter> FileService<T> {
         let extension = Path::new(&path_str).extension().unwrap_or_default().to_str().unwrap_or_default();
         if is_range_request {
             Ok(HttpResponse::PartialContent()
-                .insert_header(ContentRange(ContentRangeSpec::Bytes { range: Some((range_from, derived_range_to)), instance_length: Some(total_size as u64) }))
+                .insert_header(ContentRange(ContentRangeSpec::Bytes { range: Some((range_from - offset_modifier, derived_range_to - offset_modifier)), instance_length: Some(file_size) }))
                 .insert_header(cache_control_header)
                 .insert_header(expires_header)
                 .insert_header(etag_header)
@@ -102,7 +108,7 @@ impl<T: ChunkGetter> FileService<T> {
                 .streaming(chunk_receiver))
         } else {
             Ok(HttpResponse::Ok()
-                .insert_header(ContentLength(total_size))
+                .insert_header(ContentLength(usize::try_from(file_size).unwrap()))
                 .insert_header(cache_control_header)
                 .insert_header(expires_header)
                 .insert_header(etag_header)
@@ -112,8 +118,8 @@ impl<T: ChunkGetter> FileService<T> {
         }
     }
 
-    pub async fn download_data(&self, xor_name: XorName, offset: u64, limit: u64) -> Result<ChunkReceiver, Error> {
-        debug!("download data xor_name: [{}], offset: [{}], limit: [{}]", xor_name.clone(), offset, limit);
+    pub async fn download_data(&self, xor_name: XorName, offset: u64, size: u64) -> Result<ChunkReceiver, Error> {
+        debug!("download data xor_name: [{}], offset: [{}], size: [{}]", xor_name.clone(), offset, size);
         let data_map_chunk = match self.chunk_getter.chunk_get(&ChunkAddress::new(xor_name)).await {
             Ok(chunk) => chunk,
             Err(e) => return Err(ErrorNotFound(format!("chunk not found [{}]", e)))
@@ -125,16 +131,17 @@ impl<T: ChunkGetter> FileService<T> {
         };
         let total_size = data_map.file_size();
 
-        let derived_range_to = if limit == u64::MAX { total_size as u64 - 1 } else { offset + limit - 1 };
+        let derived_size = if size == u64::MAX { total_size as u64 - 1 } else { offset + size };
 
         let chunk_streamer = ChunkStreamer::new(xor_name.to_string(), data_map, self.chunk_getter.clone(), self.ant_tp_config.download_threads);
-        Ok(chunk_streamer.open(offset, derived_range_to))
+        Ok(chunk_streamer.open(offset, derived_size))
     }
 
-    pub fn get_range(&self, request: &HttpRequest, offset_modifier: u64, limit_modifier: u64) -> (u64, u64, bool) {
-        let range_from = 0 + offset_modifier;
-        let range_to= if limit_modifier != 0 {
-            range_from + limit_modifier
+    pub fn get_range(&self, request: &HttpRequest, offset_modifier: u64, size_modifier: u64) -> (u64, u64, bool) {
+        debug!("get_range - offset_modifier [{}], size_modifier [{}]", offset_modifier, size_modifier);
+        let range_from = offset_modifier;
+        let range_to= if size_modifier != 0 {
+            range_from + size_modifier
         } else {
             u64::MAX
         };
@@ -145,10 +152,10 @@ impl<T: ChunkGetter> FileService<T> {
             if let Some((range_from_str, range_to_str)) = range_value.split_once("-") {
                 let range_from_override = range_from_str.parse::<u64>().unwrap_or_else(|_| 0) + offset_modifier;
                 let range_to_override = match range_to_str.parse::<u64>() {
-                    Ok(range_to_value) => range_to_value + limit_modifier,
+                    Ok(range_to_value) => range_to_value + offset_modifier,
                     Err(_) => {
-                        if limit_modifier != 0 {
-                            range_from_override + limit_modifier
+                        if size_modifier != 0 {
+                            range_from_override + size_modifier
                         } else {
                             u64::MAX
                         }

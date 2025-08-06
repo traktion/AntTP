@@ -2,7 +2,7 @@ use std::path::PathBuf;
 use actix_http::header::HeaderMap;
 use actix_web::{HttpRequest};
 use chrono::DateTime;
-use log::{debug, error, info};
+use log::{debug, info};
 use xor_name::XorName;
 use crate::client::caching_client::CachingClient;
 use crate::config::anttp_config::AntTpConfig;
@@ -105,87 +105,6 @@ impl ArchiveHelper {
             }
         }
         None
-    }
-
-    // todo: generate a Vec[DataAddressOffset] for repeated searches
-    pub async fn resolve_tarchive_addr(&self, path_parts: Vec<String>, caching_client: CachingClient) -> Option<DataAddressOffset> {
-        let path_parts_string = path_parts[1..].join("/");
-        debug!("resolve_tarchive_addr with path_parts [{}]", path_parts_string);
-        let maybe_archive_tar_idx = self.archive
-            .map()
-            .keys()
-            .find(|key| key
-                .to_string()
-                .replace("\\", "/")
-                .trim_start_matches("./")
-                .trim_start_matches("/")
-                .ends_with("archive.tar.idx"));
-
-        let maybe_archive_tar = self.archive
-            .map()
-            .keys()
-            .find(|key| key
-                .replace("\\", "/")
-                .trim_start_matches("./")
-                .trim_start_matches("/")
-                .ends_with("archive.tar"));
-
-        if maybe_archive_tar_idx.is_none() || maybe_archive_tar.is_none() {
-            return self.resolve_data_addr(path_parts);
-        }
-
-        let archive_tar_idx = maybe_archive_tar_idx.unwrap();
-        let archive_tar = maybe_archive_tar.unwrap();
-        let tar_data_address_offset = self.archive.map().get(&archive_tar.clone()).unwrap();
-        let tar_idx_data_address_offset = self.archive.map().get(&archive_tar_idx.clone()).unwrap();
-        match caching_client.data_get_public(&tar_idx_data_address_offset.data_address).await {
-            Ok(data) => {
-                match String::from_utf8(data.to_vec()) {
-                    Ok(tar_index) => {
-                        for entry in tar_index.split('\n') {
-                            debug!("entry: [{:?}]", entry);
-                            if entry.contains(&path_parts_string) {
-                                let entry_str = entry.to_string();
-                                let parts = entry_str.split(' ').collect::<Vec<&str>>();
-                                //debug!("parts: [{:?}]", parts);
-                                return Some(
-                                    DataAddressOffset {
-                                        data_address: tar_data_address_offset.data_address,
-                                        // file names can have spaces, so index from right and join on left
-                                        path: parts.get(..parts.len()-3)?.join(" ").as_str().to_string(),
-                                        offset: parts.get( parts.len()-2).expect("offset missing from tar").parse::<u64>().unwrap_or_else(|_| 0),
-                                        size: parts.get(parts.len()-1).expect("limit missing from tar").parse::<u64>().unwrap_or_else(|_| u64::MAX),
-                                        modified: tar_data_address_offset.modified,
-                                    }
-                                )
-                            }
-                        }
-                        None
-                    },
-                    Err(err) => {
-                        error!("Failed to parse public data for tar index [{}]", err);
-                        None
-                    }
-                }
-            },
-            Err(err) => {
-                error!("Failed to get public data for tar index [{}]", err);
-                None
-            }
-        }
-    }
-
-    pub fn resolve_file_from_archive(&self, request_path: String, resolved_filename_string: String) -> (String, XorName) {
-        // todo: return from tarchive index too
-        // hack to return index.html when present in directory root
-        for key in self.archive.map().keys() {
-            if key.ends_with(resolved_filename_string.as_str()) {
-                let path_string = request_path + key;
-                let data_address = self.archive.map().get(key).unwrap().data_address;
-                return (path_string, *data_address.xorname())
-            }
-        }
-        (String::new(), XorName::default())
     }
 
     pub async fn resolve_archive_info(&self, path_parts: Vec<String>, request: HttpRequest, resolved_relative_path_route: String, has_route_map: bool, caching_client: CachingClient) -> ArchiveInfo {

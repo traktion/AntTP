@@ -88,14 +88,15 @@ impl Archive {
                         .trim_start_matches("/")
                         .to_string();
                     let offset = parts.get(parts.len() - 2).expect("offset missing from tar").parse::<u64>().unwrap_or_else(|_| 0);
-                    let limit = parts.get(parts.len() - 1).expect("limit missing from tar").parse::<u64>().unwrap_or_else(|_| u64::MAX) - 1;
+                    let tmp_size = parts.get(parts.len() - 1).expect("limit missing from tar").parse::<u64>().unwrap_or_else(|_| u64::MAX);
+                    let size = if tmp_size > 0 { tmp_size - 1 } else { tmp_size };
 
                     let data_address_offset = DataAddressOffset {
                         data_address: *tar_data_addr,
                         // file names can have spaces, so index from right and join on left
                         path: path_string.clone(),
-                        offset: offset,
-                        size: limit,
+                        offset,
+                        size,
                         modified: 1, // todo: derive modified epoch millis
                     };
                     debug!("insert into archive: path_string [{}], data address offset: [{:?}]", path_string, data_address_offset);
@@ -132,7 +133,7 @@ impl Archive {
                     data_address: data_addr.clone(),
                     path: key_string.clone(),
                     offset: 0,
-                    size: u64::MAX,
+                    size: metadata.size,
                     modified: metadata.modified
                 }
             );
@@ -150,7 +151,7 @@ impl Archive {
         }
         None
     }
-    
+
     pub fn map(&self) -> &HashMap<String, DataAddressOffset> {
         &self.data_address_offsets
     }

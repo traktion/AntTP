@@ -14,7 +14,7 @@ use ::autonomi::Client;
 use actix_files::Files;
 use actix_web::dev::ServerHandle;
 use actix_web::web::Data;
-use actix_web::{App, HttpServer, middleware::Logger, web};
+use actix_web::{App, HttpServer, middleware::Logger, web, middleware};
 use ant_evm::EvmNetwork::{ArbitrumOne, ArbitrumSepoliaTest};
 use ant_evm::{EvmWallet};
 use autonomi::files::archive_public::ArchiveAddress;
@@ -191,6 +191,7 @@ pub async fn run_server(app_config: AntTpConfig) -> std::io::Result<()> {
 
         let mut app = App::new()
             .wrap(logger)
+            .wrap(middleware::Compress::default()) // enable compression
             .service(
                 SwaggerUi::new("/swagger-ui/{_:.*}")
                     .url("/api-docs/openapi.json", ApiDoc::openapi()),

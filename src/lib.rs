@@ -22,7 +22,7 @@ use autonomi::register::{RegisterAddress, RegisterValue};
 use autonomi::{BootstrapCacheConfig, ClientConfig, ClientOperatingStrategy, GraphEntry, GraphEntryAddress, InitialPeersConfig, Network, Scratchpad, ScratchpadAddress};
 use awc::Client as AwcClient;
 use config::anttp_config::AntTpConfig;
-use log::info;
+use log::{info, warn};
 use once_cell::sync::Lazy;
 use std::collections::HashMap;
 use std::env;
@@ -132,13 +132,21 @@ pub async fn run_server(app_config: AntTpConfig) -> std::io::Result<()> {
     let mut strategy = ClientOperatingStrategy::default();
     strategy.chunk_cache_enabled = false; // disable cache to avoid double-caching
 
-    let autonomi_client = Client::init_with_config(ClientConfig {
+    let autonomi_client_data: Data<Option<Client>> = Data::new(match Client::init_with_config(ClientConfig {
         bootstrap_cache_config: bootstrap_cache_config.clone(),
         init_peers_config: initial_peers_config,
         evm_network: evm_network.clone(),
         strategy: strategy,
         network_id: Some(1),
-    }).await.expect("Failed to connect to Autonomi Network.");
+    }).await {
+        Ok(client) => {
+            Some(client)
+        },
+        Err(e) => {
+            warn!("Failed to connect to Autonomi Network with error [{}]. Running in offline mode.", e);
+            None
+        },
+    });
 
     let evm_wallet = if !wallet_private_key.is_empty() {
         EvmWallet::new_from_private_key(evm_network, wallet_private_key.as_str())
@@ -207,7 +215,7 @@ pub async fn run_server(app_config: AntTpConfig) -> std::io::Result<()> {
                 web::get().to(file_controller::get_public_data),
             )
             .app_data(Data::new(app_config.clone()))
-            .app_data(Data::new(autonomi_client.clone()))
+            .app_data(autonomi_client_data.clone())
             .app_data(Data::new(AwcClient::default()))
             .app_data(Data::new(evm_wallet.clone()))
             .app_data(uploader_state.clone())

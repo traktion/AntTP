@@ -20,7 +20,7 @@ use crate::service::scratchpad_service::{Scratchpad, ScratchpadService};
     ),
 )]
 pub async fn post_public_scratchpad(
-    autonomi_client_data: Data<Client>,
+    autonomi_client_data: Data<Option<Client>>,
     evm_wallet_data: Data<EvmWallet>,
     ant_tp_config_data: Data<AntTpConfig>,
     scratchpad: web::Json<Scratchpad>,
@@ -52,7 +52,7 @@ pub async fn post_public_scratchpad(
 )]
 pub async fn put_public_scratchpad(
     path: web::Path<String>,
-    autonomi_client_data: Data<Client>,
+    autonomi_client_data: Data<Option<Client>>,
     evm_wallet_data: Data<EvmWallet>,
     ant_tp_config_data: Data<AntTpConfig>,
     scratchpad: web::Json<Scratchpad>,
@@ -86,7 +86,7 @@ pub async fn put_public_scratchpad(
 )]
 pub async fn get_public_scratchpad(
     path: web::Path<String>,
-    autonomi_client_data: Data<Client>,
+    autonomi_client_data: Data<Option<Client>>,
     ant_tp_config_data: Data<AntTpConfig>,
     client_cache_state: Data<ClientCacheState>,
     hybrid_cache_data: Data<HybridCache<String, Vec<u8>>>,

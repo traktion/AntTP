@@ -10,7 +10,7 @@ use actix_web::http::header::{ETag, EntityTag};
 use actix_web::{Error, HttpRequest, HttpResponse};
 use actix_web::error::{ErrorNotFound};
 use actix_web::web::Data;
-use autonomi::{Client, Wallet};
+use autonomi::{Wallet};
 use autonomi::client::payment::PaymentOption;
 use autonomi::files::{Metadata, PublicArchive};
 use autonomi::files::archive_public::ArchiveAddress;
@@ -45,7 +45,6 @@ impl Upload {
 }
 
 pub struct PublicArchiveService {
-    autonomi_client: Client,
     file_client: FileService<CachingClient>,
     resolver_service: ResolverService,
     uploader_state: Data<UploaderState>,
@@ -56,8 +55,8 @@ pub struct PublicArchiveService {
 
 impl PublicArchiveService {
     
-    pub fn new(autonomi_client: Client, file_client: FileService<CachingClient>, resolver_service: ResolverService, uploader_state: Data<UploaderState>, upload_state: Data<UploadState>, ant_tp_config: AntTpConfig, caching_client: CachingClient) -> Self {
-        PublicArchiveService { autonomi_client, file_client, resolver_service, uploader_state, upload_state, ant_tp_config, caching_client }
+    pub fn new(file_client: FileService<CachingClient>, resolver_service: ResolverService, uploader_state: Data<UploaderState>, upload_state: Data<UploadState>, ant_tp_config: AntTpConfig, caching_client: CachingClient) -> Self {
+        PublicArchiveService { file_client, resolver_service, uploader_state, upload_state, ant_tp_config, caching_client }
     }
     
     pub async fn get_data(&self, resolved_address: ResolvedAddress, request: HttpRequest, path_parts: Vec<String>) -> Result<HttpResponse, Error> {
@@ -140,13 +139,13 @@ impl PublicArchiveService {
     }
 
     pub async fn update_public_archive(&self, address: String, payload: Multipart, evm_wallet: Wallet) -> Result<HttpResponse, Error> {
-        match self.autonomi_client.archive_get_public(&ArchiveAddress::from_hex(address.as_str()).unwrap()).await {
+        match self.caching_client.archive_get_public(ArchiveAddress::from_hex(address.as_str()).unwrap()).await {
             Ok(public_archive) => {
                 info!("Uploading updated public archive to the network [{:?}]", public_archive);
                 self.update_public_archive_common(payload, evm_wallet, public_archive).await
             }
             Err(e) => {
-                return Err(ErrorNotFound(format!("Upload task not found: [{:?}]", e)));
+                Err(ErrorNotFound(format!("Upload task not found: [{:?}]", e)))
             }
         }
     }
@@ -172,7 +171,7 @@ impl PublicArchiveService {
             tmp_file.flush().unwrap().size();
         }
 
-        let local_client = self.autonomi_client.clone();
+        let local_client = self.caching_client.clone();
         let handle = tokio::spawn(async move {
             info!("Reading directory: {:?}", tmp_dir.clone());
             for entry in fs::read_dir(tmp_dir.clone()).unwrap() {

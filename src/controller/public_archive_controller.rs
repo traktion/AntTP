@@ -24,7 +24,7 @@ use crate::service::resolver_service::ResolverService;
 )]
 pub async fn post_public_archive(
     payload: Multipart,
-    autonomi_client_data: Data<Client>,
+    autonomi_client_data: Data<Option<Client>>,
     evm_wallet_data: Data<EvmWallet>,
     uploader_state: Data<UploaderState>,
     upload_state: Data<UploadState>,
@@ -53,7 +53,7 @@ pub async fn post_public_archive(
 pub async fn put_public_archive(
     path: web::Path<String>,
     payload: Multipart,
-    autonomi_client_data: Data<Client>,
+    autonomi_client_data: Data<Option<Client>>,
     evm_wallet_data: Data<EvmWallet>,
     uploader_state: Data<UploaderState>,
     upload_state: Data<UploadState>,
@@ -83,7 +83,7 @@ pub async fn put_public_archive(
 )]
 pub async fn get_status_public_archive(
     path: web::Path<String>,
-    autonomi_client_data: Data<Client>,
+    autonomi_client_data: Data<Option<Client>>,
     uploader_state: Data<UploaderState>,
     upload_state: Data<UploadState>,
     ant_tp_config: Data<AntTpConfig>,
@@ -97,10 +97,10 @@ pub async fn get_status_public_archive(
     archive_service.get_status(id).await
 }
 
-fn build_archive_service(autonomi_client: Client, uploader_state: Data<UploaderState>, upload_state: Data<UploadState>, ant_tp_config_data: Data<AntTpConfig>, client_cache_state: Data<ClientCacheState>, hybrid_cache_data: Data<HybridCache<String, Vec<u8>>>) -> PublicArchiveService {
+fn build_archive_service(maybe_autonomi_client: Option<Client>, uploader_state: Data<UploaderState>, upload_state: Data<UploadState>, ant_tp_config_data: Data<AntTpConfig>, client_cache_state: Data<ClientCacheState>, hybrid_cache_data: Data<HybridCache<String, Vec<u8>>>) -> PublicArchiveService {
     let ant_tp_config = ant_tp_config_data.get_ref();
-    let caching_client = CachingClient::new(autonomi_client.clone(), ant_tp_config.clone(), client_cache_state, hybrid_cache_data);
+    let caching_client = CachingClient::new(maybe_autonomi_client.clone(), ant_tp_config.clone(), client_cache_state, hybrid_cache_data);
     let resolver_service = ResolverService::new(ant_tp_config.clone(), caching_client.clone());
     let file_service = FileService::new(caching_client.clone(), resolver_service.clone(), ant_tp_config.clone());
-    PublicArchiveService::new(autonomi_client, file_service, resolver_service, uploader_state, upload_state, ant_tp_config.clone(), caching_client)
+    PublicArchiveService::new(file_service, resolver_service, uploader_state, upload_state, ant_tp_config.clone(), caching_client)
 }

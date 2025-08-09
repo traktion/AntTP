@@ -20,7 +20,7 @@ use crate::service::pointer_service::{Pointer, PointerService};
     ),
 )]
 pub async fn post_pointer(
-    autonomi_client_data: Data<Client>,
+    autonomi_client_data: Data<Option<Client>>,
     evm_wallet_data: Data<EvmWallet>,
     ant_tp_config_data: Data<AntTpConfig>,
     pointer: web::Json<Pointer>,
@@ -55,7 +55,7 @@ pub async fn post_pointer(
 )]
 pub async fn put_pointer(
     path: web::Path<String>,
-    autonomi_client_data: Data<Client>,
+    autonomi_client_data: Data<Option<Client>>,
     ant_tp_config_data: Data<AntTpConfig>,
     pointer: web::Json<Pointer>,
     client_cache_state: Data<ClientCacheState>,
@@ -90,7 +90,7 @@ pub async fn put_pointer(
 )]
 pub async fn get_pointer(
     path: web::Path<String>,
-    autonomi_client_data: Data<Client>,
+    autonomi_client_data: Data<Option<Client>>,
     ant_tp_config_data: Data<AntTpConfig>,
     client_cache_state: Data<ClientCacheState>,
     hybrid_cache_data: Data<HybridCache<String, Vec<u8>>>,

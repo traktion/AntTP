@@ -20,7 +20,7 @@ use crate::service::graph_service::{GraphEntry, GraphService};
     ),
 )]
 pub async fn post_graph_entry(
-    autonomi_client_data: Data<Client>,
+    autonomi_client_data: Data<Option<Client>>,
     evm_wallet_data: Data<EvmWallet>,
     ant_tp_config_data: Data<AntTpConfig>,
     graph_entry: web::Json<GraphEntry>,
@@ -53,7 +53,7 @@ pub async fn post_graph_entry(
 )]
 pub async fn get_graph_entry(
     path: web::Path<String>,
-    autonomi_client_data: Data<Client>,
+    autonomi_client_data: Data<Option<Client>>,
     ant_tp_config_data: Data<AntTpConfig>,
     client_cache_state: Data<ClientCacheState>,
     hybrid_cache_data: Data<HybridCache<String, Vec<u8>>>,

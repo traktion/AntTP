@@ -15,7 +15,7 @@ use crate::service::resolver_service::ResolverService;
 pub async fn get_public_data(
     request: HttpRequest,
     path: web::Path<String>,
-    autonomi_client_data: Data<Client>,
+    autonomi_client_data: Data<Option<Client>>,
     conn: ConnectionInfo,
     uploader_state_data: Data<UploaderState>,
     upload_state_data: Data<UploadState>,
@@ -35,7 +35,7 @@ pub async fn get_public_data(
             let file_service = FileService::new(caching_client.clone(), resolver_service.clone(), ant_tp_config.clone());
             if resolved_address.archive.is_some() {
                 info!("Retrieving file from archive [{:x}]", resolved_address.xor_name);
-                let public_archive_service = PublicArchiveService::new(autonomi_client, file_service, resolver_service, uploader_state_data, upload_state_data, ant_tp_config, caching_client.clone());
+                let public_archive_service = PublicArchiveService::new(file_service, resolver_service, uploader_state_data, upload_state_data, ant_tp_config, caching_client);
                 public_archive_service.get_data(resolved_address, request, path_parts).await
             } else {
                 info!("Retrieving file from XOR [{:x}]", resolved_address.xor_name);

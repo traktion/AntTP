@@ -22,7 +22,7 @@ use crate::service::chunk_service::{Chunk, ChunkService};
     ),
 )]
 pub async fn post_chunk(
-    autonomi_client_data: Data<Client>,
+    autonomi_client_data: Data<Option<Client>>,
     evm_wallet_data: Data<EvmWallet>,
     ant_tp_config_data: Data<AntTpConfig>,
     chunk: web::Json<Chunk>,
@@ -53,7 +53,7 @@ pub async fn post_chunk(
     ),
 )]
 pub async fn post_chunk_binary(
-    autonomi_client_data: Data<Client>,
+    autonomi_client_data: Data<Option<Client>>,
     evm_wallet_data: Data<EvmWallet>,
     ant_tp_config_data: Data<AntTpConfig>,
     payload: Payload,
@@ -92,7 +92,7 @@ pub async fn post_chunk_binary(
 )]
 pub async fn get_chunk(
     path: web::Path<String>,
-    autonomi_client_data: Data<Client>,
+    autonomi_client_data: Data<Option<Client>>,
     ant_tp_config_data: Data<AntTpConfig>,
     client_cache_state: Data<ClientCacheState>,
     hybrid_cache_data: Data<HybridCache<String, Vec<u8>>>,
@@ -122,7 +122,7 @@ pub async fn get_chunk(
 )]
 pub async fn get_chunk_binary(
     path: web::Path<String>,
-    autonomi_client_data: Data<Client>,
+    autonomi_client_data: Data<Option<Client>>,
     ant_tp_config_data: Data<AntTpConfig>,
     client_cache_state: Data<ClientCacheState>,
     hybrid_cache_data: Data<HybridCache<String, Vec<u8>>>,

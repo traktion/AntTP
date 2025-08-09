@@ -20,7 +20,7 @@ use crate::service::register_service::{Register, RegisterService};
     ),
 )]
 pub async fn post_register(
-    autonomi_client_data: Data<Client>,
+    autonomi_client_data: Data<Option<Client>>,
     ant_tp_config_data: Data<AntTpConfig>,
     client_cache_state: Data<ClientCacheState>,
     evm_wallet_data: Data<EvmWallet>,
@@ -54,7 +54,7 @@ pub async fn post_register(
     ),
 )]
 pub async fn put_register(
-    autonomi_client_data: Data<Client>,
+    autonomi_client_data: Data<Option<Client>>,
     ant_tp_config_data: Data<AntTpConfig>,
     client_cache_state: Data<ClientCacheState>,
     path: web::Path<String>,
@@ -88,7 +88,7 @@ pub async fn put_register(
     )
 )]
 pub async fn get_register(
-    autonomi_client_data: Data<Client>,
+    autonomi_client_data: Data<Option<Client>>,
     ant_tp_config_data: Data<AntTpConfig>,
     client_cache_state: Data<ClientCacheState>,
     path: web::Path<String>,
@@ -119,7 +119,7 @@ pub async fn get_register(
     )
 )]
 pub async fn get_register_history(
-    autonomi_client_data: Data<Client>,
+    autonomi_client_data: Data<Option<Client>>,
     ant_tp_config_data: Data<AntTpConfig>,
     client_cache_state: Data<ClientCacheState>,
     path: web::Path<String>,

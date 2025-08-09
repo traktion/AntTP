@@ -1,6 +1,7 @@
 use std::{env, fs};
 use std::fs::File;
 use std::io::{Read, Write};
+use std::path::PathBuf;
 use actix_web::Error;
 use actix_web::error::ErrorInternalServerError;
 use actix_web::web::Data;
@@ -11,6 +12,7 @@ use autonomi::client::files::archive_public::{ArchiveAddress, PublicArchive};
 use autonomi::client::{GetError, PutError};
 use autonomi::client::payment::PaymentOption;
 use autonomi::data::DataAddress;
+use autonomi::files::UploadError;
 use autonomi::graph::GraphError;
 use autonomi::pointer::{PointerError, PointerTarget};
 use autonomi::register::{RegisterAddress, RegisterError, RegisterHistory, RegisterValue};
@@ -41,7 +43,7 @@ enum DataMapLevel {
 
 #[derive(Clone)]
 pub struct CachingClient {
-    client: Client,
+    maybe_client: Option<Client>,
     cache_dir: String,
     ant_tp_config: AntTpConfig,
     client_cache_state: Data<ClientCacheState>,
@@ -51,19 +53,27 @@ pub struct CachingClient {
 #[async_trait]
 impl ChunkGetter for CachingClient {
     async fn chunk_get(&self, address: &ChunkAddress) -> Result<Chunk, GetError> {
-        let local_client = self.client.clone();
+        let maybe_local_client = self.maybe_client.clone();
         let local_address = address.clone();
         let local_hybrid_cache = self.hybrid_cache.clone();
         match self.hybrid_cache.get_ref().fetch(local_address.to_hex(), || async move {
-            match local_client.chunk_get(&local_address).await {
-                Ok(chunk) => {
-                    info!("retrieved chunk for [{}] from network - storing in hybrid cache", local_address.to_hex());
-                    info!("hybrid cache stats [{:?}], memory cache usage [{:?}]", local_hybrid_cache.statistics(), local_hybrid_cache.memory().usage());
-                    Ok(Vec::from(chunk.value))
-                }
-                Err(err) => {
-                    error!("Failed to retrieve chunk for [{}] from network {:?}", local_address.to_hex(), err);
-                    Err(foyer::Error::other(format!("Failed to retrieve chunk for [{}] from network {:?}", local_address.to_hex(), err)))
+            match maybe_local_client {
+                Some(local_client) => {
+                    match local_client.chunk_get(&local_address).await {
+                        Ok(chunk) => {
+                            info!("retrieved chunk for [{}] from network - storing in hybrid cache", local_address.to_hex());
+                            info!("hybrid cache stats [{:?}], memory cache usage [{:?}]", local_hybrid_cache.statistics(), local_hybrid_cache.memory().usage());
+                            Ok(Vec::from(chunk.value))
+                        }
+                        Err(err) => {
+                            error!("Failed to retrieve chunk for [{}] from network {:?}", local_address.to_hex(), err);
+                            Err(foyer::Error::other(format!("Failed to retrieve chunk for [{}] from network {:?}", local_address.to_hex(), err)))
+                        }
+                    }
+                },
+                None => {
+                    error!("Failed to retrieve chunk for [{}] as offline network", local_address.to_hex());
+                    Err(foyer::Error::other(format!("Failed to retrieve chunk for [{}] from offline network", local_address.to_hex())))
                 }
             }
         }).await {
@@ -78,7 +88,7 @@ impl ChunkGetter for CachingClient {
 
 impl CachingClient {
 
-    pub fn new(client: Client, ant_tp_config: AntTpConfig, client_cache_state: Data<ClientCacheState>, hybrid_cache: Data<HybridCache<String, Vec<u8>>>) -> Self {
+    pub fn new(client: Option<Client>, ant_tp_config: AntTpConfig, client_cache_state: Data<ClientCacheState>, hybrid_cache: Data<HybridCache<String, Vec<u8>>>) -> Self {
         let cache_dir = if ant_tp_config.map_cache_directory.is_empty() {
             env::temp_dir().to_str().unwrap().to_owned() + "/anttp/cache/"
         } else {
@@ -86,7 +96,7 @@ impl CachingClient {
         };
         CachingClient::create_tmp_dir(cache_dir.clone());
         Self {
-            client, cache_dir, ant_tp_config, client_cache_state, hybrid_cache,
+            maybe_client: client, cache_dir, ant_tp_config, client_cache_state, hybrid_cache,
         }
     }
 
@@ -115,6 +125,16 @@ impl CachingClient {
         match self.data_get_public(&archive_address).await {
             Ok(bytes) => PublicArchive::from_bytes(bytes),
             Err(err) => Err(decode::Error::Uncategorized(format!("Failed to retrieve public archive at [{}] from hybrid cache: {:?}", archive_address.to_hex(), err))),
+        }
+    }
+    
+    pub async fn archive_put_public(&self, archive: &PublicArchive, payment_option: PaymentOption) -> Result<(AttoTokens, ArchiveAddress), PutError> {
+        match self.maybe_client.clone() {
+            Some(client) => {
+                debug!("creating archive public async");
+                client.archive_put_public(archive, payment_option).await
+            },
+            None => Err(PutError::Serialization(format!("network offline")))
         }
     }
 
@@ -201,15 +221,19 @@ impl CachingClient {
         target: PointerTarget,
         payment_option: PaymentOption,
     ) -> Result<(AttoTokens, PointerAddress), PointerError> {
-        let client_clone = self.client.clone();
-        let owner_clone = owner.clone();
-        // todo: move to job processor
-        tokio::spawn(async move {
-            debug!("creating pointer async");
-            client_clone.pointer_create(&owner_clone, target, payment_option).await
-        });
-        let address = PointerAddress::new(owner.public_key());
-        Ok((AttoTokens::zero(), address))
+        match self.maybe_client.clone() {
+            Some(client) => {
+                let owner_clone = owner.clone();
+                // todo: move to job processor
+                tokio::spawn(async move {
+                    debug!("creating pointer async");
+                    client.pointer_create(&owner_clone, target, payment_option).await
+                });
+                let address = PointerAddress::new(owner.public_key());
+                Ok((AttoTokens::zero(), address))
+            },
+            None => Err(PointerError::Serialization) // todo: improve error type
+        }
     }
 
     pub async fn pointer_update(
@@ -217,30 +241,41 @@ impl CachingClient {
         owner: &SecretKey,
         target: PointerTarget,
     ) -> Result<(), PointerError> {
-        let client_clone = self.client.clone();
-        let owner_clone = owner.clone();
-        // todo: move to job processor
-        tokio::spawn(async move {
-            debug!("updating pointer async");
-            client_clone.pointer_update(&owner_clone, target).await
-        });
-        Ok(())
+        match self.maybe_client.clone() {
+            Some(client) => {
+                let owner_clone = owner.clone();
+                // todo: move to job processor
+                tokio::spawn(async move {
+                    debug!("updating pointer async");
+                    client.pointer_update(&owner_clone, target).await
+                });
+                Ok(())
+            },
+            None => {
+                Err(PointerError::Serialization) // todo: improve error type
+            }
+        }
     }
 
     pub async fn pointer_get(&self, address: &PointerAddress) -> Result<Pointer, PointerError> {
-        let local_client = self.client.clone();
+        let local_client = self.maybe_client.clone();
         let local_address = address.clone();
         let local_hybrid_cache = self.hybrid_cache.clone();
         let local_ant_tp_config = self.ant_tp_config.clone();
         match self.hybrid_cache.get_ref().fetch(format!("pg{}", local_address.to_hex()), || async move {
-            match local_client.pointer_get(&local_address).await {
-                Ok(pointer) => {
-                    debug!("found pointer [{}] for address [{}]", hex::encode(pointer.target().to_hex()), local_address.to_hex());
-                    info!("hybrid cache stats [{:?}], memory cache usage [{:?}]", local_hybrid_cache.statistics(), local_hybrid_cache.memory().usage());
-                    let cache_item = CacheItem::new(Some(pointer.clone()), local_ant_tp_config.cached_mutable_ttl);
-                    Ok(rmp_serde::to_vec(&cache_item).expect("Failed to serialize pointer"))
+            match local_client {
+                Some(client) => {
+                    match client.pointer_get(&local_address).await {
+                        Ok(pointer) => {
+                            debug!("found pointer [{}] for address [{}]", hex::encode(pointer.target().to_hex()), local_address.to_hex());
+                            info!("hybrid cache stats [{:?}], memory cache usage [{:?}]", local_hybrid_cache.statistics(), local_hybrid_cache.memory().usage());
+                            let cache_item = CacheItem::new(Some(pointer.clone()), local_ant_tp_config.cached_mutable_ttl);
+                            Ok(rmp_serde::to_vec(&cache_item).expect("Failed to serialize pointer"))
+                        },
+                        Err(_) => Err(foyer::Error::other(format!("Failed to retrieve pointer for [{}] from network", local_address.to_hex())))
+                    }
                 },
-                Err(_) => Err(foyer::Error::other(format!("Failed to retrieve pointer for [{}] from network", local_address.to_hex())))
+                None => Err(foyer::Error::other(format!("Failed to retrieve pointer for [{}] from offline network", local_address.to_hex())))
             }
         }).await {
             Ok(cache_entry) => {
@@ -248,22 +283,26 @@ impl CachingClient {
                 info!("retrieved pointer for [{}] from hybrid cache", address.to_hex());
                 if cache_item.has_expired() {
                     // update cache in the background
-                    let local_client = self.client.clone();
+                    let local_client = self.maybe_client.clone();
                     let local_address = address.clone();
                     let local_hybrid_cache = self.hybrid_cache.clone();
                     tokio::spawn(async move {
-                        info!("refreshing hybrid cache with pointer for [{}] from network, timestamp [{}], ttl [{}]", local_address.to_hex(), cache_item.timestamp, cache_item.ttl);
-                        match local_client.pointer_get(&local_address).await {
-                            Ok(pointer) => {
-                                let new_cache_item = CacheItem::new(Some(pointer.clone()), local_ant_tp_config.cached_mutable_ttl);
-                                local_hybrid_cache.insert(
-                                    format!("pg{}", local_address.to_hex()),
-                                    rmp_serde::to_vec(&new_cache_item).expect("Failed to serialize pointer")
-                                );
-                                info!("inserted hybrid cache with pointer for [{}] from network", local_address.to_hex());
-
+                        match local_client {
+                            Some(client) => {
+                                info!("refreshing hybrid cache with pointer for [{}] from network, timestamp [{}], ttl [{}]", local_address.to_hex(), cache_item.timestamp, cache_item.ttl);
+                                match client.pointer_get(&local_address).await {
+                                    Ok(pointer) => {
+                                        let new_cache_item = CacheItem::new(Some(pointer.clone()), local_ant_tp_config.cached_mutable_ttl);
+                                        local_hybrid_cache.insert(
+                                            format!("pg{}", local_address.to_hex()),
+                                            rmp_serde::to_vec(&new_cache_item).expect("Failed to serialize pointer")
+                                        );
+                                        info!("inserted hybrid cache with pointer for [{}] from network", local_address.to_hex());
+                                    },
+                                    Err(e) => warn!("Failed to refresh expired pointer for [{}] from network [{}]", local_address.to_hex(), e)
+                                }
                             },
-                            Err(e) => warn!("Failed to refresh expired pointer for [{}] from network [{}]", local_address.to_hex(), e)
+                            None => warn!("Failed to refresh expired pointer for [{}] from offline network", local_address.to_hex())
                         }
                     });
                 }
@@ -280,14 +319,18 @@ impl CachingClient {
         initial_value: RegisterValue,
         payment_option: PaymentOption,
     ) -> Result<(AttoTokens, RegisterAddress), RegisterError> {
-        let client_clone = self.client.clone();
-        let owner_clone = owner.clone();
-        // todo: move to job processor
-        tokio::spawn(async move {
-            debug!("creating register async");
-            client_clone.register_create(&owner_clone, initial_value, payment_option).await
-        });
-        Ok((AttoTokens::zero(), RegisterAddress::new(owner.clone().public_key())))
+        match self.maybe_client.clone() {
+            Some(client) => {
+                let owner_clone = owner.clone();
+                // todo: move to job processor
+                tokio::spawn(async move {
+                    debug!("creating register async");
+                    client.register_create(&owner_clone, initial_value, payment_option).await
+                });
+                Ok((AttoTokens::zero(), RegisterAddress::new(owner.clone().public_key())))
+            },
+            None => Err(RegisterError::InvalidCost) // todo: improve error type
+        }
     }
 
     pub async fn register_update(
@@ -296,14 +339,18 @@ impl CachingClient {
         new_value: RegisterValue,
         payment_option: PaymentOption,
     ) -> Result<AttoTokens, RegisterError> {
-        let client_clone = self.client.clone();
-        let owner_clone = owner.clone();
-        // todo: move to job processor
-        tokio::spawn(async move {
-            debug!("updating register async");
-            client_clone.register_update(&owner_clone, new_value, payment_option).await
-        });
-        Ok(AttoTokens::zero())
+        match self.maybe_client.clone() {
+            Some(client) => {
+                let owner_clone = owner.clone();
+                // todo: move to job processor
+                tokio::spawn(async move {
+                    debug!("updating register async");
+                    client.register_update(&owner_clone, new_value, payment_option).await
+                });
+                Ok(AttoTokens::zero())
+            },
+            None => Err(RegisterError::InvalidCost) // todo: improve error type
+        }
     }
 
     pub async fn register_get(&self, address: &RegisterAddress) -> Result<RegisterValue, RegisterError> {
@@ -327,36 +374,41 @@ impl CachingClient {
 
     async fn register_get_uncached(&self, address: &RegisterAddress) -> Result<RegisterValue, RegisterError> {
         debug!("getting uncached register for [{}] from network", address.to_hex());
-        match self.client.register_get(address).await {
-            Ok(register_value) => {
-                debug!("found register value [{}] for address [{}]", hex::encode(register_value), address.to_hex());
-                self.client_cache_state.get_ref().register_cache.lock().unwrap().insert(address.clone(), CacheItem::new(Some(register_value.clone()), self.ant_tp_config.clone().cached_mutable_ttl));
-                Ok(register_value)
-            },
-            Err(e) => {
-                debug!("found no register value for address [{}]", address.to_hex());
-                if self.client_cache_state.get_ref().register_cache.lock().unwrap().contains_key(address) {
-                    debug!("getting stale cached register for [{}] from memory", address.to_hex());
-                    match self.client_cache_state.get_ref().register_cache.lock().unwrap().get(address) {
-                        Some(cache_item) => {
-                            match cache_item.item.clone() {
-                                Some(register_value) => Ok(register_value),
+        match self.maybe_client.clone() {
+            Some(client) => {
+                match client.register_get(address).await {
+                    Ok(register_value) => {
+                        debug!("found register value [{}] for address [{}]", hex::encode(register_value), address.to_hex());
+                        self.client_cache_state.get_ref().register_cache.lock().unwrap().insert(address.clone(), CacheItem::new(Some(register_value.clone()), self.ant_tp_config.clone().cached_mutable_ttl));
+                        Ok(register_value)
+                    },
+                    Err(e) => {
+                        debug!("found no register value for address [{}]", address.to_hex());
+                        if self.client_cache_state.get_ref().register_cache.lock().unwrap().contains_key(address) {
+                            debug!("getting stale cached register for [{}] from memory", address.to_hex());
+                            match self.client_cache_state.get_ref().register_cache.lock().unwrap().get(address) {
+                                Some(cache_item) => {
+                                    match cache_item.item.clone() {
+                                        Some(register_value) => Ok(register_value),
+                                        None => Err(RegisterError::PointerError(PointerError::Serialization))
+                                    }
+                                }
                                 None => Err(RegisterError::PointerError(PointerError::Serialization))
                             }
+                        } else {
+                            // cache mismatches to avoid repeated lookup
+                            self.client_cache_state.get_ref().register_cache.lock().unwrap().insert(address.clone(), CacheItem::new(None, self.ant_tp_config.clone().cached_mutable_ttl));
+                            Err(e)
                         }
-                        None => Err(RegisterError::PointerError(PointerError::Serialization))
                     }
-                } else {
-                    // cache mismatches to avoid repeated lookup
-                    self.client_cache_state.get_ref().register_cache.lock().unwrap().insert(address.clone(), CacheItem::new(None, self.ant_tp_config.clone().cached_mutable_ttl));
-                    Err(e)
                 }
-            }
+            },
+            None => Err(RegisterError::PointerError(PointerError::Serialization))
         }
     }
 
     pub fn register_history(&self, addr: &RegisterAddress) -> RegisterHistory {
-        self.client.register_history(addr)
+        self.maybe_client.clone().expect("network offline").register_history(addr)
     }
 
     pub async fn write_file(&self, archive_address: ArchiveAddress, data: Vec<u8>) {
@@ -386,16 +438,20 @@ impl CachingClient {
         initial_data: &Bytes,
         payment_option: PaymentOption,
     ) -> Result<(AttoTokens, ScratchpadAddress), ScratchpadError> {
-        let client_clone = self.client.clone();
         let owner_clone = owner.clone();
         let initial_data_clone = initial_data.clone();
-        // todo: move to job processor
-        tokio::spawn(async move {
-            debug!("creating scratchpad async");
-            client_clone.scratchpad_create(&owner_clone, content_type, &initial_data_clone, payment_option).await
-        });
-        let address = ScratchpadAddress::new(owner.public_key());
-        Ok((AttoTokens::zero(), address))
+        match self.maybe_client.clone() {
+            Some(client) => {
+                // todo: move to job processor
+                tokio::spawn(async move {
+                    debug!("creating scratchpad async");
+                    client.scratchpad_create(&owner_clone, content_type, &initial_data_clone, payment_option).await
+                });
+                let address = ScratchpadAddress::new(owner.public_key());
+                Ok((AttoTokens::zero(), address))
+            },
+            None => Err(ScratchpadError::Serialization)
+        }
     }
 
     pub async fn scratchpad_create_public(
@@ -419,12 +475,16 @@ impl CachingClient {
             counter,
         ));
         let scratchpad = Scratchpad::new_with_signature(owner.public_key(), content_type, initial_data.clone(), counter, signature);
-        let client_clone = self.client.clone();
-        tokio::spawn(async move {
-            debug!("creating scratchpad async");
-            client_clone.scratchpad_put(scratchpad, payment_option).await
-        });
-        Ok((AttoTokens::zero(), address))
+        match self.maybe_client.clone() {
+            Some(client) => {
+                tokio::spawn(async move {
+                    debug!("creating scratchpad async");
+                    client.scratchpad_put(scratchpad, payment_option).await
+                });
+                Ok((AttoTokens::zero(), address))
+            },
+            None => Err(ScratchpadError::Serialization)
+        }
     }
 
     pub async fn scratchpad_update_public(
@@ -445,19 +505,26 @@ impl CachingClient {
             version,
         ));
         let scratchpad = Scratchpad::new_with_signature(owner.public_key(), content_type, data.clone(), version, signature);
-        let client_clone = self.client.clone();
-        tokio::spawn(async move {
-            debug!("creating scratchpad async");
-            client_clone.scratchpad_put(scratchpad, payment_option).await
-        });
-        Ok(())
+        match self.maybe_client.clone() {
+            Some(client) => {
+                tokio::spawn(async move {
+                    debug!("creating scratchpad async");
+                    client.scratchpad_put(scratchpad, payment_option).await
+                });
+                Ok(())
+            },
+            None => Err(ScratchpadError::Serialization)
+        }
     }
 
     pub async fn scratchpad_check_existance(
         &self,
         address: &ScratchpadAddress,
     ) -> Result<bool, ScratchpadError> {
-        self.client.scratchpad_check_existence(address).await
+        match self.maybe_client.clone() {
+            Some(client) => client.scratchpad_check_existence(address).await,
+            None => Err(ScratchpadError::Serialization),
+        }
     }
 
     pub async fn scratchpad_update(
@@ -466,15 +533,19 @@ impl CachingClient {
         content_type: u64,
         data: &Bytes,
     ) -> Result<(), ScratchpadError> {
-        let client_clone = self.client.clone();
         let owner_clone = owner.clone();
         let data_clone = data.clone();
-        // todo: move to job processor
-        tokio::spawn(async move {
-            debug!("updating scratchpad async");
-            client_clone.scratchpad_update(&owner_clone, content_type, &data_clone).await
-        });
-        Ok(())
+        match self.maybe_client.clone() {
+            Some(client) => {
+                // todo: move to job processor
+                tokio::spawn(async move {
+                    debug!("updating scratchpad async");
+                    client.scratchpad_update(&owner_clone, content_type, &data_clone).await
+                });
+                Ok(())
+            },
+            None => Err(ScratchpadError::Serialization)
+        }
     }
 
     pub async fn scratchpad_get(&self, address: &ScratchpadAddress) -> Result<Scratchpad, ScratchpadError> {
@@ -498,18 +569,23 @@ impl CachingClient {
 
     async fn scratchpad_get_uncached(&self, address: &ScratchpadAddress) -> Result<Scratchpad, ScratchpadError> {
         debug!("getting uncached scratchpad for [{}] from network", address.to_hex());
-        match self.client.scratchpad_get(address).await {
-            Ok(scratchpad) => {
-                debug!("found scratchpad for address [{}]", address.to_hex());
-                self.client_cache_state.get_ref().scratchpad_cache.lock().unwrap().insert(address.clone(), CacheItem::new(Some(scratchpad.clone()), self.ant_tp_config.clone().cached_mutable_ttl));
-                Ok(scratchpad)
-            }
-            Err(e) => {
-                // cache mismatches to avoid repeated lookup
-                debug!("found no scratchpad for address [{}]", address.to_hex());
-                self.client_cache_state.get_ref().scratchpad_cache.lock().unwrap().insert(address.clone(), CacheItem::new(None, self.ant_tp_config.clone().cached_mutable_ttl));
-                Err(e)
-            }
+        match self.maybe_client.clone() {
+            Some(client) => {
+                match client.scratchpad_get(address).await {
+                    Ok(scratchpad) => {
+                        debug!("found scratchpad for address [{}]", address.to_hex());
+                        self.client_cache_state.get_ref().scratchpad_cache.lock().unwrap().insert(address.clone(), CacheItem::new(Some(scratchpad.clone()), self.ant_tp_config.clone().cached_mutable_ttl));
+                        Ok(scratchpad)
+                    }
+                    Err(e) => {
+                        // cache mismatches to avoid repeated lookup
+                        debug!("found no scratchpad for address [{}]", address.to_hex());
+                        self.client_cache_state.get_ref().scratchpad_cache.lock().unwrap().insert(address.clone(), CacheItem::new(None, self.ant_tp_config.clone().cached_mutable_ttl));
+                        Err(e)
+                    }
+                }
+            },
+            None => Err(ScratchpadError::Serialization)
         }
     }
 
@@ -518,14 +594,18 @@ impl CachingClient {
         chunk: &Chunk,
         payment_option: PaymentOption,
     ) -> Result<(AttoTokens, ChunkAddress), PutError> {
-        let client_clone = self.client.clone();
         let chunk_clone = chunk.clone();
-        // todo: move to job processor
-        tokio::spawn(async move {
-            debug!("creating chunk async");
-            client_clone.chunk_put(&chunk_clone, payment_option).await
-        });
-        Ok((AttoTokens::zero(), chunk.address))
+        match self.maybe_client.clone() {
+            Some(client) => {
+                // todo: move to job processor
+                tokio::spawn(async move {
+                    debug!("creating chunk async");
+                    client.chunk_put(&chunk_clone, payment_option).await
+                });
+                Ok((AttoTokens::zero(), chunk.address))
+            },
+            None => Err(PutError::Serialization(format!("network offline")))
+        }
     }
 
     pub async fn graph_entry_put(
@@ -533,14 +613,18 @@ impl CachingClient {
         entry: GraphEntry,
         payment_option: PaymentOption,
     ) -> Result<(AttoTokens, GraphEntryAddress), GraphError> {
-        let client_clone = self.client.clone();
         let address = entry.address();
-        // todo: move to job processor
-        tokio::spawn(async move {
-            debug!("creating graph entry async");
-            client_clone.graph_entry_put(entry, payment_option).await
-        });
-        Ok((AttoTokens::zero(), address))
+        match self.maybe_client.clone() {
+            Some(client) => {
+                // todo: move to job processor
+                tokio::spawn(async move {
+                    debug!("creating graph entry async");
+                    client.graph_entry_put(entry, payment_option).await
+                });
+                Ok((AttoTokens::zero(), address))
+            },
+            None => Err(GraphError::Serialization(format!("network offline")))
+        }
     }
 
     pub async fn graph_entry_get(
@@ -570,18 +654,23 @@ impl CachingClient {
         address: &GraphEntryAddress,
     ) -> Result<GraphEntry, GraphError> {
         debug!("getting uncached graph entry for [{}] from network", address.to_hex());
-        match self.client.graph_entry_get(address).await {
-            Ok(graph_entry) => {
-                debug!("found graph entry for address [{}]",  address.to_hex());
-                self.client_cache_state.get_ref().graph_entry_cache.lock().unwrap().insert(address.clone(), CacheItem::new(Some(graph_entry.clone()), self.ant_tp_config.clone().cached_mutable_ttl));
-                Ok(graph_entry)
-            }
-            Err(e) => {
-                // cache mismatches to avoid repeated lookup
-                debug!("found no graph entry for address [{}]", address.to_hex());
-                self.client_cache_state.get_ref().graph_entry_cache.lock().unwrap().insert(address.clone(), CacheItem::new(None, self.ant_tp_config.clone().cached_mutable_ttl));
-                Err(e)
-            }
+        match self.maybe_client.clone() {
+            Some(client) => {
+                match client.graph_entry_get(address).await {
+                    Ok(graph_entry) => {
+                        debug!("found graph entry for address [{}]",  address.to_hex());
+                        self.client_cache_state.get_ref().graph_entry_cache.lock().unwrap().insert(address.clone(), CacheItem::new(Some(graph_entry.clone()), self.ant_tp_config.clone().cached_mutable_ttl));
+                        Ok(graph_entry)
+                    }
+                    Err(e) => {
+                        // cache mismatches to avoid repeated lookup
+                        debug!("found no graph entry for address [{}]", address.to_hex());
+                        self.client_cache_state.get_ref().graph_entry_cache.lock().unwrap().insert(address.clone(), CacheItem::new(None, self.ant_tp_config.clone().cached_mutable_ttl));
+                        Err(e)
+                    }
+                }
+            },
+            None => Err(GraphError::Serialization(format!("network offline")))
         }
     }
 
@@ -644,6 +733,16 @@ impl CachingClient {
                 DataMapLevel::Additional(map) => Ok(map),
             },
             Err(e) => Err(ErrorInternalServerError(format!("data map format invalid [{}]", e)))
+        }
+    }
+    
+    pub async fn file_content_upload_public(&self, path: PathBuf, payment_option: PaymentOption) -> Result<(AttoTokens, DataAddress), UploadError> {
+        match self.maybe_client.clone() {
+            Some(client) => {
+                debug!("file content upload public async");
+                client.file_content_upload_public(path, payment_option).await
+            },
+            None => Err(UploadError::PutError(PutError::Serialization(format!("network offline"))))
         }
     }
 }

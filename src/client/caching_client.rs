@@ -88,7 +88,7 @@ impl ChunkGetter for CachingClient {
 
 impl CachingClient {
 
-    pub fn new(client: Option<Client>, ant_tp_config: AntTpConfig, client_cache_state: Data<ClientCacheState>, hybrid_cache: Data<HybridCache<String, Vec<u8>>>) -> Self {
+    pub fn new(maybe_client: Option<Client>, ant_tp_config: AntTpConfig, client_cache_state: Data<ClientCacheState>, hybrid_cache: Data<HybridCache<String, Vec<u8>>>) -> Self {
         let cache_dir = if ant_tp_config.map_cache_directory.is_empty() {
             env::temp_dir().to_str().unwrap().to_owned() + "/anttp/cache/"
         } else {
@@ -96,7 +96,7 @@ impl CachingClient {
         };
         CachingClient::create_tmp_dir(cache_dir.clone());
         Self {
-            maybe_client: client, cache_dir, ant_tp_config, client_cache_state, hybrid_cache,
+            maybe_client, cache_dir, ant_tp_config, client_cache_state, hybrid_cache,
         }
     }
 
@@ -127,7 +127,7 @@ impl CachingClient {
             Err(err) => Err(decode::Error::Uncategorized(format!("Failed to retrieve public archive at [{}] from hybrid cache: {:?}", archive_address.to_hex(), err))),
         }
     }
-    
+
     pub async fn archive_put_public(&self, archive: &PublicArchive, payment_option: PaymentOption) -> Result<(AttoTokens, ArchiveAddress), PutError> {
         match self.maybe_client.clone() {
             Some(client) => {
@@ -735,7 +735,7 @@ impl CachingClient {
             Err(e) => Err(ErrorInternalServerError(format!("data map format invalid [{}]", e)))
         }
     }
-    
+
     pub async fn file_content_upload_public(&self, path: PathBuf, payment_option: PaymentOption) -> Result<(AttoTokens, DataAddress), UploadError> {
         match self.maybe_client.clone() {
             Some(client) => {

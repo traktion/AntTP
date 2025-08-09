@@ -2,11 +2,9 @@ use actix_web::{web, HttpRequest, Responder};
 use actix_web::dev::ConnectionInfo;
 use actix_web::error::ErrorNotFound;
 use actix_web::web::Data;
-use autonomi::Client;
-use foyer::HybridCache;
 use log::info;
 use crate::config::anttp_config::AntTpConfig;
-use crate::{UploaderState, ClientCacheState, UploadState};
+use crate::{UploaderState, UploadState};
 use crate::service::public_archive_service::PublicArchiveService;
 use crate::client::caching_client::CachingClient;
 use crate::service::file_service::FileService;
@@ -15,17 +13,14 @@ use crate::service::resolver_service::ResolverService;
 pub async fn get_public_data(
     request: HttpRequest,
     path: web::Path<String>,
-    autonomi_client_data: Data<Option<Client>>,
+    caching_client_data: Data<CachingClient>,
     conn: ConnectionInfo,
     uploader_state_data: Data<UploaderState>,
     upload_state_data: Data<UploadState>,
-    client_cache_state_data: Data<ClientCacheState>,
     ant_tp_config_data: Data<AntTpConfig>,
-    hybrid_cache_data: Data<HybridCache<String, Vec<u8>>>,
 ) -> impl Responder {
     let ant_tp_config = ant_tp_config_data.get_ref().clone();
-    let autonomi_client = autonomi_client_data.get_ref().clone();
-    let caching_client = CachingClient::new(autonomi_client.clone(), ant_tp_config.clone(), client_cache_state_data, hybrid_cache_data);
+    let caching_client = caching_client_data.get_ref().clone();
     let resolver_service = ResolverService::new(ant_tp_config.clone(), caching_client.clone());
     let path_parts = get_path_parts(&conn.host(), &path.into_inner(), ant_tp_config.clone(), caching_client.clone());
     let (archive_addr, archive_file_name) = resolver_service.assign_path_parts(path_parts.clone());

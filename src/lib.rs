@@ -32,6 +32,7 @@ use foyer::{Compression, DirectFsDeviceOptions, Engine, HybridCache, HybridCache
 use tokio::task::JoinHandle;
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
+use crate::client::caching_client::CachingClient;
 
 static SERVER_HANDLE: Lazy<Mutex<Option<ServerHandle>>> = Lazy::new(|| Mutex::new(None));
 
@@ -77,7 +78,7 @@ impl ClientCacheState {
     }
 }
 
-pub async fn run_server(app_config: AntTpConfig) -> std::io::Result<()> {
+pub async fn run_server(ant_tp_config: AntTpConfig) -> std::io::Result<()> {
     #[derive(OpenApi)]
     #[openapi(paths(
         chunk_controller::get_chunk,
@@ -105,23 +106,23 @@ pub async fn run_server(app_config: AntTpConfig) -> std::io::Result<()> {
     ))]
     struct ApiDoc;
 
-    let listen_address = app_config.listen_address.clone();
-    let wallet_private_key = app_config.wallet_private_key.clone();
+    let listen_address = ant_tp_config.listen_address.clone();
+    let wallet_private_key = ant_tp_config.wallet_private_key.clone();
 
     // initialise safe network connection
-    let evm_network = match app_config.evm_network.to_lowercase().as_str() {
+    let evm_network = match ant_tp_config.evm_network.to_lowercase().as_str() {
         "local" => Network::new(true).unwrap(),
         "arbitrumsepoliatest" => ArbitrumSepoliaTest,
         _ => ArbitrumOne
     };
     let bootstrap_cache_config = Some(BootstrapCacheConfig::new(false).unwrap());
 
-    let initial_peers_config = if app_config.peers.clone().is_empty() {
+    let initial_peers_config = if ant_tp_config.peers.clone().is_empty() {
         InitialPeersConfig::default()
     } else {
         InitialPeersConfig {
             first: false,
-            addrs: app_config.peers.clone(),
+            addrs: ant_tp_config.peers.clone(),
             network_contacts_url: vec![],
             local: true,
             ignore_cache: false,
@@ -132,7 +133,7 @@ pub async fn run_server(app_config: AntTpConfig) -> std::io::Result<()> {
     let mut strategy = ClientOperatingStrategy::default();
     strategy.chunk_cache_enabled = false; // disable cache to avoid double-caching
 
-    let autonomi_client_data: Data<Option<Client>> = Data::new(match Client::init_with_config(ClientConfig {
+    let autonomi_client: Option<Client> = match Client::init_with_config(ClientConfig {
         bootstrap_cache_config: bootstrap_cache_config.clone(),
         init_peers_config: initial_peers_config,
         evm_network: evm_network.clone(),
@@ -146,7 +147,7 @@ pub async fn run_server(app_config: AntTpConfig) -> std::io::Result<()> {
             warn!("Failed to connect to Autonomi Network with error [{}]. Running in offline mode.", e);
             None
         },
-    });
+    };
 
     let evm_wallet = if !wallet_private_key.is_empty() {
         EvmWallet::new_from_private_key(evm_network, wallet_private_key.as_str())
@@ -159,8 +160,12 @@ pub async fn run_server(app_config: AntTpConfig) -> std::io::Result<()> {
     let upload_state = Data::new(UploadState::new());
     let client_cache_state = Data::new(ClientCacheState::new());
 
-    let hybrid_cache: HybridCache<String, Vec<u8>> = build_foyer_cache(&app_config).await;
+    let hybrid_cache: HybridCache<String, Vec<u8>> = build_foyer_cache(&ant_tp_config).await;
     let hybrid_cache_data = Data::new(hybrid_cache);
+
+    let caching_client_data = Data::new(
+        CachingClient::new(autonomi_client.clone(), ant_tp_config.clone(), client_cache_state.clone(), hybrid_cache_data.clone())
+    );
 
     info!("Starting listener");
 
@@ -214,8 +219,8 @@ pub async fn run_server(app_config: AntTpConfig) -> std::io::Result<()> {
                 "/{path:.*}",
                 web::get().to(file_controller::get_public_data),
             )
-            .app_data(Data::new(app_config.clone()))
-            .app_data(autonomi_client_data.clone())
+            .app_data(Data::new(ant_tp_config.clone()))
+            .app_data(caching_client_data.clone())
             .app_data(Data::new(AwcClient::default()))
             .app_data(Data::new(evm_wallet.clone()))
             .app_data(uploader_state.clone())
@@ -223,7 +228,7 @@ pub async fn run_server(app_config: AntTpConfig) -> std::io::Result<()> {
             .app_data(client_cache_state.clone())
             .app_data(hybrid_cache_data.clone());
 
-        if !app_config.uploads_disabled {
+        if !ant_tp_config.uploads_disabled {
             app = app
                 .route(
                     format!("{}chunk", API_BASE).as_str(),
@@ -278,10 +283,10 @@ pub async fn run_server(app_config: AntTpConfig) -> std::io::Result<()> {
                     web::post().to(graph_controller::post_graph_entry));
         };
 
-        if app_config.static_file_directory != "" {
+        if ant_tp_config.static_file_directory != "" {
             app.service(Files::new(
                 "/static",
-                app_config.static_file_directory.clone(),
+                ant_tp_config.static_file_directory.clone(),
             ))
         } else {
             app

@@ -19,7 +19,7 @@ use ant_evm::EvmNetwork::{ArbitrumOne, ArbitrumSepoliaTest};
 use ant_evm::{EvmWallet};
 use autonomi::files::archive_public::ArchiveAddress;
 use autonomi::register::{RegisterAddress, RegisterValue};
-use autonomi::{BootstrapCacheConfig, ClientConfig, ClientOperatingStrategy, GraphEntry, GraphEntryAddress, InitialPeersConfig, Network, Pointer, PointerAddress, Scratchpad, ScratchpadAddress};
+use autonomi::{BootstrapCacheConfig, ClientConfig, ClientOperatingStrategy, GraphEntry, GraphEntryAddress, InitialPeersConfig, Network, Scratchpad, ScratchpadAddress};
 use awc::Client as AwcClient;
 use config::anttp_config::AntTpConfig;
 use log::info;
@@ -62,7 +62,6 @@ impl UploaderState {
 }
 
 pub struct ClientCacheState {
-    pointer_cache: Mutex<HashMap<PointerAddress, CacheItem<Pointer>>>,
     register_cache: Mutex<HashMap<RegisterAddress, CacheItem<RegisterValue>>>,
     scratchpad_cache: Mutex<HashMap<ScratchpadAddress, CacheItem<Scratchpad>>>,
     graph_entry_cache: Mutex<HashMap<GraphEntryAddress, CacheItem<GraphEntry>>>,
@@ -71,7 +70,6 @@ pub struct ClientCacheState {
 impl ClientCacheState {
     pub fn new() -> Self {
         ClientCacheState {
-            pointer_cache: Mutex::new(HashMap::new()),
             register_cache: Mutex::new(HashMap::new()),
             scratchpad_cache: Mutex::new(HashMap::new()),
             graph_entry_cache: Mutex::new(HashMap::new()),
@@ -153,35 +151,7 @@ pub async fn run_server(app_config: AntTpConfig) -> std::io::Result<()> {
     let upload_state = Data::new(UploadState::new());
     let client_cache_state = Data::new(ClientCacheState::new());
 
-    let cache_dir = if app_config.map_cache_directory.is_empty() {
-        env::temp_dir().to_str().unwrap().to_owned() + "/anttp/cache/"
-    } else {
-        app_config.map_cache_directory.clone()
-    };
-    let hybrid_cache: HybridCache<String, Vec<u8>> = HybridCacheBuilder::new()
-        .with_name("anttp-hybrid-cache")
-        .with_flush_on_close(true)
-        .with_policy(HybridCachePolicy::WriteOnInsertion)
-        .memory(app_config.immutable_memory_cache_size)
-        .with_shards(4)
-        .with_eviction_config(LfuConfig::default())
-        .storage(Engine::Large(LargeEngineOptions::default())) // use large object disk cache engine only
-        .with_device_options(DirectFsDeviceOptions::new(Path::new(cache_dir.as_str()))
-            .with_capacity(app_config.immutable_disk_cache_size * 1024 * 1024))
-        .with_recover_mode(RecoverMode::Quiet)
-        .with_compression(Compression::None) // as chunks are already compressed
-        .with_runtime_options(RuntimeOptions::Separated {
-            read_runtime_options: TokioRuntimeOptions {
-                worker_threads: app_config.download_threads,
-                max_blocking_threads: 8,
-            },
-            write_runtime_options: TokioRuntimeOptions {
-                worker_threads: app_config.download_threads,
-                max_blocking_threads: 8,
-            },
-        })
-        .build()
-        .await.unwrap();
+    let hybrid_cache: HybridCache<String, Vec<u8>> = build_foyer_cache(&app_config).await;
     let hybrid_cache_data = Data::new(hybrid_cache);
 
     info!("Starting listener");
@@ -318,6 +288,38 @@ pub async fn run_server(app_config: AntTpConfig) -> std::io::Result<()> {
     }
 
     server_instance.await
+}
+
+async fn build_foyer_cache(app_config: &AntTpConfig) -> HybridCache<String, Vec<u8>> {
+    let cache_dir = if app_config.map_cache_directory.is_empty() {
+        env::temp_dir().to_str().unwrap().to_owned() + "/anttp/cache/"
+    } else {
+        app_config.map_cache_directory.clone()
+    };
+    HybridCacheBuilder::new()
+        .with_name("anttp-hybrid-cache")
+        .with_flush_on_close(true)
+        .with_policy(HybridCachePolicy::WriteOnInsertion)
+        .memory(app_config.immutable_memory_cache_size)
+        .with_shards(4)
+        .with_eviction_config(LfuConfig::default())
+        .storage(Engine::Large(LargeEngineOptions::default())) // use large object disk cache engine only
+        .with_device_options(DirectFsDeviceOptions::new(Path::new(cache_dir.as_str()))
+            .with_capacity(app_config.immutable_disk_cache_size * 1024 * 1024))
+        .with_recover_mode(RecoverMode::Quiet)
+        .with_compression(Compression::None) // as chunks are already compressed
+        .with_runtime_options(RuntimeOptions::Separated {
+            read_runtime_options: TokioRuntimeOptions {
+                worker_threads: app_config.download_threads,
+                max_blocking_threads: 8,
+            },
+            write_runtime_options: TokioRuntimeOptions {
+                worker_threads: app_config.download_threads,
+                max_blocking_threads: 8,
+            },
+        })
+        .build()
+        .await.unwrap()
 }
 
 pub async fn stop_server() -> Result<(), String> {

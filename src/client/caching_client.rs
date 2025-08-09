@@ -17,7 +17,7 @@ use autonomi::register::{RegisterAddress, RegisterError, RegisterHistory, Regist
 use autonomi::scratchpad::{Scratchpad, ScratchpadError};
 use chunk_streamer::chunk_streamer::{ChunkGetter, ChunkStreamer};
 use foyer::HybridCache;
-use log::{debug, error, info};
+use log::{debug, error, info, warn};
 use rmp_serde::decode;
 use crate::{ClientCacheState};
 use crate::client::cache_item::CacheItem;
@@ -228,51 +228,49 @@ impl CachingClient {
     }
 
     pub async fn pointer_get(&self, address: &PointerAddress) -> Result<Pointer, PointerError> {
-        if self.client_cache_state.get_ref().pointer_cache.lock().unwrap().contains_key(address)
-            && !self.client_cache_state.get_ref().pointer_cache.lock().unwrap().get(address).unwrap().has_expired() {
-            debug!("getting cached pointer for [{}] from memory", address.to_hex());
-            match self.client_cache_state.get_ref().pointer_cache.lock().unwrap().get(address) {
-                Some(cache_item) => {
-                    debug!("getting cached pointer for [{}] from memory", address.to_hex());
-                    match cache_item.item.clone() {
-                        Some(pointer) => Ok(pointer),
-                        None => Err(PointerError::Serialization)
-                    }
-                }
-                None => Err(PointerError::Serialization)
+        let local_client = self.client.clone();
+        let local_address = address.clone();
+        let local_hybrid_cache = self.hybrid_cache.clone();
+        let local_ant_tp_config = self.ant_tp_config.clone();
+        match self.hybrid_cache.get_ref().fetch(format!("pg{}", local_address.to_hex()), || async move {
+            match local_client.pointer_get(&local_address).await {
+                Ok(pointer) => {
+                    debug!("found pointer [{}] for address [{}]", hex::encode(pointer.target().to_hex()), local_address.to_hex());
+                    info!("hybrid cache stats [{:?}], memory cache usage [{:?}]", local_hybrid_cache.statistics(), local_hybrid_cache.memory().usage());
+                    let cache_item = CacheItem::new(Some(pointer.clone()), local_ant_tp_config.cached_mutable_ttl);
+                    Ok(rmp_serde::to_vec(&cache_item).expect("Failed to serialize pointer"))
+                },
+                Err(_) => Err(foyer::Error::other(format!("Failed to retrieve pointer for [{}] from network", local_address.to_hex())))
             }
-        } else {
-            self.pointer_get_uncached(address).await
-        }
-    }
+        }).await {
+            Ok(cache_entry) => {
+                let cache_item: CacheItem<Pointer> = rmp_serde::from_slice(cache_entry.value()).expect("Failed to deserialize pointer");
+                info!("retrieved pointer for [{}] from hybrid cache", address.to_hex());
+                if cache_item.has_expired() {
+                    // update cache in the background
+                    let local_client = self.client.clone();
+                    let local_address = address.clone();
+                    let local_hybrid_cache = self.hybrid_cache.clone();
+                    tokio::spawn(async move {
+                        info!("refreshing hybrid cache with pointer for [{}] from network, timestamp [{}], ttl [{}]", local_address.to_hex(), cache_item.timestamp, cache_item.ttl);
+                        match local_client.pointer_get(&local_address).await {
+                            Ok(pointer) => {
+                                let new_cache_item = CacheItem::new(Some(pointer.clone()), local_ant_tp_config.cached_mutable_ttl);
+                                local_hybrid_cache.insert(
+                                    format!("pg{}", local_address.to_hex()),
+                                    rmp_serde::to_vec(&new_cache_item).expect("Failed to serialize pointer")
+                                );
+                                info!("inserted hybrid cache with pointer for [{}] from network", local_address.to_hex());
 
-    async fn pointer_get_uncached(&self, address: &PointerAddress) -> Result<Pointer, PointerError> {
-        debug!("getting uncached pointer for [{}] from network", address.to_hex());
-        match self.client.pointer_get(address).await {
-            Ok(pointer) => {
-                debug!("found pointer [{}] for address [{}]", hex::encode(pointer.target().to_hex()), address.to_hex());
-                self.client_cache_state.get_ref().pointer_cache.lock().unwrap().insert(address.clone(), CacheItem::new(Some(pointer.clone()), self.ant_tp_config.clone().cached_mutable_ttl));
-                Ok(pointer)
-            }
-            Err(e) => {
-                debug!("found no pointer for address [{}]", address.to_hex());
-                if self.client_cache_state.get_ref().pointer_cache.lock().unwrap().contains_key(address) {
-                    debug!("getting stale cached pointer for [{}] from memory", address.to_hex());
-                    match self.client_cache_state.get_ref().pointer_cache.lock().unwrap().get(address) {
-                        Some(cache_item) => {
-                            match cache_item.item.clone() {
-                                Some(pointer) => Ok(pointer),
-                                None => Err(PointerError::Serialization)
-                            }
+                            },
+                            Err(e) => warn!("Failed to refresh expired pointer for [{}] from network [{}]", local_address.to_hex(), e)
                         }
-                        None => Err(PointerError::Serialization)
-                    }
-                } else {
-                    // cache mismatches to avoid repeated lookup
-                    self.client_cache_state.get_ref().pointer_cache.lock().unwrap().insert(address.clone(), CacheItem::new(None, self.ant_tp_config.clone().cached_mutable_ttl));
-                    Err(e)
+                    });
                 }
-            }
+                // return last value
+                Ok(cache_item.item.unwrap())
+            },
+            Err(_) => Err(PointerError::GetError(GetError::RecordNotFound)),
         }
     }
 

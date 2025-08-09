@@ -1,5 +1,7 @@
 use std::time::{SystemTime, UNIX_EPOCH};
+use serde::{Deserialize, Serialize};
 
+#[derive(Serialize,Deserialize)]
 pub struct CacheItem<T> {
     pub item: Option<T>,
     pub ttl: u64,

@@ -3,7 +3,6 @@ pub mod config;
 pub mod controller;
 pub mod service;
 
-use crate::client::cache_item::CacheItem;
 use crate::controller::{
     chunk_controller, file_controller, pointer_controller, private_scratchpad_controller,
     public_archive_controller, public_scratchpad_controller, register_controller,
@@ -18,8 +17,7 @@ use actix_web::{App, HttpServer, middleware::Logger, web, middleware};
 use ant_evm::EvmNetwork::{ArbitrumOne, ArbitrumSepoliaTest};
 use ant_evm::{EvmWallet};
 use autonomi::files::archive_public::ArchiveAddress;
-use autonomi::register::{RegisterAddress, RegisterValue};
-use autonomi::{BootstrapCacheConfig, ClientConfig, ClientOperatingStrategy, GraphEntry, GraphEntryAddress, InitialPeersConfig, Network, Scratchpad, ScratchpadAddress};
+use autonomi::{BootstrapCacheConfig, ClientConfig, ClientOperatingStrategy, InitialPeersConfig, Network};
 use awc::Client as AwcClient;
 use config::anttp_config::AntTpConfig;
 use log::{info, warn};
@@ -58,22 +56,6 @@ impl UploaderState {
     pub fn new() -> Self {
         UploaderState {
             uploader_map: Mutex::new(HashMap::<String, JoinHandle<Option<ArchiveAddress>>>::new()),
-        }
-    }
-}
-
-pub struct ClientCacheState {
-    register_cache: Mutex<HashMap<RegisterAddress, CacheItem<RegisterValue>>>,
-    scratchpad_cache: Mutex<HashMap<ScratchpadAddress, CacheItem<Scratchpad>>>,
-    graph_entry_cache: Mutex<HashMap<GraphEntryAddress, CacheItem<GraphEntry>>>,
-}
-
-impl ClientCacheState {
-    pub fn new() -> Self {
-        ClientCacheState {
-            register_cache: Mutex::new(HashMap::new()),
-            scratchpad_cache: Mutex::new(HashMap::new()),
-            graph_entry_cache: Mutex::new(HashMap::new()),
         }
     }
 }
@@ -158,13 +140,12 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> std::io::Result<()> {
 
     let uploader_state = Data::new(UploaderState::new());
     let upload_state = Data::new(UploadState::new());
-    let client_cache_state = Data::new(ClientCacheState::new());
 
     let hybrid_cache: HybridCache<String, Vec<u8>> = build_foyer_cache(&ant_tp_config).await;
     let hybrid_cache_data = Data::new(hybrid_cache);
 
     let caching_client_data = Data::new(
-        CachingClient::new(autonomi_client.clone(), ant_tp_config.clone(), client_cache_state.clone(), hybrid_cache_data.clone())
+        CachingClient::new(autonomi_client.clone(), ant_tp_config.clone(), hybrid_cache_data.clone())
     );
 
     info!("Starting listener");
@@ -225,7 +206,6 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> std::io::Result<()> {
             .app_data(Data::new(evm_wallet.clone()))
             .app_data(uploader_state.clone())
             .app_data(upload_state.clone())
-            .app_data(client_cache_state.clone())
             .app_data(hybrid_cache_data.clone());
 
         if !ant_tp_config.uploads_disabled {

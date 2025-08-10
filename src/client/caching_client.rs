@@ -21,7 +21,6 @@ use chunk_streamer::chunk_streamer::{ChunkGetter, ChunkStreamer};
 use foyer::HybridCache;
 use log::{debug, error, info, warn};
 use rmp_serde::decode;
-use crate::{ClientCacheState};
 use crate::client::cache_item::CacheItem;
 use crate::config::anttp_config::AntTpConfig;
 use bytes::{BufMut, Bytes, BytesMut};
@@ -46,7 +45,6 @@ pub struct CachingClient {
     maybe_client: Option<Client>,
     cache_dir: String,
     ant_tp_config: AntTpConfig,
-    client_cache_state: Data<ClientCacheState>,
     hybrid_cache: Data<HybridCache<String, Vec<u8>>>,
 }
 
@@ -88,7 +86,7 @@ impl ChunkGetter for CachingClient {
 
 impl CachingClient {
 
-    pub fn new(maybe_client: Option<Client>, ant_tp_config: AntTpConfig, client_cache_state: Data<ClientCacheState>, hybrid_cache: Data<HybridCache<String, Vec<u8>>>) -> Self {
+    pub fn new(maybe_client: Option<Client>, ant_tp_config: AntTpConfig, hybrid_cache: Data<HybridCache<String, Vec<u8>>>) -> Self {
         let cache_dir = if ant_tp_config.map_cache_directory.is_empty() {
             env::temp_dir().to_str().unwrap().to_owned() + "/anttp/cache/"
         } else {
@@ -96,7 +94,7 @@ impl CachingClient {
         };
         CachingClient::create_tmp_dir(cache_dir.clone());
         Self {
-            maybe_client, cache_dir, ant_tp_config, client_cache_state, hybrid_cache,
+            maybe_client, cache_dir, ant_tp_config, hybrid_cache,
         }
     }
 
@@ -354,56 +352,58 @@ impl CachingClient {
     }
 
     pub async fn register_get(&self, address: &RegisterAddress) -> Result<RegisterValue, RegisterError> {
-        if self.client_cache_state.get_ref().register_cache.lock().unwrap().contains_key(address)
-            && !self.client_cache_state.get_ref().register_cache.lock().unwrap().get(address).unwrap().has_expired() {
-            debug!("getting cached register for [{}] from memory", address.to_hex());
-            match self.client_cache_state.get_ref().register_cache.lock().unwrap().get(address) {
-                Some(cache_item) => {
-                    debug!("getting cached register for [{}] from memory", address.to_hex());
-                    match cache_item.item.clone() {
-                        Some(register_value) => Ok(register_value),
-                        None => Err(RegisterError::PointerError(PointerError::Serialization))
-                    }
-                }
-                None => Err(RegisterError::PointerError(PointerError::Serialization))
-            }
-        } else {
-            self.register_get_uncached(address).await
-        }
-    }
-
-    async fn register_get_uncached(&self, address: &RegisterAddress) -> Result<RegisterValue, RegisterError> {
-        debug!("getting uncached register for [{}] from network", address.to_hex());
-        match self.maybe_client.clone() {
-            Some(client) => {
-                match client.register_get(address).await {
-                    Ok(register_value) => {
-                        debug!("found register value [{}] for address [{}]", hex::encode(register_value), address.to_hex());
-                        self.client_cache_state.get_ref().register_cache.lock().unwrap().insert(address.clone(), CacheItem::new(Some(register_value.clone()), self.ant_tp_config.clone().cached_mutable_ttl));
-                        Ok(register_value)
-                    },
-                    Err(e) => {
-                        debug!("found no register value for address [{}]", address.to_hex());
-                        if self.client_cache_state.get_ref().register_cache.lock().unwrap().contains_key(address) {
-                            debug!("getting stale cached register for [{}] from memory", address.to_hex());
-                            match self.client_cache_state.get_ref().register_cache.lock().unwrap().get(address) {
-                                Some(cache_item) => {
-                                    match cache_item.item.clone() {
-                                        Some(register_value) => Ok(register_value),
-                                        None => Err(RegisterError::PointerError(PointerError::Serialization))
-                                    }
-                                }
-                                None => Err(RegisterError::PointerError(PointerError::Serialization))
-                            }
-                        } else {
-                            // cache mismatches to avoid repeated lookup
-                            self.client_cache_state.get_ref().register_cache.lock().unwrap().insert(address.clone(), CacheItem::new(None, self.ant_tp_config.clone().cached_mutable_ttl));
-                            Err(e)
+        let local_client = self.maybe_client.clone();
+        let local_address = address.clone();
+        let local_hybrid_cache = self.hybrid_cache.clone();
+        let local_ant_tp_config = self.ant_tp_config.clone();
+        match self.hybrid_cache.get_ref().fetch(format!("rg{}", local_address.to_hex()), || async move {
+            match local_client {
+                Some(client) => {
+                    match client.register_get(&local_address).await {
+                        Ok(register_value) => {
+                            debug!("found register value [{}] for address [{}] from network", hex::encode(register_value.clone()), local_address.to_hex());
+                            info!("hybrid cache stats [{:?}], memory cache usage [{:?}]", local_hybrid_cache.statistics(), local_hybrid_cache.memory().usage());
+                            let cache_item = CacheItem::new(Some(register_value.clone()), local_ant_tp_config.cached_mutable_ttl);
+                            Ok(rmp_serde::to_vec(&cache_item).expect("Failed to serialize register"))
                         }
+                        Err(_) => Err(foyer::Error::other(format!("Failed to retrieve register for [{}] from network", local_address.to_hex())))
                     }
+                },
+                None => Err(foyer::Error::other(format!("Failed to retrieve register for [{}] from offline network", local_address.to_hex())))
+            }
+        }).await {
+            Ok(cache_entry) => {
+                let cache_item: CacheItem<RegisterValue> = rmp_serde::from_slice(cache_entry.value()).expect("Failed to deserialize register");
+                info!("retrieved register for [{}] from hybrid cache", address.to_hex());
+                if cache_item.has_expired() {
+                    // update cache in the background
+                    let local_client = self.maybe_client.clone();
+                    let local_address = address.clone();
+                    let local_hybrid_cache = self.hybrid_cache.clone();
+                    tokio::spawn(async move {
+                        match local_client {
+                            Some(client) => {
+                                info!("refreshing hybrid cache with register for [{}] from network, timestamp [{}], ttl [{}]", local_address.to_hex(), cache_item.timestamp, cache_item.ttl);
+                                match client.register_get(&local_address).await {
+                                    Ok(register_value) => {
+                                        let new_cache_item = CacheItem::new(Some(register_value.clone()), local_ant_tp_config.cached_mutable_ttl);
+                                        local_hybrid_cache.insert(
+                                            format!("rg{}", local_address.to_hex()),
+                                            rmp_serde::to_vec(&new_cache_item).expect("Failed to serialize register")
+                                        );
+                                        info!("inserted hybrid cache with register for [{}] from network", local_address.to_hex());
+                                    }
+                                    Err(e) => warn!("Failed to refresh expired register for [{}] from network [{}]", local_address.to_hex(), e)
+                                }
+                            },
+                            None => warn!("Failed to refresh expired register for [{}] from offline network", local_address.to_hex())
+                        }
+                    });
                 }
+                // return last value
+                Ok(cache_item.item.unwrap())
             },
-            None => Err(RegisterError::PointerError(PointerError::Serialization))
+            Err(_) => Err(RegisterError::CannotUpdateNewRegister),
         }
     }
 
@@ -549,43 +549,58 @@ impl CachingClient {
     }
 
     pub async fn scratchpad_get(&self, address: &ScratchpadAddress) -> Result<Scratchpad, ScratchpadError> {
-        if self.client_cache_state.get_ref().scratchpad_cache.lock().unwrap().contains_key(address)
-            && !self.client_cache_state.get_ref().scratchpad_cache.lock().unwrap().get(address).unwrap().has_expired() {
-            debug!("getting cached scratchpad for [{}] from memory", address.to_hex());
-            match self.client_cache_state.get_ref().scratchpad_cache.lock().unwrap().get(address) {
-                Some(cache_item) => {
-                    debug!("getting cached scratchpad for [{}] from memory", address.to_hex());
-                    match cache_item.item.clone() {
-                        Some(scratchpad) => Ok(scratchpad),
-                        None => Err(ScratchpadError::Serialization)
+        let local_client = self.maybe_client.clone();
+        let local_address = address.clone();
+        let local_hybrid_cache = self.hybrid_cache.clone();
+        let local_ant_tp_config = self.ant_tp_config.clone();
+        match self.hybrid_cache.get_ref().fetch(format!("sg{}", local_address.to_hex()), || async move {
+            match local_client {
+                Some(client) => {
+                    match client.scratchpad_get(&local_address).await {
+                        Ok(scratchpad) => {
+                            debug!("found scratchpad for address [{}]", local_address.to_hex());
+                            info!("hybrid cache stats [{:?}], memory cache usage [{:?}]", local_hybrid_cache.statistics(), local_hybrid_cache.memory().usage());
+                            let cache_item = CacheItem::new(Some(scratchpad.clone()), local_ant_tp_config.cached_mutable_ttl);
+                            Ok(rmp_serde::to_vec(&cache_item).expect("Failed to serialize scratchpad"))
+                        }
+                        Err(_) => Err(foyer::Error::other(format!("Failed to retrieve scratchpad for [{}] from network", local_address.to_hex())))
                     }
-                }
-                None => Err(ScratchpadError::Serialization)
+                },
+                None => Err(foyer::Error::other(format!("Failed to retrieve scratchpad for [{}] from offline network", local_address.to_hex())))
             }
-        } else {
-            self.scratchpad_get_uncached(address).await
-        }
-    }
-
-    async fn scratchpad_get_uncached(&self, address: &ScratchpadAddress) -> Result<Scratchpad, ScratchpadError> {
-        debug!("getting uncached scratchpad for [{}] from network", address.to_hex());
-        match self.maybe_client.clone() {
-            Some(client) => {
-                match client.scratchpad_get(address).await {
-                    Ok(scratchpad) => {
-                        debug!("found scratchpad for address [{}]", address.to_hex());
-                        self.client_cache_state.get_ref().scratchpad_cache.lock().unwrap().insert(address.clone(), CacheItem::new(Some(scratchpad.clone()), self.ant_tp_config.clone().cached_mutable_ttl));
-                        Ok(scratchpad)
-                    }
-                    Err(e) => {
-                        // cache mismatches to avoid repeated lookup
-                        debug!("found no scratchpad for address [{}]", address.to_hex());
-                        self.client_cache_state.get_ref().scratchpad_cache.lock().unwrap().insert(address.clone(), CacheItem::new(None, self.ant_tp_config.clone().cached_mutable_ttl));
-                        Err(e)
-                    }
+        }).await {
+            Ok(cache_entry) => {
+                let cache_item: CacheItem<Scratchpad> = rmp_serde::from_slice(cache_entry.value()).expect("Failed to deserialize scratchpad");
+                info!("retrieved scratchpad for [{}] from hybrid cache", address.to_hex());
+                if cache_item.has_expired() {
+                    // update cache in the background
+                    let local_client = self.maybe_client.clone();
+                    let local_address = address.clone();
+                    let local_hybrid_cache = self.hybrid_cache.clone();
+                    tokio::spawn(async move {
+                        match local_client {
+                            Some(client) => {
+                                info!("refreshing hybrid cache with scratchpad for [{}] from network, timestamp [{}], ttl [{}]", local_address.to_hex(), cache_item.timestamp, cache_item.ttl);
+                                match client.scratchpad_get(&local_address).await {
+                                    Ok(scratchpad) => {
+                                        let new_cache_item = CacheItem::new(Some(scratchpad.clone()), local_ant_tp_config.cached_mutable_ttl);
+                                        local_hybrid_cache.insert(
+                                            format!("sg{}", local_address.to_hex()),
+                                            rmp_serde::to_vec(&new_cache_item).expect("Failed to serialize scratchpad")
+                                        );
+                                        info!("inserted hybrid cache with scratchpad for [{}] from network", local_address.to_hex());
+                                    }
+                                    Err(e) => warn!("Failed to refresh expired scratchpad for [{}] from network [{}]", local_address.to_hex(), e)
+                                }
+                            },
+                            None => warn!("Failed to refresh expired scratchpad for [{}] from offline network", local_address.to_hex())
+                        }
+                    });
                 }
+                // return last value
+                Ok(cache_item.item.unwrap())
             },
-            None => Err(ScratchpadError::Serialization)
+            Err(_) => Err(ScratchpadError::Serialization),
         }
     }
 
@@ -631,46 +646,58 @@ impl CachingClient {
         &self,
         address: &GraphEntryAddress,
     ) -> Result<GraphEntry, GraphError> {
-        if self.client_cache_state.get_ref().graph_entry_cache.lock().unwrap().contains_key(address)
-            && !self.client_cache_state.get_ref().graph_entry_cache.lock().unwrap().get(address).unwrap().has_expired() {
-            debug!("getting cached graph for [{}] from memory", address.to_hex());
-            match self.client_cache_state.get_ref().graph_entry_cache.lock().unwrap().get(address) {
-                Some(cache_item) => {
-                    debug!("getting cached graph for [{}] from memory", address.to_hex());
-                    match cache_item.item.clone() {
-                        Some(graph) => Ok(graph),
-                        None => Err(GraphError::Serialization("Failed to fetch item from cache".to_string()))
+        let local_client = self.maybe_client.clone();
+        let local_address = address.clone();
+        let local_hybrid_cache = self.hybrid_cache.clone();
+        let local_ant_tp_config = self.ant_tp_config.clone();
+        match self.hybrid_cache.get_ref().fetch(format!("gg{}", local_address.to_hex()), || async move {
+            match local_client {
+                Some(client) => {
+                    match client.graph_entry_get(&local_address).await {
+                        Ok(scratchpad) => {
+                            debug!("found graph entry for address [{}]", local_address.to_hex());
+                            info!("hybrid cache stats [{:?}], memory cache usage [{:?}]", local_hybrid_cache.statistics(), local_hybrid_cache.memory().usage());
+                            let cache_item = CacheItem::new(Some(scratchpad.clone()), local_ant_tp_config.cached_mutable_ttl);
+                            Ok(rmp_serde::to_vec(&cache_item).expect("Failed to serialize graph entry"))
+                        }
+                        Err(_) => Err(foyer::Error::other(format!("Failed to retrieve graph entry for [{}] from network", local_address.to_hex())))
                     }
-                }
-                None => Err(GraphError::Serialization("Failed to find item in cache".to_string()))
+                },
+                None => Err(foyer::Error::other(format!("Failed to retrieve graph entry for [{}] from offline network", local_address.to_hex())))
             }
-        } else {
-            self.graph_entry_get_uncached(address).await
-        }
-    }
-
-    pub async fn graph_entry_get_uncached(
-        &self,
-        address: &GraphEntryAddress,
-    ) -> Result<GraphEntry, GraphError> {
-        debug!("getting uncached graph entry for [{}] from network", address.to_hex());
-        match self.maybe_client.clone() {
-            Some(client) => {
-                match client.graph_entry_get(address).await {
-                    Ok(graph_entry) => {
-                        debug!("found graph entry for address [{}]",  address.to_hex());
-                        self.client_cache_state.get_ref().graph_entry_cache.lock().unwrap().insert(address.clone(), CacheItem::new(Some(graph_entry.clone()), self.ant_tp_config.clone().cached_mutable_ttl));
-                        Ok(graph_entry)
-                    }
-                    Err(e) => {
-                        // cache mismatches to avoid repeated lookup
-                        debug!("found no graph entry for address [{}]", address.to_hex());
-                        self.client_cache_state.get_ref().graph_entry_cache.lock().unwrap().insert(address.clone(), CacheItem::new(None, self.ant_tp_config.clone().cached_mutable_ttl));
-                        Err(e)
-                    }
+        }).await {
+            Ok(cache_entry) => {
+                let cache_item: CacheItem<GraphEntry> = rmp_serde::from_slice(cache_entry.value()).expect("Failed to deserialize graph entry");
+                info!("retrieved graph entry for [{}] from hybrid cache", address.to_hex());
+                if cache_item.has_expired() {
+                    // update cache in the background
+                    let local_client = self.maybe_client.clone();
+                    let local_address = address.clone();
+                    let local_hybrid_cache = self.hybrid_cache.clone();
+                    tokio::spawn(async move {
+                        match local_client {
+                            Some(client) => {
+                                info!("refreshing hybrid cache with graph entry for [{}] from network, timestamp [{}], ttl [{}]", local_address.to_hex(), cache_item.timestamp, cache_item.ttl);
+                                match client.graph_entry_get(&local_address).await {
+                                    Ok(scratchpad) => {
+                                        let new_cache_item = CacheItem::new(Some(scratchpad.clone()), local_ant_tp_config.cached_mutable_ttl);
+                                        local_hybrid_cache.insert(
+                                            format!("gg{}", local_address.to_hex()),
+                                            rmp_serde::to_vec(&new_cache_item).expect("Failed to serialize graph entry")
+                                        );
+                                        info!("inserted hybrid cache with graph entry for [{}] from network", local_address.to_hex());
+                                    }
+                                    Err(e) => warn!("Failed to refresh expired graph entry for [{}] from network [{}]", local_address.to_hex(), e)
+                                }
+                            },
+                            None => warn!("Failed to refresh expired graph entry for [{}] from offline network", local_address.to_hex())
+                        }
+                    });
                 }
+                // return last value
+                Ok(cache_item.item.unwrap())
             },
-            None => Err(GraphError::Serialization(format!("network offline")))
+            Err(_) => Err(GraphError::Serialization(format!("network offline"))),
         }
     }
 

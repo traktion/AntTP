@@ -1,3 +1,4 @@
+use actix_http::header;
 use actix_web::{Error, HttpResponse};
 use actix_web::error::{ErrorInternalServerError};
 use actix_web::http::header::{ContentLength, ContentType};
@@ -80,6 +81,7 @@ impl ChunkService {
                 Ok(HttpResponse::Ok()
                     .insert_header(ContentType::octet_stream())
                     .insert_header(ContentLength(chunk.size()))
+                    .insert_header((header::SERVER, format!("{}/{}", env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION"))))
                     .body(chunk.value))
             }
             Err(e) => {

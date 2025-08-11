@@ -44,11 +44,13 @@ impl<T: ChunkGetter> FileService<T> {
             let expires_header = self.build_expires_header(&resolved_address.xor_name, resolved_address.is_mutable);
             let etag_header = ETag(EntityTag::new_strong(format!("{:x}", resolved_address.xor_name).to_owned()));
             let cors_allow_all = (header::ACCESS_CONTROL_ALLOW_ORIGIN, "*");
+            let server_header = (header::SERVER, format!("{}/{}", env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION")));
             Ok(HttpResponse::NotModified()
                 .insert_header(cache_control_header)
                 .insert_header(expires_header)
                 .insert_header(etag_header)
                 .insert_header(cors_allow_all)
+                .insert_header(server_header)
                 .finish())
         } else {
             self.download_data_stream(archive_relative_path, resolved_address.xor_name, resolved_address, &request,  0, 0).await
@@ -93,6 +95,7 @@ impl<T: ChunkGetter> FileService<T> {
         
         let etag_header = ETag(EntityTag::new_strong(format!("{:x}", xor_name).to_owned()));
         let cors_allow_all = (header::ACCESS_CONTROL_ALLOW_ORIGIN, "*");
+        let server_header = (header::SERVER, format!("{}/{}", env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION")));
         
         let cache_control_header = self.build_cache_control_header(&xor_name, resolved_address.is_mutable);
         let expires_header = self.build_expires_header(&xor_name, resolved_address.is_mutable);
@@ -105,6 +108,7 @@ impl<T: ChunkGetter> FileService<T> {
                 .insert_header(etag_header)
                 .insert_header(cors_allow_all)
                 .insert_header(self.get_content_type_from_filename(extension))
+                .insert_header(server_header)
                 .streaming(chunk_receiver))
         } else {
             Ok(HttpResponse::Ok()
@@ -114,6 +118,7 @@ impl<T: ChunkGetter> FileService<T> {
                 .insert_header(etag_header)
                 .insert_header(cors_allow_all)
                 .insert_header(self.get_content_type_from_filename(extension))
+                .insert_header(server_header)
                 .streaming(chunk_receiver))
         }
     }

@@ -74,6 +74,7 @@ impl PublicArchiveService {
         let archive_helper = ArchiveHelper::new(archive.clone(), self.ant_tp_config.clone());
         let archive_info = archive_helper.resolve_archive_info(path_parts, request.clone(), resolved_relative_path_route.clone(), has_route_map, self.caching_client.clone()).await;
 
+        let server_header = (header::SERVER, format!("{}/{}", env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION")));
         if archive_info.state == DataState::NotModified {
             debug!("ETag matches for path [{}] at address [{}]. Client can use cached version", archive_info.path_string, format!("{:x}", archive_info.resolved_xor_addr));
             Ok(HttpResponse::NotModified().into())
@@ -81,6 +82,7 @@ impl PublicArchiveService {
             debug!("Redirect to archive directory [{}]", request.path().to_string() + "/");
             Ok(HttpResponse::MovedPermanently()
                 .insert_header((header::LOCATION, request.path().to_string() + "/"))
+                .insert_header(server_header)
                 .finish())
         } else if archive_info.action == ArchiveAction::NotFound {
             debug!("Path not found {:?}", archive_info.path_string);
@@ -91,6 +93,7 @@ impl PublicArchiveService {
             Ok(HttpResponse::Ok()
                 .insert_header(ETag(EntityTag::new_strong(format!("{:x}", resolved_address.xor_name).to_owned())))
                 .insert_header((header::ACCESS_CONTROL_ALLOW_ORIGIN, "*"))
+                .insert_header(server_header)
                 .body(archive_helper.list_files(request.headers()))) // todo: return .json / .body depending on accept header
         } else {
             self.file_client.download_data_stream(archive_relative_path, archive_info.resolved_xor_addr, resolved_address, &request, archive_info.offset, archive_info.size).await

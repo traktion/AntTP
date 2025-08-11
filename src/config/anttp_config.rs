@@ -24,14 +24,16 @@ pub struct AntTpConfig {
     #[arg(short, long, value_delimiter = ',', default_value =
         "traktion-blog=8e16406561d0c460f3dbe37fef129582d6410ec7cb9d5aebdf9cbb051676624c543a315f7e857103cd71088a927c9085,\
         imim=959c2ba5b84e1a68fedc14caaae96e97cfff19ff381127844586b2e0cdd2afdfb1687086a5668bced9f3dc35c03c9bd7,\
-        index=b970cf40a1ba880ecc27d5495f543af387fcb014863d0286dd2b1518920df38ac311d854013de5d50b9b04b84a6da021"
+        gimim=82fb48d691a65e771e2279ff56d8c5f7bc007fa386c9de95d64be52e081f01b1fdfb248095238b93db820836cc88c67a,\
+        index=b970cf40a1ba880ecc27d5495f543af387fcb014863d0286dd2b1518920df38ac311d854013de5d50b9b04b84a6da021,\
+        gindex=879d061580e6200a3f1dbfc5c87c13544fcd391dfec772033f1138a9469df35c98429ecd3acb4a9ab631ea7d5f6fae0f"
     )]
     pub bookmarks: Vec<String>,
 
     #[arg(short, long)]
     pub uploads_disabled: bool,
 
-    #[arg(short, long, default_value_t = 60)]
+    #[arg(short, long, default_value_t = 5)]
     pub cached_mutable_ttl: u64,
 
     #[arg(short, long, value_delimiter = ',')]

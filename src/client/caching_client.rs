@@ -48,6 +48,8 @@ pub struct CachingClient {
     hybrid_cache: Data<HybridCache<String, Vec<u8>>>,
 }
 
+pub const ARCHIVE_TAR_IDX_BYTES: &[u8] = "\0archive.tar.idx\0".as_bytes();
+
 #[async_trait]
 impl ChunkGetter for CachingClient {
     async fn chunk_get(&self, address: &ChunkAddress) -> Result<Chunk, GetError> {
@@ -104,17 +106,35 @@ impl CachingClient {
         }
     }
 
-    pub async fn archive_get(&self, archive_address: ArchiveAddress) -> Result<Archive, decode::Error> {
-        let (public_archive, tarchive) = join!(self.data_get_public(&archive_address), self.get_archive_from_tar(&archive_address));
-        match public_archive {
-            Ok(bytes) => match PublicArchive::from_bytes(bytes) {
-                Ok(public_archive) => Ok(Archive::build_from_public_archive(public_archive)),
-                Err(err) => Err(decode::Error::Uncategorized(format!("Failed to create archive from public archive at [{}] from hybrid cache: {:?}", archive_address.to_hex(), err))),
-            },
-            Err(_) => match tarchive {
-                Ok(bytes) => Ok(Archive::build_from_tar(&archive_address, bytes)),
-                Err(err) => Err(decode::Error::Uncategorized(format!("Failed to retrieve public archive at [{}] from hybrid cache: {:?}", archive_address.to_hex(), err))),
+    pub async fn archive_get(&self, addr: ArchiveAddress) -> Result<Archive, decode::Error> {
+        // todo: could remove caching of sub-calls, unless called directly elsewhere?
+        let local_caching_client = self.clone();
+        let local_address = addr.clone();
+        let local_hybrid_cache = self.hybrid_cache.clone();
+        match self.hybrid_cache.get_ref().fetch(format!("ar{}", local_address.to_hex()), || async move {
+            let (public_archive, tarchive) = join!(local_caching_client.data_get_public(&addr), local_caching_client.get_archive_from_tar(&addr));
+            match public_archive {
+                Ok(bytes) => match PublicArchive::from_bytes(bytes) {
+                    Ok(public_archive) => {
+                        info!("hybrid cache stats [{:?}], memory cache usage [{:?}]", local_hybrid_cache.statistics(), local_hybrid_cache.memory().usage());
+                        Ok(rmp_serde::to_vec(&Archive::build_from_public_archive(public_archive)).expect("Failed to serialize archive"))
+                    },
+                    Err(err) => Err(foyer::Error::other(format!("Failed to create archive from public archive at [{}] from hybrid cache: {:?}", addr.to_hex(), err))),
+                },
+                Err(_) => match tarchive {
+                    Ok(bytes) => {
+                        info!("hybrid cache stats [{:?}], memory cache usage [{:?}]", local_hybrid_cache.statistics(), local_hybrid_cache.memory().usage());
+                        Ok(rmp_serde::to_vec(&Archive::build_from_tar(&addr, bytes)).expect("Failed to serialize archive"))
+                    },
+                    Err(err) => Err(foyer::Error::other(format!("Failed to retrieve public archive at [{}] from hybrid cache: {:?}", addr.to_hex(), err))),
+                }
             }
+        }).await {
+            Ok(cache_entry) => {
+                info!("retrieved archive for [{}] from hybrid cache", addr.to_hex());
+                Ok(rmp_serde::from_slice(cache_entry.value()).expect("Failed to deserialize archive"))
+            },
+            Err(e) => Err(decode::Error::Uncategorized(e.to_string())),
         }
     }
 
@@ -170,27 +190,19 @@ impl CachingClient {
         let local_hybrid_cache = self.hybrid_cache.clone();
         match self.hybrid_cache.get_ref().fetch(format!("tar{}", local_address.to_hex()), || async move {
             // todo: confirm whether checking header for tar signature improves performance/reliability
-            let trailer_bytes = local_caching_client.download_stream(local_address, -10240, 0).await;
-            match String::from_utf8(trailer_bytes.to_vec()) {
-                Ok(trailer) => {
-                    match trailer.find("archive.tar.idx") {
-                        Some(idx) => {
-                            debug!("archive.tar.idx was found in archive.tar");
-                            let archive_idx_range_start = idx + 512;
-                            let archive_idx_range_to = 10240;
-                            info!("retrieved tarchive for [{}] with range_from [{}] and range_to [{}] from network - storing in hybrid cache", local_address.to_hex(), archive_idx_range_start, archive_idx_range_to);
-                            info!("hybrid cache stats [{:?}], memory cache usage [{:?}]", local_hybrid_cache.statistics(), local_hybrid_cache.memory().usage());
-                            Ok(Vec::from(Bytes::copy_from_slice(&trailer_bytes[archive_idx_range_start..archive_idx_range_to])))
-                        },
-                        None => {
-                            debug!("no archive.tar.idx found in tar trailer");
-                            Err(foyer::Error::other(format!("Failed to retrieve archive.tar.idx in tar trailer for [{}] from network", local_address.to_hex())))
-                        }
-                    }
+            let trailer_bytes = local_caching_client.download_stream(local_address, -20480, 0).await;
+            match CachingClient::find_subsequence(trailer_bytes.iter().as_slice(), ARCHIVE_TAR_IDX_BYTES) {
+                Some(idx) => {
+                    debug!("archive.tar.idx was found in archive.tar");
+                    let archive_idx_range_start = idx + 512 + 1;
+                    let archive_idx_range_to = 20480;
+                    info!("retrieved tarchive for [{}] with range_from [{}] and range_to [{}] from network - storing in hybrid cache", local_address.to_hex(), archive_idx_range_start, archive_idx_range_to);
+                    info!("hybrid cache stats [{:?}], memory cache usage [{:?}]", local_hybrid_cache.statistics(), local_hybrid_cache.memory().usage());
+                    Ok(Vec::from(&trailer_bytes[archive_idx_range_start..archive_idx_range_to]))
                 },
-                Err(_) => {
-                    debug!("no tar trailer found");
-                    Err(foyer::Error::other(format!("Failed to retrieve tar trailer for [{}] from network", local_address.to_hex())))
+                None => {
+                    debug!("no archive.tar.idx found in tar trailer");
+                    Err(foyer::Error::other(format!("Failed to retrieve archive.tar.idx in tar trailer for [{}] from network", local_address.to_hex())))
                 }
             }
         }).await {
@@ -200,6 +212,10 @@ impl CachingClient {
             },
             Err(_) => Err(GetError::RecordNotFound),
         }
+    }
+
+    fn find_subsequence(haystack: &[u8], needle: &[u8]) -> Option<usize> {
+        haystack.windows(needle.len()).position(|window| window == needle)
     }
 
     // todo: is this needed? see above

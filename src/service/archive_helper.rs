@@ -90,18 +90,12 @@ impl ArchiveHelper {
     }
 
     pub fn resolve_data_addr(&self, path_parts: Vec<String>) -> Option<DataAddressOffset> {
-        //self.archive.iter().for_each(|(path_buf, data_address, _)| debug!("archive entry: [{}] at [{:x}]", path_buf.to_str().unwrap().to_string().replace("\\", "/"), data_address.xorname()));
-
         // todo: Replace with contains() once keys are a more useful shape
         let path_parts_string = path_parts[1..].join("/");
         for key in self.archive.map().keys() {
             if key.replace("\\", "/").trim_start_matches("./").trim_start_matches("/").ends_with(path_parts_string.as_str()) {
                 let value = self.archive.map().get(key).unwrap();
                 return Some(value.clone());
-                    /*DataAddressOffset {
-                        data_address: value.data_address, path: path_parts_string, offset: 0, limit: u64::MAX
-                    }
-                )*/
             }
         }
         None

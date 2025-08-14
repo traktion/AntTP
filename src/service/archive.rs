@@ -3,14 +3,15 @@ use autonomi::data::DataAddress;
 use autonomi::files::PublicArchive;
 use bytes::Bytes;
 use log::{debug, error};
+use serde::{Deserialize, Serialize};
 use crate::client::caching_client::CachingClient;
 
-#[derive(Clone)]
+#[derive(Clone,Serialize,Deserialize)]
 pub struct Archive {
     pub data_address_offsets: HashMap<String, DataAddressOffset>
 }
 
-#[derive(Clone,Debug)]
+#[derive(Clone,Debug,Serialize,Deserialize)]
 pub struct DataAddressOffset {
     pub data_address: DataAddress,
     pub path: String,

@@ -85,10 +85,13 @@ impl<T: ChunkGetter> FileService<T> {
 
         let (range_from, range_to, is_range_request) = self.get_range(&request, offset_modifier, size_modifier);
 
-        info!("Streaming item [{}] at addr [{}], range_from [{}], range_to [{}]",
-            path_str, format!("{:x}", xor_name), range_from, range_to);
-
         let derived_range_to = if range_to == u64::MAX { total_size as u64 - 1 } else { range_to };
+
+        let final_range_from = range_from - offset_modifier;
+        let final_range_to = derived_range_to - offset_modifier;
+
+        info!("Streaming item [{}] at addr [{}], range_from: [{}], range_to: [{}], offset_modifier: [{}], size_modifier: [{}], final_range_from: [{}], final_range_to: [{}]",
+            path_str, format!("{:x}", xor_name), range_from, range_to, offset_modifier, size_modifier, final_range_from, final_range_to);
 
         let chunk_streamer = ChunkStreamer::new(xor_name.to_string(), data_map, self.chunk_getter.clone(), self.ant_tp_config.download_threads);
         let chunk_receiver = chunk_streamer.open(range_from, derived_range_to);
@@ -102,7 +105,7 @@ impl<T: ChunkGetter> FileService<T> {
         let extension = Path::new(&path_str).extension().unwrap_or_default().to_str().unwrap_or_default();
         if is_range_request {
             Ok(HttpResponse::PartialContent()
-                .insert_header(ContentRange(ContentRangeSpec::Bytes { range: Some((range_from - offset_modifier, derived_range_to - offset_modifier)), instance_length: Some(file_size) }))
+                .insert_header(ContentRange(ContentRangeSpec::Bytes { range: Some((final_range_from, final_range_to)), instance_length: Some(file_size) }))
                 .insert_header(cache_control_header)
                 .insert_header(expires_header)
                 .insert_header(etag_header)

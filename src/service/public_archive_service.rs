@@ -96,7 +96,7 @@ impl PublicArchiveService {
                 .insert_header(server_header)
                 .body(archive_helper.list_files(request.headers()))) // todo: return .json / .body depending on accept header
         } else {
-            self.file_client.download_data_stream(archive_relative_path, archive_info.resolved_xor_addr, resolved_address, &request, archive_info.offset, archive_info.size).await
+            self.file_client.download_data_stream(archive_relative_path, archive_info.resolved_xor_addr, resolved_address, &request, archive_info.offset, archive_info.limit).await
         }
     }
 

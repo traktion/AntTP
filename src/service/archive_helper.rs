@@ -22,6 +22,7 @@ pub struct ArchiveInfo {
     pub action: ArchiveAction,
     pub state: DataState,
     pub offset: u64,
+    pub limit: u64,
     pub size: u64,
 }
 
@@ -37,7 +38,8 @@ pub enum DataState {
 
 impl ArchiveInfo {
     pub fn new(path_string: String, resolved_xor_addr: XorName, action: ArchiveAction, state: DataState, offset: u64, size: u64) -> ArchiveInfo {
-        ArchiveInfo { path_string, resolved_xor_addr, action, state, offset, size }
+        let limit = if offset != 0 { size } else { 0 };
+        ArchiveInfo { path_string, resolved_xor_addr, action, state, offset, limit, size }
     }
 }
 

@@ -162,18 +162,23 @@ impl CachingClient {
         let local_hybrid_cache = self.hybrid_cache.clone();
         match self.hybrid_cache.get_ref().fetch(format!("pd{}", local_address.to_hex()), || async move {
             // todo: optimise range_to to first chunk length (to avoid downloading other chunks when not needed)
-            let bytes = local_caching_client.download_stream(local_address, 0, 524288).await;
-            match PublicArchive::from_bytes(bytes.clone()) {
-                // confirm that serialisation can be successful, before returning the data
-                Ok(_) => {
-                    info!("retrieved public archive for [{}] from network - storing in hybrid cache", local_address.to_hex());
-                    info!("hybrid cache stats [{:?}], memory cache usage [{:?}]", local_hybrid_cache.statistics(), local_hybrid_cache.memory().usage());
-                    Ok(Vec::from(bytes))
+            let maybe_bytes = local_caching_client.download_stream(local_address, 0, 524288).await;
+            match maybe_bytes {
+                Ok(bytes) => {
+                    match PublicArchive::from_bytes(bytes.clone()) {
+                        // confirm that serialisation can be successful, before returning the data
+                        Ok(_) => {
+                            info!("retrieved public archive for [{}] from network - storing in hybrid cache", local_address.to_hex());
+                            info!("hybrid cache stats [{:?}], memory cache usage [{:?}]", local_hybrid_cache.statistics(), local_hybrid_cache.memory().usage());
+                            Ok(Vec::from(bytes))
+                        },
+                        Err(err) => {
+                            error!("Failed to retrieve public archive for [{}] from network {:?}", local_address.to_hex(), err);
+                            Err(foyer::Error::other(format!("Failed to retrieve public archive for [{}] from network {:?}", local_address.to_hex(), err)))
+                        }
+                    }
                 },
-                Err(err) => {
-                    error!("Failed to retrieve public archive for [{}] from network {:?}", local_address.to_hex(), err);
-                    Err(foyer::Error::other(format!("Failed to retrieve public archive for [{}] from network {:?}", local_address.to_hex(), err)))
-                }
+                Err(err) => Err(foyer::Error::other(format!("Failed to download stream for [{}] from network {:?}", local_address.to_hex(), err)))
             }
         }).await {
             Ok(cache_entry) => {
@@ -191,19 +196,24 @@ impl CachingClient {
         match self.hybrid_cache.get_ref().fetch(format!("tar{}", local_address.to_hex()), || async move {
             // todo: confirm whether checking header for tar signature improves performance/reliability
             let trailer_bytes = local_caching_client.download_stream(local_address, -20480, 0).await;
-            match CachingClient::find_subsequence(trailer_bytes.iter().as_slice(), ARCHIVE_TAR_IDX_BYTES) {
-                Some(idx) => {
-                    debug!("archive.tar.idx was found in archive.tar");
-                    let archive_idx_range_start = idx + 512 + 1;
-                    let archive_idx_range_to = 20480;
-                    info!("retrieved tarchive for [{}] with range_from [{}] and range_to [{}] from network - storing in hybrid cache", local_address.to_hex(), archive_idx_range_start, archive_idx_range_to);
-                    info!("hybrid cache stats [{:?}], memory cache usage [{:?}]", local_hybrid_cache.statistics(), local_hybrid_cache.memory().usage());
-                    Ok(Vec::from(&trailer_bytes[archive_idx_range_start..archive_idx_range_to]))
+            match trailer_bytes {
+                Ok(trailer_bytes) => {
+                    match CachingClient::find_subsequence(trailer_bytes.iter().as_slice(), ARCHIVE_TAR_IDX_BYTES) {
+                        Some(idx) => {
+                            debug!("archive.tar.idx was found in archive.tar");
+                            let archive_idx_range_start = idx + 512 + 1;
+                            let archive_idx_range_to = 20480;
+                            info!("retrieved tarchive for [{}] with range_from [{}] and range_to [{}] from network - storing in hybrid cache", local_address.to_hex(), archive_idx_range_start, archive_idx_range_to);
+                            info!("hybrid cache stats [{:?}], memory cache usage [{:?}]", local_hybrid_cache.statistics(), local_hybrid_cache.memory().usage());
+                            Ok(Vec::from(&trailer_bytes[archive_idx_range_start..archive_idx_range_to]))
+                        },
+                        None => {
+                            debug!("no archive.tar.idx found in tar trailer");
+                            Err(foyer::Error::other(format!("Failed to retrieve archive.tar.idx in tar trailer for [{}] from network", local_address.to_hex())))
+                        }
+                    }
                 },
-                None => {
-                    debug!("no archive.tar.idx found in tar trailer");
-                    Err(foyer::Error::other(format!("Failed to retrieve archive.tar.idx in tar trailer for [{}] from network", local_address.to_hex())))
-                }
+                Err(err) => Err(foyer::Error::other(format!("Failed to download stream for [{}] from network {:?}", local_address.to_hex(), err)))
             }
         }).await {
             Ok(cache_entry) => {
@@ -722,51 +732,54 @@ impl CachingClient {
         addr: DataAddress,
         range_from: i64,
         range_to: i64,
-    ) -> Bytes {
-        let data_map_chunk = self.chunk_get(&ChunkAddress::new(*addr.xorname())).await.expect("failed to download data map chunk");
+    ) -> Result<Bytes, Error> {
+        match self.chunk_get(&ChunkAddress::new(*addr.xorname())).await {
+            Ok(data_map_chunk) => {
+                let data_map = CachingClient::get_data_map_from_bytes(data_map_chunk.value()).expect("Failed to get data map");
+                let derived_range_from: u64 = if range_from < 0 {
+                    let size = u64::try_from(data_map.file_size()).unwrap();
+                    let from = u64::try_from(range_from.abs()).unwrap();
+                    if from < size {
+                        size - from
+                    } else {
+                        0
+                    }
+                } else {
+                    u64::try_from(range_from).unwrap()
+                };
+                let derived_range_to: u64 = if range_to <= 0 {
+                    let size = u64::try_from(data_map.file_size()).unwrap();
+                    let to= u64::try_from(range_to.abs()).unwrap();
+                    if to < size {
+                        size - to
+                    } else {
+                        0
+                    }
+                } else {
+                    u64::try_from(range_to).unwrap()
+                };
 
-        let data_map = CachingClient::get_data_map_from_bytes(data_map_chunk.value()).expect("Failed to get data map");
-        let derived_range_from: u64 = if range_from < 0 {
-            let size = u64::try_from(data_map.file_size()).unwrap();
-            let from = u64::try_from(range_from.abs()).unwrap();
-            if from < size {
-                size - from
-            } else {
-                0
+                let chunk_streamer = ChunkStreamer::new(addr.xorname().to_string(), data_map, self.clone(), self.ant_tp_config.download_threads);
+                let mut chunk_receiver = chunk_streamer.open(derived_range_from, derived_range_to);
+
+                let mut buf = BytesMut::with_capacity(usize::try_from(derived_range_to - derived_range_from).expect("Failed to convert range from u64 to usize"));
+                let mut has_data = true;
+                while has_data {
+                    match chunk_receiver.next().await {
+                        Some(item) => match item {
+                            Ok(bytes) => buf.put(bytes),
+                            Err(e) => {
+                                error!("Error downloading stream from data address [{}] with range [{} - {}]: {}", addr.to_hex(), derived_range_from, derived_range_to, e);
+                                has_data = false
+                            },
+                        },
+                        None => has_data = false
+                    };
+                }
+                Ok(buf.freeze())
             }
-        } else {
-            u64::try_from(range_from).unwrap()
-        };
-        let derived_range_to: u64 = if range_to <= 0 {
-            let size = u64::try_from(data_map.file_size()).unwrap();
-            let to= u64::try_from(range_to.abs()).unwrap();
-            if to < size {
-                size - to
-            } else {
-                0
-            }
-        } else {
-            u64::try_from(range_to).unwrap()
-        };
-
-        let chunk_streamer = ChunkStreamer::new(addr.xorname().to_string(), data_map, self.clone(), self.ant_tp_config.download_threads);
-        let mut chunk_receiver = chunk_streamer.open(derived_range_from, derived_range_to);
-
-        let mut buf = BytesMut::with_capacity(usize::try_from(derived_range_to - derived_range_from).expect("Failed to convert range from u64 to usize"));
-        let mut has_data = true;
-        while has_data {
-            match chunk_receiver.next().await {
-                Some(item) => match item {
-                    Ok(bytes) => buf.put(bytes),
-                    Err(e) => {
-                        error!("Error downloading stream from data address [{}] with range [{} - {}]: {}", addr.to_hex(), derived_range_from, derived_range_to, e);
-                        has_data = false
-                    },
-                },
-                None => has_data = false
-            };
+            Err(e) => Err(ErrorInternalServerError(format!("Failed to download data map chunk: [{}]", e))),
         }
-        buf.freeze()
     }
 
     pub fn get_data_map_from_bytes(data_map_bytes: &Bytes) -> Result<DataMap, Error> {

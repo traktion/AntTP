@@ -26,7 +26,7 @@ use std::collections::HashMap;
 use std::env;
 use std::path::Path;
 use std::sync::Mutex;
-use foyer::{Compression, DirectFsDeviceOptions, Engine, HybridCache, HybridCacheBuilder, HybridCachePolicy, LargeEngineOptions, LfuConfig, RecoverMode, RuntimeOptions, TokioRuntimeOptions};
+use foyer::{BlockEngineBuilder, Compression, DeviceBuilder, FsDeviceBuilder, HybridCache, HybridCacheBuilder, HybridCachePolicy, IoEngineBuilder, LfuConfig, PsyncIoEngineBuilder, RecoverMode, RuntimeOptions, TokioRuntimeOptions};
 use tokio::task::JoinHandle;
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
@@ -289,44 +289,56 @@ async fn build_foyer_cache(app_config: &AntTpConfig) -> HybridCache<String, Vec<
     } else {
         app_config.map_cache_directory.clone()
     };
-    HybridCacheBuilder::new()
+
+    let memory_cache_size = if app_config.immutable_memory_cache_size > 0 { app_config.immutable_memory_cache_size } else { 1 };
+    let builder = HybridCacheBuilder::new()
         .with_name("anttp-hybrid-cache")
         .with_flush_on_close(true)
         .with_policy(HybridCachePolicy::WriteOnInsertion)
-        .memory(app_config.immutable_memory_cache_size)
-        .with_shards(4)
+        .memory(memory_cache_size)
+        .with_shards(app_config.download_threads)
         .with_eviction_config(LfuConfig::default())
-        .storage(Engine::Large(LargeEngineOptions::default())) // use large object disk cache engine only
-        .with_device_options(DirectFsDeviceOptions::new(Path::new(cache_dir.as_str()))
-            .with_capacity(app_config.immutable_disk_cache_size * 1024 * 1024))
-        .with_recover_mode(RecoverMode::Quiet)
-        .with_compression(Compression::None) // as chunks are already compressed
-        .with_runtime_options(RuntimeOptions::Separated {
-            read_runtime_options: TokioRuntimeOptions {
-                worker_threads: app_config.download_threads,
-                max_blocking_threads: 8,
-            },
-            write_runtime_options: TokioRuntimeOptions {
-                worker_threads: app_config.download_threads,
-                max_blocking_threads: 8,
-            },
-        })
-        .build()
-        .await.unwrap()
+        .storage();
+
+    if app_config.immutable_disk_cache_size > 0 {
+        let device = FsDeviceBuilder::new(Path::new(cache_dir.as_str()))
+            .with_capacity(app_config.immutable_disk_cache_size * 1024 * 1024)
+            .build().expect("Failed to build FsDevice");
+        let io_engine = PsyncIoEngineBuilder::new()
+            .build().await.expect("Failed to build IoEngine");
+
+        builder
+            .with_io_engine(io_engine)
+            .with_engine_config(BlockEngineBuilder::new(device))
+            .with_recover_mode(RecoverMode::Quiet)
+            .with_compression(Compression::None) // as chunks are already compressed
+            .with_runtime_options(RuntimeOptions::Separated {
+                read_runtime_options: TokioRuntimeOptions {
+                    worker_threads: app_config.download_threads,
+                    max_blocking_threads: 8,
+                },
+                write_runtime_options: TokioRuntimeOptions {
+                    worker_threads: app_config.download_threads,
+                    max_blocking_threads: 8,
+                },
+            }).build().await.expect("Failed to build hybrid in-memory/on-disk cache")
+    } else {
+        builder.build().await.expect("Failed to build in-memory cache")
+    }
 }
 
 pub async fn stop_server() -> Result<(), String> {
-    let handle_opt = {
-        let mut guard = SERVER_HANDLE.lock().unwrap();
-        guard.take()
-    };
+let handle_opt = {
+    let mut guard = SERVER_HANDLE.lock().unwrap();
+    guard.take()
+};
 
-    if let Some(handle) = handle_opt {
-        info!("Stopping server gracefully...");
-        handle.stop(true).await;
-        info!("Server stopped");
-        Ok(())
-    } else {
-        Err("Server handle not found or already stopped".to_string())
-    }
+if let Some(handle) = handle_opt {
+    info!("Stopping server gracefully...");
+    handle.stop(true).await;
+    info!("Server stopped");
+    Ok(())
+} else {
+    Err("Server handle not found or already stopped".to_string())
+}
 }

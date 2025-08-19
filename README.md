@@ -246,6 +246,24 @@ See [example-config](resources/app-conf.json) for customising how your website/a
   - If you just want an index instead of a file listing being rendered, providing a `routeMap` will also enable this. 
     This is handy when you want a default page/app/script to load for a URL, without needing to specify the filename too.
 
+## Tarchive Support
+
+The Tarchive format is a more efficient way to upload/download many smaller files (< 4 MB).
+
+A Tarchive is simply a tar file containing the associated files with an index appended to the end.
+
+Tarindexer (https://github.com/devsnd/tarindexer) is used to generate the index and then the following commands can be
+run to create and upload the tarchive.
+
+```shell
+cd mydirectory
+tar -cf ../archive.tar ./
+cd ..
+tarindexer.py -i archive.tar archive.tar.idx
+tar -rf archive.tar archive.tar.idx
+ant file upload -p archive.tar
+```
+
 ## PubAnt.com - Publish your Website
 
 For more information on how to publish a website on Autonomi Network, [PubAnt.com](https://pubant.com/) is an excellent resource.

@@ -18,7 +18,6 @@ use ant_evm::EvmNetwork::{ArbitrumOne, ArbitrumSepoliaTest};
 use ant_evm::{EvmWallet};
 use autonomi::files::archive_public::ArchiveAddress;
 use autonomi::{BootstrapCacheConfig, ClientConfig, ClientOperatingStrategy, InitialPeersConfig, Network};
-use awc::Client as AwcClient;
 use config::anttp_config::AntTpConfig;
 use log::{info, warn};
 use once_cell::sync::Lazy;
@@ -202,7 +201,6 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> std::io::Result<()> {
             )
             .app_data(Data::new(ant_tp_config.clone()))
             .app_data(caching_client_data.clone())
-            .app_data(Data::new(AwcClient::default()))
             .app_data(Data::new(evm_wallet.clone()))
             .app_data(uploader_state.clone())
             .app_data(upload_state.clone())

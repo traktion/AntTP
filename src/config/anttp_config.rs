@@ -50,7 +50,10 @@ pub struct AntTpConfig {
     pub immutable_disk_cache_size: usize,
 
     #[arg(long, default_value_t = 32)]
-    pub immutable_memory_cache_size: usize
+    pub immutable_memory_cache_size: usize,
+
+    #[arg(short, long, default_value_t = 30)]
+    pub idle_disconnect: u64
 }
 
 impl AntTpConfig {
@@ -74,6 +77,7 @@ impl AntTpConfig {
         info!("EVM network: {:?}", ant_tp_config.evm_network);
         info!("Immutable disk cache size (MB): {:?}", ant_tp_config.immutable_disk_cache_size);
         info!("Immutable memory cache size (slots): {:?}", ant_tp_config.immutable_memory_cache_size);
+        info!("Idle disconnect from Autonomi (seconds): {:?}", ant_tp_config.idle_disconnect);
         ant_tp_config
     }
 }

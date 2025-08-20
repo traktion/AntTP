@@ -100,7 +100,7 @@ impl RegisterService {
 
     pub async fn get_register_history(&self, address: String) -> Result<HttpResponse, Error> {
         let register_address = RegisterAddress::from_hex(address.as_str()).unwrap();
-        match self.caching_client.register_history(&register_address).collect().await {
+        match self.caching_client.register_history(&register_address).await.collect().await {
             Ok(content_vec) => {
                 let content_flattened: String = content_vec.iter().map(|&c|hex::encode(c)).collect();
                 info!("Retrieved register history [{}] at address [{}]", content_flattened, register_address);

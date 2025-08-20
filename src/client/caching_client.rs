@@ -6,8 +6,9 @@ use actix_web::Error;
 use actix_web::error::ErrorInternalServerError;
 use actix_web::web::Data;
 use ant_evm::AttoTokens;
+use async_job::{Job, Schedule};
 use async_trait::async_trait;
-use autonomi::{Chunk, ChunkAddress, Client, GraphEntry, GraphEntryAddress, Pointer, PointerAddress, ScratchpadAddress, SecretKey};
+use autonomi::{Chunk, ChunkAddress, GraphEntry, GraphEntryAddress, Pointer, PointerAddress, ScratchpadAddress, SecretKey};
 use autonomi::client::files::archive_public::{ArchiveAddress, PublicArchive};
 use autonomi::client::{GetError, PutError};
 use autonomi::client::payment::PaymentOption;
@@ -28,6 +29,8 @@ use futures_util::StreamExt;
 use self_encryption::DataMap;
 use serde::{Deserialize, Serialize};
 use tokio::join;
+use tokio::sync::Mutex;
+use crate::client::client_harness::ClientHarness;
 use crate::service::archive::Archive;
 
 #[derive(Serialize, Deserialize)]
@@ -42,7 +45,7 @@ enum DataMapLevel {
 
 #[derive(Clone)]
 pub struct CachingClient {
-    maybe_client: Option<Client>,
+    client_harness: Data<Mutex<ClientHarness>>,
     cache_dir: String,
     ant_tp_config: AntTpConfig,
     hybrid_cache: Data<HybridCache<String, Vec<u8>>>,
@@ -51,12 +54,23 @@ pub struct CachingClient {
 pub const ARCHIVE_TAR_IDX_BYTES: &[u8] = "\0archive.tar.idx\0".as_bytes();
 
 #[async_trait]
+impl Job for CachingClient {
+    fn schedule(&self) -> Option<Schedule> {
+        Some("1/10 * * * * *".parse().unwrap())
+    }
+    async fn handle(&mut self) {
+        self.client_harness.get_ref().lock().await.try_sleep();
+    }
+}
+
+#[async_trait]
 impl ChunkGetter for CachingClient {
     async fn chunk_get(&self, address: &ChunkAddress) -> Result<Chunk, GetError> {
-        let maybe_local_client = self.maybe_client.clone();
         let local_address = address.clone();
         let local_hybrid_cache = self.hybrid_cache.clone();
-        match self.hybrid_cache.get_ref().fetch(local_address.to_hex(), || async move {
+        match self.hybrid_cache.get_ref().fetch(local_address.to_hex(), {
+            let maybe_local_client = self.client_harness.get_ref().lock().await.get_client().await;
+            || async move {
             match maybe_local_client {
                 Some(local_client) => {
                     match local_client.chunk_get(&local_address).await {
@@ -76,7 +90,7 @@ impl ChunkGetter for CachingClient {
                     Err(foyer::Error::other(format!("Failed to retrieve chunk for [{}] from offline network", local_address.to_hex())))
                 }
             }
-        }).await {
+        }}).await {
             Ok(cache_entry) => {
                 info!("retrieved chunk for [{}] from hybrid cache", address.to_hex());
                 Ok(Chunk::new(Bytes::from(cache_entry.value().to_vec())))
@@ -88,15 +102,16 @@ impl ChunkGetter for CachingClient {
 
 impl CachingClient {
 
-    pub fn new(maybe_client: Option<Client>, ant_tp_config: AntTpConfig, hybrid_cache: Data<HybridCache<String, Vec<u8>>>) -> Self {
+    pub fn new(client_harness: Data<Mutex<ClientHarness>>, ant_tp_config: AntTpConfig, hybrid_cache: Data<HybridCache<String, Vec<u8>>>) -> Self {
         let cache_dir = if ant_tp_config.map_cache_directory.is_empty() {
             env::temp_dir().to_str().unwrap().to_owned() + "/anttp/cache/"
         } else {
             ant_tp_config.map_cache_directory.clone()
         };
         CachingClient::create_tmp_dir(cache_dir.clone());
+
         Self {
-            maybe_client, cache_dir, ant_tp_config, hybrid_cache,
+            client_harness, cache_dir, ant_tp_config, hybrid_cache,
         }
     }
 
@@ -147,7 +162,7 @@ impl CachingClient {
     }
 
     pub async fn archive_put_public(&self, archive: &PublicArchive, payment_option: PaymentOption) -> Result<(AttoTokens, ArchiveAddress), PutError> {
-        match self.maybe_client.clone() {
+        match self.client_harness.get_ref().lock().await.get_client().await {
             Some(client) => {
                 debug!("creating archive public async");
                 client.archive_put_public(archive, payment_option).await
@@ -245,7 +260,7 @@ impl CachingClient {
         target: PointerTarget,
         payment_option: PaymentOption,
     ) -> Result<(AttoTokens, PointerAddress), PointerError> {
-        match self.maybe_client.clone() {
+        match self.client_harness.get_ref().lock().await.get_client().await {
             Some(client) => {
                 let owner_clone = owner.clone();
                 // todo: move to job processor
@@ -265,7 +280,7 @@ impl CachingClient {
         owner: &SecretKey,
         target: PointerTarget,
     ) -> Result<(), PointerError> {
-        match self.maybe_client.clone() {
+        match self.client_harness.get_ref().lock().await.get_client().await {
             Some(client) => {
                 let owner_clone = owner.clone();
                 // todo: move to job processor
@@ -282,24 +297,26 @@ impl CachingClient {
     }
 
     pub async fn pointer_get(&self, address: &PointerAddress) -> Result<Pointer, PointerError> {
-        let local_client = self.maybe_client.clone();
         let local_address = address.clone();
         let local_hybrid_cache = self.hybrid_cache.clone();
         let local_ant_tp_config = self.ant_tp_config.clone();
-        match self.hybrid_cache.get_ref().fetch(format!("pg{}", local_address.to_hex()), || async move {
-            match local_client {
-                Some(client) => {
-                    match client.pointer_get(&local_address).await {
-                        Ok(pointer) => {
-                            debug!("found pointer [{}] for address [{}]", hex::encode(pointer.target().to_hex()), local_address.to_hex());
-                            info!("hybrid cache stats [{:?}], memory cache usage [{:?}]", local_hybrid_cache.statistics(), local_hybrid_cache.memory().usage());
-                            let cache_item = CacheItem::new(Some(pointer.clone()), local_ant_tp_config.cached_mutable_ttl);
-                            Ok(rmp_serde::to_vec(&cache_item).expect("Failed to serialize pointer"))
-                        },
-                        Err(_) => Err(foyer::Error::other(format!("Failed to retrieve pointer for [{}] from network", local_address.to_hex())))
-                    }
-                },
-                None => Err(foyer::Error::other(format!("Failed to retrieve pointer for [{}] from offline network", local_address.to_hex())))
+        match self.hybrid_cache.get_ref().fetch(format!("pg{}", local_address.to_hex()), {
+            let maybe_local_client = self.client_harness.get_ref().lock().await.get_client().await;
+            || async move {
+                match maybe_local_client {
+                    Some(client) => {
+                        match client.pointer_get(&local_address).await {
+                            Ok(pointer) => {
+                                debug!("found pointer [{}] for address [{}]", hex::encode(pointer.target().to_hex()), local_address.to_hex());
+                                info!("hybrid cache stats [{:?}], memory cache usage [{:?}]", local_hybrid_cache.statistics(), local_hybrid_cache.memory().usage());
+                                let cache_item = CacheItem::new(Some(pointer.clone()), local_ant_tp_config.cached_mutable_ttl);
+                                Ok(rmp_serde::to_vec(&cache_item).expect("Failed to serialize pointer"))
+                            },
+                            Err(_) => Err(foyer::Error::other(format!("Failed to retrieve pointer for [{}] from network", local_address.to_hex())))
+                        }
+                    },
+                    None => Err(foyer::Error::other(format!("Failed to retrieve pointer for [{}] from offline network", local_address.to_hex())))
+                }
             }
         }).await {
             Ok(cache_entry) => {
@@ -307,26 +324,28 @@ impl CachingClient {
                 info!("retrieved pointer for [{}] from hybrid cache", address.to_hex());
                 if cache_item.has_expired() {
                     // update cache in the background
-                    let local_client = self.maybe_client.clone();
                     let local_address = address.clone();
                     let local_hybrid_cache = self.hybrid_cache.clone();
-                    tokio::spawn(async move {
-                        match local_client {
-                            Some(client) => {
-                                info!("refreshing hybrid cache with pointer for [{}] from network, timestamp [{}], ttl [{}]", local_address.to_hex(), cache_item.timestamp, cache_item.ttl);
-                                match client.pointer_get(&local_address).await {
-                                    Ok(pointer) => {
-                                        let new_cache_item = CacheItem::new(Some(pointer.clone()), local_ant_tp_config.cached_mutable_ttl);
-                                        local_hybrid_cache.insert(
-                                            format!("pg{}", local_address.to_hex()),
-                                            rmp_serde::to_vec(&new_cache_item).expect("Failed to serialize pointer")
-                                        );
-                                        info!("inserted hybrid cache with pointer for [{}] from network", local_address.to_hex());
-                                    },
-                                    Err(e) => warn!("Failed to refresh expired pointer for [{}] from network [{}]", local_address.to_hex(), e)
-                                }
-                            },
-                            None => warn!("Failed to refresh expired pointer for [{}] from offline network", local_address.to_hex())
+                    tokio::spawn({
+                        let maybe_local_client = self.client_harness.get_ref().lock().await.get_client().await;
+                        async move {
+                            match maybe_local_client {
+                                Some(client) => {
+                                    info!("refreshing hybrid cache with pointer for [{}] from network, timestamp [{}], ttl [{}]", local_address.to_hex(), cache_item.timestamp, cache_item.ttl);
+                                    match client.pointer_get(&local_address).await {
+                                        Ok(pointer) => {
+                                            let new_cache_item = CacheItem::new(Some(pointer.clone()), local_ant_tp_config.cached_mutable_ttl);
+                                            local_hybrid_cache.insert(
+                                                format!("pg{}", local_address.to_hex()),
+                                                rmp_serde::to_vec(&new_cache_item).expect("Failed to serialize pointer")
+                                            );
+                                            info!("inserted hybrid cache with pointer for [{}] from network", local_address.to_hex());
+                                        },
+                                        Err(e) => warn!("Failed to refresh expired pointer for [{}] from network [{}]", local_address.to_hex(), e)
+                                    }
+                                },
+                                None => warn!("Failed to refresh expired pointer for [{}] from offline network", local_address.to_hex())
+                            }
                         }
                     });
                 }
@@ -343,7 +362,7 @@ impl CachingClient {
         initial_value: RegisterValue,
         payment_option: PaymentOption,
     ) -> Result<(AttoTokens, RegisterAddress), RegisterError> {
-        match self.maybe_client.clone() {
+        match self.client_harness.get_ref().lock().await.get_client().await {
             Some(client) => {
                 let owner_clone = owner.clone();
                 // todo: move to job processor
@@ -363,7 +382,7 @@ impl CachingClient {
         new_value: RegisterValue,
         payment_option: PaymentOption,
     ) -> Result<AttoTokens, RegisterError> {
-        match self.maybe_client.clone() {
+        match self.client_harness.get_ref().lock().await.get_client().await {
             Some(client) => {
                 let owner_clone = owner.clone();
                 // todo: move to job processor
@@ -378,24 +397,26 @@ impl CachingClient {
     }
 
     pub async fn register_get(&self, address: &RegisterAddress) -> Result<RegisterValue, RegisterError> {
-        let local_client = self.maybe_client.clone();
         let local_address = address.clone();
         let local_hybrid_cache = self.hybrid_cache.clone();
         let local_ant_tp_config = self.ant_tp_config.clone();
-        match self.hybrid_cache.get_ref().fetch(format!("rg{}", local_address.to_hex()), || async move {
-            match local_client {
-                Some(client) => {
-                    match client.register_get(&local_address).await {
-                        Ok(register_value) => {
-                            debug!("found register value [{}] for address [{}] from network", hex::encode(register_value.clone()), local_address.to_hex());
-                            info!("hybrid cache stats [{:?}], memory cache usage [{:?}]", local_hybrid_cache.statistics(), local_hybrid_cache.memory().usage());
-                            let cache_item = CacheItem::new(Some(register_value.clone()), local_ant_tp_config.cached_mutable_ttl);
-                            Ok(rmp_serde::to_vec(&cache_item).expect("Failed to serialize register"))
+        match self.hybrid_cache.get_ref().fetch(format!("rg{}", local_address.to_hex()), {
+            let maybe_local_client = self.client_harness.get_ref().lock().await.get_client().await;
+            || async move {
+                match maybe_local_client {
+                    Some(client) => {
+                        match client.register_get(&local_address).await {
+                            Ok(register_value) => {
+                                debug!("found register value [{}] for address [{}] from network", hex::encode(register_value.clone()), local_address.to_hex());
+                                info!("hybrid cache stats [{:?}], memory cache usage [{:?}]", local_hybrid_cache.statistics(), local_hybrid_cache.memory().usage());
+                                let cache_item = CacheItem::new(Some(register_value.clone()), local_ant_tp_config.cached_mutable_ttl);
+                                Ok(rmp_serde::to_vec(&cache_item).expect("Failed to serialize register"))
+                            }
+                            Err(_) => Err(foyer::Error::other(format!("Failed to retrieve register for [{}] from network", local_address.to_hex())))
                         }
-                        Err(_) => Err(foyer::Error::other(format!("Failed to retrieve register for [{}] from network", local_address.to_hex())))
-                    }
-                },
-                None => Err(foyer::Error::other(format!("Failed to retrieve register for [{}] from offline network", local_address.to_hex())))
+                    },
+                    None => Err(foyer::Error::other(format!("Failed to retrieve register for [{}] from offline network", local_address.to_hex())))
+                }
             }
         }).await {
             Ok(cache_entry) => {
@@ -403,26 +424,28 @@ impl CachingClient {
                 info!("retrieved register for [{}] from hybrid cache", address.to_hex());
                 if cache_item.has_expired() {
                     // update cache in the background
-                    let local_client = self.maybe_client.clone();
                     let local_address = address.clone();
                     let local_hybrid_cache = self.hybrid_cache.clone();
-                    tokio::spawn(async move {
-                        match local_client {
-                            Some(client) => {
-                                info!("refreshing hybrid cache with register for [{}] from network, timestamp [{}], ttl [{}]", local_address.to_hex(), cache_item.timestamp, cache_item.ttl);
-                                match client.register_get(&local_address).await {
-                                    Ok(register_value) => {
-                                        let new_cache_item = CacheItem::new(Some(register_value.clone()), local_ant_tp_config.cached_mutable_ttl);
-                                        local_hybrid_cache.insert(
-                                            format!("rg{}", local_address.to_hex()),
-                                            rmp_serde::to_vec(&new_cache_item).expect("Failed to serialize register")
-                                        );
-                                        info!("inserted hybrid cache with register for [{}] from network", local_address.to_hex());
+                    tokio::spawn({
+                        let maybe_local_client = self.client_harness.get_ref().lock().await.get_client().await;
+                        async move {
+                            match maybe_local_client {
+                                Some(client) => {
+                                    info!("refreshing hybrid cache with register for [{}] from network, timestamp [{}], ttl [{}]", local_address.to_hex(), cache_item.timestamp, cache_item.ttl);
+                                    match client.register_get(&local_address).await {
+                                        Ok(register_value) => {
+                                            let new_cache_item = CacheItem::new(Some(register_value.clone()), local_ant_tp_config.cached_mutable_ttl);
+                                            local_hybrid_cache.insert(
+                                                format!("rg{}", local_address.to_hex()),
+                                                rmp_serde::to_vec(&new_cache_item).expect("Failed to serialize register")
+                                            );
+                                            info!("inserted hybrid cache with register for [{}] from network", local_address.to_hex());
+                                        }
+                                        Err(e) => warn!("Failed to refresh expired register for [{}] from network [{}]", local_address.to_hex(), e)
                                     }
-                                    Err(e) => warn!("Failed to refresh expired register for [{}] from network [{}]", local_address.to_hex(), e)
-                                }
-                            },
-                            None => warn!("Failed to refresh expired register for [{}] from offline network", local_address.to_hex())
+                                },
+                                None => warn!("Failed to refresh expired register for [{}] from offline network", local_address.to_hex())
+                            }
                         }
                     });
                 }
@@ -433,8 +456,8 @@ impl CachingClient {
         }
     }
 
-    pub fn register_history(&self, addr: &RegisterAddress) -> RegisterHistory {
-        self.maybe_client.clone().expect("network offline").register_history(addr)
+    pub async fn register_history(&self, addr: &RegisterAddress) -> RegisterHistory {
+        self.client_harness.get_ref().lock().await.get_client().await.expect("network offline").register_history(addr)
     }
 
     pub async fn write_file(&self, archive_address: ArchiveAddress, data: Vec<u8>) {
@@ -466,7 +489,7 @@ impl CachingClient {
     ) -> Result<(AttoTokens, ScratchpadAddress), ScratchpadError> {
         let owner_clone = owner.clone();
         let initial_data_clone = initial_data.clone();
-        match self.maybe_client.clone() {
+        match self.client_harness.get_ref().lock().await.get_client().await {
             Some(client) => {
                 // todo: move to job processor
                 tokio::spawn(async move {
@@ -501,7 +524,7 @@ impl CachingClient {
             counter,
         ));
         let scratchpad = Scratchpad::new_with_signature(owner.public_key(), content_type, initial_data.clone(), counter, signature);
-        match self.maybe_client.clone() {
+        match self.client_harness.get_ref().lock().await.get_client().await {
             Some(client) => {
                 tokio::spawn(async move {
                     debug!("creating scratchpad async");
@@ -531,7 +554,7 @@ impl CachingClient {
             version,
         ));
         let scratchpad = Scratchpad::new_with_signature(owner.public_key(), content_type, data.clone(), version, signature);
-        match self.maybe_client.clone() {
+        match self.client_harness.get_ref().lock().await.get_client().await {
             Some(client) => {
                 tokio::spawn(async move {
                     debug!("creating scratchpad async");
@@ -547,7 +570,7 @@ impl CachingClient {
         &self,
         address: &ScratchpadAddress,
     ) -> Result<bool, ScratchpadError> {
-        match self.maybe_client.clone() {
+        match self.client_harness.get_ref().lock().await.get_client().await {
             Some(client) => client.scratchpad_check_existence(address).await,
             None => Err(ScratchpadError::Serialization),
         }
@@ -561,7 +584,7 @@ impl CachingClient {
     ) -> Result<(), ScratchpadError> {
         let owner_clone = owner.clone();
         let data_clone = data.clone();
-        match self.maybe_client.clone() {
+        match self.client_harness.get_ref().lock().await.get_client().await {
             Some(client) => {
                 // todo: move to job processor
                 tokio::spawn(async move {
@@ -575,24 +598,26 @@ impl CachingClient {
     }
 
     pub async fn scratchpad_get(&self, address: &ScratchpadAddress) -> Result<Scratchpad, ScratchpadError> {
-        let local_client = self.maybe_client.clone();
         let local_address = address.clone();
         let local_hybrid_cache = self.hybrid_cache.clone();
         let local_ant_tp_config = self.ant_tp_config.clone();
-        match self.hybrid_cache.get_ref().fetch(format!("sg{}", local_address.to_hex()), || async move {
-            match local_client {
-                Some(client) => {
-                    match client.scratchpad_get(&local_address).await {
-                        Ok(scratchpad) => {
-                            debug!("found scratchpad for address [{}]", local_address.to_hex());
-                            info!("hybrid cache stats [{:?}], memory cache usage [{:?}]", local_hybrid_cache.statistics(), local_hybrid_cache.memory().usage());
-                            let cache_item = CacheItem::new(Some(scratchpad.clone()), local_ant_tp_config.cached_mutable_ttl);
-                            Ok(rmp_serde::to_vec(&cache_item).expect("Failed to serialize scratchpad"))
+        match self.hybrid_cache.get_ref().fetch(format!("sg{}", local_address.to_hex()), {
+            let maybe_local_client = self.client_harness.get_ref().lock().await.get_client().await;
+            || async move {
+                match maybe_local_client {
+                    Some(client) => {
+                        match client.scratchpad_get(&local_address).await {
+                            Ok(scratchpad) => {
+                                debug!("found scratchpad for address [{}]", local_address.to_hex());
+                                info!("hybrid cache stats [{:?}], memory cache usage [{:?}]", local_hybrid_cache.statistics(), local_hybrid_cache.memory().usage());
+                                let cache_item = CacheItem::new(Some(scratchpad.clone()), local_ant_tp_config.cached_mutable_ttl);
+                                Ok(rmp_serde::to_vec(&cache_item).expect("Failed to serialize scratchpad"))
+                            }
+                            Err(_) => Err(foyer::Error::other(format!("Failed to retrieve scratchpad for [{}] from network", local_address.to_hex())))
                         }
-                        Err(_) => Err(foyer::Error::other(format!("Failed to retrieve scratchpad for [{}] from network", local_address.to_hex())))
-                    }
-                },
-                None => Err(foyer::Error::other(format!("Failed to retrieve scratchpad for [{}] from offline network", local_address.to_hex())))
+                    },
+                    None => Err(foyer::Error::other(format!("Failed to retrieve scratchpad for [{}] from offline network", local_address.to_hex())))
+                }
             }
         }).await {
             Ok(cache_entry) => {
@@ -600,26 +625,28 @@ impl CachingClient {
                 info!("retrieved scratchpad for [{}] from hybrid cache", address.to_hex());
                 if cache_item.has_expired() {
                     // update cache in the background
-                    let local_client = self.maybe_client.clone();
                     let local_address = address.clone();
                     let local_hybrid_cache = self.hybrid_cache.clone();
-                    tokio::spawn(async move {
-                        match local_client {
-                            Some(client) => {
-                                info!("refreshing hybrid cache with scratchpad for [{}] from network, timestamp [{}], ttl [{}]", local_address.to_hex(), cache_item.timestamp, cache_item.ttl);
-                                match client.scratchpad_get(&local_address).await {
-                                    Ok(scratchpad) => {
-                                        let new_cache_item = CacheItem::new(Some(scratchpad.clone()), local_ant_tp_config.cached_mutable_ttl);
-                                        local_hybrid_cache.insert(
-                                            format!("sg{}", local_address.to_hex()),
-                                            rmp_serde::to_vec(&new_cache_item).expect("Failed to serialize scratchpad")
-                                        );
-                                        info!("inserted hybrid cache with scratchpad for [{}] from network", local_address.to_hex());
+                    tokio::spawn({
+                        let maybe_local_client = self.client_harness.get_ref().lock().await.get_client().await;
+                        async move {
+                            match maybe_local_client {
+                                Some(client) => {
+                                    info!("refreshing hybrid cache with scratchpad for [{}] from network, timestamp [{}], ttl [{}]", local_address.to_hex(), cache_item.timestamp, cache_item.ttl);
+                                    match client.scratchpad_get(&local_address).await {
+                                        Ok(scratchpad) => {
+                                            let new_cache_item = CacheItem::new(Some(scratchpad.clone()), local_ant_tp_config.cached_mutable_ttl);
+                                            local_hybrid_cache.insert(
+                                                format!("sg{}", local_address.to_hex()),
+                                                rmp_serde::to_vec(&new_cache_item).expect("Failed to serialize scratchpad")
+                                            );
+                                            info!("inserted hybrid cache with scratchpad for [{}] from network", local_address.to_hex());
+                                        }
+                                        Err(e) => warn!("Failed to refresh expired scratchpad for [{}] from network [{}]", local_address.to_hex(), e)
                                     }
-                                    Err(e) => warn!("Failed to refresh expired scratchpad for [{}] from network [{}]", local_address.to_hex(), e)
-                                }
-                            },
-                            None => warn!("Failed to refresh expired scratchpad for [{}] from offline network", local_address.to_hex())
+                                },
+                                None => warn!("Failed to refresh expired scratchpad for [{}] from offline network", local_address.to_hex())
+                            }
                         }
                     });
                 }
@@ -636,7 +663,7 @@ impl CachingClient {
         payment_option: PaymentOption,
     ) -> Result<(AttoTokens, ChunkAddress), PutError> {
         let chunk_clone = chunk.clone();
-        match self.maybe_client.clone() {
+        match self.client_harness.get_ref().lock().await.get_client().await {
             Some(client) => {
                 // todo: move to job processor
                 tokio::spawn(async move {
@@ -655,7 +682,7 @@ impl CachingClient {
         payment_option: PaymentOption,
     ) -> Result<(AttoTokens, GraphEntryAddress), GraphError> {
         let address = entry.address();
-        match self.maybe_client.clone() {
+        match self.client_harness.get_ref().lock().await.get_client().await {
             Some(client) => {
                 // todo: move to job processor
                 tokio::spawn(async move {
@@ -672,24 +699,26 @@ impl CachingClient {
         &self,
         address: &GraphEntryAddress,
     ) -> Result<GraphEntry, GraphError> {
-        let local_client = self.maybe_client.clone();
         let local_address = address.clone();
         let local_hybrid_cache = self.hybrid_cache.clone();
         let local_ant_tp_config = self.ant_tp_config.clone();
-        match self.hybrid_cache.get_ref().fetch(format!("gg{}", local_address.to_hex()), || async move {
-            match local_client {
-                Some(client) => {
-                    match client.graph_entry_get(&local_address).await {
-                        Ok(scratchpad) => {
-                            debug!("found graph entry for address [{}]", local_address.to_hex());
-                            info!("hybrid cache stats [{:?}], memory cache usage [{:?}]", local_hybrid_cache.statistics(), local_hybrid_cache.memory().usage());
-                            let cache_item = CacheItem::new(Some(scratchpad.clone()), local_ant_tp_config.cached_mutable_ttl);
-                            Ok(rmp_serde::to_vec(&cache_item).expect("Failed to serialize graph entry"))
+        match self.hybrid_cache.get_ref().fetch(format!("gg{}", local_address.to_hex()), {
+            let maybe_local_client = self.client_harness.get_ref().lock().await.get_client().await;
+            || async move {
+                match maybe_local_client {
+                    Some(client) => {
+                        match client.graph_entry_get(&local_address).await {
+                            Ok(scratchpad) => {
+                                debug!("found graph entry for address [{}]", local_address.to_hex());
+                                info!("hybrid cache stats [{:?}], memory cache usage [{:?}]", local_hybrid_cache.statistics(), local_hybrid_cache.memory().usage());
+                                let cache_item = CacheItem::new(Some(scratchpad.clone()), local_ant_tp_config.cached_mutable_ttl);
+                                Ok(rmp_serde::to_vec(&cache_item).expect("Failed to serialize graph entry"))
+                            }
+                            Err(_) => Err(foyer::Error::other(format!("Failed to retrieve graph entry for [{}] from network", local_address.to_hex())))
                         }
-                        Err(_) => Err(foyer::Error::other(format!("Failed to retrieve graph entry for [{}] from network", local_address.to_hex())))
-                    }
-                },
-                None => Err(foyer::Error::other(format!("Failed to retrieve graph entry for [{}] from offline network", local_address.to_hex())))
+                    },
+                    None => Err(foyer::Error::other(format!("Failed to retrieve graph entry for [{}] from offline network", local_address.to_hex())))
+                }
             }
         }).await {
             Ok(cache_entry) => {
@@ -697,26 +726,28 @@ impl CachingClient {
                 info!("retrieved graph entry for [{}] from hybrid cache", address.to_hex());
                 if cache_item.has_expired() {
                     // update cache in the background
-                    let local_client = self.maybe_client.clone();
                     let local_address = address.clone();
                     let local_hybrid_cache = self.hybrid_cache.clone();
-                    tokio::spawn(async move {
-                        match local_client {
-                            Some(client) => {
-                                info!("refreshing hybrid cache with graph entry for [{}] from network, timestamp [{}], ttl [{}]", local_address.to_hex(), cache_item.timestamp, cache_item.ttl);
-                                match client.graph_entry_get(&local_address).await {
-                                    Ok(scratchpad) => {
-                                        let new_cache_item = CacheItem::new(Some(scratchpad.clone()), local_ant_tp_config.cached_mutable_ttl);
-                                        local_hybrid_cache.insert(
-                                            format!("gg{}", local_address.to_hex()),
-                                            rmp_serde::to_vec(&new_cache_item).expect("Failed to serialize graph entry")
-                                        );
-                                        info!("inserted hybrid cache with graph entry for [{}] from network", local_address.to_hex());
+                    tokio::spawn({
+                        let maybe_local_client = self.client_harness.get_ref().lock().await.get_client().await;
+                        async move {
+                            match maybe_local_client {
+                                Some(client) => {
+                                    info!("refreshing hybrid cache with graph entry for [{}] from network, timestamp [{}], ttl [{}]", local_address.to_hex(), cache_item.timestamp, cache_item.ttl);
+                                    match client.graph_entry_get(&local_address).await {
+                                        Ok(scratchpad) => {
+                                            let new_cache_item = CacheItem::new(Some(scratchpad.clone()), local_ant_tp_config.cached_mutable_ttl);
+                                            local_hybrid_cache.insert(
+                                                format!("gg{}", local_address.to_hex()),
+                                                rmp_serde::to_vec(&new_cache_item).expect("Failed to serialize graph entry")
+                                            );
+                                            info!("inserted hybrid cache with graph entry for [{}] from network", local_address.to_hex());
+                                        }
+                                        Err(e) => warn!("Failed to refresh expired graph entry for [{}] from network [{}]", local_address.to_hex(), e)
                                     }
-                                    Err(e) => warn!("Failed to refresh expired graph entry for [{}] from network [{}]", local_address.to_hex(), e)
-                                }
-                            },
-                            None => warn!("Failed to refresh expired graph entry for [{}] from offline network", local_address.to_hex())
+                                },
+                                None => warn!("Failed to refresh expired graph entry for [{}] from offline network", local_address.to_hex())
+                            }
                         }
                     });
                 }
@@ -793,7 +824,7 @@ impl CachingClient {
     }
 
     pub async fn file_content_upload_public(&self, path: PathBuf, payment_option: PaymentOption) -> Result<(AttoTokens, DataAddress), UploadError> {
-        match self.maybe_client.clone() {
+        match self.client_harness.get_ref().lock().await.get_client().await {
             Some(client) => {
                 debug!("file content upload public async");
                 client.file_content_upload_public(path, payment_option).await

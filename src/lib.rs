@@ -9,7 +9,6 @@ use crate::controller::{
     graph_controller,
 };
 use crate::service::public_archive_service::Upload;
-use ::autonomi::Client;
 use actix_files::Files;
 use actix_web::dev::ServerHandle;
 use actix_web::web::Data;
@@ -17,19 +16,21 @@ use actix_web::{App, HttpServer, middleware::Logger, web, middleware};
 use ant_evm::EvmNetwork::{ArbitrumOne, ArbitrumSepoliaTest};
 use ant_evm::{EvmWallet};
 use autonomi::files::archive_public::ArchiveAddress;
-use autonomi::{BootstrapCacheConfig, ClientConfig, ClientOperatingStrategy, InitialPeersConfig, Network};
+use autonomi::{Network};
 use config::anttp_config::AntTpConfig;
-use log::{info, warn};
+use log::{info};
 use once_cell::sync::Lazy;
 use std::collections::HashMap;
 use std::env;
 use std::path::Path;
-use std::sync::Mutex;
+use async_job::Runner;
 use foyer::{BlockEngineBuilder, Compression, DeviceBuilder, FsDeviceBuilder, HybridCache, HybridCacheBuilder, HybridCachePolicy, IoEngineBuilder, LfuConfig, PsyncIoEngineBuilder, RecoverMode, RuntimeOptions, TokioRuntimeOptions};
+use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
 use crate::client::caching_client::CachingClient;
+use crate::client::client_harness::ClientHarness;
 
 static SERVER_HANDLE: Lazy<Mutex<Option<ServerHandle>>> = Lazy::new(|| Mutex::new(None));
 
@@ -96,39 +97,8 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> std::io::Result<()> {
         "arbitrumsepoliatest" => ArbitrumSepoliaTest,
         _ => ArbitrumOne
     };
-    let bootstrap_cache_config = Some(BootstrapCacheConfig::new(false).unwrap());
 
-    let initial_peers_config = if ant_tp_config.peers.clone().is_empty() {
-        InitialPeersConfig::default()
-    } else {
-        InitialPeersConfig {
-            first: false,
-            addrs: ant_tp_config.peers.clone(),
-            network_contacts_url: vec![],
-            local: true,
-            ignore_cache: false,
-            bootstrap_cache_dir: Some(bootstrap_cache_config.clone().unwrap().cache_dir),
-        }
-    };
-
-    let mut strategy = ClientOperatingStrategy::default();
-    strategy.chunk_cache_enabled = false; // disable cache to avoid double-caching
-
-    let autonomi_client: Option<Client> = match Client::init_with_config(ClientConfig {
-        bootstrap_cache_config: bootstrap_cache_config.clone(),
-        init_peers_config: initial_peers_config,
-        evm_network: evm_network.clone(),
-        strategy: strategy,
-        network_id: Some(1),
-    }).await {
-        Ok(client) => {
-            Some(client)
-        },
-        Err(e) => {
-            warn!("Failed to connect to Autonomi Network with error [{}]. Running in offline mode.", e);
-            None
-        },
-    };
+    let client_harness_data = Data::new(Mutex::new(ClientHarness::new(evm_network.clone(), ant_tp_config.clone())));
 
     let evm_wallet = if !wallet_private_key.is_empty() {
         EvmWallet::new_from_private_key(evm_network, wallet_private_key.as_str())
@@ -144,8 +114,11 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> std::io::Result<()> {
     let hybrid_cache_data = Data::new(hybrid_cache);
 
     let caching_client_data = Data::new(
-        CachingClient::new(autonomi_client.clone(), ant_tp_config.clone(), hybrid_cache_data.clone())
+        CachingClient::new(client_harness_data, ant_tp_config.clone(), hybrid_cache_data.clone())
     );
+
+    // schedule idle disconnects for client_harness
+    Runner::new().add(Box::new(caching_client_data.get_ref().clone())).run().await;
 
     info!("Starting listener");
 
@@ -274,7 +247,7 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> std::io::Result<()> {
     .run();
 
     {
-        let mut guard = SERVER_HANDLE.lock().unwrap();
+        let mut guard = SERVER_HANDLE.lock().await;
         *guard = Some(server_instance.handle());
     }
 
@@ -326,17 +299,17 @@ async fn build_foyer_cache(app_config: &AntTpConfig) -> HybridCache<String, Vec<
 }
 
 pub async fn stop_server() -> Result<(), String> {
-let handle_opt = {
-    let mut guard = SERVER_HANDLE.lock().unwrap();
-    guard.take()
-};
+    let handle_opt = {
+        let mut guard = SERVER_HANDLE.lock().await;
+        guard.take()
+    };
 
-if let Some(handle) = handle_opt {
-    info!("Stopping server gracefully...");
-    handle.stop(true).await;
-    info!("Server stopped");
-    Ok(())
-} else {
-    Err("Server handle not found or already stopped".to_string())
-}
+    if let Some(handle) = handle_opt {
+        info!("Stopping server gracefully...");
+        handle.stop(true).await;
+        info!("Server stopped");
+        Ok(())
+    } else {
+        Err("Server handle not found or already stopped".to_string())
+    }
 }

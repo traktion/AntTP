@@ -216,7 +216,7 @@ impl PublicArchiveService {
             }
         });
         let task_id = Uuid::new_v4();
-        self.uploader_state.uploader_map.lock().unwrap().insert(task_id.to_string(), handle);
+        self.uploader_state.uploader_map.lock().await.insert(task_id.to_string(), handle);
 
         info!("Upload directory scheduled with handle id [{:?}]", task_id.to_string());
         let upload_response = Upload::new(task_id.to_string(), "scheduled".to_string(), "".to_string(), None);
@@ -226,29 +226,29 @@ impl PublicArchiveService {
     pub async fn get_status(&self, task_id: String) -> Result<HttpResponse, Error> {
         // todo: update response with message containing a reason for success/failure
         // todo: rewrite - can't poll join handle multiple times after completion (bug!)
-        let _ = match self.upload_state.upload_map.lock().unwrap().get_mut(&task_id) {
+        let _ = match self.upload_state.upload_map.lock().await.get_mut(&task_id) {
             Some(uploader_state) => return Ok(HttpResponse::Ok().json(uploader_state)),
             None => false 
         };
             
-        let upload_response = match self.uploader_state.uploader_map.lock().unwrap().get_mut(&task_id) {
+        let upload_response = match self.uploader_state.uploader_map.lock().await.get_mut(&task_id) {
             Some(handle) => {
                 if handle.is_finished() {
                     match handle.await {
                         Ok(archive_address) => {
                             if archive_address.is_some() {
                                 let upload = Upload::new(task_id.to_string(), "succeeded".to_string(), "".to_string(), Some(archive_address.unwrap().to_hex()));
-                                self.upload_state.upload_map.lock().unwrap().insert(task_id.to_string(), upload.clone());
+                                self.upload_state.upload_map.lock().await.insert(task_id.to_string(), upload.clone());
                                 upload
                             } else {
                                 let upload = Upload::new(task_id.to_string(), "failed".to_string(), "Missing address".to_string(), None);
-                                self.upload_state.upload_map.lock().unwrap().insert(task_id.to_string(), upload.clone());
+                                self.upload_state.upload_map.lock().await.insert(task_id.to_string(), upload.clone());
                                 upload
                             }
                         }
                         Err(e) => {
                             let upload = Upload::new(task_id.to_string(), "failed".to_string(), e.to_string(), None);
-                            self.upload_state.upload_map.lock().unwrap().insert(task_id.to_string(), upload.clone());
+                            self.upload_state.upload_map.lock().await.insert(task_id.to_string(), upload.clone());
                             upload
                         }
                     }
@@ -261,7 +261,7 @@ impl PublicArchiveService {
             }
         };
         if upload_response.status == "failed" || upload_response.status == "succeeded" {
-            self.uploader_state.uploader_map.lock().unwrap().remove(&task_id);
+            self.uploader_state.uploader_map.lock().await.remove(&task_id);
         }
         Ok(HttpResponse::Ok().json(upload_response))
     }

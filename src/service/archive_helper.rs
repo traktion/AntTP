@@ -140,7 +140,11 @@ impl ArchiveHelper {
                     )
                 }
                 None => if !self.archive.list_dir(sub_path_part.clone()).is_empty() {
-                    ArchiveInfo::new(sub_path_part.clone(), XorName::default(), ArchiveAction::Listing, DataState::Modified, 0, 0)
+                    if sub_path_part.to_string().chars().last() != Some('/') {
+                        ArchiveInfo::new(format!("{}/", sub_path_part.clone()), XorName::default(), ArchiveAction::Redirect, DataState::Modified, 0, 0)
+                    } else {
+                        ArchiveInfo::new(sub_path_part.clone(), XorName::default(), ArchiveAction::Listing, DataState::Modified, 0, 0)
+                    }
                 } else {
                     ArchiveInfo::new(resolved_relative_path_route, XorName::default(), ArchiveAction::NotFound, DataState::Modified, 0, 0)
                 }

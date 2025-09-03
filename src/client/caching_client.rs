@@ -1,4 +1,4 @@
-use std::{env, fs};
+use std::{fs};
 use std::fs::File;
 use std::io::{Read, Write};
 use std::path::PathBuf;
@@ -31,7 +31,7 @@ use serde::{Deserialize, Serialize};
 use tokio::join;
 use tokio::sync::Mutex;
 use crate::client::client_harness::ClientHarness;
-use crate::service::archive::Archive;
+use crate::model::archive::Archive;
 
 #[derive(Serialize, Deserialize)]
 enum DataMapLevel {
@@ -103,11 +103,7 @@ impl ChunkGetter for CachingClient {
 impl CachingClient {
 
     pub fn new(client_harness: Data<Mutex<ClientHarness>>, ant_tp_config: AntTpConfig, hybrid_cache: Data<HybridCache<String, Vec<u8>>>) -> Self {
-        let cache_dir = if ant_tp_config.map_cache_directory.is_empty() {
-            env::temp_dir().to_str().unwrap().to_owned() + "/anttp/cache/"
-        } else {
-            ant_tp_config.map_cache_directory.clone()
-        };
+        let cache_dir = ant_tp_config.clone().map_cache_directory;
         CachingClient::create_tmp_dir(cache_dir.clone());
 
         Self {
@@ -147,7 +143,14 @@ impl CachingClient {
         }).await {
             Ok(cache_entry) => {
                 info!("retrieved archive for [{}] from hybrid cache", addr.to_hex());
-                Ok(rmp_serde::from_slice(cache_entry.value()).expect("Failed to deserialize archive"))
+                match rmp_serde::from_slice(cache_entry.value()) {
+                    Ok(archive) => Ok(archive),
+                    Err(e) => {
+                        debug!("Failed to deserialize archive for [{}] from hybrid cache: {:?}. Removing entry and retrying.", addr.to_hex(), e);
+                        self.hybrid_cache.remove(cache_entry.key());
+                        Box::pin(self.archive_get(addr)).await
+                    }
+                }
             },
             Err(e) => Err(decode::Error::Uncategorized(e.to_string())),
         }

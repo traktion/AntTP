@@ -28,7 +28,7 @@ use xor_name::XorName;
 use crate::config::anttp_config::AntTpConfig;
 use crate::{UploadState, UploaderState};
 use crate::config::app_config::AppConfig;
-use crate::service::archive::Archive;
+use crate::model::archive::Archive;
 
 #[derive(Serialize, Deserialize, Clone, ToSchema)]
 pub struct Upload {
@@ -94,7 +94,7 @@ impl PublicArchiveService {
                 .insert_header(ETag(EntityTag::new_strong(format!("{:x}", resolved_address.xor_name).to_owned())))
                 .insert_header((header::ACCESS_CONTROL_ALLOW_ORIGIN, "*"))
                 .insert_header(server_header)
-                .body(archive_helper.list_files(request.headers()))) // todo: return .json / .body depending on accept header
+                .body(archive_helper.list_files(archive_relative_path, request.headers()))) // todo: return .json / .body depending on accept header
         } else {
             self.file_client.download_data_stream(archive_relative_path, archive_info.resolved_xor_addr, resolved_address, &request, archive_info.offset, archive_info.limit).await
         }
@@ -105,7 +105,7 @@ impl PublicArchiveService {
         let mut path_parts = Vec::<String>::new();
         path_parts.push("ignore".to_string());
         path_parts.push(path_str.to_string());
-        match archive.find(path_str.to_string()) {
+        match archive.find_file(path_str.to_string()) {
             Some(data_address_offset) => {
                 info!("Downloading app-config [{}] with addr [{}] from archive [{}]", path_str, format!("{:x}", data_address_offset.data_address.xorname()), format!("{:x}", archive_address_xorname));
                 match self.file_client.download_data(*data_address_offset.data_address.xorname(), data_address_offset.offset, data_address_offset.size).await {

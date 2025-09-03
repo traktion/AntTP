@@ -6,7 +6,7 @@ use log::{debug, info};
 use xor_name::XorName;
 use crate::client::caching_client::CachingClient;
 use crate::config::anttp_config::AntTpConfig;
-use crate::service::archive::{Archive, DataAddressOffset};
+use crate::model::archive::Archive;
 use crate::service::resolver_service::ResolverService;
 
 #[derive(Clone)]
@@ -48,38 +48,45 @@ impl ArchiveHelper {
         ArchiveHelper { archive, ant_tp_config }
     }
     
-    pub fn list_files(&self, header_map: &HeaderMap) -> String{
+    pub fn list_files(&self, path: String, header_map: &HeaderMap) -> String{
         if header_map.contains_key("Accept")
             && header_map.get("Accept").unwrap().to_str().unwrap().to_string().contains( "json") {
             self.list_files_json()
         } else {
-            self.list_files_html()
+            self.list_files_html(path)
         }
     }
 
-    fn list_files_html(&self) -> String {
-        let mut output = "<html><body><ul>".to_string();
+    fn list_files_html(&self, path: String) -> String {
+        let mut output = "<html><head><style>table { width: 60%; text-align: left; }</style></head><body><center><table>".to_string();
 
-        // todo: Replace with contains() once keys are a more useful shape
-        for key in self.archive.map().keys() {
-            let filepath = key.trim_start_matches("./").trim_start_matches("/").to_string();
-            output.push_str(&format!("<li><a href=\"{}\">{}</a></li>\n", filepath, filepath));
+        output.push_str(&format!("<h1>Index of /{}</h1>", path));
+        output.push_str("<tr><th>Name</th><th>Last Modified</th><th>Size</th></tr>");
+
+        for path_detail in self.archive.list_dir(path) {
+            let mtime_datetime = DateTime::from_timestamp_millis(path_detail.modified as i64 * 1000).unwrap();
+            let mtime_iso = mtime_datetime.format("%+");
+            output.push_str("<tr>");
+            output.push_str(&format!("<td><a href=\"{}\">{}</a></td>\n", path_detail.path, path_detail.display));
+            output.push_str(&format!("<td>{}</td>\n", mtime_iso));
+            output.push_str(&format!("<td>{}</td>\n", path_detail.size));
+            output.push_str("</tr>");
         }
-        output.push_str("</ul></body></html>");
+        output.push_str("</table></center></body></html>");
+        debug!("list_files_html: {}", output);
         output
     }
 
     fn list_files_json(&self) -> String {
         let mut output = "[\n".to_string();
-
         let mut i = 1;
-        let count = self.archive.map().keys().len();
-        for key in self.archive.map().keys() {
-            let value = self.archive.map().get(key).unwrap();
-            let mtime_datetime = DateTime::from_timestamp_millis(value.modified as i64 * 1000).unwrap();
+        let count = self.archive.vec().len();
+        for data_address_offset in self.archive.vec() {
+            let mtime_datetime = DateTime::from_timestamp_millis(data_address_offset.modified as i64 * 1000).unwrap();
             let mtime_iso = mtime_datetime.format("%+");
-            let filepath = key.trim_start_matches("./").trim_start_matches("/").to_string();            output.push_str("{");
-            output.push_str(&format!("\"name\": \"{}\", \"type\": \"file\", \"mtime\": \"{}\", \"size\": \"{}\"", filepath, mtime_iso, value.size));
+            let filepath = data_address_offset.path.trim_start_matches("./").trim_start_matches("/").to_string();
+            output.push_str("{");
+            output.push_str(&format!("\"name\": \"{}\", \"type\": \"file\", \"mtime\": \"{}\", \"size\": \"{}\"", filepath, mtime_iso, data_address_offset.size));
             output.push_str("}");
             if i < count {
                 output.push_str(",");
@@ -88,19 +95,8 @@ impl ArchiveHelper {
             i+=1;
         }
         output.push_str("]");
+        debug!("list_files_json: {}", output);
         output
-    }
-
-    pub fn resolve_data_addr(&self, path_parts: Vec<String>) -> Option<DataAddressOffset> {
-        // todo: Replace with contains() once keys are a more useful shape
-        let path_parts_string = path_parts[1..].join("/");
-        for key in self.archive.map().keys() {
-            if key.replace("\\", "/").trim_start_matches("./").trim_start_matches("/").ends_with(path_parts_string.as_str()) {
-                let value = self.archive.map().get(key).unwrap();
-                return Some(value.clone());
-            }
-        }
-        None
     }
 
     pub async fn resolve_archive_info(&self, path_parts: Vec<String>, request: HttpRequest, resolved_relative_path_route: String, has_route_map: bool, caching_client: CachingClient) -> ArchiveInfo {
@@ -112,7 +108,7 @@ impl ArchiveHelper {
             ArchiveInfo::new(resolved_relative_path_route, XorName::default(), ArchiveAction::Redirect, DataState::Modified, 0, 0)
         } else if has_route_map {
             debug!("retrieve route map index");
-            match self.archive.find(resolved_relative_path_route.clone()) {
+            match self.archive.find_file(resolved_relative_path_route.clone()) {
                 Some(data_address_offset) => {
                     let path_buf = &PathBuf::from(resolved_relative_path_route.clone());
                     info!("Resolved path [{}], path_buf [{}] to xor address [{}]", resolved_relative_path_route, path_buf.display(), format!("{:x}", *data_address_offset.data_address.xorname()));
@@ -129,7 +125,8 @@ impl ArchiveHelper {
             }
         } else if !resolved_relative_path_route.is_empty() {
             debug!("retrieve path and data address");
-            match self.archive.find(path_parts[1..].join("/")) {
+            let sub_path_part = path_parts[1..].join("/");
+            match self.archive.find_file(sub_path_part.clone()) {
                 Some(data_address_offset) => {
                     let path_buf = &PathBuf::from(resolved_relative_path_route.clone());
                     info!("Resolved path [{}], path_buf [{}] to xor address [{}]", resolved_relative_path_route, path_buf.display(), format!("{:x}", *data_address_offset.data_address.xorname()));
@@ -142,10 +139,14 @@ impl ArchiveHelper {
                         data_address_offset.size
                     )
                 }
-                None => ArchiveInfo::new(resolved_relative_path_route, XorName::default(), ArchiveAction::NotFound, DataState::Modified, 0, 0)
+                None => if !self.archive.list_dir(sub_path_part.clone()).is_empty() {
+                    ArchiveInfo::new(sub_path_part.clone(), XorName::default(), ArchiveAction::Listing, DataState::Modified, 0, 0)
+                } else {
+                    ArchiveInfo::new(resolved_relative_path_route, XorName::default(), ArchiveAction::NotFound, DataState::Modified, 0, 0)
+                }
             }
         } else {
-            info!("retrieve file listing");
+            debug!("retrieve file listing");
             ArchiveInfo::new(resolved_relative_path_route, XorName::default(), ArchiveAction::Listing, DataState::Modified, 0, 0)
         }
     }

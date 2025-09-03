@@ -1,4 +1,6 @@
+use std::env;
 use std::net::SocketAddr;
+use ant_evm::EvmNetwork::ArbitrumOne;
 use autonomi::{Multiaddr, SecretKey};
 use log::info;
 use clap::Parser;
@@ -31,7 +33,7 @@ pub struct AntTpConfig {
     )]
     pub bookmarks: Vec<String>,
 
-    #[arg(short, long)]
+    #[arg(short, long, default_value_t = false)]
     pub uploads_disabled: bool,
 
     #[arg(short, long, default_value_t = 5)]
@@ -40,10 +42,10 @@ pub struct AntTpConfig {
     #[arg(short, long, value_delimiter = ',')]
     pub peers: Vec<Multiaddr>,
 
-    #[arg(short, long, default_value = "")]
+    #[arg(short, long, default_value_t = AntTpConfig::get_default_map_cache_directory())]
     pub map_cache_directory: String,
 
-    #[arg(short, long, default_value = "")]
+    #[arg(short, long, default_value_t = AntTpConfig::get_default_evm_network())]
     pub evm_network: String,
 
     #[arg(long, default_value_t = 1024)]
@@ -79,5 +81,13 @@ impl AntTpConfig {
         info!("Immutable memory cache size (slots): {:?}", ant_tp_config.immutable_memory_cache_size);
         info!("Idle disconnect from Autonomi (seconds): {:?}", ant_tp_config.idle_disconnect);
         ant_tp_config
+    }
+
+    pub fn get_default_map_cache_directory() -> String {
+        env::temp_dir().to_str().unwrap().to_owned() + "/anttp/cache/"
+    }
+
+    pub fn get_default_evm_network() -> String {
+        ArbitrumOne.to_string()
     }
 }

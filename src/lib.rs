@@ -2,6 +2,7 @@ pub mod client;
 pub mod config;
 pub mod controller;
 pub mod service;
+pub mod model;
 
 use crate::controller::{
     chunk_controller, file_controller, pointer_controller, private_scratchpad_controller,

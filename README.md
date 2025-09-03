@@ -252,12 +252,27 @@ The Tarchive format is a more efficient way to upload/download many smaller file
 
 A Tarchive is simply a tar file containing the associated files with an index appended to the end.
 
+Note that the file order is important for establishing chronologic sequence, which may be important for some applications.
+Either create the tar using a specific ordering or append file(s) with `tar -rf` to define the ordering.
+
 Tarindexer (https://github.com/devsnd/tarindexer) is used to generate the index and then the following commands can be
 run to create and upload the tarchive.
 
 ```shell
 cd mydirectory
-tar -cf ../archive.tar ./
+tar -cf ../archive.tar *
+cd ..
+tarindexer.py -i archive.tar archive.tar.idx
+tar -rf archive.tar archive.tar.idx
+ant file upload -p archive.tar
+```
+
+Files can be added to the tarchive by adding them to the end of the tar file (to preserve chronological order), along with
+an updated index:
+
+```shell
+cd mydirectory
+tar -rf ../archive.tar new_data.txt new_image.png
 cd ..
 tarindexer.py -i archive.tar archive.tar.idx
 tar -rf archive.tar archive.tar.idx

@@ -45,7 +45,7 @@ impl Upload {
 }
 
 pub struct PublicArchiveService {
-    file_client: FileService<CachingClient>,
+    file_client: FileService,
     resolver_service: ResolverService,
     uploader_state: Data<UploaderState>,
     upload_state: Data<UploadState>,
@@ -55,7 +55,7 @@ pub struct PublicArchiveService {
 
 impl PublicArchiveService {
     
-    pub fn new(file_client: FileService<CachingClient>, resolver_service: ResolverService, uploader_state: Data<UploaderState>, upload_state: Data<UploadState>, ant_tp_config: AntTpConfig, caching_client: CachingClient) -> Self {
+    pub fn new(file_client: FileService, resolver_service: ResolverService, uploader_state: Data<UploaderState>, upload_state: Data<UploadState>, ant_tp_config: AntTpConfig, caching_client: CachingClient) -> Self {
         PublicArchiveService { file_client, resolver_service, uploader_state, upload_state, ant_tp_config, caching_client }
     }
     
@@ -126,7 +126,7 @@ impl PublicArchiveService {
                             };
                         }
                         let json = String::from_utf8(buf.to_vec()).unwrap_or(String::new());
-                        debug!("json [{}], raw [{:?}]", json, buf.to_vec());
+                        debug!("json [{}]", json);
                         serde_json::from_str(&json.as_str().trim()).unwrap_or(AppConfig::default())
                     }
                     Err(_) => AppConfig::default()

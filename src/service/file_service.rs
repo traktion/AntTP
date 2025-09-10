@@ -23,15 +23,15 @@ pub struct Range {
     pub end: u64,
 }
 
-pub struct FileService<T> {
-    chunk_getter: T,
+pub struct FileService {
+    caching_client: CachingClient,
     xor_helper: ResolverService,
     ant_tp_config: AntTpConfig,
 }
 
-impl<T: ChunkGetter> FileService<T> {
-    pub fn new(autonomi_client: T, xor_helper: ResolverService, ant_tp_config: AntTpConfig) -> Self {
-        FileService { chunk_getter: autonomi_client, xor_helper, ant_tp_config }
+impl FileService {
+    pub fn new(caching_client: CachingClient, xor_helper: ResolverService, ant_tp_config: AntTpConfig) -> Self {
+        FileService { caching_client, xor_helper, ant_tp_config }
     }
 
     pub async fn get_data(&self, resolved_address: ResolvedAddress, request: HttpRequest, path_parts: Vec<String>) -> Result<HttpResponse, Error> {
@@ -66,16 +66,18 @@ impl<T: ChunkGetter> FileService<T> {
         offset_modifier: u64,
         size_modifier: u64,
     ) -> Result<HttpResponse, Error> {
-        let data_map_chunk = match self.chunk_getter.chunk_get(&ChunkAddress::new(xor_name)).await {
+        let data_map_chunk = match self.caching_client.chunk_get(&ChunkAddress::new(xor_name)).await {
             Ok(chunk) => chunk,
             Err(e) => return Err(ErrorNotFound(format!("chunk not found [{}]", e)))
         };
 
-        let data_map = match CachingClient::get_data_map_from_bytes(&data_map_chunk.value) {
+        let data_map = match self.caching_client.get_data_map_from_bytes(&data_map_chunk.value).await {
             Ok(data_map) => data_map,
             Err(e) => return Err(ErrorInternalServerError(format!("invalid data map [{}]", e)))
         };
-        let total_size = data_map.file_size();
+
+        let chunk_streamer = ChunkStreamer::new(xor_name.to_string(), data_map, self.caching_client.clone(), self.ant_tp_config.download_threads);
+        let total_size = chunk_streamer.get_stream_size().await;
         // todo: refactor this +/- sizing to simplify
         let file_size = if size_modifier > 0 {
             size_modifier + 1
@@ -90,10 +92,8 @@ impl<T: ChunkGetter> FileService<T> {
         let final_range_from = range_from - offset_modifier;
         let final_range_to = derived_range_to - offset_modifier;
 
-        info!("Streaming item [{}] at addr [{}], range_from: [{}], range_to: [{}], offset_modifier: [{}], size_modifier: [{}], final_range_from: [{}], final_range_to: [{}]",
-            path_str, format!("{:x}", xor_name), range_from, range_to, offset_modifier, size_modifier, final_range_from, final_range_to);
-
-        let chunk_streamer = ChunkStreamer::new(xor_name.to_string(), data_map, self.chunk_getter.clone(), self.ant_tp_config.download_threads);
+        info!("Streaming item [{}] at addr [{}], range_from: [{}], range_to: [{}], offset_modifier: [{}], size_modifier: [{}], final_range_from: [{}], final_range_to: [{}], file_size: [{}]",
+            path_str, format!("{:x}", xor_name), range_from, range_to, offset_modifier, size_modifier, final_range_from, final_range_to, file_size);
         let chunk_receiver = chunk_streamer.open(range_from, derived_range_to);
         
         let etag_header = ETag(EntityTag::new_strong(format!("{:x}", xor_name).to_owned()));
@@ -128,20 +128,20 @@ impl<T: ChunkGetter> FileService<T> {
 
     pub async fn download_data(&self, xor_name: XorName, offset: u64, size: u64) -> Result<ChunkReceiver, Error> {
         debug!("download data xor_name: [{}], offset: [{}], size: [{}]", xor_name.clone(), offset, size);
-        let data_map_chunk = match self.chunk_getter.chunk_get(&ChunkAddress::new(xor_name)).await {
+        let data_map_chunk = match self.caching_client.chunk_get(&ChunkAddress::new(xor_name)).await {
             Ok(chunk) => chunk,
             Err(e) => return Err(ErrorNotFound(format!("chunk not found [{}]", e)))
         };
 
-        let data_map = match CachingClient::get_data_map_from_bytes(&data_map_chunk.value) {
+        let data_map = match self.caching_client.get_data_map_from_bytes(&data_map_chunk.value).await {
             Ok(data_map) => data_map,
             Err(e) => return Err(ErrorInternalServerError(format!("invalid data map [{}]", e)))
         };
-        let total_size = data_map.file_size();
+        let total_size = data_map.original_file_size();
 
         let derived_size = if size == u64::MAX { total_size as u64 - 1 } else { offset + size };
 
-        let chunk_streamer = ChunkStreamer::new(xor_name.to_string(), data_map, self.chunk_getter.clone(), self.ant_tp_config.download_threads);
+        let chunk_streamer = ChunkStreamer::new(xor_name.to_string(), data_map, self.caching_client.clone(), self.ant_tp_config.download_threads);
         Ok(chunk_streamer.open(offset, derived_size))
     }
 
@@ -210,7 +210,7 @@ impl<T: ChunkGetter> FileService<T> {
         range_from: u64,
         range_to: u64,
     ) -> Bytes {
-        let chunk_streamer = ChunkStreamer::new(xor_name.to_string(), data_map, self.chunk_getter.clone(), self.ant_tp_config.download_threads);
+        let chunk_streamer = ChunkStreamer::new(xor_name.to_string(), data_map, self.caching_client.clone(), self.ant_tp_config.download_threads);
         let mut chunk_receiver = chunk_streamer.open(range_from, range_to);
 
         let mut buf = BytesMut::new();

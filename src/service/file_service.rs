@@ -6,12 +6,9 @@ use actix_web::{Error, HttpRequest, HttpResponse};
 use actix_web::error::{ErrorInternalServerError, ErrorNotFound};
 use actix_web::http::header::{CacheControl, CacheDirective, ContentLength, ContentRange, ContentRangeSpec, ContentType, ETag, EntityTag, Expires};
 use autonomi::{ChunkAddress};
-use bytes::{BufMut, Bytes, BytesMut};
 use chunk_streamer::chunk_receiver::ChunkReceiver;
 use chunk_streamer::chunk_streamer::{ChunkGetter, ChunkStreamer};
-use futures_util::StreamExt;
-use log::{debug, error, info};
-use self_encryption::{DataMap};
+use log::{debug, info};
 use xor_name::XorName;
 use crate::client::caching_client::CachingClient;
 use crate::config::anttp_config::AntTpConfig;
@@ -71,12 +68,7 @@ impl FileService {
             Err(e) => return Err(ErrorNotFound(format!("chunk not found [{}]", e)))
         };
 
-        let data_map = match self.caching_client.get_data_map_from_bytes(&data_map_chunk.value).await {
-            Ok(data_map) => data_map,
-            Err(e) => return Err(ErrorInternalServerError(format!("invalid data map [{}]", e)))
-        };
-
-        let chunk_streamer = ChunkStreamer::new(xor_name.to_string(), data_map, self.caching_client.clone(), self.ant_tp_config.download_threads);
+        let chunk_streamer = ChunkStreamer::new(xor_name.to_string(), data_map_chunk.value, self.caching_client.clone(), self.ant_tp_config.download_threads);
         let total_size = chunk_streamer.get_stream_size().await;
         // todo: refactor this +/- sizing to simplify
         let file_size = if size_modifier > 0 {
@@ -94,7 +86,10 @@ impl FileService {
 
         info!("Streaming item [{}] at addr [{}], range_from: [{}], range_to: [{}], offset_modifier: [{}], size_modifier: [{}], final_range_from: [{}], final_range_to: [{}], file_size: [{}]",
             path_str, format!("{:x}", xor_name), range_from, range_to, offset_modifier, size_modifier, final_range_from, final_range_to, file_size);
-        let chunk_receiver = chunk_streamer.open(range_from, derived_range_to);
+        let chunk_receiver = match chunk_streamer.open(range_from, derived_range_to).await {
+            Ok(chunk_receiver) => chunk_receiver,
+            Err(e) => return Err(ErrorInternalServerError(format!("failed to open chunk stream: {}", e))),
+        };
         
         let etag_header = ETag(EntityTag::new_strong(format!("{:x}", xor_name).to_owned()));
         let cors_allow_all = (header::ACCESS_CONTROL_ALLOW_ORIGIN, "*");
@@ -133,16 +128,15 @@ impl FileService {
             Err(e) => return Err(ErrorNotFound(format!("chunk not found [{}]", e)))
         };
 
-        let data_map = match self.caching_client.get_data_map_from_bytes(&data_map_chunk.value).await {
-            Ok(data_map) => data_map,
-            Err(e) => return Err(ErrorInternalServerError(format!("invalid data map [{}]", e)))
-        };
-        let total_size = data_map.original_file_size();
+        let chunk_streamer = ChunkStreamer::new(xor_name.to_string(), data_map_chunk.value, self.caching_client.clone(), self.ant_tp_config.download_threads);
+        let total_size = chunk_streamer.get_stream_size().await;
 
         let derived_size = if size == u64::MAX { total_size as u64 - 1 } else { offset + size };
 
-        let chunk_streamer = ChunkStreamer::new(xor_name.to_string(), data_map, self.caching_client.clone(), self.ant_tp_config.download_threads);
-        Ok(chunk_streamer.open(offset, derived_size))
+        match chunk_streamer.open(offset, derived_size).await {
+            Ok(chunk_receiver) => Ok(chunk_receiver),
+            Err(e) => Err(ErrorInternalServerError(format!("download_data failed [{}]", e)))
+        }
     }
 
     pub fn get_range(&self, request: &HttpRequest, offset_modifier: u64, size_modifier: u64) -> (u64, u64, bool) {
@@ -201,32 +195,5 @@ impl FileService {
         } else {
             ContentType(mime::TEXT_HTML) // default to text/html
         }
-    }
-
-    pub async fn download_stream(
-        &self,
-        xor_name: XorName,
-        data_map: DataMap,
-        range_from: u64,
-        range_to: u64,
-    ) -> Bytes {
-        let chunk_streamer = ChunkStreamer::new(xor_name.to_string(), data_map, self.caching_client.clone(), self.ant_tp_config.download_threads);
-        let mut chunk_receiver = chunk_streamer.open(range_from, range_to);
-
-        let mut buf = BytesMut::new();
-        let mut has_data = true;
-        while has_data {
-            match chunk_receiver.next().await {
-                Some(item) => match item {
-                    Ok(bytes) => buf.put(bytes),
-                    Err(e) => {
-                        error!("Error streaming app-config from archive: {}", e);
-                        has_data = false
-                    },
-                },
-                None => has_data = false
-            };
-        }
-        buf.freeze()
     }
 }

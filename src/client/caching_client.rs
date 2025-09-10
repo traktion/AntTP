@@ -18,7 +18,6 @@ use autonomi::graph::GraphError;
 use autonomi::pointer::{PointerError, PointerTarget};
 use autonomi::register::{RegisterAddress, RegisterError, RegisterHistory, RegisterValue};
 use autonomi::scratchpad::{Scratchpad, ScratchpadError};
-use autonomi::self_encryption::DataMapLevel;
 use chunk_streamer::chunk_streamer::{ChunkGetter, ChunkStreamer};
 use foyer::HybridCache;
 use log::{debug, error, info, warn};
@@ -26,9 +25,7 @@ use rmp_serde::decode;
 use crate::client::cache_item::CacheItem;
 use crate::config::anttp_config::AntTpConfig;
 use bytes::{BufMut, Bytes, BytesMut};
-use futures_util::stream::FuturesUnordered;
 use futures_util::StreamExt;
-use self_encryption::{ChunkInfo, DataMap, EncryptedChunk};
 use tokio::sync::Mutex;
 use crate::client::client_harness::ClientHarness;
 use crate::model::archive::Archive;
@@ -763,9 +760,7 @@ impl CachingClient {
     ) -> Result<Bytes, Error> {
         match self.chunk_get(&ChunkAddress::new(*addr.xorname())).await {
             Ok(data_map_chunk) => {
-                let data_map = self.get_data_map_from_bytes(data_map_chunk.value()).await.expect("Failed to get data map");
-
-                let chunk_streamer = ChunkStreamer::new(addr.to_hex(), data_map, self.clone(), self.ant_tp_config.download_threads);
+                let chunk_streamer = ChunkStreamer::new(addr.to_hex(), data_map_chunk.value, self.clone(), self.ant_tp_config.download_threads);
                 let total_size = chunk_streamer.get_stream_size().await;
                 let derived_range_from: u64 = if range_from < 0 {
                     let size = u64::try_from(total_size).unwrap();
@@ -790,8 +785,10 @@ impl CachingClient {
                     u64::try_from(range_to).unwrap()
                 };
 
-                //let chunk_streamer = ChunkStreamer::new(addr.to_hex(), data_map, self.clone(), self.ant_tp_config.download_threads);
-                let mut chunk_receiver = chunk_streamer.open(derived_range_from, derived_range_to);
+                let mut chunk_receiver = match chunk_streamer.open(derived_range_from, derived_range_to).await {
+                    Ok(chunk_receiver) => chunk_receiver,
+                    Err(e) => return Err(ErrorInternalServerError(format!("failed to open chunk stream: {}", e))),
+                };
 
                 let mut buf = BytesMut::with_capacity(usize::try_from(derived_range_to - derived_range_from).expect("Failed to convert range from u64 to usize"));
                 let mut has_data = true;
@@ -811,139 +808,6 @@ impl CachingClient {
             }
             Err(e) => Err(ErrorInternalServerError(format!("Failed to download data map chunk: [{}]", e))),
         }
-    }
-
-    pub async fn get_data_map_from_bytes(&self, data_map_bytes: &Bytes) -> Result<DataMap, GetError> {
-        match rmp_serde::from_slice::<DataMap>(&data_map_bytes) {
-            Ok(data_map) => {
-                debug!("Attempting to deserialize NEW format data map chunk");
-                Ok(data_map)
-            },
-            Err(_) => {
-                debug!("Attempting to deserialize OLD format data map chunk");
-
-                let mut data_map_bytes = data_map_bytes.clone();
-
-                loop {
-                    // The data_map_bytes could be an Archive, we shall return earlier for that case
-                    match Self::get_raw_data_map(&data_map_bytes) {
-                        Ok(mut data_map) => {
-                            debug!("Restoring from data_map:\n{data_map:?}");
-                            if !data_map.is_child() {
-                                return Ok(data_map);
-                            }
-                            data_map.child = None;
-                            data_map_bytes = self.fetch_from_data_map(&data_map).await.expect("fetch_from_data_map failed");
-                        }
-                        Err(e) => {
-                            info!("Failed to deserialize data_map_bytes: {e:?}");
-                            return Err(GetError::UnrecognizedDataMap("Failed to deserialize data_map_bytes".to_string()));
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    fn get_raw_data_map(data_map_bytes: &Bytes) -> Result<DataMap, GetError> {
-        // Fall back to old format and convert
-        let data_map_level = rmp_serde::from_slice::<DataMapLevel>(data_map_bytes)
-            .map_err(GetError::InvalidDataMap).expect("Failed to deserialize OLD data map level");
-
-        let (old_data_map, child) = match &data_map_level {
-            DataMapLevel::First(map) => (map, None),
-            DataMapLevel::Additional(map) => (map, Some(0)),
-        };
-
-        // Convert to new format
-        let chunk_identifiers: Vec<ChunkInfo> = old_data_map
-            .infos()
-            .iter()
-            .map(|ck_info| ChunkInfo {
-                index: ck_info.index,
-                dst_hash: ck_info.dst_hash,
-                src_hash: ck_info.src_hash,
-                src_size: ck_info.src_size,
-            })
-            .collect();
-
-        Ok(DataMap {
-            chunk_identifiers,
-            child,
-        })
-    }
-
-    async fn fetch_from_data_map(&self, data_map: &DataMap) -> Result<Bytes, GetError> {
-        let total_chunks = data_map.infos().len();
-        debug!("Fetching {total_chunks} encrypted data chunks from datamap {data_map:?}");
-
-        let mut download_tasks = vec![];
-        for (i, info) in data_map.infos().into_iter().enumerate() {
-            download_tasks.push(async move {
-                let idx = i + 1;
-                let chunk_addr = ChunkAddress::new(info.dst_hash);
-
-                info!("Fetching chunk {idx}/{total_chunks}({chunk_addr:?})");
-
-                match self.chunk_get(&chunk_addr).await {
-                    Ok(chunk) => {
-                        info!("Successfully fetched chunk {idx}/{total_chunks}({chunk_addr:?})");
-                        Ok(EncryptedChunk {
-                            content: chunk.value,
-                        })
-                    }
-                    Err(err) => {
-                        error!(
-                            "Error fetching chunk {idx}/{total_chunks}({chunk_addr:?}): {err:?}"
-                        );
-                        Err(err)
-                    }
-                }
-            });
-        }
-        let encrypted_chunks =
-            Self::process_tasks_with_max_concurrency(download_tasks, self.ant_tp_config.download_threads)
-                .await
-                .into_iter()
-                .collect::<Result<Vec<EncryptedChunk>, GetError>>()?;
-        debug!("Successfully fetched all {total_chunks} encrypted chunks");
-
-        let data = self_encryption::decrypt(data_map, &encrypted_chunks).map_err(|e| {
-            error!("Error decrypting encrypted_chunks: {e:?}");
-            GetError::UnrecognizedDataMap("Error decrypting encrypted_chunks".to_string())
-        })?;
-        debug!("Successfully decrypted all {total_chunks} chunks");
-
-        //self.cleanup_cached_chunks(&chunk_addrs);
-
-        Ok(data)
-    }
-
-    async fn process_tasks_with_max_concurrency<I, R>(tasks: I, batch_size: usize) -> Vec<R>
-    where
-        I: IntoIterator,
-        I::Item: Future<Output = R> + Send,
-        R: Send,
-    {
-        let mut futures = FuturesUnordered::new();
-        let mut results = Vec::new();
-
-        for task in tasks.into_iter() {
-            futures.push(task);
-
-            if futures.len() >= batch_size
-                && let Some(result) = futures.next().await
-            {
-                results.push(result);
-            }
-        }
-
-        // Process remaining tasks
-        while let Some(result) = futures.next().await {
-            results.push(result);
-        }
-
-        results
     }
 
     pub async fn file_content_upload_public(&self, path: PathBuf, payment_option: PaymentOption) -> Result<(AttoTokens, DataAddress), UploadError> {

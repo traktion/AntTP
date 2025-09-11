@@ -46,8 +46,7 @@ impl Archive {
                     // todo: confirm this handles file names with spaces (maybe %20 though)?
                     let path_string = Self::sanitise_path(parts.get(parts.len() - 3).expect("path missing from tar"));
                     let offset = parts.get(parts.len() - 2).expect("offset missing from tar").parse::<u64>().unwrap_or_else(|_| 0);
-                    let tmp_size = parts.get(parts.len() - 1).expect("limit missing from tar").parse::<u64>().unwrap_or_else(|_| u64::MAX);
-                    let size = if tmp_size > 0 { tmp_size - 1 } else { tmp_size };
+                    let size = parts.get(parts.len() - 1).expect("size missing from tar").parse::<u64>().unwrap_or_else(|_| u64::MAX);
 
                     let data_address_offset = DataAddressOffset {
                         data_address: *tar_data_addr,

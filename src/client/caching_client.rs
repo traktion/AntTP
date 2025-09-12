@@ -26,6 +26,7 @@ use crate::client::cache_item::CacheItem;
 use crate::config::anttp_config::AntTpConfig;
 use bytes::{BufMut, Bytes, BytesMut};
 use futures_util::StreamExt;
+use tokio::join;
 use tokio::sync::Mutex;
 use crate::client::client_harness::ClientHarness;
 use crate::model::archive::Archive;
@@ -111,9 +112,9 @@ impl CachingClient {
         let local_hybrid_cache = self.hybrid_cache.clone();
         match self.hybrid_cache.get_ref().fetch(format!("ar{}", local_address.to_hex()), || async move {
             // todo: enable join agani
-            //let (public_archive, tarchive) = join!(local_caching_client.data_get_public(&addr), local_caching_client.get_archive_from_tar(&addr));
-            let public_archive = local_caching_client.data_get_public(&addr).await;
-            let tarchive = local_caching_client.get_archive_from_tar(&addr).await;
+            let (public_archive, tarchive) = join!(local_caching_client.data_get_public(&addr), local_caching_client.get_archive_from_tar(&addr));
+            /*let public_archive = local_caching_client.data_get_public(&addr).await;
+            let tarchive = local_caching_client.get_archive_from_tar(&addr).await;*/
             match public_archive {
                 Ok(bytes) => match PublicArchive::from_bytes(bytes) {
                     Ok(public_archive) => {
@@ -181,7 +182,7 @@ impl CachingClient {
                             Ok(Vec::from(bytes))
                         },
                         Err(err) => {
-                            error!("Failed to retrieve public archive for [{}] from network {:?}", local_address.to_hex(), err);
+                            warn!("Failed to retrieve public archive for [{}] from network {:?}", local_address.to_hex(), err);
                             Err(foyer::Error::other(format!("Failed to retrieve public archive for [{}] from network {:?}", local_address.to_hex(), err)))
                         }
                     }
@@ -761,12 +762,13 @@ impl CachingClient {
         match self.chunk_get(&ChunkAddress::new(*addr.xorname())).await {
             Ok(data_map_chunk) => {
                 let chunk_streamer = ChunkStreamer::new(addr.to_hex(), data_map_chunk.value, self.clone(), self.ant_tp_config.download_threads);
-                let total_size = chunk_streamer.get_stream_size().await;
-                let derived_range_from: u64 = if range_from < 0 {
-                    let size = u64::try_from(total_size).unwrap();
+                // only retrieve the size when it is needed
+                let length = if range_from < 0 || range_to < 0 { u64::try_from(chunk_streamer.get_stream_size().await - 1).unwrap() } else { 0 };
+
+                let derived_range_from = if range_from < 0 {
                     let from = u64::try_from(range_from.abs()).unwrap();
-                    if from < size {
-                        size - from
+                    if from < length {
+                        length - from
                     } else {
                         0
                     }
@@ -774,10 +776,9 @@ impl CachingClient {
                     u64::try_from(range_from).unwrap()
                 };
                 let derived_range_to: u64 = if range_to <= 0 {
-                    let size = u64::try_from(total_size).unwrap();
                     let to= u64::try_from(range_to.abs()).unwrap();
-                    if to < size {
-                        size - to
+                    if to < length {
+                        length - to
                     } else {
                         0
                     }

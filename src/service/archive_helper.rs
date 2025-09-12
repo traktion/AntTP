@@ -40,7 +40,7 @@ impl ArchiveInfo {
     pub fn new(path_string: String, resolved_xor_addr: XorName, action: ArchiveAction, state: DataState, offset: u64, size: u64) -> ArchiveInfo {
         // note: offset is 0 indexed, size is 1 indexed
         //       offset is never 0 in a tarchive, due to header
-        let limit = size - 1;
+        let limit = if size > 0 { size - 1 } else { 0 };
         ArchiveInfo { path_string, resolved_xor_addr, action, state, offset, size, limit }
     }
 }

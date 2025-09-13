@@ -2,7 +2,7 @@ use actix_web::{web, Responder};
 use actix_web::web::Data;
 use ant_evm::EvmWallet;
 use log::info;
-use crate::client::caching_client::CachingClient;
+use crate::client::CachingClient;
 use crate::config::anttp_config::AntTpConfig;
 use crate::service::graph_service::{GraphEntry, GraphService};
 

@@ -1,9 +1,9 @@
-use actix_web::{web, Responder};
+use actix_web::{web, HttpRequest, Responder};
 use actix_web::error::ErrorInternalServerError;
 use actix_web::web::{Data, Payload};
 use ant_evm::EvmWallet;
 use log::info;
-use crate::client::caching_client::CachingClient;
+use crate::client::CachingClient;
 use crate::service::chunk_service::{Chunk, ChunkService};
 
 #[utoipa::path(
@@ -16,40 +16,51 @@ use crate::service::chunk_service::{Chunk, ChunkService};
         (status = 200, description = "Chunk found successfully", body = Chunk),
         (status = NOT_FOUND, description = "Chunk was not found")
     ),
+    params(
+     ("x-cache-only", Header, description = "Only persist to cache and do not publish"),
+    ),
 )]
 pub async fn post_chunk(
     caching_client_data: Data<CachingClient>,
     evm_wallet_data: Data<EvmWallet>,
     chunk: web::Json<Chunk>,
+    request: HttpRequest
 ) -> impl Responder {
     let chunk_service = ChunkService::new(caching_client_data.get_ref().clone());
+    let is_cache_only: bool = request.headers().get("x-cache-only").is_some();
 
     info!("Creating new chunk");
-    chunk_service.create_chunk(chunk.into_inner(), evm_wallet_data.get_ref().clone()).await
+    chunk_service.create_chunk(chunk.into_inner(), evm_wallet_data.get_ref().clone(), is_cache_only).await
 }
 
 #[utoipa::path(
     post,
-    path = "/anttp-0/binary/chunk/{address}",
+    path = "/anttp-0/binary/chunk",
     request_body(
+        content = Chunk,
         content_type = "application/octet-stream"
     ),
     responses(
         (status = 200, description = "Chunk found successfully", body = Chunk),
         (status = NOT_FOUND, description = "Chunk was not found")
     ),
+    params(
+     ("x-cache-only", Header, description = "Only persist to cache and do not publish"),
+    ),
 )]
 pub async fn post_chunk_binary(
     caching_client_data: Data<CachingClient>,
     evm_wallet_data: Data<EvmWallet>,
     payload: Payload,
+    request: HttpRequest
 ) -> impl Responder {
     let chunk_service = ChunkService::new(caching_client_data.get_ref().clone());
+    let is_cache_only: bool = request.headers().get("x-cache-only").is_some();
 
     info!("Creating new chunk");
     match payload.to_bytes().await {
         Ok(bytes) => {
-            chunk_service.create_chunk_binary(bytes, evm_wallet_data.get_ref().clone()).await
+            chunk_service.create_chunk_binary(bytes, evm_wallet_data.get_ref().clone(), is_cache_only).await
         }
         Err(_) => {
             Err(ErrorInternalServerError("Failed to retrieve bytes from payload"))

@@ -4,7 +4,7 @@ use actix_web::{HttpRequest};
 use chrono::DateTime;
 use log::{debug, info};
 use xor_name::XorName;
-use crate::client::caching_client::CachingClient;
+use crate::client::CachingClient;
 use crate::config::anttp_config::AntTpConfig;
 use crate::model::archive::Archive;
 use crate::service::resolver_service::ResolverService;

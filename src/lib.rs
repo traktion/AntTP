@@ -30,7 +30,7 @@ use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
-use crate::client::caching_client::CachingClient;
+use crate::client::CachingClient;
 use crate::client::client_harness::ClientHarness;
 
 static SERVER_HANDLE: Lazy<Mutex<Option<ServerHandle>>> = Lazy::new(|| Mutex::new(None));

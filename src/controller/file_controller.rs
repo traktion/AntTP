@@ -6,7 +6,7 @@ use log::info;
 use crate::config::anttp_config::AntTpConfig;
 use crate::{UploaderState, UploadState};
 use crate::service::public_archive_service::PublicArchiveService;
-use crate::client::caching_client::CachingClient;
+use crate::client::CachingClient;
 use crate::service::file_service::FileService;
 use crate::service::resolver_service::ResolverService;
 

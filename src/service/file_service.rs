@@ -10,7 +10,7 @@ use chunk_streamer::chunk_receiver::ChunkReceiver;
 use chunk_streamer::chunk_streamer::{ChunkGetter, ChunkStreamer};
 use log::{debug, info};
 use xor_name::XorName;
-use crate::client::caching_client::CachingClient;
+use crate::client::CachingClient;
 use crate::config::anttp_config::AntTpConfig;
 use crate::service::archive_helper::{DataState};
 use crate::service::resolver_service::{ResolvedAddress, ResolverService};

@@ -344,6 +344,7 @@ Why not take a look and start your own immutable blog today?
       - [ ] get balance
       - [ ] send tokens
       - [ ] get transaction history
+    - [ ] Asyc upload queue
   - [ ] gRPC API
     - [ ] Pointer
     - [ ] Scratchpad
@@ -363,16 +364,22 @@ Why not take a look and start your own immutable blog today?
   - [ ] Websockets
     - [ ] Stream immutable data types
     - [ ] Stream changes to mutable data types
+  - [ ] AntTP status
+    - [ ] Active data uploads (listing/CRUD)
 - [ ] Testing
   - [ ] Core unit test coverage
   - [ ] Full unit test coverage
   - [x] Immutable performance testing
   - [ ] Mutable performance testing
 - [x] Improve CLI arguments
-- [x] Offline mode (requests without connected client library dependency)
+- [ ] Offline mode (requests without connected client library dependency)
+  - [x] Offline downloaded data
+  - [ ] Offline uploaded data (with optional async publishing to Autonomi)
 - [ ] Accounting features
   - [ ] Bandwidth usage/tracking
   - [ ] Payments for data uploads (i.e. for public proxies)
+- [ ] AntTP status
+  - [ ] Active data uploads (listing/CRUD)
 
 ## Codebase to Tutorial
 

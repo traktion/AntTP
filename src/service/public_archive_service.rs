@@ -17,7 +17,7 @@ use autonomi::files::archive_public::ArchiveAddress;
 use bytes::{BufMut, BytesMut};
 use log::{debug, error, info, warn};
 use crate::service::archive_helper::{ArchiveAction, ArchiveHelper, DataState};
-use crate::client::caching_client::CachingClient;
+use crate::client::CachingClient;
 use crate::service::file_service::FileService;
 use crate::service::resolver_service::{ResolvedAddress, ResolverService};
 use futures_util::{StreamExt as _};
@@ -136,16 +136,16 @@ impl PublicArchiveService {
         }
     }
 
-    pub async fn create_public_archive(&self, payload: Multipart, evm_wallet: Wallet) -> Result<HttpResponse, Error> {
+    pub async fn create_public_archive(&self, payload: Multipart, evm_wallet: Wallet, is_cache_only: bool) -> Result<HttpResponse, Error> {
         info!("Uploading new public archive to the network");
-        self.update_public_archive_common(payload, evm_wallet, PublicArchive::new()).await
+        self.update_public_archive_common(payload, evm_wallet, PublicArchive::new(), is_cache_only).await
     }
 
-    pub async fn update_public_archive(&self, address: String, payload: Multipart, evm_wallet: Wallet) -> Result<HttpResponse, Error> {
+    pub async fn update_public_archive(&self, address: String, payload: Multipart, evm_wallet: Wallet, is_cache_only: bool) -> Result<HttpResponse, Error> {
         match self.caching_client.archive_get_public(ArchiveAddress::from_hex(address.as_str()).unwrap()).await {
             Ok(public_archive) => {
                 info!("Uploading updated public archive to the network [{:?}]", public_archive);
-                self.update_public_archive_common(payload, evm_wallet, public_archive).await
+                self.update_public_archive_common(payload, evm_wallet, public_archive, is_cache_only).await
             }
             Err(e) => {
                 Err(ErrorNotFound(format!("Upload task not found: [{:?}]", e)))
@@ -153,7 +153,7 @@ impl PublicArchiveService {
         }
     }
 
-    pub async fn update_public_archive_common(&self, mut payload: Multipart, evm_wallet: Wallet, mut public_archive: PublicArchive) -> Result<HttpResponse, Error> {
+    pub async fn update_public_archive_common(&self, mut payload: Multipart, evm_wallet: Wallet, mut public_archive: PublicArchive, is_cache_only: bool) -> Result<HttpResponse, Error> {
         let random_name = Uuid::new_v4();
         let tmp_dir = env::temp_dir().as_path().join(random_name.to_string());
         create_dir(tmp_dir.clone()).unwrap();
@@ -183,7 +183,7 @@ impl PublicArchiveService {
                 let path = entry.path();
 
                 let (_, data_address) = local_client
-                    .file_content_upload_public(path.clone(), PaymentOption::Wallet(evm_wallet.clone()))
+                    .file_content_upload_public(path.clone(), PaymentOption::Wallet(evm_wallet.clone()), is_cache_only)
                     .await.unwrap();
                 let created_at = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
                 let custom_metadata = Metadata {
@@ -195,21 +195,21 @@ impl PublicArchiveService {
 
                 let filename = path.file_name().unwrap().to_str().unwrap().to_string();
                 // todo: derive path for CLI uploads with subdirs, or just migrate archive to move all files to root (better!)?
-                let target_path = PathBuf::from(format!("./{}", filename));
+                let target_path = PathBuf::from(format!("{}", filename));
                 info!("Adding file [{:?}] at address [{}] to public archive", target_path, data_address.to_hex());
                 public_archive.add_file(target_path, data_address, custom_metadata);
             }
             info!("public archive [{:?}]", public_archive);
 
-            info!("Uploading public archive to the network [{:?}]", public_archive);
-            match local_client.archive_put_public(&public_archive, PaymentOption::Wallet(evm_wallet)).await {
+            info!("Uploading public archive [{:?}]", public_archive);
+            match local_client.archive_put_public(&public_archive, PaymentOption::Wallet(evm_wallet), is_cache_only).await {
                 Ok((cost, archive_address)) => {
-                    info!("Uploaded public archive to network at [{:?}] for cost [{:?}]", archive_address, cost);
+                    info!("Uploaded public archive at [{:?}] for cost [{:?}]", archive_address, cost);
                     fs::remove_dir_all(tmp_dir.clone()).unwrap();
                     Some(archive_address)
                 }
                 Err(e) => {
-                    warn!("Failed to upload public archive to network: [{:?}]", e);
+                    warn!("Failed to upload public archive: [{:?}]", e);
                     fs::remove_dir_all(tmp_dir.clone()).unwrap();
                     None
                 }

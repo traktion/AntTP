@@ -9,7 +9,7 @@ use autonomi::register::{RegisterAddress};
 use log::{debug, info, warn};
 use xor_name::XorName;
 use crate::config::anttp_config::AntTpConfig;
-use crate::client::caching_client::CachingClient;
+use crate::client::CachingClient;
 use crate::model::archive::Archive;
 use crate::service::archive_helper::{DataState};
 

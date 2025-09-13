@@ -8,7 +8,7 @@ use bytes::Bytes;
 use log::{info, warn};
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
-use crate::client::caching_client::CachingClient;
+use crate::client::CachingClient;
 use crate::config::anttp_config::AntTpConfig;
 
 #[derive(Serialize, Deserialize, ToSchema)]

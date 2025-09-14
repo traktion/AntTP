@@ -51,11 +51,11 @@ impl CachingClient {
         &self,
         chunk: &Chunk,
         payment_option: PaymentOption,
-        is_cache_only: Option<CacheType>
+        cache_only: Option<CacheType>
     ) -> Result<(AttoTokens, ChunkAddress), PutError> {
         self.hybrid_cache.insert(chunk.address.to_hex(), Vec::from(chunk.value.clone()));
         debug!("creating chunk with address [{}] in cache", chunk.address.to_hex());
-        if is_cache_only.is_some() {
+        if cache_only.is_some() {
             Ok((AttoTokens::zero(), chunk.address))
         } else {
             match self.client_harness.get_ref().lock().await.get_client().await {

@@ -31,8 +31,8 @@ impl PublicDataService {
         Self { caching_client }
     }
 
-    pub async fn create_public_data(&self, bytes: Bytes, evm_wallet: Wallet, is_cache_only: Option<CacheType>) -> Result<HttpResponse, Error> {
-        match self.caching_client.data_put_public(bytes, PaymentOption::from(&evm_wallet), is_cache_only).await {
+    pub async fn create_public_data(&self, bytes: Bytes, evm_wallet: Wallet, cache_only: Option<CacheType>) -> Result<HttpResponse, Error> {
+        match self.caching_client.data_put_public(bytes, PaymentOption::from(&evm_wallet), cache_only).await {
             Ok((cost, data_address)) => {
                 info!("Created public data at [{}] for [{}] attos", data_address.to_hex(), cost);
                 let response_data_map_chunk = Chunk::new(None, Some(data_address.to_hex()), Some(cost.to_string()));

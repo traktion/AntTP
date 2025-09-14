@@ -4,7 +4,7 @@ use actix_web::web::{Data, Payload};
 use ant_evm::EvmWallet;
 use log::info;
 use crate::client::CachingClient;
-use crate::controller::is_cache_only;
+use crate::controller::cache_only;
 use crate::service::public_data_service::{PublicData, PublicDataService};
 
 #[utoipa::path(
@@ -33,7 +33,7 @@ pub async fn post_public_data(
     info!("Creating new public data");
     match payload.to_bytes().await {
         Ok(bytes) => {
-            public_data_service.create_public_data(bytes, evm_wallet_data.get_ref().clone(), is_cache_only(request)).await
+            public_data_service.create_public_data(bytes, evm_wallet_data.get_ref().clone(), cache_only(request)).await
         }
         Err(_) => {
             Err(ErrorInternalServerError("Failed to retrieve bytes from payload"))

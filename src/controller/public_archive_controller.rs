@@ -7,7 +7,7 @@ use crate::config::anttp_config::AntTpConfig;
 use crate::{UploaderState, UploadState};
 use crate::service::public_archive_service::{PublicArchiveForm, PublicArchiveService, Upload};
 use crate::client::CachingClient;
-use crate::controller::is_cache_only;
+use crate::controller::cache_only;
 use crate::service::file_service::FileService;
 use crate::service::resolver_service::ResolverService;
 
@@ -45,7 +45,7 @@ pub async fn post_public_archive(
     let evm_wallet = evm_wallet_data.get_ref().clone();
 
     info!("Creating new archive from multipart POST");
-    archive_service.create_public_archive(public_archive_form, evm_wallet, is_cache_only(request)).await
+    archive_service.create_public_archive(public_archive_form, evm_wallet, cache_only(request)).await
 }
 
 #[utoipa::path(
@@ -83,7 +83,7 @@ pub async fn put_public_archive(
     let evm_wallet = evm_wallet_data.get_ref().clone();
 
     info!("Updating [{}] archive from multipart PUT", address);
-    archive_service.update_public_archive(address, public_archive_form, evm_wallet, is_cache_only(request)).await
+    archive_service.update_public_archive(address, public_archive_form, evm_wallet, cache_only(request)).await
 }
 
 #[utoipa::path(

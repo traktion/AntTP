@@ -4,7 +4,7 @@ use actix_web::web::{Data, Payload};
 use ant_evm::EvmWallet;
 use log::info;
 use crate::client::CachingClient;
-use crate::controller::is_cache_only;
+use crate::controller::cache_only;
 use crate::service::chunk_service::{Chunk, ChunkService};
 
 #[utoipa::path(
@@ -31,7 +31,7 @@ pub async fn post_chunk(
     let chunk_service = ChunkService::new(caching_client_data.get_ref().clone());
 
     info!("Creating new chunk");
-    chunk_service.create_chunk(chunk.into_inner(), evm_wallet_data.get_ref().clone(), is_cache_only(request)).await
+    chunk_service.create_chunk(chunk.into_inner(), evm_wallet_data.get_ref().clone(), cache_only(request)).await
 }
 
 #[utoipa::path(
@@ -61,7 +61,7 @@ pub async fn post_chunk_binary(
     info!("Creating new chunk");
     match payload.to_bytes().await {
         Ok(bytes) => {
-            chunk_service.create_chunk_binary(bytes, evm_wallet_data.get_ref().clone(), is_cache_only(request)).await
+            chunk_service.create_chunk_binary(bytes, evm_wallet_data.get_ref().clone(), cache_only(request)).await
         }
         Err(_) => {
             Err(ErrorInternalServerError("Failed to retrieve bytes from payload"))

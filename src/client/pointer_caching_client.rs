@@ -15,11 +15,11 @@ impl CachingClient {
         owner: &SecretKey,
         target: PointerTarget,
         payment_option: PaymentOption,
-        is_cache_only: Option<CacheType>,
+        cache_only: Option<CacheType>,
     ) -> Result<(AttoTokens, PointerAddress), PointerError> {
-        let pointer = self.cache_pointer(owner, &target, is_cache_only.clone());
+        let pointer = self.cache_pointer(owner, &target, cache_only.clone());
 
-        if is_cache_only.is_some() {
+        if cache_only.is_some() {
             Ok((AttoTokens::zero(), pointer.address()))
         } else {
             match self.client_harness.get_ref().lock().await.get_client().await {
@@ -53,11 +53,11 @@ impl CachingClient {
         &self,
         owner: &SecretKey,
         target: PointerTarget,
-        is_cache_only: Option<CacheType>,
+        cache_only: Option<CacheType>,
     ) -> Result<(), PointerError> {
-        let pointer = self.cache_pointer(owner, &target, is_cache_only.clone());
+        let pointer = self.cache_pointer(owner, &target, cache_only.clone());
 
-        if is_cache_only.is_some() {
+        if cache_only.is_some() {
             Ok(())
         } else {
             match self.client_harness.get_ref().lock().await.get_client().await {
@@ -88,13 +88,13 @@ impl CachingClient {
         }
     }
 
-    fn cache_pointer(&self, owner: &SecretKey, target: &PointerTarget, is_cache_only: Option<CacheType>) -> Pointer {
+    fn cache_pointer(&self, owner: &SecretKey, target: &PointerTarget, cache_only: Option<CacheType>) -> Pointer {
         let pointer = Pointer::new(owner, 0, target.clone());
-        let ttl = if is_cache_only.is_some() { u64::MAX } else { self.ant_tp_config.cached_mutable_ttl };
+        let ttl = if cache_only.is_some() { u64::MAX } else { self.ant_tp_config.cached_mutable_ttl };
         let cache_item = CacheItem::new(Some(pointer.clone()), ttl);
         let serialised_cache_item = rmp_serde::to_vec(&cache_item).expect("Failed to serialize pointer");
         info!("updating memory cache with pointer at address pg[{}] to target [{}] and TTL [{}]", pointer.address().to_hex(), target.to_hex(), ttl);
-        if is_cache_only.is_some_and(|v| matches!(v, CacheType::Disk)) {
+        if cache_only.is_some_and(|v| matches!(v, CacheType::Disk)) {
             self.hybrid_cache.insert(format!("pg{}", pointer.address().to_hex()), serialised_cache_item);
         } else {
             self.hybrid_cache.memory().insert(format!("pg{}", pointer.address().to_hex()), serialised_cache_item);

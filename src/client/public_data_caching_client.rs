@@ -16,7 +16,7 @@ impl CachingClient {
         &self,
         data: Bytes,
         payment_option: PaymentOption,
-        is_cache_only: Option<CacheType>,
+        cache_only: Option<CacheType>,
     ) -> Result<(AttoTokens, DataAddress), PutError> {
         // todo: avoid double encrypting on upload?
         let chunk_encrypter = ChunkEncrypter::new();
@@ -27,7 +27,7 @@ impl CachingClient {
                 let data_address = DataAddress::new(*data_map_addr.xorname());
 
                 for chunk in chunks {
-                    if is_cache_only.clone().is_some_and(|v| matches!(v, CacheType::Disk)) {
+                    if cache_only.clone().is_some_and(|v| matches!(v, CacheType::Disk)) {
                         info!("updating disk cache with chunk at address [{}]", chunk.address.to_hex());
                         self.hybrid_cache.insert(format!("{}", chunk.address.to_hex()), chunk.value.to_vec());
                     } else {
@@ -36,7 +36,7 @@ impl CachingClient {
                     }
                 }
 
-                if is_cache_only.is_some() {
+                if cache_only.is_some() {
                     Ok((AttoTokens::zero(), data_address))
                 } else {
                     match self.client_harness.get_ref().lock().await.get_client().await {
@@ -84,10 +84,10 @@ impl CachingClient {
         }
     }
 
-    pub async fn file_content_upload_public(&self, path: PathBuf, payment_option: PaymentOption, is_cache_only: Option<CacheType>) -> Result<(AttoTokens, DataAddress), UploadError> {
+    pub async fn file_content_upload_public(&self, path: PathBuf, payment_option: PaymentOption, cache_only: Option<CacheType>) -> Result<(AttoTokens, DataAddress), UploadError> {
         let data = tokio::fs::read(path.clone()).await?;
         let data = Bytes::from(data);
-        let (cost, addr) = self.data_put_public(data, payment_option.clone(), is_cache_only).await?;
+        let (cost, addr) = self.data_put_public(data, payment_option.clone(), cache_only).await?;
         Ok((cost, addr))
     }
 }

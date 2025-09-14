@@ -144,16 +144,16 @@ impl PublicArchiveService {
         }
     }
 
-    pub async fn create_public_archive(&self, public_archive_form: MultipartForm<PublicArchiveForm>, evm_wallet: Wallet, is_cache_only: Option<CacheType>) -> Result<HttpResponse, Error> {
+    pub async fn create_public_archive(&self, public_archive_form: MultipartForm<PublicArchiveForm>, evm_wallet: Wallet, cache_only: Option<CacheType>) -> Result<HttpResponse, Error> {
         info!("Uploading new public archive to the network");
-        self.update_public_archive_common(public_archive_form, evm_wallet, PublicArchive::new(), is_cache_only).await
+        self.update_public_archive_common(public_archive_form, evm_wallet, PublicArchive::new(), cache_only).await
     }
 
-    pub async fn update_public_archive(&self, address: String, public_archive_form: MultipartForm<PublicArchiveForm>, evm_wallet: Wallet, is_cache_only: Option<CacheType>) -> Result<HttpResponse, Error> {
+    pub async fn update_public_archive(&self, address: String, public_archive_form: MultipartForm<PublicArchiveForm>, evm_wallet: Wallet, cache_only: Option<CacheType>) -> Result<HttpResponse, Error> {
         match self.caching_client.archive_get_public(ArchiveAddress::from_hex(address.as_str()).unwrap()).await {
             Ok(public_archive) => {
                 info!("Uploading updated public archive to the network [{:?}]", public_archive);
-                self.update_public_archive_common(public_archive_form, evm_wallet, public_archive, is_cache_only).await
+                self.update_public_archive_common(public_archive_form, evm_wallet, public_archive, cache_only).await
             }
             Err(e) => {
                 Err(ErrorNotFound(format!("Upload task not found: [{:?}]", e)))
@@ -161,7 +161,7 @@ impl PublicArchiveService {
         }
     }
 
-    pub async fn update_public_archive_common(&self, public_archive_form: MultipartForm<PublicArchiveForm>, evm_wallet: Wallet, mut public_archive: PublicArchive, is_cache_only: Option<CacheType>) -> Result<HttpResponse, Error> {
+    pub async fn update_public_archive_common(&self, public_archive_form: MultipartForm<PublicArchiveForm>, evm_wallet: Wallet, mut public_archive: PublicArchive, cache_only: Option<CacheType>) -> Result<HttpResponse, Error> {
         let random_name = Uuid::new_v4();
         let tmp_dir = env::temp_dir().as_path().join(random_name.to_string());
         create_dir(tmp_dir.clone()).unwrap();
@@ -185,7 +185,7 @@ impl PublicArchiveService {
                 let path = entry.path();
 
                 let (_, data_address) = local_client
-                    .file_content_upload_public(path.clone(), PaymentOption::Wallet(evm_wallet.clone()), is_cache_only.clone())
+                    .file_content_upload_public(path.clone(), PaymentOption::Wallet(evm_wallet.clone()), cache_only.clone())
                     .await.unwrap();
                 let created_at = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
                 let custom_metadata = Metadata {
@@ -204,7 +204,7 @@ impl PublicArchiveService {
             info!("public archive [{:?}]", public_archive);
 
             info!("Uploading public archive [{:?}]", public_archive);
-            match local_client.archive_put_public(&public_archive, PaymentOption::Wallet(evm_wallet), is_cache_only).await {
+            match local_client.archive_put_public(&public_archive, PaymentOption::Wallet(evm_wallet), cache_only).await {
                 Ok((cost, archive_address)) => {
                     info!("Uploaded public archive at [{:?}] for cost [{:?}]", archive_address, cost);
                     fs::remove_dir_all(tmp_dir.clone()).unwrap();

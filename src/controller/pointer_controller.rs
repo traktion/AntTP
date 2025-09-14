@@ -4,7 +4,7 @@ use ant_evm::EvmWallet;
 use log::info;
 use crate::client::CachingClient;
 use crate::config::anttp_config::AntTpConfig;
-use crate::controller::is_cache_only;
+use crate::controller::cache_only;
 use crate::service::pointer_service::{Pointer, PointerService};
 
 #[utoipa::path(
@@ -34,7 +34,7 @@ pub async fn post_pointer(
     );
 
     info!("Creating new pointer");
-    pointer_service.create_pointer(pointer.into_inner(), evm_wallet_data.get_ref().clone(), is_cache_only(request)).await
+    pointer_service.create_pointer(pointer.into_inner(), evm_wallet_data.get_ref().clone(), cache_only(request)).await
 }
 
 #[utoipa::path(
@@ -67,7 +67,7 @@ pub async fn put_pointer(
     );
 
     info!("Updating pointer");
-    pointer_service.update_pointer(address, pointer.into_inner(), is_cache_only(request)).await
+    pointer_service.update_pointer(address, pointer.into_inner(), cache_only(request)).await
 }
 
 #[utoipa::path(

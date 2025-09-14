@@ -9,12 +9,12 @@ use crate::controller::CacheType;
 
 impl CachingClient {
 
-    pub async fn archive_put_public(&self, archive: &PublicArchive, payment_option: PaymentOption, is_cache_only: Option<CacheType>) -> Result<(AttoTokens, ArchiveAddress), PutError> {
+    pub async fn archive_put_public(&self, archive: &PublicArchive, payment_option: PaymentOption, cache_only: Option<CacheType>) -> Result<(AttoTokens, ArchiveAddress), PutError> {
         let bytes = archive
             .to_bytes()
             .map_err(|e| PutError::Serialization(format!("Failed to serialize archive: {e:?}")))?;
 
-        self.data_put_public(bytes, payment_option, is_cache_only).await
+        self.data_put_public(bytes, payment_option, cache_only).await
     }
 
     /// Fetch an archive from the network

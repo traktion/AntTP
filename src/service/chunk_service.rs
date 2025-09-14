@@ -13,6 +13,7 @@ use log::{info, warn};
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 use crate::client::CachingClient;
+use crate::controller::CacheType;
 
 #[derive(Serialize, Deserialize, ToSchema)]
 pub struct Chunk {
@@ -39,12 +40,12 @@ impl ChunkService {
         ChunkService { caching_client }
     }
 
-    pub async fn create_chunk_binary(&self, bytes: Bytes, evm_wallet: Wallet, is_cache_only: bool) -> Result<HttpResponse, Error> {
+    pub async fn create_chunk_binary(&self, bytes: Bytes, evm_wallet: Wallet, is_cache_only: Option<CacheType>) -> Result<HttpResponse, Error> {
         let chunk_data =  autonomi_chunk::Chunk::new(bytes);
         self.create_chunk_raw(chunk_data, evm_wallet, is_cache_only).await
     }
 
-    pub async fn create_chunk(&self, chunk: Chunk, evm_wallet: Wallet, is_cache_only: bool) -> Result<HttpResponse, Error> {
+    pub async fn create_chunk(&self, chunk: Chunk, evm_wallet: Wallet, is_cache_only: Option<CacheType>) -> Result<HttpResponse, Error> {
         let content = match chunk.content.clone() {
             Some(content) => content,
             None => return Err(ErrorInternalServerError("Empty chunk payload"))
@@ -55,7 +56,7 @@ impl ChunkService {
         self.create_chunk_raw(chunk_data, evm_wallet, is_cache_only).await
     }
 
-    pub async fn create_chunk_raw(&self, chunk: autonomi_chunk::Chunk, evm_wallet: Wallet, is_cache_only: bool) -> Result<HttpResponse, Error> {
+    pub async fn create_chunk_raw(&self, chunk: autonomi_chunk::Chunk, evm_wallet: Wallet, is_cache_only: Option<CacheType>) -> Result<HttpResponse, Error> {
         info!("Create chunk at address [{}]", chunk.address.to_hex());
         match self.caching_client.chunk_put(&chunk, PaymentOption::from(&evm_wallet), is_cache_only).await {
             Ok((cost, chunk_address)) => {

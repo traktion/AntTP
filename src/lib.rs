@@ -4,11 +4,7 @@ pub mod controller;
 pub mod service;
 pub mod model;
 
-use crate::controller::{
-    chunk_controller, file_controller, pointer_controller, private_scratchpad_controller,
-    public_archive_controller, public_scratchpad_controller, register_controller,
-    graph_controller,
-};
+use crate::controller::{chunk_controller, file_controller, pointer_controller, private_scratchpad_controller, public_archive_controller, public_scratchpad_controller, register_controller, graph_controller, public_data_controller};
 use crate::service::public_archive_service::Upload;
 use actix_files::Files;
 use actix_web::dev::ServerHandle;
@@ -86,6 +82,8 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> std::io::Result<()> {
         private_scratchpad_controller::put_private_scratchpad,
         graph_controller::get_graph_entry,
         graph_controller::post_graph_entry,
+        public_data_controller::get_public_data,
+        public_data_controller::post_public_data,
     ))]
     struct ApiDoc;
 
@@ -170,6 +168,10 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> std::io::Result<()> {
                 web::get().to(graph_controller::get_graph_entry)
             )
             .route(
+                format!("{}binary/public_data/{{address}}", API_BASE).as_str(),
+                web::get().to(public_data_controller::get_public_data)
+            )
+            .route(
                 "/{path:.*}",
                 web::get().to(file_controller::get_public_data),
             )
@@ -232,7 +234,12 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> std::io::Result<()> {
                 )
                 .route(
                     format!("{}graph_entry", API_BASE).as_str(),
-                    web::post().to(graph_controller::post_graph_entry));
+                    web::post().to(graph_controller::post_graph_entry)
+                )
+                .route(
+                    format!("{}binary/public_data", API_BASE).as_str(),
+                    web::post().to(public_data_controller::post_public_data)
+                );
         };
 
         if ant_tp_config.static_file_directory != "" {

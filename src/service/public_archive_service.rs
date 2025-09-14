@@ -28,6 +28,7 @@ use xor_name::XorName;
 use crate::config::anttp_config::AntTpConfig;
 use crate::{UploadState, UploaderState};
 use crate::config::app_config::AppConfig;
+use crate::controller::CacheType;
 use crate::model::archive::Archive;
 
 #[derive(Serialize, Deserialize, Clone, ToSchema)]
@@ -143,12 +144,12 @@ impl PublicArchiveService {
         }
     }
 
-    pub async fn create_public_archive(&self, public_archive_form: MultipartForm<PublicArchiveForm>, evm_wallet: Wallet, is_cache_only: bool) -> Result<HttpResponse, Error> {
+    pub async fn create_public_archive(&self, public_archive_form: MultipartForm<PublicArchiveForm>, evm_wallet: Wallet, is_cache_only: Option<CacheType>) -> Result<HttpResponse, Error> {
         info!("Uploading new public archive to the network");
         self.update_public_archive_common(public_archive_form, evm_wallet, PublicArchive::new(), is_cache_only).await
     }
 
-    pub async fn update_public_archive(&self, address: String, public_archive_form: MultipartForm<PublicArchiveForm>, evm_wallet: Wallet, is_cache_only: bool) -> Result<HttpResponse, Error> {
+    pub async fn update_public_archive(&self, address: String, public_archive_form: MultipartForm<PublicArchiveForm>, evm_wallet: Wallet, is_cache_only: Option<CacheType>) -> Result<HttpResponse, Error> {
         match self.caching_client.archive_get_public(ArchiveAddress::from_hex(address.as_str()).unwrap()).await {
             Ok(public_archive) => {
                 info!("Uploading updated public archive to the network [{:?}]", public_archive);
@@ -160,7 +161,7 @@ impl PublicArchiveService {
         }
     }
 
-    pub async fn update_public_archive_common(&self, public_archive_form: MultipartForm<PublicArchiveForm>, evm_wallet: Wallet, mut public_archive: PublicArchive, is_cache_only: bool) -> Result<HttpResponse, Error> {
+    pub async fn update_public_archive_common(&self, public_archive_form: MultipartForm<PublicArchiveForm>, evm_wallet: Wallet, mut public_archive: PublicArchive, is_cache_only: Option<CacheType>) -> Result<HttpResponse, Error> {
         let random_name = Uuid::new_v4();
         let tmp_dir = env::temp_dir().as_path().join(random_name.to_string());
         create_dir(tmp_dir.clone()).unwrap();
@@ -173,14 +174,6 @@ impl PublicArchiveService {
             info!("Creating temporary file for archive: {:?}", file_path.to_str().unwrap());
 
             fs::rename(temp_file.file.path(), file_path).expect(format!("failed to rename tmp file [{}]", filename).as_str());
-
-            /*temp_file.file.path();
-            let mut tmp_file = File::create(file_path.clone()).unwrap();
-
-            while let Some(chunk) = temp_file.file .bytes().next() {
-                tmp_file.write_all(&chunk.unwrap()).unwrap();
-            }
-            tmp_file.flush().unwrap().size();*/
         }
 
         let local_client = self.caching_client.clone();
@@ -192,7 +185,7 @@ impl PublicArchiveService {
                 let path = entry.path();
 
                 let (_, data_address) = local_client
-                    .file_content_upload_public(path.clone(), PaymentOption::Wallet(evm_wallet.clone()), is_cache_only)
+                    .file_content_upload_public(path.clone(), PaymentOption::Wallet(evm_wallet.clone()), is_cache_only.clone())
                     .await.unwrap();
                 let created_at = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
                 let custom_metadata = Metadata {

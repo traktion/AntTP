@@ -7,6 +7,7 @@ use bytes::Bytes;
 use chunk_streamer::chunk_streamer::ChunkGetter;
 use log::{debug, error, info};
 use crate::client::CachingClient;
+use crate::controller::CacheType;
 
 #[async_trait]
 impl ChunkGetter for CachingClient {
@@ -50,11 +51,13 @@ impl CachingClient {
         &self,
         chunk: &Chunk,
         payment_option: PaymentOption,
-        is_cache_only: bool
+        is_cache_only: Option<CacheType>
     ) -> Result<(AttoTokens, ChunkAddress), PutError> {
         self.hybrid_cache.insert(chunk.address.to_hex(), Vec::from(chunk.value.clone()));
         debug!("creating chunk with address [{}] in cache", chunk.address.to_hex());
-        if !is_cache_only {
+        if is_cache_only.is_some() {
+            Ok((AttoTokens::zero(), chunk.address))
+        } else {
             match self.client_harness.get_ref().lock().await.get_client().await {
                 Some(client) => {
                     // todo: move to job processor
@@ -67,8 +70,6 @@ impl CachingClient {
                 },
                 None => Err(PutError::Serialization(format!("network offline")))
             }
-        } else {
-            Ok((AttoTokens::zero(), chunk.address))
         }
     }
 }

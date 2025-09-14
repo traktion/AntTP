@@ -22,8 +22,8 @@ use crate::service::resolver_service::ResolverService;
         (status = OK, description = "Public archive created successfully", body = Upload)
     ),
     params(
-        ("x-cache-only", Header, description = "Only persist to cache and do not publish (true|false)",
-        example = "true"),
+        ("x-cache-only", Header, description = "Only persist to cache and do not publish (memory|disk|none)",
+        example = "memory"),
     ),
 )]
 pub async fn post_public_archive(
@@ -58,8 +58,8 @@ pub async fn post_public_archive(
         (status = OK, description = "Public archive updated successfully", body = Upload)
     ),
     params(
-        ("x-cache-only", Header, description = "Only persist to cache and do not publish (true|false)",
-        example = "true"),
+        ("x-cache-only", Header, description = "Only persist to cache and do not publish (memory|disk|none)",
+        example = "memory"),
     ),
 )]
 pub async fn put_public_archive(

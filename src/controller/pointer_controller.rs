@@ -17,8 +17,8 @@ use crate::service::pointer_service::{Pointer, PointerService};
         (status = CREATED, description = "Pointer created successfully", body = Pointer)
     ),
     params(
-        ("x-cache-only", Header, description = "Only persist to cache and do not publish (true|false)",
-        example = "true"),
+        ("x-cache-only", Header, description = "Only persist to cache and do not publish (memory|disk|none)",
+        example = "memory"),
     ),
 )]
 pub async fn post_pointer(

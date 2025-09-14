@@ -22,4 +22,4 @@ mod register_caching_client;
 mod public_archive_caching_client;
 mod tarchive_caching_client;
 mod archive_caching_client;
-mod public_caching_client;
+mod public_data_caching_client;

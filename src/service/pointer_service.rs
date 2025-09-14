@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 use crate::client::CachingClient;
 use crate::config::anttp_config::AntTpConfig;
+use crate::controller::CacheType;
 
 #[derive(Serialize, Deserialize, ToSchema)]
 pub struct Pointer {
@@ -38,7 +39,7 @@ impl PointerService {
         PointerService { caching_client, ant_tp_config }
     }
 
-    pub async fn create_pointer(&self, pointer: Pointer, evm_wallet: Wallet, is_cache_only: bool) -> Result<HttpResponse, Error> {
+    pub async fn create_pointer(&self, pointer: Pointer, evm_wallet: Wallet, is_cache_only: Option<CacheType>) -> Result<HttpResponse, Error> {
         let app_secret_key = SecretKey::from_hex(self.ant_tp_config.app_private_key.clone().as_str()).unwrap();
         let pointer_key = Client::register_key_from_name(&app_secret_key, pointer.name.clone().unwrap().as_str());
 
@@ -60,7 +61,7 @@ impl PointerService {
         }
     }
 
-    pub async fn update_pointer(&self, address: String, pointer: Pointer, is_cache_only: bool) -> Result<HttpResponse, Error> {
+    pub async fn update_pointer(&self, address: String, pointer: Pointer, is_cache_only: Option<CacheType>) -> Result<HttpResponse, Error> {
         let app_secret_key = SecretKey::from_hex(self.ant_tp_config.app_private_key.clone().as_str()).unwrap();
         let pointer_key = Client::register_key_from_name(&app_secret_key, pointer.name.clone().unwrap().as_str());
         if address.clone() != pointer_key.public_key().to_hex() {

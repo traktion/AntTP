@@ -8,9 +8,23 @@ pub mod private_scratchpad_controller;
 pub mod public_scratchpad_controller;
 pub mod chunk_controller;
 pub mod graph_controller;
+pub mod public_data_controller;
 
-fn is_cache_only(request: HttpRequest) -> bool {
-    request.headers()
-        .get("x-cache-only")
-        .is_some_and(|v| v == "true")
+#[derive(Clone)]
+pub enum CacheType {
+    Memory, Disk
+}
+
+fn is_cache_only(request: HttpRequest) -> Option<CacheType> {
+    match request.headers().get("x-cache-only") {
+        Some(header_value) => match header_value.to_str() {
+            Ok(value) => match value {
+                "memory" => Some(CacheType::Memory),
+                "disk" => Some(CacheType::Disk),
+                _ => None
+            },
+            Err(_) => None
+        },
+        None => None,
+    }
 }

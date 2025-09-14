@@ -14,19 +14,37 @@ impl CachingClient {
         owner: &SecretKey,
         target: PointerTarget,
         payment_option: PaymentOption,
+        is_cache_only: bool,
     ) -> Result<(AttoTokens, PointerAddress), PointerError> {
-        match self.client_harness.get_ref().lock().await.get_client().await {
-            Some(client) => {
-                let owner_clone = owner.clone();
-                // todo: move to job processor
-                tokio::spawn(async move {
-                    debug!("creating pointer async");
-                    client.pointer_create(&owner_clone, target, payment_option).await
-                });
-                let address = PointerAddress::new(owner.public_key());
-                Ok((AttoTokens::zero(), address))
-            },
-            None => Err(PointerError::Serialization) // todo: improve error type
+        let pointer = self.cache_pointer(owner, &target, is_cache_only);
+
+        if !is_cache_only {
+            match self.client_harness.get_ref().lock().await.get_client().await {
+                Some(client) => {
+                    let owner_clone = owner.clone();
+                    let local_hybrid_cache = self.hybrid_cache.clone();
+                    // todo: move to job processor
+                    tokio::spawn(async move {
+                        debug!("creating pointer async");
+                        match client.pointer_create(&owner_clone, target, payment_option).await {
+                            Ok(result) => {
+                                info!("pointer at address [{}] created successfully", pointer.address().to_hex());
+                                Ok(result)
+                            },
+                            Err(e) => {
+                                // operation failed - remove cached item
+                                local_hybrid_cache.remove(&pointer.address().to_hex());
+                                Err(e)
+                            },
+                        }
+                    });
+                    let address = PointerAddress::new(owner.public_key());
+                    Ok((AttoTokens::zero(), address))
+                },
+                None => Err(PointerError::Serialization) // todo: improve error type
+            }
+        } else {
+            Ok((AttoTokens::zero(), pointer.address()))
         }
     }
 
@@ -34,21 +52,49 @@ impl CachingClient {
         &self,
         owner: &SecretKey,
         target: PointerTarget,
+        is_cache_only: bool,
     ) -> Result<(), PointerError> {
-        match self.client_harness.get_ref().lock().await.get_client().await {
-            Some(client) => {
-                let owner_clone = owner.clone();
-                // todo: move to job processor
-                tokio::spawn(async move {
-                    debug!("updating pointer async");
-                    client.pointer_update(&owner_clone, target).await
-                });
-                Ok(())
-            },
-            None => {
-                Err(PointerError::Serialization) // todo: improve error type
+        let pointer = self.cache_pointer(owner, &target, is_cache_only);
+
+        if !is_cache_only {
+            match self.client_harness.get_ref().lock().await.get_client().await {
+                Some(client) => {
+                    let owner_clone = owner.clone();
+                    let local_hybrid_cache = self.hybrid_cache.clone();
+                    // todo: move to job processor
+                    tokio::spawn(async move {
+                        debug!("updating pointer async");
+                        match client.pointer_update(&owner_clone, target).await {
+                            Ok(result) => {
+                                info!("pointer at address [{}] created successfully", pointer.address().to_hex());
+                                Ok(result)
+                            },
+                            Err(e) => {
+                                // operation failed - remove cached item
+                                local_hybrid_cache.remove(&pointer.address().to_hex());
+                                Err(e)
+                            },
+                        }
+                    });
+                    Ok(())
+                },
+                None => {
+                    Err(PointerError::Serialization) // todo: improve error type
+                }
             }
+        } else {
+            Ok(())
         }
+    }
+
+    fn cache_pointer(&self, owner: &SecretKey, target: &PointerTarget, is_cache_only: bool) -> Pointer {
+        let pointer = Pointer::new(owner, 0, target.clone());
+        let ttl = if is_cache_only { u64::MAX } else { self.ant_tp_config.cached_mutable_ttl };
+        let cache_item = CacheItem::new(Some(pointer.clone()), ttl);
+        let serialised_cache_item = rmp_serde::to_vec(&cache_item).expect("Failed to serialize pointer");
+        info!("updating memory cache with pointer at address pg[{}] to target [{}] and TTL [{}]", pointer.address().to_hex(), target.to_hex(), ttl);
+        self.hybrid_cache.memory().insert(format!("pg{}", pointer.address().to_hex()), serialised_cache_item);
+        pointer
     }
 
     pub async fn pointer_get(&self, address: &PointerAddress) -> Result<Pointer, PointerError> {

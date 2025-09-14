@@ -5,7 +5,7 @@ use autonomi::data::DataAddress;
 use autonomi::files::PublicArchive;
 use bytes::Bytes;
 use chunk_streamer::chunk_encrypter::ChunkEncrypter;
-use log::{debug, info, warn};
+use log::{info, warn};
 use crate::client::CachingClient;
 
 impl CachingClient {
@@ -21,15 +21,12 @@ impl CachingClient {
         match chunk_encrypter.encrypt(true, data.clone()).await {
             Ok((chunks, data_map_chunk)) => {
                 let data_map_addr = *data_map_chunk.0.address();
-                info!("Uploading datamap chunk to the cache: {data_map_addr:?}");
+                info!("updating memory cache with data map chunk at address [{}]", data_map_addr.to_hex());
                 let data_address = DataAddress::new(*data_map_addr.xorname());
 
-                let mut i = 0;
                 for chunk in chunks {
-                    //let prefix = if i == 0 { "pd" } else { "" };
-                    debug!("Caching chunk at address: {}", chunk.address.to_hex());
-                    self.hybrid_cache.insert(format!("{}", chunk.address.to_hex()), chunk.value.to_vec());
-                    //i = i + 1;
+                    info!("updating memory cache with chunk at address [{}]", chunk.address.to_hex());
+                    self.hybrid_cache.memory().insert(format!("{}", chunk.address.to_hex()), chunk.value.to_vec());
                 }
 
                 if is_cache_only {

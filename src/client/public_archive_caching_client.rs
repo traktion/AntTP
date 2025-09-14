@@ -1,15 +1,13 @@
-use std::path::PathBuf;
+use crate::client::CachingClient;
 use ant_evm::AttoTokens;
 use autonomi::client::payment::PaymentOption;
-use autonomi::client::{GetError, PutError};
+use autonomi::client::PutError;
 use autonomi::data::DataAddress;
 use autonomi::files::archive_public::ArchiveAddress;
 use autonomi::files::{PublicArchive, UploadError};
 use bytes::Bytes;
-use chunk_streamer::chunk_encrypter::ChunkEncrypter;
-use log::{debug, info, warn};
 use rmp_serde::decode;
-use crate::client::CachingClient;
+use std::path::PathBuf;
 
 impl CachingClient {
 

@@ -1,37 +1,20 @@
 use std::{fs};
-use std::fs::File;
-use std::io::{Read, Write};
-use std::path::PathBuf;
 use actix_web::Error;
 use actix_web::error::ErrorInternalServerError;
 use actix_web::web::Data;
-use ant_evm::AttoTokens;
 use async_job::{Job, Schedule};
 use async_trait::async_trait;
-use autonomi::{Chunk, ChunkAddress, GraphEntry, GraphEntryAddress, Pointer, PointerAddress, ScratchpadAddress, SecretKey};
-use autonomi::client::files::archive_public::{ArchiveAddress, PublicArchive};
-use autonomi::client::{GetError, PutError};
-use autonomi::client::payment::PaymentOption;
+use autonomi::{ChunkAddress};
 use autonomi::data::DataAddress;
-use autonomi::files::UploadError;
-use autonomi::graph::GraphError;
-use autonomi::pointer::{PointerError, PointerTarget};
-use autonomi::register::{RegisterAddress, RegisterError, RegisterHistory, RegisterValue};
-use autonomi::scratchpad::{Scratchpad, ScratchpadError};
 use chunk_streamer::chunk_streamer::{ChunkGetter, ChunkStreamer};
 use foyer::HybridCache;
-use log::{debug, error, info, warn};
-use rmp_serde::decode;
-use crate::client::cache_item::CacheItem;
+use log::{error};
 use crate::config::anttp_config::AntTpConfig;
 use bytes::{BufMut, Bytes, BytesMut};
-use chunk_streamer::chunk_encrypter::ChunkEncrypter;
 use futures_util::StreamExt;
-use tokio::join;
 use tokio::sync::Mutex;
 use crate::client::CachingClient;
 use crate::client::client_harness::ClientHarness;
-use crate::model::archive::Archive;
 
 pub const ARCHIVE_TAR_IDX_BYTES: &[u8] = "\0archive.tar.idx\0".as_bytes();
 
@@ -52,7 +35,7 @@ impl CachingClient {
         CachingClient::create_tmp_dir(cache_dir.clone());
 
         Self {
-            client_harness, cache_dir, ant_tp_config, hybrid_cache,
+            client_harness, ant_tp_config, hybrid_cache,
         }
     }
 

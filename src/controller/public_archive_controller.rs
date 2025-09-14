@@ -1,12 +1,13 @@
-use actix_multipart::Multipart;
+use actix_multipart::form::MultipartForm;
 use actix_web::{web, HttpRequest, Responder};
 use actix_web::web::Data;
 use ant_evm::EvmWallet;
 use log::info;
 use crate::config::anttp_config::AntTpConfig;
 use crate::{UploaderState, UploadState};
-use crate::service::public_archive_service::{PublicArchiveService, Upload};
+use crate::service::public_archive_service::{PublicArchiveForm, PublicArchiveService, Upload};
 use crate::client::CachingClient;
+use crate::controller::is_cache_only;
 use crate::service::file_service::FileService;
 use crate::service::resolver_service::ResolverService;
 
@@ -14,17 +15,19 @@ use crate::service::resolver_service::ResolverService;
     post,
     path = "/anttp-0/multipart/public_archive",
     request_body(
+        content = PublicArchiveForm,
         content_type = "multipart/form-data"
     ),
     responses(
         (status = OK, description = "Public archive created successfully", body = Upload)
     ),
     params(
-     ("x-cache-only", Header, description = "Only persist to cache and do not publish"),
+        ("x-cache-only", Header, description = "Only persist to cache and do not publish (true|false)",
+        example = "true"),
     ),
 )]
 pub async fn post_public_archive(
-    payload: Multipart,
+    public_archive_form: MultipartForm<PublicArchiveForm>,
     caching_client_data: Data<CachingClient>,
     evm_wallet_data: Data<EvmWallet>,
     uploader_state: Data<UploaderState>,
@@ -40,10 +43,9 @@ pub async fn post_public_archive(
         ant_tp_config.clone()
     );
     let evm_wallet = evm_wallet_data.get_ref().clone();
-    let is_cache_only: bool = request.headers().get("x-cache-only").is_some();
 
     info!("Creating new archive from multipart POST");
-    archive_service.create_public_archive(payload, evm_wallet, is_cache_only).await
+    archive_service.create_public_archive(public_archive_form, evm_wallet, is_cache_only(request)).await
 }
 
 #[utoipa::path(
@@ -56,12 +58,13 @@ pub async fn post_public_archive(
         (status = OK, description = "Public archive updated successfully", body = Upload)
     ),
     params(
-     ("x-cache-only", Header, description = "Only persist to cache and do not publish"),
+        ("x-cache-only", Header, description = "Only persist to cache and do not publish (true|false)",
+        example = "true"),
     ),
 )]
 pub async fn put_public_archive(
     path: web::Path<String>,
-    payload: Multipart,
+    public_archive_form: MultipartForm<PublicArchiveForm>,
     caching_client_data: Data<CachingClient>,
     evm_wallet_data: Data<EvmWallet>,
     uploader_state: Data<UploaderState>,
@@ -78,10 +81,9 @@ pub async fn put_public_archive(
         ant_tp_config.clone()
     );
     let evm_wallet = evm_wallet_data.get_ref().clone();
-    let is_cache_only: bool = request.headers().get("x-cache-only").is_some();
-    
+
     info!("Updating [{}] archive from multipart PUT", address);
-    archive_service.update_public_archive(address, payload, evm_wallet, is_cache_only).await
+    archive_service.update_public_archive(address, public_archive_form, evm_wallet, is_cache_only(request)).await
 }
 
 #[utoipa::path(

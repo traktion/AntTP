@@ -1,9 +1,10 @@
-use actix_web::{web, Responder};
+use actix_web::{web, HttpRequest, Responder};
 use actix_web::web::Data;
 use ant_evm::EvmWallet;
 use log::info;
 use crate::client::CachingClient;
 use crate::config::anttp_config::AntTpConfig;
+use crate::controller::is_cache_only;
 use crate::service::pointer_service::{Pointer, PointerService};
 
 #[utoipa::path(
@@ -15,27 +16,34 @@ use crate::service::pointer_service::{Pointer, PointerService};
     responses(
         (status = CREATED, description = "Pointer created successfully", body = Pointer)
     ),
+    params(
+        ("x-cache-only", Header, description = "Only persist to cache and do not publish (true|false)",
+        example = "true"),
+    ),
 )]
 pub async fn post_pointer(
     caching_client_data: Data<CachingClient>,
     evm_wallet_data: Data<EvmWallet>,
     ant_tp_config_data: Data<AntTpConfig>,
     pointer: web::Json<Pointer>,
-) -> impl Responder {    
+    request: HttpRequest,
+) -> impl Responder {
     let pointer_service = PointerService::new(
         caching_client_data.get_ref().clone(),
         ant_tp_config_data.get_ref().clone(),
     );
 
     info!("Creating new pointer");
-    pointer_service.create_pointer(pointer.into_inner(), evm_wallet_data.get_ref().clone()).await
+    pointer_service.create_pointer(pointer.into_inner(), evm_wallet_data.get_ref().clone(), is_cache_only(request)).await
 }
 
 #[utoipa::path(
     put,
     path = "/anttp-0/pointer/{address}",
     params(
-        ("address", description = "Address of pointer")
+        ("address", description = "Address of pointer"),
+        ("x-cache-only", Header, description = "Only persist to cache and do not publish (true|false)",
+        example = "true")
     ),
     request_body(
         content = Pointer
@@ -49,6 +57,7 @@ pub async fn put_pointer(
     caching_client_data: Data<CachingClient>,
     ant_tp_config_data: Data<AntTpConfig>,
     pointer: web::Json<Pointer>,
+    request: HttpRequest,
 ) -> impl Responder {
     let address = path.into_inner();
 
@@ -58,7 +67,7 @@ pub async fn put_pointer(
     );
 
     info!("Updating pointer");
-    pointer_service.update_pointer(address, pointer.into_inner()).await
+    pointer_service.update_pointer(address, pointer.into_inner(), is_cache_only(request)).await
 }
 
 #[utoipa::path(

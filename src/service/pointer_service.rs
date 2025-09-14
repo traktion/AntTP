@@ -13,8 +13,11 @@ use crate::config::anttp_config::AntTpConfig;
 pub struct Pointer {
     name: Option<String>,
     content: String,
+    #[schema(read_only)]
     address: Option<String>,
+    #[schema(read_only)]
     counter: Option<u64>,
+    #[schema(read_only)]
     cost: Option<String>,
 }
 
@@ -35,14 +38,14 @@ impl PointerService {
         PointerService { caching_client, ant_tp_config }
     }
 
-    pub async fn create_pointer(&self, pointer: Pointer, evm_wallet: Wallet) -> Result<HttpResponse, Error> {
+    pub async fn create_pointer(&self, pointer: Pointer, evm_wallet: Wallet, is_cache_only: bool) -> Result<HttpResponse, Error> {
         let app_secret_key = SecretKey::from_hex(self.ant_tp_config.app_private_key.clone().as_str()).unwrap();
         let pointer_key = Client::register_key_from_name(&app_secret_key, pointer.name.clone().unwrap().as_str());
 
         let chunk_address = ChunkAddress::from_hex(pointer.content.clone().as_str()).unwrap();
         info!("Create pointer from name [{}] for chunk [{}]", pointer.name.clone().unwrap(), chunk_address);
         match self.caching_client
-            .pointer_create(&pointer_key, PointerTarget::ChunkAddress(chunk_address), PaymentOption::from(&evm_wallet))
+            .pointer_create(&pointer_key, PointerTarget::ChunkAddress(chunk_address), PaymentOption::from(&evm_wallet), is_cache_only)
             .await {
                 Ok((cost, pointer_address)) => {
                     info!("Created pointer at [{}] for [{}] attos", pointer_address.to_hex(), cost);
@@ -57,7 +60,7 @@ impl PointerService {
         }
     }
 
-    pub async fn update_pointer(&self, address: String, pointer: Pointer) -> Result<HttpResponse, Error> {
+    pub async fn update_pointer(&self, address: String, pointer: Pointer, is_cache_only: bool) -> Result<HttpResponse, Error> {
         let app_secret_key = SecretKey::from_hex(self.ant_tp_config.app_private_key.clone().as_str()).unwrap();
         let pointer_key = Client::register_key_from_name(&app_secret_key, pointer.name.clone().unwrap().as_str());
         if address.clone() != pointer_key.public_key().to_hex() {
@@ -68,7 +71,7 @@ impl PointerService {
         let chunk_address = ChunkAddress::from_hex(pointer.content.clone().as_str()).unwrap();
         info!("Update pointer with name [{}] for chunk [{}]", pointer.name.clone().unwrap(), chunk_address);
         match self.caching_client
-            .pointer_update(&pointer_key, PointerTarget::ChunkAddress(chunk_address))
+            .pointer_update(&pointer_key, PointerTarget::ChunkAddress(chunk_address), is_cache_only)
             .await {
             Ok(()) => {
                 info!("Updated pointer with name [{}]", pointer.name.clone().unwrap());

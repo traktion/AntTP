@@ -7,7 +7,6 @@ use crate::config::anttp_config::AntTpConfig;
 #[derive(Clone)]
 pub struct CachingClient {
     client_harness: Data<Mutex<ClientHarness>>,
-    cache_dir: String,
     ant_tp_config: AntTpConfig,
     hybrid_cache: Data<HybridCache<String, Vec<u8>>>,
 }

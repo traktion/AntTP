@@ -1,11 +1,10 @@
 use std::{env, fs};
-use std::io::Write;
-use std::fs::{create_dir, File};
+use std::fs::{create_dir};
 use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
-use actix_http::body::MessageBody;
 use actix_http::header;
-use actix_multipart::Multipart;
+use actix_multipart::form::MultipartForm;
+use actix_multipart::form::tempfile::TempFile;
 use actix_web::http::header::{ETag, EntityTag};
 use actix_web::{Error, HttpRequest, HttpResponse};
 use actix_web::error::{ErrorNotFound};
@@ -21,6 +20,7 @@ use crate::client::CachingClient;
 use crate::service::file_service::FileService;
 use crate::service::resolver_service::{ResolvedAddress, ResolverService};
 use futures_util::{StreamExt as _};
+use sanitize_filename::sanitize;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 use uuid::Uuid;
@@ -36,6 +36,13 @@ pub struct Upload {
     status: String,
     message: String,
     address: Option<String>,
+}
+
+#[derive(Debug, MultipartForm, ToSchema)]
+pub struct PublicArchiveForm {
+    #[multipart(limit = "1GB")]
+    #[schema(value_type = Vec<String>, format = Binary, content_media_type = "application/octet-stream")]
+    files: Vec<TempFile>,
 }
 
 impl Upload {
@@ -136,16 +143,16 @@ impl PublicArchiveService {
         }
     }
 
-    pub async fn create_public_archive(&self, payload: Multipart, evm_wallet: Wallet, is_cache_only: bool) -> Result<HttpResponse, Error> {
+    pub async fn create_public_archive(&self, public_archive_form: MultipartForm<PublicArchiveForm>, evm_wallet: Wallet, is_cache_only: bool) -> Result<HttpResponse, Error> {
         info!("Uploading new public archive to the network");
-        self.update_public_archive_common(payload, evm_wallet, PublicArchive::new(), is_cache_only).await
+        self.update_public_archive_common(public_archive_form, evm_wallet, PublicArchive::new(), is_cache_only).await
     }
 
-    pub async fn update_public_archive(&self, address: String, payload: Multipart, evm_wallet: Wallet, is_cache_only: bool) -> Result<HttpResponse, Error> {
+    pub async fn update_public_archive(&self, address: String, public_archive_form: MultipartForm<PublicArchiveForm>, evm_wallet: Wallet, is_cache_only: bool) -> Result<HttpResponse, Error> {
         match self.caching_client.archive_get_public(ArchiveAddress::from_hex(address.as_str()).unwrap()).await {
             Ok(public_archive) => {
                 info!("Uploading updated public archive to the network [{:?}]", public_archive);
-                self.update_public_archive_common(payload, evm_wallet, public_archive, is_cache_only).await
+                self.update_public_archive_common(public_archive_form, evm_wallet, public_archive, is_cache_only).await
             }
             Err(e) => {
                 Err(ErrorNotFound(format!("Upload task not found: [{:?}]", e)))
@@ -153,25 +160,27 @@ impl PublicArchiveService {
         }
     }
 
-    pub async fn update_public_archive_common(&self, mut payload: Multipart, evm_wallet: Wallet, mut public_archive: PublicArchive, is_cache_only: bool) -> Result<HttpResponse, Error> {
+    pub async fn update_public_archive_common(&self, public_archive_form: MultipartForm<PublicArchiveForm>, evm_wallet: Wallet, mut public_archive: PublicArchive, is_cache_only: bool) -> Result<HttpResponse, Error> {
         let random_name = Uuid::new_v4();
         let tmp_dir = env::temp_dir().as_path().join(random_name.to_string());
         create_dir(tmp_dir.clone()).unwrap();
         info!("Created temporary directory for archive with prefix: {:?}", tmp_dir.to_str());
 
-        while let Some(item) =  payload.next().await {
-            let mut field = item.unwrap();
-
-            let filename = field.content_disposition().unwrap().get_filename().expect("Failed to get filename from multipart field");
-            let file_path = tmp_dir.clone().join(filename);
+        for temp_file in public_archive_form.files.iter() {
+            let filename = sanitize(temp_file.file_name.clone().expect("Failed to get filename from multipart field"));
+            let file_path = tmp_dir.clone().join(filename.clone());
 
             info!("Creating temporary file for archive: {:?}", file_path.to_str().unwrap());
+
+            fs::rename(temp_file.file.path(), file_path).expect(format!("failed to rename tmp file [{}]", filename).as_str());
+
+            /*temp_file.file.path();
             let mut tmp_file = File::create(file_path.clone()).unwrap();
 
-            while let Some(chunk) = field.next().await {
+            while let Some(chunk) = temp_file.file .bytes().next() {
                 tmp_file.write_all(&chunk.unwrap()).unwrap();
             }
-            tmp_file.flush().unwrap().size();
+            tmp_file.flush().unwrap().size();*/
         }
 
         let local_client = self.caching_client.clone();

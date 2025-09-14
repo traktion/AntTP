@@ -17,7 +17,9 @@ use crate::client::CachingClient;
 #[derive(Serialize, Deserialize, ToSchema)]
 pub struct Chunk {
     content: Option<String>,
+    #[schema(read_only)]
     address: Option<String>,
+    #[schema(read_only)]
     cost: Option<String>,
 }
 

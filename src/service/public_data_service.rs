@@ -15,7 +15,6 @@ use crate::service::chunk_service::Chunk;
 
 #[derive(Serialize, Deserialize, ToSchema)]
 pub struct PublicData {
-    content: Option<String>,
     #[schema(read_only)]
     address: Option<String>,
     #[schema(read_only)]

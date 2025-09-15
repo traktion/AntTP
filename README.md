@@ -5,8 +5,8 @@
 Autonomi Network (a.k.a. Safe Network) is a distributed data network where both mutable and immutable data can be stored. It can
 considered as a best of class web3 experience.
 
-AntTP is a HTTP service which serves data from Autonomi over conventional HTTP connections. This allows regular
-web browsers (and other apps) to retrieve data from Autonomi without needing any client libraries, CLIs, etc.
+AntTP is an HTTP server for the Autonomi Network. This allows regular web browsers (and other apps) to retrieve data from Autonomi
+without needing any client libraries, CLIs, etc.
 
 Users can either spin up a local AntTP service or deploy one to a public environment. This enables developers to
 integrate with Autonomi in a more conventional way and gives end users a conventional browsing experience.
@@ -35,7 +35,7 @@ List help from binary:
 `anttp --help`
 
 ```
-AntTP is an HTTP proxy which serves data from Autonomi over conventional HTTP connections
+AntTP is an HTTP server for the Autonomi Network
 
 Usage: anttp [OPTIONS]
 
@@ -334,6 +334,8 @@ Why not take a look and start your own immutable blog today?
     - [x] Graph
     - [x] Register
     - [x] Chunk
+    - [x] Public Archive
+    - [x] Public Data
     - [ ] BLS support
       - [ ] Create, sign, verify
       - [ ] Derived keys
@@ -341,16 +343,19 @@ Why not take a look and start your own immutable blog today?
     - [ ] Vault support (CRUD, cost)
     - [ ] Data upload cost
     - [ ] Wallet support
-      - [ ] get balance
-      - [ ] send tokens
-      - [ ] get transaction history
+      - [ ] Get balance
+      - [ ] Send tokens
+      - [ ] Get transaction history
+      - [ ] Remote data payments (via gateway)
     - [ ] Asyc upload queue
   - [ ] gRPC API
     - [ ] Pointer
     - [ ] Scratchpad
     - [ ] Graph
     - [ ] Register
-    - [ ] Chunk (in addition to file support, which is already implemented)
+    - [ ] Chunk
+    - [ ] Public Archive
+    - [ ] Public Data
     - [ ] BLS support
       - [ ] Create, sign, verify
       - [ ] Derived keys
@@ -361,6 +366,7 @@ Why not take a look and start your own immutable blog today?
       - [ ] get balance
       - [ ] send tokens
       - [ ] get transaction history
+      - [ ] Remote data payments (via gateway)
   - [ ] Websockets
     - [ ] Stream immutable data types
     - [ ] Stream changes to mutable data types

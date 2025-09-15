@@ -15,7 +15,7 @@ use crate::service::public_data_service::{PublicData, PublicDataService};
         content_type = "application/octet-stream"
     ),
     responses(
-        (status = 200, description = "Public data uploaded successfully", body = PublicData),
+        (status = CREATED, description = "Public data uploaded successfully", body = PublicData),
     ),
     params(
         ("x-cache-only", Header, description = "Only persist to cache and do not publish (memory|disk|none)",

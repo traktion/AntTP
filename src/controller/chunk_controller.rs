@@ -14,8 +14,7 @@ use crate::service::chunk_service::{Chunk, ChunkService};
         content = Chunk
     ),
     responses(
-        (status = 200, description = "Chunk found successfully", body = Chunk),
-        (status = NOT_FOUND, description = "Chunk was not found")
+        (status = CREATED, description = "Chunk found successfully", body = Chunk),
     ),
     params(
         ("x-cache-only", Header, description = "Only persist to cache and do not publish (memory|disk|none)",
@@ -42,8 +41,7 @@ pub async fn post_chunk(
         content_type = "application/octet-stream"
     ),
     responses(
-        (status = 200, description = "Chunk uploaded successfully", body = Chunk),
-        (status = NOT_FOUND, description = "Chunk was not found")
+        (status = CREATED, description = "Chunk uploaded successfully", body = Chunk),
     ),
     params(
         ("x-cache-only", Header, description = "Only persist to cache and do not publish (memory|disk|none)",
@@ -73,7 +71,7 @@ pub async fn post_chunk_binary(
     get,
     path = "/anttp-0/chunk/{address}",
     responses(
-        (status = 200, description = "Chunk found successfully", body = Chunk),
+        (status = OK, description = "Chunk found successfully", body = Chunk),
         (status = NOT_FOUND, description = "Chunk was not found")
     ),
     params(
@@ -95,7 +93,7 @@ pub async fn get_chunk(
     get,
     path = "/anttp-0/binary/chunk/{address}",
     responses(
-        (status = 200, description = "Chunk found successfully", content_type = "application/octet-stream"),
+        (status = OK, description = "Chunk found successfully", content_type = "application/octet-stream"),
         (status = NOT_FOUND, description = "Chunk was not found")
     ),
     params(

@@ -13,6 +13,47 @@ integrate with Autonomi in a more conventional way and gives end users a convent
 
 AntTP was formally known as sn_httpd.
 
+## Overview
+
+AntTP is designed to allow data to be browsed over HTTP directly from the Autonomi Network. To do this, it follows similar principles
+to hosting data from a regular file system.
+
+Archives (public or tarchive) are treated as file containers. Whether these are uploaded from the `ant` CLI or from AntTP, they can be
+retrieved by AntTP. If only the archive address is specified in a URL, a file listing will be shown, similar to that of a regular web
+server. If an archive and a filename within it are specified, then the file will be downloaded, much like a regular web server.
+
+Examples:
+
+- Archive URL: http://localhost:18888/a33082163be512fb471a1cca385332b32c19917deec3989a97e100d827f97baf/
+- Archive and file URL: Example archive URLs look like: http://localhost:18888/a33082163be512fb471a1cca385332b32c19917deec3989a97e100d827f97baf/public-archive.png
+
+File addresses can also be specified directly in a URL too, if they either have no archive acting as a file container or if they just
+need addressing directly. As the network address is used as the filename in these cases, an optional (friendly) filename can be appended
+to the URL to make it easier for the browser to recognise the file type and/or provide a name for downloading. 
+
+Examples:
+
+- File URL with no filename: http://localhost:18888/304b74b76536e89910262ade48020a4ab2724bdaf353f3b42de625fee2477228
+- File URL with filename: http://localhost:18888/304b74b76536e89910262ade48020a4ab2724bdaf353f3b42de625fee2477228/BegBlag.mp3
+
+Pointers and Registers can also be used as addresses. These are mutable and allow the owner of the pointer/register to link to other
+addresses (like the above). With Autonomi, to change immutable data, you copy and edit it, then save it to a new address. By using
+pointers/registers, the same address can be linked to the new address of the immutable data.
+
+Pointers/registers in URLs function a bit like regular DNS on the clear net, but any data item can be addressed, not just hosts.
+
+Examples:
+
+- Pointer URL to archive: http://localhost:18888/8e16406561d0c460f3dbe37fef129582d6410ec7cb9d5aebdf9cbb051676624c543a315f7e857103cd71088a927c9085/
+- Pointer URL to archive with filename: http://localhost:18888/8e16406561d0c460f3dbe37fef129582d6410ec7cb9d5aebdf9cbb051676624c543a315f7e857103cd71088a927c9085/imim-github.png
+
+AntTP Bookmarks can also be used as aliases to mutable or immutable types. They only apply to the AntTP instance with the bookmarks defined
+but it can be a nice way to store commonly accessed sites. In the future they may form the basis of a broader DNS style integration.
+
+Examples:
+
+- Bookmark URL to a pointer with a filename: http://localhost:18888/traktion-blog/imim-github.png
+
 ## Features
 
 `AntTP` currently provides the following:
@@ -27,6 +68,8 @@ AntTP was formally known as sn_httpd.
   React to be hosted (once a routeMap is provided - see [example-config](resources/app-conf.json)
 - Native integration of the `autonomi` libraries into Actix web framework. These are both written in Rust to provide
   smooth integration. As Actix is core to `AntTP`, it can be extended for specific use cases easily.
+
+For a complete list of features, please review the roadmap below.
 
 ## Run instructions
 
@@ -51,7 +94,7 @@ Options:
   -a, --app-private-key <APP_PRIVATE_KEY>
           [default: ]
   -b, --bookmarks <BOOKMARKS>
-          [default: traktion-blog=8e16406561d0c460f3dbe37fef129582d6410ec7cb9d5aebdf9cbb051676624c543a315f7e857103cd71088a927c9085,imim=959c2ba5b84e1a68fedc14caaae96e97cfff19ff381127844586b2e0cdd2afdfb1687086a5668bced9f3dc35c03c9bd7,gimim=82fb48d691a65e771e2279ff56d8c5f7bc007fa386c9de95d64be52e081f01b1fdfb248095238b93db820836cc88c67a,index=b970cf40a1ba880ecc27d5495f543af387fcb014863d0286dd2b1518920df38ac311d854013de5d50b9b04b84a6da021,gindex=879d061580e6200a3f1dbfc5c87c13544fcd391dfec772033f1138a9469df35c98429ecd3acb4a9ab631ea7d5f6fae0f]
+          [default: traktion-blog=8e16406561d0c460f3dbe37fef129582d6410ec7cb9d5aebdf9cbb051676624c543a315f7e857103cd71088a927c9085,imim=959c2ba5b84e1a68fedc14caaae96e97cfff19ff381127844586b2e0cdd2afdfb1687086a5668bced9f3dc35c03c9bd7,gimim=82fb48d691a65e771e2279ff56d8c5f7bc007fa386c9de95d64be52e081f01b1fdfb248095238b93db820836cc88c67a,index=b970cf40a1ba880ecc27d5495f543af387fcb014863d0286dd2b1518920df38ac311d854013de5d50b9b04b84a6da021,gindex=879d061580e6200a3f1dbfc5c87c13544fcd391dfec772033f1138a9469df35c98429ecd3acb4a9ab631ea7d5f6fae0f,cinema=953ff297c689723a59e20d6f80b67233b0c0fe17ff4cb37a2c8cfb46e276ce0e45d59c17e006e4990deaa634141e4c77]
   -u, --uploads-disabled
           
   -c, --cached-mutable-ttl <CACHED_MUTABLE_TTL>
@@ -59,13 +102,15 @@ Options:
   -p, --peers <PEERS>
           
   -m, --map-cache-directory <MAP_CACHE_DIRECTORY>
-          [default: ]
+          [default: /tmp/anttp/cache/]
   -e, --evm-network <EVM_NETWORK>
-          [default: ]
+          [default: evm-arbitrum-one]
       --immutable-disk-cache-size <IMMUTABLE_DISK_CACHE_SIZE>
           [default: 1024]
       --immutable-memory-cache-size <IMMUTABLE_MEMORY_CACHE_SIZE>
           [default: 32]
+  -i, --idle-disconnect <IDLE_DISCONNECT>
+          [default: 30]
   -h, --help
           Print help
   -V, --version
@@ -300,6 +345,23 @@ If your browser is configured as an AntTP proxy, take a look here at an example 
 http://62003e683b5a792f425a75c5d7d99d06e80f7047be8de8176b7d295e510b3b4c/blog/705a5fa9b2b2ee9d1ec88f7f6cae45a9e40d4cf8ea202252c9d7e68eb6e17c8b#home
 
 Why not take a look and start your own immutable blog today?
+
+## Swagger UI
+
+Developers can explore the REST API by accessing the Swagger UI. This can be found on any AntTP server instance at the `/swagger-ui/` endpoint,
+e.g. http://localhost:18888/swagger-ui/ or http://anttp.antsnest.site/swagger-ui/.
+
+There are a number of different endpoints for uploading or downloading immutable and mutable data types. To upload data, uploads need to be enabled
+and a valid wallet address must be provided (see 'Run Instructions').
+
+Developers can use the `x-cache-only` header to only upload data to the AntTP instance, instead of uploading to the Autonomi Network. This
+provides a number of use cases, from quickly/cheaply testing out new web apps, to local only storage for applications.
+
+Note that when uploading as 'cache only', the files remain on the AntTP instance and there are no charges to upload to the Autonomi Network. If
+the same data is subsequently uploaded without the `x-cache-only` header, it will charge the wallet and upload the data to the network.
+
+Developers should consider how this could easily provide preview modes for uploaded data (e.g. preview a blog before committing to the network),
+local per-user configuration data (e.g. arbitrary data that only the user needs to access), etc.
 
 ## Roadmap
 

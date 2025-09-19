@@ -131,11 +131,12 @@ impl Archive {
                 if i > path_parts.len() - 1 {
                     break;
                 }
-                debug!("search_key_parts[i]: {}, path_parts[i]: {}", search_key_parts[i], path_parts[i]);
+                debug!("search_key_parts[i]: {}, path_parts[i]: {}, path: {}", search_key_parts[i], path_parts[i], data_address_offset.path);
                 if search_key_parts[i] != "" && search_key_parts[i] != path_parts[i] {
                     break;
                 }
-                if i == path_parts.len() - 1 {
+                // todo: tar index don't include trailing slash, which makes it hard to derive if directory. Use zero file size for now.
+                if i == path_parts.len() - 1 && data_address_offset.size != 0 {
                     debug!("adding file: {}", path_parts[i]);
                     let path_detail =  PathDetail {
                         path: path_parts[i].to_string(),

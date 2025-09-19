@@ -53,17 +53,17 @@ impl ArchiveHelper {
     pub fn list_files(&self, path: String, header_map: &HeaderMap) -> String{
         if header_map.contains_key("Accept")
             && header_map.get("Accept").unwrap().to_str().unwrap().to_string().contains( "json") {
-            self.list_files_json()
+            self.list_files_json(path)
         } else {
             self.list_files_html(path)
         }
     }
 
     fn list_files_html(&self, path: String) -> String {
-        let mut output = "<html><head><style>table { width: 60%; text-align: left; }</style></head><body><center><table>".to_string();
+        let mut output = "<html><head><style>table { width: 60%; text-align: left; }</style></head><body><center>\n<table>".to_string();
 
-        output.push_str(&format!("<h1>Index of /{}</h1>", path));
-        output.push_str("<tr><th>Name</th><th>Last Modified</th><th>Size</th></tr>");
+        output.push_str(&format!("<h1>Index of /{}</h1>\n", path));
+        output.push_str("<tr><th>Name</th><th>Last Modified</th><th>Size</th></tr>\n");
 
         for path_detail in self.archive.list_dir(path) {
             let mtime_datetime = DateTime::from_timestamp_millis(path_detail.modified as i64 * 1000).unwrap();
@@ -79,16 +79,19 @@ impl ArchiveHelper {
         output
     }
 
-    fn list_files_json(&self) -> String {
+    fn list_files_json(&self, path: String) -> String {
         let mut output = "[\n".to_string();
+
+        let list_dir = self.archive.list_dir(path);
         let mut i = 1;
-        let count = self.archive.vec().len();
-        for data_address_offset in self.archive.vec() {
-            let mtime_datetime = DateTime::from_timestamp_millis(data_address_offset.modified as i64 * 1000).unwrap();
+        let count = list_dir.len();
+        for path_detail in list_dir {
+            let mtime_datetime = DateTime::from_timestamp_millis(path_detail.modified as i64 * 1000).unwrap();
             let mtime_iso = mtime_datetime.format("%+");
-            let filepath = data_address_offset.path.trim_start_matches("./").trim_start_matches("/").to_string();
             output.push_str("{");
-            output.push_str(&format!("\"name\": \"{}\", \"type\": \"file\", \"mtime\": \"{}\", \"size\": \"{}\"", filepath, mtime_iso, data_address_offset.size));
+            output.push_str(
+                &format!("\"name\": \"{}\", \"type\": \"{:?}\", \"mtime\": \"{}\", \"size\": \"{}\"",
+                         path_detail.path, path_detail.path_type, mtime_iso, path_detail.size));
             output.push_str("}");
             if i < count {
                 output.push_str(",");
@@ -96,6 +99,7 @@ impl ArchiveHelper {
             output.push_str("\n");
             i+=1;
         }
+
         output.push_str("]");
         debug!("list_files_json: {}", output);
         output

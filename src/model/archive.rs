@@ -4,7 +4,7 @@ use autonomi::files::PublicArchive;
 use bytes::Bytes;
 use log::{debug, error};
 use serde::{Deserialize, Serialize};
-use crate::model::path_detail::PathDetail;
+use crate::model::path_detail::{PathDetail, PathDetailType};
 
 #[derive(Clone,Serialize,Deserialize)]
 pub struct Archive {
@@ -143,6 +143,7 @@ impl Archive {
                         display: path_parts[i].to_string(),
                         modified: data_address_offset.modified,
                         size: data_address_offset.size,
+                        path_type: PathDetailType::FILE,
                     };
                     vec.push(path_detail);
                 } else if i == search_key_parts.len() - 1 && !map.contains_key(&path_parts[i].to_string()) {
@@ -152,7 +153,8 @@ impl Archive {
                         path: dir.clone(),
                         display: dir.clone(),
                         modified: data_address_offset.modified,
-                        size: 0
+                        size: 0,
+                        path_type: PathDetailType::DIRECTORY,
                     };
                     vec.push(path_detail.clone());
                     map.insert(path_parts[i].to_string(), path_detail);
@@ -162,7 +164,8 @@ impl Archive {
                         path: dir.clone(),
                         display: dir.clone(),
                         modified: data_address_offset.modified,
-                        size: 0
+                        size: 0,
+                        path_type: PathDetailType::DIRECTORY,
                     };
                     vec.push(path_detail.clone());
                     map.insert("../".to_string(), path_detail);

@@ -198,6 +198,32 @@ impl ResolverService {
         }
     }
 
+    pub async fn resolve_address(&self, name: &String) -> Option<String> {
+        if self.is_bookmark(name) {
+            debug!("found bookmark for [{}]", name);
+            let resolved_bookmark = &self.resolve_bookmark(name).unwrap().to_string();
+            Box::pin(self.resolve_address(resolved_bookmark)).await
+        } else if self.is_mutable_address(&name) {
+            debug!("found mutable address for [{}]", name);
+            match self.analyze_simple(name).await {
+                Some(data_address) => {
+                    debug!("found immutable address for [{}]", name);
+                    Some(data_address.to_hex())
+                }
+                None => {
+                    info!("No mutable data found at [{}]", name);
+                    None
+                }
+            }
+        } else if self.is_immutable_address(&name) {
+            debug!("found immutable address for [{}]", name);
+            Some(name.clone())
+        } else {
+            warn!("Failed to find name [{:?}]", name);
+            None
+        }
+    }
+
     fn str_to_xor_name(&self, str: &String) -> Result<XorName, Error> {
         match hex::decode(str) {
             Ok(bytes) => {

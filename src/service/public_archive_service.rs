@@ -156,7 +156,7 @@ impl PublicArchiveService {
                 self.update_public_archive_common(public_archive_form, evm_wallet, public_archive, cache_only).await
             }
             Err(e) => {
-                Err(ErrorNotFound(format!("Upload task not found: [{:?}]", e)))
+                Err(ErrorNotFound(format!("Public archive not found at address [{}]: [{:?}]", address, e)))
             }
         }
     }

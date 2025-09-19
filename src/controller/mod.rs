@@ -10,7 +10,7 @@ pub mod chunk_controller;
 pub mod graph_controller;
 pub mod public_data_controller;
 
-#[derive(Clone)]
+#[derive(Clone,Debug)]
 pub enum CacheType {
     Memory, Disk
 }

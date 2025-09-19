@@ -6,6 +6,7 @@ use crate::client::CachingClient;
 use crate::config::anttp_config::AntTpConfig;
 use crate::controller::cache_only;
 use crate::service::pointer_service::{Pointer, PointerService};
+use crate::service::resolver_service::ResolverService;
 
 #[utoipa::path(
     post,
@@ -28,10 +29,10 @@ pub async fn post_pointer(
     pointer: web::Json<Pointer>,
     request: HttpRequest,
 ) -> impl Responder {
-    let pointer_service = PointerService::new(
-        caching_client_data.get_ref().clone(),
-        ant_tp_config_data.get_ref().clone(),
-    );
+    let caching_client = caching_client_data.get_ref().clone();
+    let ant_tp_config = ant_tp_config_data.get_ref().clone();
+    let resolver_service = ResolverService::new(ant_tp_config.clone(), caching_client.clone());
+    let pointer_service = PointerService::new(caching_client, ant_tp_config, resolver_service);
 
     info!("Creating new pointer");
     pointer_service.create_pointer(pointer.into_inner(), evm_wallet_data.get_ref().clone(), cache_only(request)).await
@@ -61,10 +62,10 @@ pub async fn put_pointer(
 ) -> impl Responder {
     let address = path.into_inner();
 
-    let pointer_service = PointerService::new(
-        caching_client_data.get_ref().clone(),
-        ant_tp_config_data.get_ref().clone(),
-    );
+    let caching_client = caching_client_data.get_ref().clone();
+    let ant_tp_config = ant_tp_config_data.get_ref().clone();
+    let resolver_service = ResolverService::new(ant_tp_config.clone(), caching_client.clone());
+    let pointer_service = PointerService::new(caching_client, ant_tp_config, resolver_service);
 
     info!("Updating pointer");
     pointer_service.update_pointer(address, pointer.into_inner(), cache_only(request)).await
@@ -91,10 +92,10 @@ pub async fn get_pointer(
 ) -> impl Responder {
     let address = path.into_inner();
 
-    let pointer_service = PointerService::new(
-        caching_client_data.get_ref().clone(),
-        ant_tp_config_data.get_ref().clone(),
-    );
+    let caching_client = caching_client_data.get_ref().clone();
+    let ant_tp_config = ant_tp_config_data.get_ref().clone();
+    let resolver_service = ResolverService::new(ant_tp_config.clone(), caching_client.clone());
+    let pointer_service = PointerService::new(caching_client, ant_tp_config, resolver_service);
 
     info!("Getting pointer at [{}]", address);
     pointer_service.get_pointer(address).await

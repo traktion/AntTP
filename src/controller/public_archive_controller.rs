@@ -50,8 +50,9 @@ pub async fn post_public_archive(
 
 #[utoipa::path(
     put,
-    path = "/anttp-0/multipart/public_archive",
+    path = "/anttp-0/multipart/public_archive/{address}",
     request_body(
+        content = PublicArchiveForm,
         content_type = "multipart/form-data"
     ),
     responses(
@@ -71,8 +72,7 @@ pub async fn put_public_archive(
     upload_state: Data<UploadState>,
     ant_tp_config: Data<AntTpConfig>,
     request: HttpRequest,
-)
-    -> impl Responder {
+) -> impl Responder {
     let address = path.into_inner();
     let archive_service = build_archive_service(
         caching_client_data,
@@ -82,7 +82,7 @@ pub async fn put_public_archive(
     );
     let evm_wallet = evm_wallet_data.get_ref().clone();
 
-    info!("Updating [{}] archive from multipart PUT", address);
+    info!("Updating [{}] archive from multipart PUT with cache_only [{:?}]", address, cache_only(request.clone()));
     archive_service.update_public_archive(address, public_archive_form, evm_wallet, cache_only(request)).await
 }
 
@@ -90,7 +90,7 @@ pub async fn put_public_archive(
     get,
     path = "/anttp-0/public_archive/status/{id}",
     responses(
-        (status = 200, description = "Id found successfully", body = Upload),
+        (status = OK, description = "Id found successfully", body = Upload),
         (status = NOT_FOUND, description = "Id was not found")
     ),
     params(

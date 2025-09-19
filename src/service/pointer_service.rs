@@ -9,6 +9,7 @@ use utoipa::ToSchema;
 use crate::client::CachingClient;
 use crate::config::anttp_config::AntTpConfig;
 use crate::controller::CacheType;
+use crate::service::resolver_service::ResolverService;
 
 #[derive(Serialize, Deserialize, ToSchema)]
 pub struct Pointer {
@@ -31,12 +32,13 @@ impl Pointer {
 pub struct PointerService {
     caching_client: CachingClient,
     ant_tp_config: AntTpConfig,
+    resolver_service: ResolverService,
 }
 
 impl PointerService {
 
-    pub fn new(caching_client: CachingClient, ant_tp_config: AntTpConfig) -> Self {
-        PointerService { caching_client, ant_tp_config }
+    pub fn new(caching_client: CachingClient, ant_tp_config: AntTpConfig, resolver_service: ResolverService) -> Self {
+        PointerService { caching_client, ant_tp_config, resolver_service }
     }
 
     pub async fn create_pointer(&self, pointer: Pointer, evm_wallet: Wallet, cache_only: Option<CacheType>) -> Result<HttpResponse, Error> {
@@ -62,11 +64,12 @@ impl PointerService {
     }
 
     pub async fn update_pointer(&self, address: String, pointer: Pointer, cache_only: Option<CacheType>) -> Result<HttpResponse, Error> {
+        let resolved_address = self.resolver_service.resolve_bookmark(&address).unwrap_or(address);
         let app_secret_key = SecretKey::from_hex(self.ant_tp_config.app_private_key.clone().as_str()).unwrap();
         let pointer_key = Client::register_key_from_name(&app_secret_key, pointer.name.clone().unwrap().as_str());
-        if address.clone() != pointer_key.public_key().to_hex() {
-            warn!("Address [{}] is not derived from name [{}].", address.clone(), pointer.name.clone().unwrap());
-            return Err(ErrorPreconditionFailed(format!("Address [{}] is not derived from name [{}].", address.clone(), pointer.name.clone().unwrap())));
+        if resolved_address.clone() != pointer_key.public_key().to_hex() {
+            warn!("Address [{}] is not derived from name [{}].", resolved_address.clone(), pointer.name.clone().unwrap());
+            return Err(ErrorPreconditionFailed(format!("Address [{}] is not derived from name [{}].", resolved_address.clone(), pointer.name.clone().unwrap())));
         }
 
         let chunk_address = ChunkAddress::from_hex(pointer.content.clone().as_str()).unwrap();
@@ -76,7 +79,7 @@ impl PointerService {
             .await {
             Ok(()) => {
                 info!("Updated pointer with name [{}]", pointer.name.clone().unwrap());
-                let response_pointer = Pointer::new(pointer.name, pointer.content, Some(address), None, None);
+                let response_pointer = Pointer::new(pointer.name, pointer.content, Some(resolved_address), None, None);
                 Ok(HttpResponse::Ok().json(response_pointer))
             }
             Err(e) => {
@@ -87,16 +90,18 @@ impl PointerService {
     }
 
     pub async fn get_pointer(&self, address: String) -> Result<HttpResponse, Error> {
-        let pointer_address = PointerAddress::from_hex(address.as_str()).unwrap();
+        let resolved_address = self.resolver_service.resolve_bookmark(&address).unwrap_or(address);
+        info!("Get pointer with resolved_address [{}]", resolved_address);
+        let pointer_address = PointerAddress::from_hex(resolved_address.as_str()).expect("failed to create pointer from hex");
         match self.caching_client.pointer_get(&pointer_address).await {
             Ok(pointer) => {
-                info!("Retrieved pointer at address [{}] value [{}]", address, pointer.target().to_hex());
+                info!("Retrieved pointer at address [{}] value [{}]", resolved_address, pointer.target().to_hex());
                 let response_pointer = Pointer::new(
-                    None, pointer.target().to_hex(), Some(address), Some(pointer.counter()), None);
+                    None, pointer.target().to_hex(), Some(resolved_address), Some(pointer.counter()), None);
                 Ok(HttpResponse::Ok().json(response_pointer).into())
             }
             Err(e) => {
-                warn!("Failed to retrieve pointer at address [{}]: [{:?}]", address, e);
+                warn!("Failed to retrieve pointer at address [{}]: [{:?}]", resolved_address, e);
                 Err(ErrorInternalServerError("Failed to retrieve pointer at address"))
             }
         }

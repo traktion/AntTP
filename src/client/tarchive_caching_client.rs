@@ -39,7 +39,7 @@ impl CachingClient {
                 info!("retrieved tarchive for [{}] from hybrid cache", addr.to_hex());
                 Ok(Bytes::from(cache_entry.value().to_vec()))
             },
-            Err(_) => Err(GetError::RecordNotFound),
+            Err(e) => Err(GetError::UnrecognizedDataMap(e.to_string())),
         }
     }
 

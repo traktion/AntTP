@@ -51,16 +51,17 @@ impl CachingClient {
         range_from: i64,
         range_to: i64,
     ) -> Result<Bytes, Error> {
+        // todo: combine with file_service code
         match self.chunk_get(&ChunkAddress::new(*addr.xorname())).await {
             Ok(data_map_chunk) => {
                 let chunk_streamer = ChunkStreamer::new(addr.to_hex(), data_map_chunk.value, self.clone(), self.ant_tp_config.download_threads);
                 // only retrieve the size when it is needed
-                let length = if range_from < 0 || range_to < 0 { u64::try_from(chunk_streamer.get_stream_size().await - 1).unwrap() } else { 0 };
+                let length = if range_from < 0 || range_to <= 0 { u64::try_from(chunk_streamer.get_stream_size().await).unwrap() } else { 0 };
 
                 let derived_range_from = if range_from < 0 {
                     let from = u64::try_from(range_from.abs()).unwrap();
                     if from < length {
-                        length - from
+                        (length - 1) - from
                     } else {
                         0
                     }
@@ -68,14 +69,19 @@ impl CachingClient {
                     u64::try_from(range_from).unwrap()
                 };
                 let derived_range_to: u64 = if range_to <= 0 {
-                    let to= u64::try_from(range_to.abs()).unwrap();
+                    let to = u64::try_from(range_to.abs()).unwrap();
                     if to < length {
-                        length - to
+                        (length - 1) - to
                     } else {
                         0
                     }
                 } else {
-                    u64::try_from(range_to).unwrap()
+                    let to = u64::try_from(range_to).unwrap();
+                    if to > length - 1 {
+                        length
+                    } else {
+                        to
+                    }
                 };
 
                 let mut chunk_receiver = match chunk_streamer.open(derived_range_from, derived_range_to).await {

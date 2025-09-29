@@ -175,7 +175,7 @@ impl FileService {
         if !is_resolved_file_name && self.xor_helper.is_immutable_address(&format!("{:x}", xor_name)) {
             CacheControl(vec![CacheDirective::MaxAge(u32::MAX), CacheDirective::Public]) // immutable
         } else {
-            CacheControl(vec![CacheDirective::MaxAge(self.ant_tp_config.cached_mutable_ttl as u32), CacheDirective::Public]) // mutable
+            CacheControl(vec![CacheDirective::MaxAge(u32::try_from(self.ant_tp_config.cached_mutable_ttl).unwrap()), CacheDirective::Public]) // mutable
         }
     }
 

@@ -66,7 +66,7 @@ impl ArchiveHelper {
         output.push_str("<tr><th>Name</th><th>Last Modified</th><th>Size</th></tr>\n");
 
         for path_detail in self.archive.list_dir(path) {
-            let mtime_datetime = DateTime::from_timestamp_millis(path_detail.modified as i64 * 1000).unwrap();
+            let mtime_datetime = DateTime::from_timestamp_millis( i64::try_from(path_detail.modified).unwrap() * 1000).unwrap();
             let mtime_iso = mtime_datetime.format("%+");
             output.push_str("<tr>");
             output.push_str(&format!("<td><a href=\"{}\">{}</a></td>\n", path_detail.path, path_detail.display));
@@ -86,7 +86,7 @@ impl ArchiveHelper {
         let mut i = 1;
         let count = list_dir.len();
         for path_detail in list_dir {
-            let mtime_datetime = DateTime::from_timestamp_millis(path_detail.modified as i64 * 1000).unwrap();
+            let mtime_datetime = DateTime::from_timestamp_millis(i64::try_from(path_detail.modified).unwrap() * 1000).unwrap();
             let mtime_iso = mtime_datetime.format("%+");
             output.push_str("{");
             output.push_str(

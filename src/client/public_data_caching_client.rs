@@ -3,10 +3,10 @@ use ant_evm::AttoTokens;
 use autonomi::client::payment::PaymentOption;
 use autonomi::client::{GetError, PutError};
 use autonomi::data::DataAddress;
-use autonomi::files::{PublicArchive, UploadError};
+use autonomi::files::{UploadError};
 use bytes::Bytes;
 use chunk_streamer::chunk_encrypter::ChunkEncrypter;
-use log::{info, warn};
+use log::{info};
 use crate::client::CachingClient;
 use crate::controller::CacheType;
 
@@ -54,31 +54,12 @@ impl CachingClient {
     pub async fn data_get_public(&self, addr: &DataAddress) -> Result<Bytes, GetError> {
         let local_caching_client = self.clone();
         let local_address = addr.clone();
-        let local_hybrid_cache = self.hybrid_cache.clone();
-        match self.hybrid_cache.get_ref().fetch(format!("pd{}", local_address.to_hex()), || async move {
-            // todo: optimise range_to to first chunk length (to avoid downloading other chunks when not needed)
-            let maybe_bytes = local_caching_client.download_stream(local_address, 0, 524288).await;
-            match maybe_bytes {
-                Ok(bytes) => {
-                    match PublicArchive::from_bytes(bytes.clone()) {
-                        // confirm that serialisation can be successful, before returning the data
-                        Ok(_) => {
-                            info!("retrieved public archive for [{}] from network - storing in hybrid cache", local_address.to_hex());
-                            info!("hybrid cache stats [{:?}], memory cache usage [{:?}]", local_hybrid_cache.statistics(), local_hybrid_cache.memory().usage());
-                            Ok(Vec::from(bytes))
-                        },
-                        Err(err) => {
-                            warn!("Failed to retrieve public archive for [{}] from network {:?}", local_address.to_hex(), err);
-                            Err(foyer::Error::other(format!("Failed to retrieve public archive for [{}] from network {:?}", local_address.to_hex(), err)))
-                        }
-                    }
-                },
-                Err(err) => Err(foyer::Error::other(format!("Failed to download stream for [{}] from network {:?}", local_address.to_hex(), err)))
-            }
-        }).await {
-            Ok(cache_entry) => {
-                info!("retrieved public archive for [{}] from hybrid cache", addr.to_hex());
-                Ok(Bytes::from(cache_entry.value().to_vec()))
+
+        let maybe_bytes = local_caching_client.download_stream(local_address, 0, 0).await;
+        match maybe_bytes {
+            Ok(bytes) => {
+                info!("retrieved public data for [{}] with size [{}]", local_address.to_hex(), bytes.len());
+                Ok(bytes)
             },
             Err(_) => Err(GetError::RecordNotFound),
         }

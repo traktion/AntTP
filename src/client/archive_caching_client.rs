@@ -14,10 +14,7 @@ impl CachingClient {
         let local_address = addr.clone();
         let local_hybrid_cache = self.hybrid_cache.clone();
         match self.hybrid_cache.get_ref().fetch(format!("ar{}", local_address.to_hex()), || async move {
-            // todo: enable join agani
-            let (public_archive, tarchive) = join!(local_caching_client.data_get_public(&addr), local_caching_client.get_archive_from_tar(&addr));
-            /*let public_archive = local_caching_client.data_get_public(&addr).await;
-            let tarchive = local_caching_client.get_archive_from_tar(&addr).await;*/
+            let (public_archive, tarchive) = join!(local_caching_client.archive_get_public_raw(&addr), local_caching_client.get_archive_from_tar(&addr));
             match public_archive {
                 Ok(bytes) => match PublicArchive::from_bytes(bytes) {
                     Ok(public_archive) => {

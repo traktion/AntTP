@@ -1131,7 +1131,7 @@ dependencies = [
 
 [[package]]
 name = "anttp"
-version = "0.15.3"
+version = "0.15.4"
 dependencies = [
  "actix-files",
  "actix-http",
@@ -1975,9 +1975,9 @@ dependencies = [
 
 [[package]]
 name = "chunk-streamer"
-version = "0.4.3"
+version = "0.4.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1164b2abcf54c57f61e2a36dae8924e6b89aebe12394e56868a0aafcaea659cd"
+checksum = "2dd7e120b63ea574ac7fa9da1f4d70c2a5f3fd2ec771dac3f97f3b571a124b9e"
 dependencies = [
  "async-trait",
  "autonomi",
@@ -1986,7 +1986,7 @@ dependencies = [
  "futures-util",
  "log",
  "rmp-serde",
- "self_encryption 0.34.0",
+ "self_encryption 0.34.1",
  "tokio",
 ]
 
@@ -6345,9 +6345,9 @@ dependencies = [
 
 [[package]]
 name = "self_encryption"
-version = "0.34.0"
+version = "0.34.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "43f85a17897458dccae05b1339088f0efb4ac04333b9e749264fd437443ffd36"
+checksum = "636a9d557a649b7c30068e270212eb42967384034de9fa8250fbbc55b65b43a7"
 dependencies = [
  "aes",
  "bincode",

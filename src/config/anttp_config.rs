@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::env;
 use std::net::SocketAddr;
 use ant_evm::EvmNetwork::ArbitrumOne;
@@ -31,7 +32,10 @@ pub struct AntTpConfig {
         gindex=879d061580e6200a3f1dbfc5c87c13544fcd391dfec772033f1138a9469df35c98429ecd3acb4a9ab631ea7d5f6fae0f,\
         cinema=953ff297c689723a59e20d6f80b67233b0c0fe17ff4cb37a2c8cfb46e276ce0e45d59c17e006e4990deaa634141e4c77"
     )]
-    pub bookmarks: Vec<String>,
+    pub bookmarks_vec: Vec<String>,
+
+    #[clap(skip)]
+    pub bookmarks_map: HashMap<String, String>,
 
     #[arg(short, long, default_value_t = false)]
     pub uploads_disabled: bool,
@@ -72,7 +76,7 @@ impl AntTpConfig {
         } else {
             info!("App private key: [*****]");
         }
-        info!("Bookmarks: {:?}", ant_tp_config.bookmarks);
+        info!("Bookmarks: {:?}", ant_tp_config.bookmarks_vec);
         info!("Cached mutable TTL: {:?}", ant_tp_config.cached_mutable_ttl);
         info!("Peers: {:?}", ant_tp_config.peers);
         info!("Map cache directory: {:?}", ant_tp_config.map_cache_directory);
@@ -80,7 +84,7 @@ impl AntTpConfig {
         info!("Immutable disk cache size (MB): {:?}", ant_tp_config.immutable_disk_cache_size);
         info!("Immutable memory cache size (slots): {:?}", ant_tp_config.immutable_memory_cache_size);
         info!("Idle disconnect from Autonomi (seconds): {:?}", ant_tp_config.idle_disconnect);
-        ant_tp_config
+        ant_tp_config.update_bookmarks_map()
     }
 
     pub fn get_default_map_cache_directory() -> String {
@@ -89,5 +93,16 @@ impl AntTpConfig {
 
     pub fn get_default_evm_network() -> String {
         ArbitrumOne.to_string()
+    }
+
+    pub fn update_bookmarks_map(mut self) -> Self {
+        self.bookmarks_map = self.bookmarks_vec.clone().iter()
+            .into_iter()
+            .map(|s| s.split_at(s.find("=").unwrap()))
+            .map(|(key, val)| (key.to_string(), val[1..].to_string()))
+            .collect();
+        self
+        //self.bookmarks.clone().into_iter().map(|data| data.split("=")   ("1".to_string(), "2".to_string()) ).collect()
+        //self.bookmarks.iter().filter(|&s| s.starts_with(alias_with_delimiter.as_str())).next().is_some()
     }
 }

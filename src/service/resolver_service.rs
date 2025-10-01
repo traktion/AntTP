@@ -70,8 +70,7 @@ impl ResolverService {
                     Box::pin(self.resolve_archive_or_file(&data_address.to_hex(), archive_file_name, true)).await
                 }
                 None => {
-                    let archive_directory_xorname = self.str_to_xor_name(&archive_directory).unwrap();
-                    info!("No mutable data found at [{:x}]", archive_directory_xorname);
+                    info!("No mutable data found at [{}]", archive_directory);
                     None
                 }
             }
@@ -122,6 +121,56 @@ impl ResolverService {
         }
     }
 
+    // todo: improve and test to see if reliable performance gains can be achieved
+    /*async fn analyze_simple(&self, address: &String) -> Option<DataAddress> {
+        let pointer_address = match &PointerAddress::from_hex(address) {
+            Ok(address) => address.clone(),
+            Err(_) => {
+                warn!("Failed to parse pointer address [{}]", address);
+                return None
+            },
+        };
+        let register_address = match &RegisterAddress::from_hex(address) {
+            Ok(address) => address.clone(),
+            Err(_) => {
+                warn!("Failed to parse register address [{}]", address);
+                return None
+            },
+        };
+        let register_head_pointer = register_address.to_underlying_head_pointer().clone();
+
+        let (is_pointer, is_register) = join!(
+            self.caching_client.pointer_check_existence(&pointer_address),
+            self.caching_client.pointer_check_existence(&register_head_pointer),
+        );
+
+        if is_pointer.unwrap_or(false) {
+            match self.caching_client.pointer_get(&pointer_address).await {
+                Ok(pointer) => {
+                    info!("Analyze found pointer at address [{}] with target [{}]", address, pointer.clone().target().to_hex());
+                    match DataAddress::from_hex(pointer.target().to_hex().as_str()) {
+                        Ok(address) => Some(address),
+                        Err(_) => None,
+                    }
+                },
+                Err(_) => None,
+            }
+        } else if is_register.unwrap_or(false) {
+            match self.caching_client.register_get(&register_address).await {
+                Ok(register_value) => {
+                    info!("Analyze found register at address [{}] with value [{}]", address, hex::encode(register_value.clone()));
+                    match DataAddress::from_hex(hex::encode(register_value).as_str()) {
+                        Ok(address) => Some(address),
+                        Err(_) => None,
+                    }
+                },
+                Err(_) => None,
+            }
+        } else {
+            None
+        }
+    }*/
+
     /*async fn analyze_complex(&self, autonomi_client: Client, address: &String) -> Result<DataAddress, Error> {
         // note: this is an exhaust test and is rather slow
         match autonomi_client.analyze_address(&address, true).await {
@@ -170,32 +219,11 @@ impl ResolverService {
     }
 
     pub fn is_bookmark(&self, alias: &String) -> bool {
-        if alias != "" {
-            debug!("Searching for bookmark [{}]", alias.clone());
-            let alias_with_delimiter = format!("{}=", alias);
-            self.ant_tp_config.bookmarks.iter().filter(|&s| s.starts_with(alias_with_delimiter.as_str())).next().is_some()
-        } else {
-            false
-        }
+        self.ant_tp_config.bookmarks_map.contains_key(alias)
     }
     
     pub fn resolve_bookmark(&self, alias: &String) -> Option<String> {
-        let bookmark = self.ant_tp_config.bookmarks.iter().filter(|&s| s.starts_with(alias.as_str())).next();
-        match bookmark {
-            Some(bookmark) => {
-                let values = bookmark.split("=").collect::<Vec<&str>>();
-                match values.get(1) {
-                    Some(target) => {
-                        info!("Found bookmark [{}] with target [{}]", alias, target.to_string());
-                        Some(target.to_string())
-                    },
-                    None => None
-                }
-            }
-            None => {
-                None
-            }
-        }
+        self.ant_tp_config.bookmarks_map.get(alias).cloned()
     }
 
     pub async fn resolve_address(&self, name: &String) -> Option<String> {

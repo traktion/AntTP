@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 use crate::client::CachingClient;
 use crate::config::anttp_config::AntTpConfig;
+use crate::service::resolver_service::ResolverService;
 
 #[derive(Serialize, Deserialize, ToSchema)]
 pub struct Register {
@@ -26,12 +27,13 @@ impl Register {
 pub struct RegisterService {
     caching_client: CachingClient,
     ant_tp_config: AntTpConfig,
+    resolver_service: ResolverService,
 }
 
 impl RegisterService {
 
-    pub fn new(caching_client: CachingClient, ant_tp_config: AntTpConfig) -> Self {
-        RegisterService { caching_client, ant_tp_config }
+    pub fn new(caching_client: CachingClient, ant_tp_config: AntTpConfig, resolver_service: ResolverService) -> Self {
+        RegisterService { caching_client, ant_tp_config, resolver_service }
     }
 
     pub async fn create_register(&self, register: Register, evm_wallet: Wallet) -> Result<HttpResponse, Error> {
@@ -60,9 +62,10 @@ impl RegisterService {
     pub async fn update_register(&self, address: String, register: Register, evm_wallet: Wallet) -> Result<HttpResponse, Error> {
         let app_secret_key = SecretKey::from_hex(self.ant_tp_config.app_private_key.clone().as_str()).unwrap();
         let register_key = Client::register_key_from_name(&app_secret_key, register.name.clone().unwrap().as_str());
-        if address.clone() != register_key.public_key().to_hex() {
-            warn!("Address [{}] is not derived from name [{}].", address.clone(), register.name.clone().unwrap());
-            return Err(ErrorPreconditionFailed(format!("Address [{}] is not derived from name [{}].", address.clone(), register.name.clone().unwrap())));
+        let resolved_address = self.resolver_service.resolve_bookmark(&address).unwrap_or(address);
+        if resolved_address.clone() != register_key.public_key().to_hex() {
+            warn!("Address [{}] is not derived from name [{}].", resolved_address.clone(), register.name.clone().unwrap());
+            return Err(ErrorPreconditionFailed(format!("Address [{}] is not derived from name [{}].", resolved_address.clone(), register.name.clone().unwrap())));
         }
 
         info!("Update register with name [{}] and content [{}]", register.name.clone().unwrap(), register.content);
@@ -72,7 +75,7 @@ impl RegisterService {
             .await {
             Ok(cost) => {
                 info!("Updated register with name [{}] for [{}] attos", register.name.clone().unwrap(), cost);
-                let response_register = Register::new(Some(register.name.unwrap()), register.content, Some(address), Some(cost.to_string()));
+                let response_register = Register::new(Some(register.name.unwrap()), register.content, Some(resolved_address), Some(cost.to_string()));
                 Ok(HttpResponse::Ok().json(response_register))
             }
             Err(e) => {
@@ -83,7 +86,8 @@ impl RegisterService {
     }
 
     pub async fn get_register(&self, address: String) -> Result<HttpResponse, Error> {
-        let register_address = RegisterAddress::from_hex(address.as_str()).unwrap();
+        let resolved_address = self.resolver_service.resolve_bookmark(&address).unwrap_or(address);
+        let register_address = RegisterAddress::from_hex(resolved_address.as_str()).unwrap();
         match self.caching_client.register_get(&register_address).await {
             Ok(content) => {
                 info!("Retrieved register at address [{}] value [{}]", register_address, hex::encode(content));
@@ -99,7 +103,8 @@ impl RegisterService {
     }
 
     pub async fn get_register_history(&self, address: String) -> Result<HttpResponse, Error> {
-        let register_address = RegisterAddress::from_hex(address.as_str()).unwrap();
+        let resolved_address = self.resolver_service.resolve_bookmark(&address).unwrap_or(address);
+        let register_address = RegisterAddress::from_hex(resolved_address.as_str()).unwrap();
         match self.caching_client.register_history(&register_address).await.collect().await {
             Ok(content_vec) => {
                 let content_flattened: String = content_vec.iter().map(|&c|hex::encode(c)).collect();

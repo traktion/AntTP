@@ -5,6 +5,7 @@ use log::info;
 use crate::client::CachingClient;
 use crate::config::anttp_config::AntTpConfig;
 use crate::service::register_service::{Register, RegisterService};
+use crate::service::resolver_service::ResolverService;
 
 #[utoipa::path(
     post,
@@ -22,10 +23,7 @@ pub async fn post_register(
     evm_wallet_data: Data<EvmWallet>,
     register: web::Json<Register>,
 ) -> impl Responder {
-    let register_service = RegisterService::new(
-        caching_client_data.get_ref().clone(),
-        ant_tp_config_data.get_ref().clone(),
-    );
+    let register_service = create_register_service(caching_client_data, ant_tp_config_data);
 
     info!("Creating new register");
     register_service.create_register(register.into_inner(), evm_wallet_data.get_ref().clone()).await
@@ -53,10 +51,7 @@ pub async fn put_register(
 ) -> impl Responder {
     let address = path.into_inner();
 
-    let register_service = RegisterService::new(
-        caching_client_data.get_ref().clone(),
-        ant_tp_config_data.get_ref().clone(),
-    );
+    let register_service = create_register_service(caching_client_data, ant_tp_config_data);
 
     info!("Updating register");
     register_service.update_register(address, register.into_inner(), evm_wallet_data.get_ref().clone()).await
@@ -80,10 +75,7 @@ pub async fn get_register(
 ) -> impl Responder {
     let address = path.into_inner();
 
-    let register_service = RegisterService::new(
-        caching_client_data.get_ref().clone(),
-        ant_tp_config_data.get_ref().clone(),
-    );
+    let register_service = create_register_service(caching_client_data, ant_tp_config_data);
 
     info!("Getting register at [{}]", address);
     register_service.get_register(address).await
@@ -107,11 +99,16 @@ pub async fn get_register_history(
 ) -> impl Responder {
     let address = path.into_inner();
 
-    let register_service = RegisterService::new(
-        caching_client_data.get_ref().clone(),
-        ant_tp_config_data.get_ref().clone(),
-    );
+    let register_service = create_register_service(caching_client_data, ant_tp_config_data);
 
     info!("Getting register history at [{}]", address);
     register_service.get_register_history(address).await
+}
+
+fn create_register_service(caching_client_data: Data<CachingClient>, ant_tp_config_data: Data<AntTpConfig>) -> RegisterService {
+    let caching_client = caching_client_data.get_ref().clone();
+    let ant_tp_config = ant_tp_config_data.get_ref().clone();
+    let resolver_service = ResolverService::new(ant_tp_config.clone(), caching_client.clone());
+    let register_service = RegisterService::new(caching_client, ant_tp_config, resolver_service);
+    register_service
 }

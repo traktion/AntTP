@@ -5,47 +5,58 @@ use autonomi::SecretKey;
 use log::{debug, info, warn};
 use crate::client::cache_item::CacheItem;
 use crate::client::CachingClient;
+use crate::command::register::create_register_command::CreateRegisterCommand;
+use crate::command::register::update_register_command::UpdateRegisterCommand;
+use crate::controller::CacheType;
 
 impl CachingClient {
 
     pub async fn register_create(
         &self,
         owner: &SecretKey,
-        initial_value: RegisterValue,
+        register_value: RegisterValue,
         payment_option: PaymentOption,
+        cache_only: Option<CacheType>,
     ) -> Result<(AttoTokens, RegisterAddress), RegisterError> {
-        match self.client_harness.get_ref().lock().await.get_client().await {
-            Some(client) => {
-                let owner_clone = owner.clone();
-                // todo: move to job processor
-                tokio::spawn(async move {
-                    debug!("creating register async");
-                    client.register_create(&owner_clone, initial_value, payment_option).await
-                });
-                Ok((AttoTokens::zero(), RegisterAddress::new(owner.clone().public_key())))
-            },
-            None => Err(RegisterError::InvalidCost) // todo: improve error type
+        let register_address = self.cache_register(owner, &register_value, cache_only.clone());
+
+        if !cache_only.is_some() {
+            self.command_executor.send(
+                Box::new(CreateRegisterCommand::new(self.client_harness.clone(), owner.clone(), register_value, payment_option))
+            ).await.unwrap();
         }
+        Ok((AttoTokens::zero(), register_address))
     }
 
     pub async fn register_update(
         &self,
         owner: &SecretKey,
-        new_value: RegisterValue,
+        register_value: RegisterValue,
         payment_option: PaymentOption,
+        cache_only: Option<CacheType>,
     ) -> Result<AttoTokens, RegisterError> {
-        match self.client_harness.get_ref().lock().await.get_client().await {
-            Some(client) => {
-                let owner_clone = owner.clone();
-                // todo: move to job processor
-                tokio::spawn(async move {
-                    debug!("updating register async");
-                    client.register_update(&owner_clone, new_value, payment_option).await
-                });
-                Ok(AttoTokens::zero())
-            },
-            None => Err(RegisterError::InvalidCost) // todo: improve error type
+        self.cache_register(owner, &register_value, cache_only.clone());
+
+        if !cache_only.is_some() {
+            self.command_executor.send(
+                Box::new(UpdateRegisterCommand::new(self.client_harness.clone(), owner.clone(), register_value, payment_option))
+            ).await.unwrap();
         }
+        Ok(AttoTokens::zero())
+    }
+
+    fn cache_register(&self, owner: &SecretKey, register_value: &RegisterValue, cache_only: Option<CacheType>) -> RegisterAddress {
+        let register_address = RegisterAddress::new(owner.public_key());
+        let ttl = if cache_only.is_some() { u64::MAX } else { self.ant_tp_config.cached_mutable_ttl };
+        let cache_item = CacheItem::new(Some(register_value.clone()), ttl);
+        let serialised_cache_item = rmp_serde::to_vec(&cache_item).expect("Failed to serialize register");
+        info!("updating cache with register at address rg[{}] to value [{:?}] and TTL [{}]", register_address.to_hex(), register_value, ttl);
+        if cache_only.is_some_and(|v| matches!(v, CacheType::Disk)) {
+            self.hybrid_cache.insert(format!("rg{}", register_address.to_hex()), serialised_cache_item);
+        } else {
+            self.hybrid_cache.memory().insert(format!("rg{}", register_address.to_hex()), serialised_cache_item);
+        }
+        register_address
     }
 
     pub async fn register_get(&self, address: &RegisterAddress) -> Result<RegisterValue, RegisterError> {

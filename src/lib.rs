@@ -3,6 +3,7 @@ pub mod config;
 pub mod controller;
 pub mod service;
 pub mod model;
+pub mod command;
 
 use crate::controller::{chunk_controller, file_controller, pointer_controller, private_scratchpad_controller, public_archive_controller, public_scratchpad_controller, register_controller, graph_controller, public_data_controller};
 use crate::service::public_archive_service::Upload;
@@ -28,6 +29,7 @@ use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
 use crate::client::CachingClient;
 use crate::client::client_harness::ClientHarness;
+use crate::command::executor::Executor;
 
 static SERVER_HANDLE: Lazy<Mutex<Option<ServerHandle>>> = Lazy::new(|| Mutex::new(None));
 
@@ -112,12 +114,16 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> std::io::Result<()> {
     let hybrid_cache: HybridCache<String, Vec<u8>> = build_foyer_cache(&ant_tp_config).await;
     let hybrid_cache_data = Data::new(hybrid_cache);
 
+    let command_executor = Executor::start(ant_tp_config.command_buffer_size).await;
+    let command_executor_data = Data::new(command_executor);
+    
     let caching_client_data = Data::new(
-        CachingClient::new(client_harness_data, ant_tp_config.clone(), hybrid_cache_data.clone())
+        CachingClient::new(client_harness_data, ant_tp_config.clone(), hybrid_cache_data.clone(), command_executor_data.clone())
     );
 
     // schedule idle disconnects for client_harness
     Runner::new().add(Box::new(caching_client_data.get_ref().clone())).run().await;
+
 
     info!("Starting listener");
 
@@ -209,11 +215,11 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> std::io::Result<()> {
                     web::put().to(public_archive_controller::put_public_archive),
                 )
                 .route(
-                    format!("{}public_scratchpad", API_BASE).as_str(),
+                    format!("{}public_scratchpad/{{name}}", API_BASE).as_str(),
                     web::post().to(public_scratchpad_controller::post_public_scratchpad),
                 )
                 .route(
-                    format!("{}public_scratchpad/{{address}}", API_BASE).as_str(),
+                    format!("{}public_scratchpad/{{address}}/{{name}}", API_BASE).as_str(),
                     web::put().to(public_scratchpad_controller::put_public_scratchpad),
                 )
                 .route(
@@ -225,11 +231,11 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> std::io::Result<()> {
                     web::put().to(register_controller::put_register),
                 )
                 .route(
-                    format!("{}private_scratchpad", API_BASE).as_str(),
+                    format!("{}private_scratchpad/{{name}}", API_BASE).as_str(),
                     web::post().to(private_scratchpad_controller::post_private_scratchpad),
                 )
                 .route(
-                    format!("{}private_scratchpad/{{address}}", API_BASE).as_str(),
+                    format!("{}private_scratchpad/{{address}}/{{name}}", API_BASE).as_str(),
                     web::put().to(private_scratchpad_controller::put_private_scratchpad),
                 )
                 .route(

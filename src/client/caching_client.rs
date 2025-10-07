@@ -12,9 +12,11 @@ use log::{error};
 use crate::config::anttp_config::AntTpConfig;
 use bytes::{BufMut, Bytes, BytesMut};
 use futures_util::StreamExt;
+use tokio::sync::mpsc::Sender;
 use tokio::sync::Mutex;
 use crate::client::CachingClient;
 use crate::client::client_harness::ClientHarness;
+use crate::command::Command;
 
 pub const ARCHIVE_TAR_IDX_BYTES: &[u8] = "\0archive.tar.idx\0".as_bytes();
 
@@ -30,12 +32,13 @@ impl Job for CachingClient {
 
 impl CachingClient {
 
-    pub fn new(client_harness: Data<Mutex<ClientHarness>>, ant_tp_config: AntTpConfig, hybrid_cache: Data<HybridCache<String, Vec<u8>>>) -> Self {
+    pub fn new(client_harness: Data<Mutex<ClientHarness>>, ant_tp_config: AntTpConfig,
+               hybrid_cache: Data<HybridCache<String, Vec<u8>>>, command_executor: Data<Sender<Box<dyn Command>>>) -> Self {
         let cache_dir = ant_tp_config.clone().map_cache_directory;
         CachingClient::create_tmp_dir(cache_dir.clone());
 
         Self {
-            client_harness, ant_tp_config, hybrid_cache,
+            client_harness, ant_tp_config, hybrid_cache, command_executor
         }
     }
 

@@ -8,13 +8,16 @@ use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 use crate::client::CachingClient;
 use crate::config::anttp_config::AntTpConfig;
+use crate::controller::CacheType;
 use crate::service::resolver_service::ResolverService;
 
 #[derive(Serialize, Deserialize, ToSchema)]
 pub struct Register {
     name: Option<String>,
     content: String,
+    #[schema(read_only)]
     address: Option<String>,
+    #[schema(read_only)]
     cost: Option<String>,
 }
 
@@ -36,14 +39,14 @@ impl RegisterService {
         RegisterService { caching_client, ant_tp_config, resolver_service }
     }
 
-    pub async fn create_register(&self, register: Register, evm_wallet: Wallet) -> Result<HttpResponse, Error> {
+    pub async fn create_register(&self, register: Register, evm_wallet: Wallet, cache_only: Option<CacheType>) -> Result<HttpResponse, Error> {
         let app_secret_key = SecretKey::from_hex(self.ant_tp_config.app_private_key.clone().as_str()).unwrap();
         let register_key = Client::register_key_from_name(&app_secret_key, register.name.clone().unwrap().as_str());
 
         info!("Create register from name [{}] and content [{}]", register.name.clone().unwrap(), register.content);
-        let content = Client::register_value_from_bytes(hex::decode(register.content.clone()).unwrap().as_slice()).unwrap();
+        let content = Client::register_value_from_bytes(hex::decode(register.content.clone()).expect("failed to decode hex").as_slice()).unwrap();
         match self.caching_client
-            .register_create(&register_key, content, PaymentOption::from(&evm_wallet))
+            .register_create(&register_key, content, PaymentOption::from(&evm_wallet), cache_only)
             .await {
                 Ok((cost, register_address)) => {
                     info!("Created register at [{}] for [{}] attos", register_address.to_hex(), cost);
@@ -59,7 +62,7 @@ impl RegisterService {
         }
     }
 
-    pub async fn update_register(&self, address: String, register: Register, evm_wallet: Wallet) -> Result<HttpResponse, Error> {
+    pub async fn update_register(&self, address: String, register: Register, evm_wallet: Wallet, cache_only: Option<CacheType>) -> Result<HttpResponse, Error> {
         let app_secret_key = SecretKey::from_hex(self.ant_tp_config.app_private_key.clone().as_str()).unwrap();
         let register_key = Client::register_key_from_name(&app_secret_key, register.name.clone().unwrap().as_str());
         let resolved_address = self.resolver_service.resolve_bookmark(&address).unwrap_or(address);
@@ -69,9 +72,9 @@ impl RegisterService {
         }
 
         info!("Update register with name [{}] and content [{}]", register.name.clone().unwrap(), register.content);
-        let content = Client::register_value_from_bytes(hex::decode(register.content.clone()).unwrap().as_slice()).unwrap();
+        let content = Client::register_value_from_bytes(hex::decode(register.content.clone()).expect("failed to decode hex").as_slice()).unwrap();
         match self.caching_client
-            .register_update(&register_key, content, PaymentOption::from(&evm_wallet))
+            .register_update(&register_key, content, PaymentOption::from(&evm_wallet), cache_only)
             .await {
             Ok(cost) => {
                 info!("Updated register with name [{}] for [{}] attos", register.name.clone().unwrap(), cost);

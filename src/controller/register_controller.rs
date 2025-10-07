@@ -1,9 +1,10 @@
-use actix_web::{web, Responder};
+use actix_web::{web, HttpRequest, Responder};
 use actix_web::web::Data;
 use ant_evm::EvmWallet;
 use log::info;
 use crate::client::CachingClient;
 use crate::config::anttp_config::AntTpConfig;
+use crate::controller::cache_only;
 use crate::service::register_service::{Register, RegisterService};
 use crate::service::resolver_service::ResolverService;
 
@@ -16,24 +17,31 @@ use crate::service::resolver_service::ResolverService;
     responses(
         (status = CREATED, description = "Register created successfully", body = Register)
     ),
+    params(
+        ("x-cache-only", Header, description = "Only persist to cache and do not publish (memory|disk|none)",
+        example = "memory"),
+    ),
 )]
 pub async fn post_register(
     caching_client_data: Data<CachingClient>,
     ant_tp_config_data: Data<AntTpConfig>,
     evm_wallet_data: Data<EvmWallet>,
     register: web::Json<Register>,
+    request: HttpRequest,
 ) -> impl Responder {
     let register_service = create_register_service(caching_client_data, ant_tp_config_data);
 
     info!("Creating new register");
-    register_service.create_register(register.into_inner(), evm_wallet_data.get_ref().clone()).await
+    register_service.create_register(register.into_inner(), evm_wallet_data.get_ref().clone(), cache_only(request)).await
 }
 
 #[utoipa::path(
     put,
     path = "/anttp-0/register/{address}",
     params(
-        ("address", description = "Address of pointer")
+        ("address", description = "Address of pointer"),
+        ("x-cache-only", Header, description = "Only persist to cache and do not publish (memory|disk|none)",
+        example = "memory")
     ),
     request_body(
         content = Register
@@ -48,13 +56,14 @@ pub async fn put_register(
     path: web::Path<String>,
     evm_wallet_data: Data<EvmWallet>,
     register: web::Json<Register>,
+    request: HttpRequest,
 ) -> impl Responder {
     let address = path.into_inner();
 
     let register_service = create_register_service(caching_client_data, ant_tp_config_data);
 
     info!("Updating register");
-    register_service.update_register(address, register.into_inner(), evm_wallet_data.get_ref().clone()).await
+    register_service.update_register(address, register.into_inner(), evm_wallet_data.get_ref().clone(), cache_only(request)).await
 }
 
 #[utoipa::path(

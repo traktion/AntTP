@@ -9,14 +9,17 @@ use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 use crate::client::CachingClient;
 use crate::config::anttp_config::AntTpConfig;
+use crate::controller::CacheType;
 
 #[derive(Serialize, Deserialize, ToSchema)]
 pub struct GraphEntry {
     name: Option<String>,
     content: String,
+    #[schema(read_only)]
     address: Option<String>,
     parents: Option<Vec<String>>,
     descendants: Option<Vec<GraphDescendants>>,
+    #[schema(read_only)]
     cost: Option<String>,
 }
 
@@ -49,7 +52,7 @@ impl GraphService {
         GraphService { caching_client, ant_tp_config }
     }
 
-    pub async fn create_graph_entry(&self, graph: GraphEntry, evm_wallet: Wallet) -> Result<HttpResponse, Error> {
+    pub async fn create_graph_entry(&self, graph: GraphEntry, evm_wallet: Wallet, cache_only: Option<CacheType>) -> Result<HttpResponse, Error> {
         let app_secret_key = SecretKey::from_hex(self.ant_tp_config.app_private_key.clone().as_str()).unwrap();
         let graph_key = Client::register_key_from_name(&app_secret_key, graph.name.clone().unwrap().as_str());
 
@@ -76,7 +79,7 @@ impl GraphService {
         let graph_entry = autonomi::GraphEntry::new(&graph_key, graph_parents, graph_content.clone(), graph_descendants);
         info!("Create graph entry from name [{}] for content [{}]", graph.name.clone().unwrap(), graph.content.clone());
         match self.caching_client
-            .graph_entry_put(graph_entry, PaymentOption::from(&evm_wallet))
+            .graph_entry_put(graph_entry, PaymentOption::from(&evm_wallet), cache_only)
             .await {
                 Ok((cost, graph_entry_address)) => {
                     info!("Created graph entry at [{}] for [{}] attos", graph_entry_address.to_hex(), cost);

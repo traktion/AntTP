@@ -1,54 +1,70 @@
-use actix_web::{web, Responder};
+use actix_web::{web, HttpRequest, Responder};
 use actix_web::web::Data;
 use ant_evm::EvmWallet;
 use log::info;
 use crate::client::CachingClient;
 use crate::config::anttp_config::AntTpConfig;
+use crate::controller::cache_only;
 use crate::service::scratchpad_service::{Scratchpad, ScratchpadService};
 
 #[utoipa::path(
     post,
-    path = "/anttp-0/public_scratchpad",
+    path = "/anttp-0/public_scratchpad/{name}",
     request_body(
         content = Scratchpad
     ),
     responses(
         (status = CREATED, description = "Public scratchpad created successfully", body = Scratchpad)
     ),
+    params(
+        ("name" = String, Path, description = "Public scratchpad name"),
+        ("x-cache-only", Header, description = "Only persist to cache and do not publish (memory|disk|none)",
+        example = "memory"),
+    ),
 )]
 pub async fn post_public_scratchpad(
+    path: web::Path<String>,
     caching_client_data: Data<CachingClient>,
     evm_wallet_data: Data<EvmWallet>,
     ant_tp_config_data: Data<AntTpConfig>,
     scratchpad: web::Json<Scratchpad>,
+    request: HttpRequest,
 ) -> impl Responder {
+    let name = path.into_inner();
     let scratchpad_service = ScratchpadService::new(
         caching_client_data.get_ref().clone(),
         ant_tp_config_data.get_ref().clone(),
     );
 
     info!("Creating new public scratchpad");
-    scratchpad_service.create_scratchpad(scratchpad.into_inner(), evm_wallet_data.get_ref().clone(), false).await
+    scratchpad_service.create_scratchpad(name, scratchpad.into_inner(), evm_wallet_data.get_ref().clone(), false, cache_only(request)).await
 }
 
 #[utoipa::path(
     put,
-    path = "/anttp-0/public_scratchpad/{address}",
+    path = "/anttp-0/public_scratchpad/{address}/{name}",
     request_body(
         content = Scratchpad
     ),
     responses(
         (status = OK, description = "Public scratchpad updated successfully", body = Scratchpad)
     ),
+    params(
+        ("address" = String, Path, description = "Public scratchpad address"),
+        ("name" = String, Path, description = "Public scratchpad name"),
+        ("x-cache-only", Header, description = "Only persist to cache and do not publish (memory|disk|none)",
+        example = "memory"),
+    ),
 )]
 pub async fn put_public_scratchpad(
-    path: web::Path<String>,
+    path: web::Path<(String, String)>,
     caching_client_data: Data<CachingClient>,
     evm_wallet_data: Data<EvmWallet>,
     ant_tp_config_data: Data<AntTpConfig>,
     scratchpad: web::Json<Scratchpad>,
+    request: HttpRequest,
 ) -> impl Responder {
-    let address = path.into_inner();
+    let (address, name) = path.into_inner();
 
     let scratchpad_service = ScratchpadService::new(
         caching_client_data.get_ref().clone(),
@@ -56,7 +72,7 @@ pub async fn put_public_scratchpad(
     );
 
     info!("Updating public scratchpad");
-    scratchpad_service.update_scratchpad(address, scratchpad.into_inner(), evm_wallet_data.get_ref().clone(), false).await
+    scratchpad_service.update_scratchpad(address, name, scratchpad.into_inner(), evm_wallet_data.get_ref().clone(), false, cache_only(request)).await
 }
 
 #[utoipa::path(

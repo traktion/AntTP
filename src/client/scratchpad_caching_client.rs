@@ -6,6 +6,11 @@ use bytes::Bytes;
 use log::{debug, info, warn};
 use crate::client::cache_item::CacheItem;
 use crate::client::CachingClient;
+use crate::command::scratchpad::create_private_scratchpad_command::CreatePrivateScratchpadCommand;
+use crate::command::scratchpad::create_public_scratchpad_command::CreatePublicScratchpadCommand;
+use crate::command::scratchpad::update_private_scratchpad_command::UpdatePrivateScratchpadCommand;
+use crate::command::scratchpad::update_public_scratchpad_command::UpdatePublicScratchpadCommand;
+use crate::controller::CacheType;
 
 impl CachingClient {
     
@@ -13,56 +18,53 @@ impl CachingClient {
         &self,
         owner: &SecretKey,
         content_type: u64,
-        initial_data: &Bytes,
+        data: &Bytes,
         payment_option: PaymentOption,
+        cache_only: Option<CacheType>,
     ) -> Result<(AttoTokens, ScratchpadAddress), ScratchpadError> {
-        let owner_clone = owner.clone();
-        let initial_data_clone = initial_data.clone();
-        match self.client_harness.get_ref().lock().await.get_client().await {
-            Some(client) => {
-                // todo: move to job processor
-                tokio::spawn(async move {
-                    debug!("creating scratchpad async");
-                    client.scratchpad_create(&owner_clone, content_type, &initial_data_clone, payment_option).await
-                });
-                let address = ScratchpadAddress::new(owner.public_key());
-                Ok((AttoTokens::zero(), address))
-            },
-            None => Err(ScratchpadError::Serialization)
+        let scratchpad_address = self.cache_scratchpad(owner, content_type, data, true, cache_only.clone());
+
+        if !cache_only.is_some() {
+            self.command_executor.send(
+                Box::new(CreatePrivateScratchpadCommand::new(self.client_harness.clone(), owner.clone(), content_type, data.clone(), payment_option))
+            ).await.unwrap();
         }
+        Ok((AttoTokens::zero(), scratchpad_address))
+    }
+
+    pub async fn scratchpad_update(
+        &self,
+        owner: &SecretKey,
+        content_type: u64,
+        data: &Bytes,
+        cache_only: Option<CacheType>,
+    ) -> Result<(), ScratchpadError> {
+        self.cache_scratchpad(owner, content_type, data, true, cache_only.clone());
+
+        if !cache_only.is_some() {
+            self.command_executor.send(
+                Box::new(UpdatePrivateScratchpadCommand::new(self.client_harness.clone(), owner.clone(), content_type, data.clone()))
+            ).await.unwrap();
+        }
+        Ok(())
     }
 
     pub async fn scratchpad_create_public(
         &self,
         owner: &SecretKey,
         content_type: u64,
-        initial_data: &Bytes,
+        data: &Bytes,
         payment_option: PaymentOption,
+        cache_only: Option<CacheType>,
     ) -> Result<(AttoTokens, ScratchpadAddress), ScratchpadError> {
-        let address = ScratchpadAddress::new(owner.public_key());
-        let already_exists = self.scratchpad_check_existance(&address).await?;
-        if already_exists {
-            return Err(ScratchpadError::ScratchpadAlreadyExists(address));
-        }
+        let scratchpad_address = self.cache_scratchpad(owner, content_type, data, false, cache_only.clone());
 
-        let counter = 0;
-        let signature = owner.sign(Scratchpad::bytes_for_signature(
-            address,
-            content_type,
-            &initial_data.clone(),
-            counter,
-        ));
-        let scratchpad = Scratchpad::new_with_signature(owner.public_key(), content_type, initial_data.clone(), counter, signature);
-        match self.client_harness.get_ref().lock().await.get_client().await {
-            Some(client) => {
-                tokio::spawn(async move {
-                    debug!("creating scratchpad async");
-                    client.scratchpad_put(scratchpad, payment_option).await
-                });
-                Ok((AttoTokens::zero(), address))
-            },
-            None => Err(ScratchpadError::Serialization)
+        if !cache_only.is_some() {
+            self.command_executor.send(
+                Box::new(CreatePublicScratchpadCommand::new(self.client_harness.clone(), owner.clone(), content_type, data.clone(), payment_option))
+            ).await.unwrap();
         }
+        Ok((AttoTokens::zero(), scratchpad_address))
     }
 
     pub async fn scratchpad_update_public(
@@ -71,59 +73,43 @@ impl CachingClient {
         content_type: u64,
         data: &Bytes,
         payment_option: PaymentOption,
-        counter: u64,
+        cache_only: Option<CacheType>,
     ) -> Result<(), ScratchpadError> {
-        let address = ScratchpadAddress::new(owner.public_key());
+        self.cache_scratchpad(owner, content_type, data, false, cache_only.clone());
 
-        let version = counter + 1;
-        let signature = owner.sign(Scratchpad::bytes_for_signature(
-            address,
-            content_type,
-            &data.clone(),
-            version,
-        ));
-        let scratchpad = Scratchpad::new_with_signature(owner.public_key(), content_type, data.clone(), version, signature);
-        match self.client_harness.get_ref().lock().await.get_client().await {
-            Some(client) => {
-                tokio::spawn(async move {
-                    debug!("creating scratchpad async");
-                    client.scratchpad_put(scratchpad, payment_option).await
-                });
-                Ok(())
-            },
-            None => Err(ScratchpadError::Serialization)
+        if !cache_only.is_some() {
+            self.command_executor.send(
+                Box::new(UpdatePublicScratchpadCommand::new(self.client_harness.clone(), owner.clone(), content_type, data.clone(), payment_option))
+            ).await.unwrap();
         }
+        Ok(())
     }
 
-    pub async fn scratchpad_check_existance(
-        &self,
-        address: &ScratchpadAddress,
-    ) -> Result<bool, ScratchpadError> {
-        match self.client_harness.get_ref().lock().await.get_client().await {
-            Some(client) => client.scratchpad_check_existence(address).await,
-            None => Err(ScratchpadError::Serialization),
-        }
-    }
+    fn cache_scratchpad(&self, owner: &SecretKey, content_type: u64, data: &Bytes, is_encrypted: bool, cache_only: Option<CacheType>) -> ScratchpadAddress {
+        let scratchpad_address = ScratchpadAddress::new(owner.public_key());
 
-    pub async fn scratchpad_update(
-        &self,
-        owner: &SecretKey,
-        content_type: u64,
-        data: &Bytes,
-    ) -> Result<(), ScratchpadError> {
-        let owner_clone = owner.clone();
-        let data_clone = data.clone();
-        match self.client_harness.get_ref().lock().await.get_client().await {
-            Some(client) => {
-                // todo: move to job processor
-                tokio::spawn(async move {
-                    debug!("updating scratchpad async");
-                    client.scratchpad_update(&owner_clone, content_type, &data_clone).await
-                });
-                Ok(())
-            },
-            None => Err(ScratchpadError::Serialization)
+        let scratchpad = if is_encrypted {
+            Scratchpad::new(owner, content_type, &data.clone(), 0)
+        } else {
+            let signature = owner.sign(Scratchpad::bytes_for_signature(
+                scratchpad_address,
+                content_type,
+                &data.clone(),
+                0,
+            ));
+            Scratchpad::new_with_signature(owner.public_key(), content_type, data.clone(), 0, signature)
+        };
+
+        let ttl = if cache_only.is_some() { u64::MAX } else { self.ant_tp_config.cached_mutable_ttl };
+        let cache_item = CacheItem::new(Some(scratchpad.clone()), ttl);
+        let serialised_cache_item = rmp_serde::to_vec(&cache_item).expect("Failed to serialize register");
+        info!("updating cache with register at address sg[{}] to value [{:?}] and TTL [{}]", scratchpad_address.to_hex(), scratchpad, ttl);
+        if cache_only.is_some_and(|v| matches!(v, CacheType::Disk)) {
+            self.hybrid_cache.insert(format!("sg{}", scratchpad_address.to_hex()), serialised_cache_item);
+        } else {
+            self.hybrid_cache.memory().insert(format!("sg{}", scratchpad_address.to_hex()), serialised_cache_item);
         }
+        scratchpad_address
     }
 
     pub async fn scratchpad_get(&self, address: &ScratchpadAddress) -> Result<Scratchpad, ScratchpadError> {

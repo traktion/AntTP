@@ -1,7 +1,9 @@
 use actix_web::web::Data;
 use foyer::HybridCache;
+use tokio::sync::mpsc::Sender;
 use tokio::sync::Mutex;
 use crate::client::client_harness::ClientHarness;
+use crate::command::Command;
 use crate::config::anttp_config::AntTpConfig;
 
 #[derive(Clone)]
@@ -9,6 +11,7 @@ pub struct CachingClient {
     client_harness: Data<Mutex<ClientHarness>>,
     ant_tp_config: AntTpConfig,
     hybrid_cache: Data<HybridCache<String, Vec<u8>>>,
+    command_executor: Data<Sender<Box<dyn Command>>>,
 }
 
 pub mod caching_client;

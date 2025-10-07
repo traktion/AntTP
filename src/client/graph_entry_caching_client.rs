@@ -5,25 +5,35 @@ use autonomi::graph::GraphError;
 use log::{debug, info, warn};
 use crate::client::cache_item::CacheItem;
 use crate::client::CachingClient;
+use crate::command::graph::create_graph_entry::CreateGraphEntryCommand;
+use crate::controller::CacheType;
 
 impl CachingClient {
 
     pub async fn graph_entry_put(
         &self,
-        entry: GraphEntry,
+        graph_entry: GraphEntry,
         payment_option: PaymentOption,
+        cache_only: Option<CacheType>,
     ) -> Result<(AttoTokens, GraphEntryAddress), GraphError> {
-        let address = entry.address();
-        match self.client_harness.get_ref().lock().await.get_client().await {
-            Some(client) => {
-                // todo: move to job processor
-                tokio::spawn(async move {
-                    debug!("creating graph entry async");
-                    client.graph_entry_put(entry, payment_option).await
-                });
-                Ok((AttoTokens::zero(), address))
-            },
-            None => Err(GraphError::Serialization(format!("network offline")))
+        self.cache_graph_entry(graph_entry.clone(), cache_only.clone());
+        if !cache_only.is_some() {
+            self.command_executor.send(
+                Box::new(CreateGraphEntryCommand::new(self.client_harness.clone(), graph_entry.clone(), payment_option))
+            ).await.unwrap();
+        }
+        Ok((AttoTokens::zero(), graph_entry.address()))
+    }
+
+    fn cache_graph_entry(&self, graph_entry: GraphEntry, cache_only: Option<CacheType>) {
+        let ttl = if cache_only.is_some() { u64::MAX } else { self.ant_tp_config.cached_mutable_ttl };
+        let cache_item = CacheItem::new(Some(graph_entry.clone()), ttl);
+        let serialised_cache_item = rmp_serde::to_vec(&cache_item).expect("Failed to serialize graph entry");
+        info!("updating cache with graph_entry at address gg[{}] and TTL [{}]", graph_entry.address().to_hex(), ttl);
+        if cache_only.is_some_and(|v| matches!(v, CacheType::Disk)) {
+            self.hybrid_cache.insert(format!("gg{}", graph_entry.address().to_hex()), serialised_cache_item);
+        } else {
+            self.hybrid_cache.memory().insert(format!("gg{}", graph_entry.address().to_hex()), serialised_cache_item);
         }
     }
 

@@ -8,6 +8,7 @@ use bytes::Bytes;
 use chunk_streamer::chunk_encrypter::ChunkEncrypter;
 use log::{info};
 use crate::client::CachingClient;
+use crate::command::public_data::create_public_data_command::CreatePublicDataCommand;
 use crate::controller::CacheType;
 
 impl CachingClient {
@@ -18,7 +19,21 @@ impl CachingClient {
         payment_option: PaymentOption,
         cache_only: Option<CacheType>,
     ) -> Result<(AttoTokens, DataAddress), PutError> {
-        // todo: avoid double encrypting on upload?
+        // todo: can we avoid double encrypting on upload?
+        match self.cache_public_data(data.clone(), cache_only.clone()).await {
+            Ok(data_address) => {
+                if !cache_only.is_some() {
+                    self.command_executor.send(
+                        Box::new(CreatePublicDataCommand::new(self.client_harness.clone(), data, payment_option))
+                    ).await.unwrap();
+                }
+                Ok((AttoTokens::zero(), data_address))
+            },
+            Err(err) => Err(err)
+        }
+    }
+
+    async fn cache_public_data(&self, data: Bytes, cache_only: Option<CacheType>) -> Result<DataAddress, PutError> {
         let chunk_encrypter = ChunkEncrypter::new();
         match chunk_encrypter.encrypt(true, data.clone()).await {
             Ok((chunks, data_map_chunk)) => {
@@ -31,21 +46,11 @@ impl CachingClient {
                         info!("updating disk cache with chunk at address [{}]", chunk.address.to_hex());
                         self.hybrid_cache.insert(format!("{}", chunk.address.to_hex()), chunk.value.to_vec());
                     } else {
-                        info!("updating memory cache with chunk at address [{}]", chunk.address.to_hex());
+                        info!("updating cache with chunk at address [{}]", chunk.address.to_hex());
                         self.hybrid_cache.memory().insert(format!("{}", chunk.address.to_hex()), chunk.value.to_vec());
                     }
                 }
-
-                if cache_only.is_some() {
-                    Ok((AttoTokens::zero(), data_address))
-                } else {
-                    match self.client_harness.get_ref().lock().await.get_client().await {
-                        Some(client) => {
-                            client.data_put_public(data, payment_option).await
-                        },
-                        None => Err(PutError::Serialization(format!("network offline")))
-                    }
-                }
+                Ok(data_address)
             },
             Err(err) => Err(err)
         }

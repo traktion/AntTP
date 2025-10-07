@@ -59,7 +59,10 @@ pub struct AntTpConfig {
     pub immutable_memory_cache_size: usize,
 
     #[arg(short, long, default_value_t = 30)]
-    pub idle_disconnect: u64
+    pub idle_disconnect: u64,
+
+    #[arg(long, default_value_t = 128)]
+    pub command_buffer_size: usize,
 }
 
 impl AntTpConfig {
@@ -84,6 +87,7 @@ impl AntTpConfig {
         info!("Immutable disk cache size (MB): {:?}", ant_tp_config.immutable_disk_cache_size);
         info!("Immutable memory cache size (slots): {:?}", ant_tp_config.immutable_memory_cache_size);
         info!("Idle disconnect from Autonomi (seconds): {:?}", ant_tp_config.idle_disconnect);
+        info!("Command buffer size (slots): {:?}", ant_tp_config.command_buffer_size);
         ant_tp_config.update_bookmarks_map()
     }
 

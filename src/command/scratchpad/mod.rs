@@ -1,0 +1,4 @@
+pub mod create_private_scratchpad_command;
+pub mod create_public_scratchpad_command;
+pub mod update_public_scratchpad_command;
+pub mod update_private_scratchpad_command;

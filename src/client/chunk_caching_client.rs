@@ -7,6 +7,7 @@ use bytes::Bytes;
 use chunk_streamer::chunk_streamer::ChunkGetter;
 use log::{debug, error, info};
 use crate::client::CachingClient;
+use crate::command::chunk::create_chunk_command::CreateChunkCommand;
 use crate::controller::CacheType;
 
 #[async_trait]
@@ -55,21 +56,11 @@ impl CachingClient {
     ) -> Result<(AttoTokens, ChunkAddress), PutError> {
         self.hybrid_cache.insert(chunk.address.to_hex(), Vec::from(chunk.value.clone()));
         debug!("creating chunk with address [{}] in cache", chunk.address.to_hex());
-        if cache_only.is_some() {
-            Ok((AttoTokens::zero(), chunk.address))
-        } else {
-            match self.client_harness.get_ref().lock().await.get_client().await {
-                Some(client) => {
-                    // todo: move to job processor
-                    let local_chunk = chunk.clone();
-                    tokio::spawn(async move {
-                        debug!("creating chunk with address [{}] on network", local_chunk.address.to_hex());
-                        client.chunk_put(&local_chunk, payment_option).await
-                    });
-                    Ok((AttoTokens::zero(), chunk.address))
-                },
-                None => Err(PutError::Serialization(format!("network offline")))
-            }
+        if !cache_only.is_some() {
+            self.command_executor.send(
+                Box::new(CreateChunkCommand::new(self.client_harness.clone(), chunk.clone(), payment_option))
+            ).await.unwrap();
         }
+        Ok((AttoTokens::zero(), chunk.address))
     }
 }

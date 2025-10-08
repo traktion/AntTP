@@ -4,6 +4,7 @@ use autonomi::{Scratchpad, ScratchpadAddress, SecretKey};
 use autonomi::client::payment::PaymentOption;
 use bytes::Bytes;
 use log::{debug, info};
+use sha2::Digest;
 use tokio::sync::Mutex;
 use crate::client::client_harness::ClientHarness;
 use crate::client::command::{Command, CommandError};
@@ -55,5 +56,14 @@ impl Command for UpdatePublicScratchpadCommand {
             },
             Err(e) => Err(CommandError::from(e.to_string()))
         }
+    }
+
+    fn get_hash(&self) -> Vec<u8> {
+        let mut hasher = sha2::Sha256::new();
+        hasher.update("UpdatePublicScratchpadCommand");
+        hasher.update(self.owner.to_hex());
+        hasher.update(self.content_type.to_string());
+        hasher.update(self.data.clone());
+        hasher.finalize().to_ascii_lowercase()
     }
 }

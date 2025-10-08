@@ -3,6 +3,7 @@ use async_trait::async_trait;
 use autonomi::ScratchpadAddress;
 use foyer::HybridCache;
 use log::{debug, info};
+use sha2::Digest;
 use tokio::sync::Mutex;
 use crate::client::cache_item::CacheItem;
 use crate::client::client_harness::ClientHarness;
@@ -28,7 +29,7 @@ impl Command for GetScratchpadCommand {
             Some(client) => client,
             None => return Err(CommandError::from(String::from("network offline")))
         };
-        
+
         let scratchpad_address_hex = self.scratchpad_address.to_hex();
         debug!("refreshing hybrid cache with scratchpad for [{}] from network", scratchpad_address_hex);
         match client.scratchpad_get(&self.scratchpad_address).await {
@@ -46,5 +47,12 @@ impl Command for GetScratchpadCommand {
                     format!("Failed to refresh hybrid cache with scratchpad for [{}] from network [{}]", scratchpad_address_hex, e)))
             }
         }
+    }
+
+    fn get_hash(&self) -> Vec<u8> {
+        let mut hasher = sha2::Sha256::new();
+        hasher.update("GetScratchpadCommand");
+        hasher.update(self.scratchpad_address.to_hex());
+        hasher.finalize().to_ascii_lowercase()
     }
 }

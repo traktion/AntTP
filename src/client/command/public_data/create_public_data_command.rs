@@ -3,6 +3,7 @@ use async_trait::async_trait;
 use autonomi::client::payment::PaymentOption;
 use bytes::Bytes;
 use log::info;
+use sha2::Digest;
 use tokio::sync::Mutex;
 use crate::client::client_harness::ClientHarness;
 use crate::client::command::{Command, CommandError};
@@ -35,5 +36,12 @@ impl Command for CreatePublicDataCommand {
             },
             Err(e) => Err(CommandError::from(e.to_string()))
         }
+    }
+
+    fn get_hash(&self) -> Vec<u8> {
+        let mut hasher = sha2::Sha256::new();
+        hasher.update("CreatePublicDataCommand");
+        hasher.update(self.data.clone());
+        hasher.finalize().to_ascii_lowercase()
     }
 }

@@ -3,6 +3,7 @@ use async_trait::async_trait;
 use autonomi::GraphEntryAddress;
 use foyer::HybridCache;
 use log::{debug, info};
+use sha2::Digest;
 use tokio::sync::Mutex;
 use crate::client::cache_item::CacheItem;
 use crate::client::client_harness::ClientHarness;
@@ -28,7 +29,7 @@ impl Command for GetGraphEntryCommand {
             Some(client) => client,
             None => return Err(CommandError::from(String::from("network offline")))
         };
-        
+
         let graph_entry_address_hex = self.graph_entry_address.to_hex();
         debug!("refreshing hybrid cache with graph_entry for [{}] from network", graph_entry_address_hex);
         match client.graph_entry_get(&self.graph_entry_address).await {
@@ -46,5 +47,12 @@ impl Command for GetGraphEntryCommand {
                     format!("Failed to refresh hybrid cache with graph entry for [{}] from network [{}]", graph_entry_address_hex, e)))
             }
         }
+    }
+
+    fn get_hash(&self) -> Vec<u8> {
+        let mut hasher = sha2::Sha256::new();
+        hasher.update("GetGraphEntryCommand");
+        hasher.update(self.graph_entry_address.to_hex());
+        hasher.finalize().to_ascii_lowercase()
     }
 }

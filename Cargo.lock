@@ -1179,6 +1179,7 @@ dependencies = [
  "sanitize-filename",
  "serde",
  "serde_json",
+ "sha2",
  "tokio",
  "utoipa",
  "utoipa-swagger-ui",

@@ -4,6 +4,7 @@ use autonomi::{PointerAddress, SecretKey};
 use autonomi::client::payment::PaymentOption;
 use autonomi::pointer::PointerTarget;
 use log::{debug, info};
+use sha2::Digest;
 use tokio::sync::Mutex;
 use crate::client::client_harness::ClientHarness;
 use crate::client::command::{Command, CommandError};
@@ -29,7 +30,7 @@ impl Command for CreatePointerCommand {
             Some(client) => client,
             None => return Err(CommandError::from(String::from("network offline")))
         };
-        
+
         let pointer_address_hex = PointerAddress::new(self.owner.public_key()).to_hex();
         debug!("creating pointer at [{}] async", pointer_address_hex);
         match client.pointer_create(&self.owner, self.target.clone(), self.payment_option.clone()).await {
@@ -39,5 +40,13 @@ impl Command for CreatePointerCommand {
             },
             Err(e) => Err(CommandError::from(e.to_string()))
         }
+    }
+
+    fn get_hash(&self) -> Vec<u8> {
+        let mut hasher = sha2::Sha256::new();
+        hasher.update("CheckPointerCommand");
+        hasher.update(self.owner.to_hex());
+        hasher.update(self.target.to_hex());
+        hasher.finalize().to_ascii_lowercase()
     }
 }

@@ -4,6 +4,7 @@ use autonomi::{SecretKey};
 use autonomi::client::payment::PaymentOption;
 use bytes::Bytes;
 use log::{debug, info};
+use sha2::Digest;
 use tokio::sync::Mutex;
 use crate::client::client_harness::ClientHarness;
 use crate::client::command::{Command, CommandError};
@@ -30,7 +31,7 @@ impl Command for CreatePrivateScratchpadCommand {
             Some(client) => client,
             None => return Err(CommandError::from(String::from("network offline")))
         };
-        
+
         let scratchpad_address_hex = autonomi::ScratchpadAddress::new(self.owner.public_key()).to_hex();
         debug!("creating private scratchpad at [{}] async", scratchpad_address_hex);
         match client.scratchpad_create(&self.owner, self.content_type, &self.data, self.payment_option.clone()).await {
@@ -40,5 +41,14 @@ impl Command for CreatePrivateScratchpadCommand {
             },
             Err(e) => Err(CommandError::from(e.to_string()))
         }
+    }
+
+    fn get_hash(&self) -> Vec<u8> {
+        let mut hasher = sha2::Sha256::new();
+        hasher.update("CreatePrivateScratchpadCommand");
+        hasher.update(self.owner.to_hex());
+        hasher.update(self.content_type.to_string());
+        hasher.update(self.data.clone());
+        hasher.finalize().to_ascii_lowercase()
     }
 }

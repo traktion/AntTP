@@ -4,6 +4,7 @@ use autonomi::SecretKey;
 use autonomi::client::payment::PaymentOption;
 use autonomi::register::{RegisterAddress, RegisterValue};
 use log::{debug, info};
+use sha2::Digest;
 use tokio::sync::Mutex;
 use crate::client::client_harness::ClientHarness;
 use crate::client::command::{Command, CommandError};
@@ -39,5 +40,13 @@ impl Command for CreateRegisterCommand {
             },
             Err(e) => Err(CommandError::from(e.to_string()))
         }
+    }
+
+    fn get_hash(&self) -> Vec<u8> {
+        let mut hasher = sha2::Sha256::new();
+        hasher.update("CreateRegisterCommand");
+        hasher.update(self.owner.to_hex());
+        hasher.update(self.register_value);
+        hasher.finalize().to_ascii_lowercase()
     }
 }

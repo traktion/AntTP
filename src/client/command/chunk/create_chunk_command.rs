@@ -3,6 +3,7 @@ use async_trait::async_trait;
 use autonomi::{Chunk};
 use autonomi::client::payment::PaymentOption;
 use log::{debug, info};
+use sha2::Digest;
 use tokio::sync::Mutex;
 use crate::client::client_harness::ClientHarness;
 use crate::client::command::{Command, CommandError};
@@ -36,5 +37,12 @@ impl Command for CreateChunkCommand {
             },
             None => Err(CommandError::from(String::from("network offline"))),
         }
+    }
+
+    fn get_hash(&self) -> Vec<u8> {
+        let mut hasher = sha2::Sha256::new();
+        hasher.update("CreateChunkCommand");
+        hasher.update(self.chunk.address().to_hex());
+        hasher.finalize().to_ascii_lowercase()
     }
 }

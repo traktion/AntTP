@@ -3,6 +3,7 @@ use async_trait::async_trait;
 use autonomi::register::RegisterAddress;
 use foyer::HybridCache;
 use log::{debug, info};
+use sha2::Digest;
 use tokio::sync::Mutex;
 use crate::client::cache_item::CacheItem;
 use crate::client::client_harness::ClientHarness;
@@ -45,5 +46,12 @@ impl Command for GetRegisterCommand {
                     format!("Failed to refresh hybrid cache with register for [{}] from network [{}]", register_address_hex, e)))
             }
         }
+    }
+
+    fn get_hash(&self) -> Vec<u8> {
+        let mut hasher = sha2::Sha256::new();
+        hasher.update("GetRegisterCommand");
+        hasher.update(self.register_address.to_hex());
+        hasher.finalize().to_ascii_lowercase()
     }
 }

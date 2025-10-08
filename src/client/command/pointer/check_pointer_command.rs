@@ -3,6 +3,7 @@ use async_trait::async_trait;
 use autonomi::{PointerAddress};
 use foyer::HybridCache;
 use log::{debug, info};
+use sha2::Digest;
 use tokio::sync::Mutex;
 use crate::client::cache_item::CacheItem;
 use crate::client::client_harness::ClientHarness;
@@ -28,7 +29,7 @@ impl Command for CheckPointerCommand {
             Some(client) => client,
             None => return Err(CommandError::from(String::from("network offline")))
         };
-        
+
         let pointer_address_hex = self.pointer_address.to_hex();
         debug!("refreshing hybrid cache with pointer check existence for [{}] from network", pointer_address_hex);
         match client.pointer_check_existence(&self.pointer_address).await {
@@ -46,5 +47,12 @@ impl Command for CheckPointerCommand {
                     format!("Failed to refresh hybrid cache with pointer check existence for [{}] from network [{}]", pointer_address_hex, e)))
             }
         }
+    }
+
+    fn get_hash(&self) -> Vec<u8> {
+        let mut hasher = sha2::Sha256::new();
+        hasher.update("CheckPointerCommand");
+        hasher.update(self.pointer_address.to_hex());
+        hasher.finalize().to_ascii_lowercase()
     }
 }

@@ -4,6 +4,7 @@ use async_trait::async_trait;
 #[async_trait]
 pub trait Command: Send {
     async fn execute(&self) -> Result<(), CommandError>;
+    fn get_hash(&self) -> Vec<u8>;
 }
 
 pub mod pointer;

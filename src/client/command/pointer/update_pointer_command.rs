@@ -3,6 +3,7 @@ use async_trait::async_trait;
 use autonomi::{PointerAddress, SecretKey};
 use autonomi::pointer::PointerTarget;
 use log::{debug, info};
+use sha2::Digest;
 use tokio::sync::Mutex;
 use crate::client::client_harness::ClientHarness;
 use crate::client::command::{Command, CommandError};
@@ -37,5 +38,13 @@ impl Command for UpdatePointerCommand {
             Err(e) => Err(CommandError::from(
                 format!("Failed to update pointer for [{}] on network [{}]", pointer_address_hex, e)))
         }
+    }
+
+    fn get_hash(&self) -> Vec<u8> {
+        let mut hasher = sha2::Sha256::new();
+        hasher.update("UpdatePointerCommand");
+        hasher.update(self.owner.to_hex());
+        hasher.update(self.target.to_hex());
+        hasher.finalize().to_ascii_lowercase()
     }
 }

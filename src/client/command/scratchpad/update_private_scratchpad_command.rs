@@ -3,6 +3,7 @@ use async_trait::async_trait;
 use autonomi::{ScratchpadAddress, SecretKey};
 use bytes::Bytes;
 use log::{debug, info};
+use sha2::Digest;
 use tokio::sync::Mutex;
 use crate::client::client_harness::ClientHarness;
 use crate::client::command::{Command, CommandError};
@@ -37,5 +38,14 @@ impl Command for UpdatePrivateScratchpadCommand {
             },
             Err(e) => Err(CommandError::from(e.to_string()))
         }
+    }
+
+    fn get_hash(&self) -> Vec<u8> {
+        let mut hasher = sha2::Sha256::new();
+        hasher.update("UpdatePrivateScratchpadCommand");
+        hasher.update(self.owner.to_hex());
+        hasher.update(self.content_type.to_string());
+        hasher.update(self.data.clone());
+        hasher.finalize().to_ascii_lowercase()
     }
 }

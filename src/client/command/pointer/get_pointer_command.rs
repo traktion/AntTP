@@ -3,6 +3,7 @@ use async_trait::async_trait;
 use autonomi::{PointerAddress};
 use foyer::HybridCache;
 use log::{debug, info};
+use sha2::Digest;
 use tokio::sync::Mutex;
 use crate::client::cache_item::CacheItem;
 use crate::client::client_harness::ClientHarness;
@@ -46,5 +47,12 @@ impl Command for GetPointerCommand {
                     format!("Failed to refresh hybrid cache with pointer for [{}] from network [{}]", pointer_address_hex, e)))
             }
         }
+    }
+
+    fn get_hash(&self) -> Vec<u8> {
+        let mut hasher = sha2::Sha256::new();
+        hasher.update("GetPointerCommand");
+        hasher.update(self.pointer_address.to_hex());
+        hasher.finalize().to_ascii_lowercase()
     }
 }

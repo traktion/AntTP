@@ -3,6 +3,7 @@ use async_trait::async_trait;
 use autonomi::{GraphEntry};
 use autonomi::client::payment::PaymentOption;
 use log::{debug, info};
+use sha2::Digest;
 use tokio::sync::Mutex;
 use crate::client::client_harness::ClientHarness;
 use crate::client::command::{Command, CommandError};
@@ -26,7 +27,7 @@ impl Command for CreateGraphEntryCommand {
             Some(client) => client,
             None => return Err(CommandError::from(String::from("network offline")))
         };
-        
+
         let graph_entry_hex = self.graph_entry.address().to_string();
         debug!("creating graph entry at [{}] async", graph_entry_hex);
         match client.graph_entry_put(self.graph_entry.clone(), self.payment_option.clone()).await {
@@ -36,5 +37,12 @@ impl Command for CreateGraphEntryCommand {
             },
             Err(e) => Err(CommandError::from(e.to_string()))
         }
+    }
+
+    fn get_hash(&self) -> Vec<u8> {
+        let mut hasher = sha2::Sha256::new();
+        hasher.update("CreateGraphEntryCommand");
+        hasher.update(self.graph_entry.owner.to_hex());
+        hasher.finalize().to_ascii_lowercase()
     }
 }

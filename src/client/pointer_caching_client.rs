@@ -3,12 +3,14 @@ use autonomi::client::payment::PaymentOption;
 use autonomi::pointer::{PointerError, PointerTarget};
 use autonomi::{Pointer, PointerAddress, SecretKey};
 use autonomi::client::GetError;
-use log::{debug, info, warn};
+use log::{debug, info};
 use crate::client::cache_item::CacheItem;
 use crate::client::CachingClient;
+use crate::client::command::pointer::check_pointer_command::CheckPointerCommand;
+use crate::client::command::pointer::get_pointer_command::GetPointerCommand;
 use crate::controller::CacheType;
-use crate::command::pointer::create_pointer_command::CreatePointerCommand;
-use crate::command::pointer::update_pointer_command::UpdatePointerCommand;
+use crate::client::command::pointer::create_pointer_command::CreatePointerCommand;
+use crate::client::command::pointer::update_pointer_command::UpdatePointerCommand;
 
 impl CachingClient {
 
@@ -71,7 +73,7 @@ impl CachingClient {
                         match client.pointer_get(&local_address).await {
                             Ok(pointer) => {
                                 debug!("found pointer [{}] for address [{}]", hex::encode(pointer.target().to_hex()), local_address.to_hex());
-                                info!("hybrid cache stats [{:?}], memory cache usage [{:?}]", local_hybrid_cache.statistics(), local_hybrid_cache.memory().usage());
+                                debug!("hybrid cache stats [{:?}], memory cache usage [{:?}]", local_hybrid_cache.statistics(), local_hybrid_cache.memory().usage());
                                 let cache_item = CacheItem::new(Some(pointer.clone()), local_ant_tp_config.cached_mutable_ttl);
                                 Ok(rmp_serde::to_vec(&cache_item).expect("Failed to serialize pointer"))
                             },
@@ -86,31 +88,9 @@ impl CachingClient {
                 let cache_item: CacheItem<Pointer> = rmp_serde::from_slice(cache_entry.value()).expect("Failed to deserialize pointer");
                 info!("retrieved pointer for [{}] from hybrid cache", address.to_hex());
                 if cache_item.has_expired() {
-                    // update cache in the background
-                    let local_address = address.clone();
-                    let local_hybrid_cache = self.hybrid_cache.clone();
-                    tokio::spawn({
-                        let maybe_local_client = self.client_harness.get_ref().lock().await.get_client().await;
-                        async move {
-                            match maybe_local_client {
-                                Some(client) => {
-                                    info!("refreshing hybrid cache with pointer for [{}] from network, timestamp [{}], ttl [{}]", local_address.to_hex(), cache_item.timestamp, cache_item.ttl);
-                                    match client.pointer_get(&local_address).await {
-                                        Ok(pointer) => {
-                                            let new_cache_item = CacheItem::new(Some(pointer.clone()), local_ant_tp_config.cached_mutable_ttl);
-                                            local_hybrid_cache.insert(
-                                                format!("pg{}", local_address.to_hex()),
-                                                rmp_serde::to_vec(&new_cache_item).expect("Failed to serialize pointer")
-                                            );
-                                            info!("inserted hybrid cache with pointer for [{}] from network", local_address.to_hex());
-                                        },
-                                        Err(e) => warn!("Failed to refresh expired pointer for [{}] from network [{}]", local_address.to_hex(), e)
-                                    }
-                                },
-                                None => warn!("Failed to refresh expired pointer for [{}] from offline network", local_address.to_hex())
-                            }
-                        }
-                    });
+                    self.command_executor.send(
+                        Box::new(GetPointerCommand::new(self.client_harness.clone(), self.hybrid_cache.clone(), address.clone(), self.ant_tp_config.cached_mutable_ttl))
+                    ).await.unwrap();
                 }
                 // return last value
                 Ok(cache_item.item.unwrap())
@@ -131,7 +111,7 @@ impl CachingClient {
                         match client.pointer_check_existence(&local_address).await {
                             Ok(_) => {
                                 debug!("pointer exists for address [{}]", local_address.to_hex());
-                                info!("hybrid cache stats [{:?}], memory cache usage [{:?}]", local_hybrid_cache.statistics(), local_hybrid_cache.memory().usage());
+                                debug!("hybrid cache stats [{:?}], memory cache usage [{:?}]", local_hybrid_cache.statistics(), local_hybrid_cache.memory().usage());
                                 let cache_item = CacheItem::new(Some(true), local_ant_tp_config.cached_mutable_ttl);
                                 Ok(rmp_serde::to_vec(&cache_item).expect("Failed to serialize pointer"))
                             },
@@ -146,31 +126,9 @@ impl CachingClient {
                 let cache_item: CacheItem<bool> = rmp_serde::from_slice(cache_entry.value()).expect("Failed to deserialize pointer");
                 info!("retrieved pointer check existence for [{}] from hybrid cache", address.to_hex());
                 if cache_item.has_expired() {
-                    // update cache in the background
-                    let local_address = address.clone();
-                    let local_hybrid_cache = self.hybrid_cache.clone();
-                    tokio::spawn({
-                        let maybe_local_client = self.client_harness.get_ref().lock().await.get_client().await;
-                        async move {
-                            match maybe_local_client {
-                                Some(client) => {
-                                    info!("refreshing hybrid cache with pointer check existence for [{}] from network, timestamp [{}], ttl [{}]", local_address.to_hex(), cache_item.timestamp, cache_item.ttl);
-                                    match client.pointer_get(&local_address).await {
-                                        Ok(pointer) => {
-                                            let new_cache_item = CacheItem::new(Some(pointer.clone()), local_ant_tp_config.cached_mutable_ttl);
-                                            local_hybrid_cache.insert(
-                                                format!("pce{}", local_address.to_hex()),
-                                                rmp_serde::to_vec(&new_cache_item).expect("Failed to serialize pointer")
-                                            );
-                                            info!("inserted hybrid cache with pointer check existence for [{}] from network", local_address.to_hex());
-                                        },
-                                        Err(e) => warn!("Failed to refresh expired pointer check existence for [{}] from network [{}]", local_address.to_hex(), e)
-                                    }
-                                },
-                                None => warn!("Failed to refresh expired pointer check existence for [{}] from offline network", local_address.to_hex())
-                            }
-                        }
-                    });
+                    self.command_executor.send(
+                        Box::new(CheckPointerCommand::new(self.client_harness.clone(), self.hybrid_cache.clone(), address.clone(), self.ant_tp_config.cached_mutable_ttl))
+                    ).await.unwrap();
                 }
                 // return last value
                 Ok(cache_item.item.unwrap())

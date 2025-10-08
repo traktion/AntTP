@@ -5,7 +5,7 @@ use autonomi::client::payment::PaymentOption;
 use log::{debug, info};
 use tokio::sync::Mutex;
 use crate::client::client_harness::ClientHarness;
-use crate::command::{Command, CommandError};
+use crate::client::command::{Command, CommandError};
 
 pub struct CreateChunkCommand {
     client_harness: Data<Mutex<ClientHarness>>,

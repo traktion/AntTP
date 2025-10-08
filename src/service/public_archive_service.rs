@@ -217,6 +217,8 @@ impl PublicArchiveService {
                 }
             }
         });
+
+        // todo: replace with command executor status (as this is only a fast cache insert now)
         let task_id = Uuid::new_v4();
         self.uploader_state.uploader_map.lock().await.insert(task_id.to_string(), handle);
 

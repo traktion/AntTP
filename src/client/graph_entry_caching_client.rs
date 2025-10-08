@@ -2,10 +2,11 @@ use ant_evm::AttoTokens;
 use autonomi::client::payment::PaymentOption;
 use autonomi::{GraphEntry, GraphEntryAddress};
 use autonomi::graph::GraphError;
-use log::{debug, info, warn};
+use log::{debug, info};
 use crate::client::cache_item::CacheItem;
 use crate::client::CachingClient;
-use crate::command::graph::create_graph_entry::CreateGraphEntryCommand;
+use crate::client::command::graph::create_graph_entry_command::CreateGraphEntryCommand;
+use crate::client::command::graph::get_graph_entry_command::GetGraphEntryCommand;
 use crate::controller::CacheType;
 
 impl CachingClient {
@@ -52,7 +53,7 @@ impl CachingClient {
                         match client.graph_entry_get(&local_address).await {
                             Ok(scratchpad) => {
                                 debug!("found graph entry for address [{}]", local_address.to_hex());
-                                info!("hybrid cache stats [{:?}], memory cache usage [{:?}]", local_hybrid_cache.statistics(), local_hybrid_cache.memory().usage());
+                                debug!("hybrid cache stats [{:?}], memory cache usage [{:?}]", local_hybrid_cache.statistics(), local_hybrid_cache.memory().usage());
                                 let cache_item = CacheItem::new(Some(scratchpad.clone()), local_ant_tp_config.cached_mutable_ttl);
                                 Ok(rmp_serde::to_vec(&cache_item).expect("Failed to serialize graph entry"))
                             }
@@ -67,31 +68,9 @@ impl CachingClient {
                 let cache_item: CacheItem<GraphEntry> = rmp_serde::from_slice(cache_entry.value()).expect("Failed to deserialize graph entry");
                 info!("retrieved graph entry for [{}] from hybrid cache", address.to_hex());
                 if cache_item.has_expired() {
-                    // update cache in the background
-                    let local_address = address.clone();
-                    let local_hybrid_cache = self.hybrid_cache.clone();
-                    tokio::spawn({
-                        let maybe_local_client = self.client_harness.get_ref().lock().await.get_client().await;
-                        async move {
-                            match maybe_local_client {
-                                Some(client) => {
-                                    info!("refreshing hybrid cache with graph entry for [{}] from network, timestamp [{}], ttl [{}]", local_address.to_hex(), cache_item.timestamp, cache_item.ttl);
-                                    match client.graph_entry_get(&local_address).await {
-                                        Ok(scratchpad) => {
-                                            let new_cache_item = CacheItem::new(Some(scratchpad.clone()), local_ant_tp_config.cached_mutable_ttl);
-                                            local_hybrid_cache.insert(
-                                                format!("gg{}", local_address.to_hex()),
-                                                rmp_serde::to_vec(&new_cache_item).expect("Failed to serialize graph entry")
-                                            );
-                                            info!("inserted hybrid cache with graph entry for [{}] from network", local_address.to_hex());
-                                        }
-                                        Err(e) => warn!("Failed to refresh expired graph entry for [{}] from network [{}]", local_address.to_hex(), e)
-                                    }
-                                },
-                                None => warn!("Failed to refresh expired graph entry for [{}] from offline network", local_address.to_hex())
-                            }
-                        }
-                    });
+                    self.command_executor.send(
+                        Box::new(GetGraphEntryCommand::new(self.client_harness.clone(), self.hybrid_cache.clone(), address.clone(), self.ant_tp_config.cached_mutable_ttl))
+                    ).await.unwrap();
                 }
                 // return last value
                 Ok(cache_item.item.unwrap())

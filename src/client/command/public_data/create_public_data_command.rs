@@ -5,7 +5,7 @@ use bytes::Bytes;
 use log::info;
 use tokio::sync::Mutex;
 use crate::client::client_harness::ClientHarness;
-use crate::command::{Command, CommandError};
+use crate::client::command::{Command, CommandError};
 
 pub struct CreatePublicDataCommand {
     client_harness: Data<Mutex<ClientHarness>>,
@@ -23,17 +23,17 @@ impl CreatePublicDataCommand {
 #[async_trait]
 impl Command for CreatePublicDataCommand {
     async fn execute(&self) -> Result<(), CommandError> {
-        match self.client_harness.get_ref().lock().await.get_client().await {
-            Some(client) => {
-                match client.data_put_public(self.data.clone(), self.payment_option.clone()).await {
-                    Ok((_, data_address)) => {
-                        info!("chunk at address [{}] created successfully", data_address);
-                        Ok(())
-                    },
-                    Err(e) => Err(CommandError::from(e.to_string()))
-                }
+        let client = match self.client_harness.get_ref().lock().await.get_client().await {
+            Some(client) => client,
+            None => return Err(CommandError::from(String::from("network offline")))
+        };
+        
+        match client.data_put_public(self.data.clone(), self.payment_option.clone()).await {
+            Ok((_, data_address)) => {
+                info!("chunk at address [{}] created successfully", data_address);
+                Ok(())
             },
-            None => Err(CommandError::from(String::from("network offline"))),
+            Err(e) => Err(CommandError::from(e.to_string()))
         }
     }
 }

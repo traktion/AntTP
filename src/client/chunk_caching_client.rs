@@ -7,7 +7,7 @@ use bytes::Bytes;
 use chunk_streamer::chunk_streamer::ChunkGetter;
 use log::{debug, error, info};
 use crate::client::CachingClient;
-use crate::command::chunk::create_chunk_command::CreateChunkCommand;
+use crate::client::command::chunk::create_chunk_command::CreateChunkCommand;
 use crate::controller::CacheType;
 
 #[async_trait]
@@ -16,6 +16,7 @@ impl ChunkGetter for CachingClient {
         let local_address = address.clone();
         let local_hybrid_cache = self.hybrid_cache.clone();
         match self.hybrid_cache.get_ref().fetch(local_address.to_hex(), {
+            // todo: fetch client and release lock to see if impacts performance
             let maybe_local_client = self.client_harness.get_ref().lock().await.get_client().await;
             || async move {
                 match maybe_local_client {
@@ -23,7 +24,7 @@ impl ChunkGetter for CachingClient {
                         match local_client.chunk_get(&local_address).await {
                             Ok(chunk) => {
                                 info!("retrieved chunk for [{}] from network - storing in hybrid cache", local_address.to_hex());
-                                info!("hybrid cache stats [{:?}], memory cache usage [{:?}]", local_hybrid_cache.statistics(), local_hybrid_cache.memory().usage());
+                                debug!("hybrid cache stats [{:?}], memory cache usage [{:?}]", local_hybrid_cache.statistics(), local_hybrid_cache.memory().usage());
                                 Ok(Vec::from(chunk.value))
                             }
                             Err(err) => {

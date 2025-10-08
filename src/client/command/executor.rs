@@ -1,6 +1,6 @@
 use log::debug;
 use tokio::sync::mpsc::{channel, Sender};
-use crate::command::Command;
+use crate::client::command::Command;
 
 pub struct Executor {}
 
@@ -12,6 +12,7 @@ impl Executor {
             while let Some(command) = command_receiver.recv().await {
                 debug!("executor capacity: [{}]", command_receiver.capacity());
                 command.execute().await.unwrap();
+                debug!("executor completed for: [{}]", command_receiver.capacity());
             }
         });
 

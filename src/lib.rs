@@ -3,20 +3,19 @@ pub mod config;
 pub mod controller;
 pub mod service;
 pub mod model;
-pub mod command;
 
-use crate::controller::{chunk_controller, file_controller, pointer_controller, private_scratchpad_controller, public_archive_controller, public_scratchpad_controller, register_controller, graph_controller, public_data_controller};
+use crate::controller::{chunk_controller, file_controller, graph_controller, pointer_controller, private_scratchpad_controller, public_archive_controller, public_data_controller, public_scratchpad_controller, register_controller};
 use crate::service::public_archive_service::Upload;
 use actix_files::Files;
 use actix_web::dev::ServerHandle;
 use actix_web::web::Data;
-use actix_web::{App, HttpServer, middleware::Logger, web, middleware};
+use actix_web::{middleware, middleware::Logger, web, App, HttpServer};
 use ant_evm::EvmNetwork::{ArbitrumOne, ArbitrumSepoliaTest};
-use ant_evm::{EvmWallet};
+use ant_evm::EvmWallet;
 use autonomi::files::archive_public::ArchiveAddress;
-use autonomi::{Network};
+use autonomi::Network;
 use config::anttp_config::AntTpConfig;
-use log::{info};
+use log::info;
 use once_cell::sync::Lazy;
 use std::collections::HashMap;
 use std::env;
@@ -29,7 +28,7 @@ use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
 use crate::client::CachingClient;
 use crate::client::client_harness::ClientHarness;
-use crate::command::executor::Executor;
+use client::command::executor::Executor;
 
 static SERVER_HANDLE: Lazy<Mutex<Option<ServerHandle>>> = Lazy::new(|| Mutex::new(None));
 

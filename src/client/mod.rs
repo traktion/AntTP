@@ -3,7 +3,7 @@ use foyer::HybridCache;
 use tokio::sync::mpsc::Sender;
 use tokio::sync::Mutex;
 use crate::client::client_harness::ClientHarness;
-use crate::command::Command;
+use command::Command;
 use crate::config::anttp_config::AntTpConfig;
 
 #[derive(Clone)]
@@ -26,3 +26,4 @@ mod public_archive_caching_client;
 mod tarchive_caching_client;
 mod archive_caching_client;
 mod public_data_caching_client;
+pub mod command;

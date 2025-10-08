@@ -1,4 +1,4 @@
-use crate::command::error::CommandError;
+use crate::client::command::error::CommandError;
 use async_trait::async_trait;
 
 #[async_trait]

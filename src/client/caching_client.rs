@@ -16,7 +16,7 @@ use tokio::sync::mpsc::Sender;
 use tokio::sync::Mutex;
 use crate::client::CachingClient;
 use crate::client::client_harness::ClientHarness;
-use crate::command::Command;
+use crate::client::command::Command;
 
 pub const ARCHIVE_TAR_IDX_BYTES: &[u8] = "\0archive.tar.idx\0".as_bytes();
 

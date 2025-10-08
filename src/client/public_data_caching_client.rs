@@ -8,7 +8,7 @@ use bytes::Bytes;
 use chunk_streamer::chunk_encrypter::ChunkEncrypter;
 use log::{info};
 use crate::client::CachingClient;
-use crate::command::public_data::create_public_data_command::CreatePublicDataCommand;
+use crate::client::command::public_data::create_public_data_command::CreatePublicDataCommand;
 use crate::controller::CacheType;
 
 impl CachingClient {

@@ -23,7 +23,7 @@ impl CachingClient {
                             let archive_idx_range_start = idx + 512 + 1;
                             let archive_idx_range_to = 20480;
                             info!("retrieved tarchive for [{}] with range_from [{}] and range_to [{}] from network - storing in hybrid cache", local_address.to_hex(), archive_idx_range_start, archive_idx_range_to);
-                            info!("hybrid cache stats [{:?}], memory cache usage [{:?}]", local_hybrid_cache.statistics(), local_hybrid_cache.memory().usage());
+                            debug!("hybrid cache stats [{:?}], memory cache usage [{:?}]", local_hybrid_cache.statistics(), local_hybrid_cache.memory().usage());
                             Ok(Vec::from(&trailer_bytes[archive_idx_range_start..archive_idx_range_to]))
                         },
                         None => {

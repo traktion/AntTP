@@ -6,7 +6,7 @@ use autonomi::data::DataAddress;
 use autonomi::files::archive_public::ArchiveAddress;
 use autonomi::files::{PublicArchive};
 use bytes::Bytes;
-use log::{info, warn};
+use log::{debug, info, warn};
 use rmp_serde::decode;
 use crate::controller::CacheType;
 
@@ -42,7 +42,7 @@ impl CachingClient {
                         // confirm that serialisation can be successful, before returning the data
                         Ok(public_archive) => {
                             info!("retrieved public archive for [{}] from network - storing in hybrid cache", local_address.to_hex());
-                            info!("hybrid cache stats [{:?}], memory cache usage [{:?}]", local_hybrid_cache.statistics(), local_hybrid_cache.memory().usage());
+                            debug!("hybrid cache stats [{:?}], memory cache usage [{:?}]", local_hybrid_cache.statistics(), local_hybrid_cache.memory().usage());
                             Ok(Vec::from(public_archive.to_bytes().expect("failed to convert PublicArchive to bytes")))
                         },
                         Err(err) => {

@@ -20,7 +20,6 @@ impl Executor {
                     command.execute().await.unwrap();
                     last_hash = command.get_hash();
                     debug!("executor completed for: [{}]", command_receiver.capacity());
-
                 }
             }
         });

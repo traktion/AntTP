@@ -28,7 +28,7 @@ impl Command for CreatePublicDataCommand {
             Some(client) => client,
             None => return Err(CommandError::from(String::from("network offline")))
         };
-        
+
         match client.data_put_public(self.data.clone(), self.payment_option.clone()).await {
             Ok((_, data_address)) => {
                 info!("chunk at address [{}] created successfully", data_address);

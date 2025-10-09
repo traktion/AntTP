@@ -28,7 +28,7 @@ impl Command for UpdatePrivateScratchpadCommand {
             Some(client) => client,
             None => return Err(CommandError::from(String::from("network offline")))
         };
-        
+
         let scratchpad_address_hex = ScratchpadAddress::new(self.owner.public_key()).to_hex();
         debug!("updating private scratchpad at [{}] async", scratchpad_address_hex);
         match client.scratchpad_update(&self.owner, self.content_type, &self.data).await {

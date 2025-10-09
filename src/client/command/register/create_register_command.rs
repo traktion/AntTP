@@ -30,7 +30,7 @@ impl Command for CreateRegisterCommand {
             Some(client) => client,
             None => return Err(CommandError::from(String::from("network offline")))
         };
-        
+
         let register_address_hex = RegisterAddress::new(self.owner.public_key()).to_hex();
         debug!("creating register at [{}] async", register_address_hex);
         match client.register_create(&self.owner, self.register_value, self.payment_option.clone()).await {

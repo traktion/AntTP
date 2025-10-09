@@ -27,7 +27,7 @@ impl Command for UpdatePointerCommand {
             Some(client) => client,
             None => return Err(CommandError::from(String::from("network offline")))
         };
-        
+
         let pointer_address_hex = PointerAddress::new(self.owner.public_key()).to_hex();
         debug!("updating pointer at [{}] async", pointer_address_hex);
         match client.pointer_update(&self.owner, self.target.clone()).await {

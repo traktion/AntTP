@@ -16,26 +16,24 @@ impl ChunkGetter for CachingClient {
         let local_address = address.clone();
         let local_hybrid_cache = self.hybrid_cache.clone();
         match self.hybrid_cache.get_ref().fetch(local_address.to_hex(), {
-            // todo: fetch client and release lock to see if impacts performance
-            let maybe_local_client = self.client_harness.get_ref().lock().await.get_client().await;
+            let client = match self.client_harness.get_ref().lock().await.get_client().await {
+                Some(client) => client,
+                None => {
+                    error!("Failed to retrieve chunk for [{}] as offline network", local_address.to_hex());
+                    return Err(GetError::RecordNotFound)
+                }
+            };
+
             || async move {
-                match maybe_local_client {
-                    Some(local_client) => {
-                        match local_client.chunk_get(&local_address).await {
-                            Ok(chunk) => {
-                                info!("retrieved chunk for [{}] from network - storing in hybrid cache", local_address.to_hex());
-                                debug!("hybrid cache stats [{:?}], memory cache usage [{:?}]", local_hybrid_cache.statistics(), local_hybrid_cache.memory().usage());
-                                Ok(Vec::from(chunk.value))
-                            }
-                            Err(err) => {
-                                error!("Failed to retrieve chunk for [{}] from network {:?}", local_address.to_hex(), err);
-                                Err(foyer::Error::other(format!("Failed to retrieve chunk for [{}] from network {:?}", local_address.to_hex(), err)))
-                            }
-                        }
-                    },
-                    None => {
-                        error!("Failed to retrieve chunk for [{}] as offline network", local_address.to_hex());
-                        Err(foyer::Error::other(format!("Failed to retrieve chunk for [{}] from offline network", local_address.to_hex())))
+                match client.chunk_get(&local_address).await {
+                    Ok(chunk) => {
+                        info!("retrieved chunk for [{}] from network - storing in hybrid cache", local_address.to_hex());
+                        debug!("hybrid cache stats [{:?}], memory cache usage [{:?}]", local_hybrid_cache.statistics(), local_hybrid_cache.memory().usage());
+                        Ok(Vec::from(chunk.value))
+                    }
+                    Err(err) => {
+                        error!("Failed to retrieve chunk for [{}] from network {:?}", local_address.to_hex(), err);
+                        Err(foyer::Error::other(format!("Failed to retrieve chunk for [{}] from network {:?}", local_address.to_hex(), err)))
                     }
                 }
             }}).await {

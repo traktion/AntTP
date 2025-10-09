@@ -29,7 +29,7 @@ impl Command for GetPointerCommand {
             Some(client) => client,
             None => return Err(CommandError::from(String::from("network offline")))
         };
-        
+
         let pointer_address_hex = self.pointer_address.to_hex();
         debug!("refreshing hybrid cache with pointer for [{}] from network", pointer_address_hex);
         match client.pointer_get(&self.pointer_address).await {

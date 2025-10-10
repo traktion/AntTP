@@ -1,7 +1,7 @@
 use actix_web::{web, HttpRequest, Responder};
 use actix_web::web::Data;
 use ant_evm::EvmWallet;
-use log::info;
+use log::debug;
 use crate::client::CachingClient;
 use crate::config::anttp_config::AntTpConfig;
 use crate::controller::cache_only;
@@ -31,7 +31,7 @@ pub async fn post_register(
 ) -> impl Responder {
     let register_service = create_register_service(caching_client_data, ant_tp_config_data);
 
-    info!("Creating new register");
+    debug!("Creating new register");
     register_service.create_register(register.into_inner(), evm_wallet_data.get_ref().clone(), cache_only(request)).await
 }
 
@@ -62,7 +62,7 @@ pub async fn put_register(
 
     let register_service = create_register_service(caching_client_data, ant_tp_config_data);
 
-    info!("Updating register");
+    debug!("Updating register");
     register_service.update_register(address, register.into_inner(), evm_wallet_data.get_ref().clone(), cache_only(request)).await
 }
 
@@ -86,7 +86,7 @@ pub async fn get_register(
 
     let register_service = create_register_service(caching_client_data, ant_tp_config_data);
 
-    info!("Getting register at [{}]", address);
+    debug!("Getting register at [{}]", address);
     register_service.get_register(address).await
 }
 
@@ -110,7 +110,7 @@ pub async fn get_register_history(
 
     let register_service = create_register_service(caching_client_data, ant_tp_config_data);
 
-    info!("Getting register history at [{}]", address);
+    debug!("Getting register history at [{}]", address);
     register_service.get_register_history(address).await
 }
 

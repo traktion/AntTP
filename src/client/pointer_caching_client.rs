@@ -63,7 +63,6 @@ impl CachingClient {
 
     pub async fn pointer_get(&self, address: &PointerAddress) -> Result<Pointer, PointerError> {
         let local_address = address.clone();
-        let local_hybrid_cache = self.hybrid_cache.clone();
         let local_ant_tp_config = self.ant_tp_config.clone();
         match self.hybrid_cache.get_ref().fetch(format!("pg{}", local_address.to_hex()), {
             let maybe_local_client = self.client_harness.get_ref().lock().await.get_client().await;
@@ -73,7 +72,6 @@ impl CachingClient {
                         match client.pointer_get(&local_address).await {
                             Ok(pointer) => {
                                 debug!("found pointer [{}] for address [{}]", hex::encode(pointer.target().to_hex()), local_address.to_hex());
-                                debug!("hybrid cache stats [{:?}], memory cache usage [{:?}]", local_hybrid_cache.statistics(), local_hybrid_cache.memory().usage());
                                 let cache_item = CacheItem::new(Some(pointer.clone()), local_ant_tp_config.cached_mutable_ttl);
                                 Ok(rmp_serde::to_vec(&cache_item).expect("Failed to serialize pointer"))
                             },
@@ -101,7 +99,6 @@ impl CachingClient {
 
     pub async fn pointer_check_existence(&self, address: &PointerAddress) -> Result<bool, PointerError> {
         let local_address = address.clone();
-        let local_hybrid_cache = self.hybrid_cache.clone();
         let local_ant_tp_config = self.ant_tp_config.clone();
         match self.hybrid_cache.get_ref().fetch(format!("pce{}", local_address.to_hex()), {
             let maybe_local_client = self.client_harness.get_ref().lock().await.get_client().await;
@@ -111,7 +108,6 @@ impl CachingClient {
                         match client.pointer_check_existence(&local_address).await {
                             Ok(_) => {
                                 debug!("pointer exists for address [{}]", local_address.to_hex());
-                                debug!("hybrid cache stats [{:?}], memory cache usage [{:?}]", local_hybrid_cache.statistics(), local_hybrid_cache.memory().usage());
                                 let cache_item = CacheItem::new(Some(true), local_ant_tp_config.cached_mutable_ttl);
                                 Ok(rmp_serde::to_vec(&cache_item).expect("Failed to serialize pointer"))
                             },

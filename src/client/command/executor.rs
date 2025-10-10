@@ -1,29 +1,69 @@
+use actix_web::web::Data;
+use indexmap::IndexMap;
 use log::debug;
 use tokio::sync::mpsc::{channel, Sender};
+use tokio::sync::Mutex;
 use crate::client::command::Command;
+use crate::client::command::command_details::{CommandDetails, CommandState};
+use crate::client::command::command_details::CommandState::{ABORTED, COMPLETED, RUNNING};
 
 pub struct Executor {}
 
 impl Executor {
-    pub async fn start(buffer_size: usize) -> Sender<Box<dyn Command>> {
-        let (command_executor, mut command_receiver) = channel::<Box<dyn Command>>(buffer_size);
+    pub async fn start(buffer_size: usize, executor_map: Data<Mutex<IndexMap<u128, CommandDetails>>>) -> Sender<Box<dyn Command>> {
+        let (command_queue_sender, mut command_queue_receiver) = channel::<Box<dyn Command>>(buffer_size);
+        let (command_executor_sender, mut command_executor_receiver) = channel::<Box<dyn Command>>(buffer_size);
 
+        let pre_executor_map = executor_map.clone();
+
+        // read the queue and insert command details into the executor map
+        tokio::spawn(async move {
+            while let Some(command) = command_queue_receiver.recv().await {
+                let command_details = CommandDetails::new(&command);
+                debug!("command buffered: [{:?}]", command_details);
+                pre_executor_map.get_ref().lock().await.insert(command.get_id(), command_details);
+
+                command_executor_sender.send(command).await.unwrap();
+            }
+        });
+
+        // execute commands and update command details in the executor map
         tokio::spawn(async move {
             let mut last_hash = vec![];
-            while let Some(command) = command_receiver.recv().await {
-                debug!("executor capacity: [{}]", command_receiver.capacity());
-                if last_hash == command.get_hash() {
-                    debug!("skipping duplicate command");
-                    continue;
+            while let Some(command) = command_executor_receiver.recv().await {
+                let command_action_hash = command.get_action_hash();
+                if last_hash == command_action_hash {
+                    Self::update_executor_map(&executor_map, command.get_id(), ABORTED).await;
                 } else {
-                    // don't execute duplicate commands
+                    Self::update_executor_map(&executor_map, command.get_id(), RUNNING).await;
                     command.execute().await.unwrap();
-                    last_hash = command.get_hash();
-                    debug!("executor completed for: [{}]", command_receiver.capacity());
+                    Self::update_executor_map(&executor_map, command.get_id(), COMPLETED).await;
+                    last_hash = command_action_hash;
                 }
             }
         });
 
-        command_executor
+        command_queue_sender
+    }
+
+    /*async fn log_executor_map(executor_map: &Data<Mutex<IndexMap<u128, CommandDetails>>>) {
+        let mut executor_map_string = String::new();
+        executor_map.lock().await.iter().for_each(|(_, v)| executor_map_string += &format!("{:?},", v).as_str());
+        debug!("command queue {:?}", executor_map_string);
+    }*/
+
+    async fn update_executor_map(executor_map: &Data<Mutex<IndexMap<u128, CommandDetails>>>, command_id: u128, command_state: CommandState) {
+        let maybe_command_details = match executor_map.get_ref().lock().await.get(&command_id) {
+            Some(command_details) => {
+                let mut new_command_details = command_details.clone();
+                new_command_details.set_state(command_state);
+                Some(new_command_details)
+            },
+            None => None, // should never happen
+        };
+        if let Some(command_detail) = maybe_command_details {
+            executor_map.get_ref().lock().await.insert(command_id.clone(), command_detail.clone());
+            debug!("command status: [{:?}]", command_detail);
+        }
     }
 }

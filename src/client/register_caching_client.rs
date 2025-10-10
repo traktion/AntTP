@@ -62,7 +62,6 @@ impl CachingClient {
 
     pub async fn register_get(&self, address: &RegisterAddress) -> Result<RegisterValue, RegisterError> {
         let local_address = address.clone();
-        let local_hybrid_cache = self.hybrid_cache.clone();
         let local_ant_tp_config = self.ant_tp_config.clone();
         match self.hybrid_cache.get_ref().fetch(format!("rg{}", local_address.to_hex()), {
             let maybe_local_client = self.client_harness.get_ref().lock().await.get_client().await;
@@ -72,7 +71,6 @@ impl CachingClient {
                         match client.register_get(&local_address).await {
                             Ok(register_value) => {
                                 debug!("found register value [{}] for address [{}] from network", hex::encode(register_value.clone()), local_address.to_hex());
-                                debug!("hybrid cache stats [{:?}], memory cache usage [{:?}]", local_hybrid_cache.statistics(), local_hybrid_cache.memory().usage());
                                 let cache_item = CacheItem::new(Some(register_value.clone()), local_ant_tp_config.cached_mutable_ttl);
                                 Ok(rmp_serde::to_vec(&cache_item).expect("Failed to serialize register"))
                             }

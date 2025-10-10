@@ -6,7 +6,7 @@ use autonomi::data::DataAddress;
 use autonomi::files::archive_public::ArchiveAddress;
 use autonomi::files::{PublicArchive};
 use bytes::Bytes;
-use log::{debug, info, warn};
+use log::{info, warn};
 use rmp_serde::decode;
 use crate::controller::CacheType;
 
@@ -16,7 +16,6 @@ impl CachingClient {
         let bytes = archive
             .to_bytes()
             .map_err(|e| PutError::Serialization(format!("Failed to serialize archive: {e:?}")))?;
-
         self.data_put_public(bytes, payment_option, cache_only).await
     }
 
@@ -31,7 +30,6 @@ impl CachingClient {
     pub async fn archive_get_public_raw(&self, addr: &DataAddress) -> Result<Bytes, GetError> {
         let local_caching_client = self.clone();
         let local_address = addr.clone();
-        let local_hybrid_cache = self.hybrid_cache.clone();
         match self.hybrid_cache.get_ref().fetch(format!("pa{}", local_address.to_hex()), || async move {
             // todo: optimise range_to to first chunk length (to avoid downloading other chunks when not needed)
             let maybe_bytes = local_caching_client.download_stream(local_address, 0, 524288).await;
@@ -42,7 +40,6 @@ impl CachingClient {
                         // confirm that serialisation can be successful, before returning the data
                         Ok(public_archive) => {
                             info!("retrieved public archive for [{}] from network - storing in hybrid cache", local_address.to_hex());
-                            debug!("hybrid cache stats [{:?}], memory cache usage [{:?}]", local_hybrid_cache.statistics(), local_hybrid_cache.memory().usage());
                             Ok(Vec::from(public_archive.to_bytes().expect("failed to convert PublicArchive to bytes")))
                         },
                         Err(err) => {

@@ -2,7 +2,7 @@ use actix_web::{web, HttpRequest, Responder};
 use actix_web::error::ErrorInternalServerError;
 use actix_web::web::{Data, Payload};
 use ant_evm::EvmWallet;
-use log::info;
+use log::debug;
 use crate::client::CachingClient;
 use crate::controller::cache_only;
 use crate::service::chunk_service::{Chunk, ChunkService};
@@ -29,7 +29,7 @@ pub async fn post_chunk(
 ) -> impl Responder {
     let chunk_service = ChunkService::new(caching_client_data.get_ref().clone());
 
-    info!("Creating new chunk");
+    debug!("Creating new chunk");
     chunk_service.create_chunk(chunk.into_inner(), evm_wallet_data.get_ref().clone(), cache_only(request)).await
 }
 
@@ -56,7 +56,7 @@ pub async fn post_chunk_binary(
 ) -> impl Responder {
     let chunk_service = ChunkService::new(caching_client_data.get_ref().clone());
 
-    info!("Creating new chunk");
+    debug!("Creating new chunk");
     match payload.to_bytes().await {
         Ok(bytes) => {
             chunk_service.create_chunk_binary(bytes, evm_wallet_data.get_ref().clone(), cache_only(request)).await
@@ -85,7 +85,7 @@ pub async fn get_chunk(
     let address = path.into_inner();
     let chunk_service = ChunkService::new(caching_client_data.get_ref().clone());
 
-    info!("Getting chunk at [{}]", address);
+    debug!("Getting chunk at [{}]", address);
     chunk_service.get_chunk(address).await
 }
 
@@ -107,6 +107,6 @@ pub async fn get_chunk_binary(
     let address = path.into_inner();
     let chunk_service = ChunkService::new(caching_client_data.get_ref().clone());
 
-    info!("Getting chunk at [{}]", address);
+    debug!("Getting chunk at [{}]", address);
     chunk_service.get_chunk_binary(address).await
 }

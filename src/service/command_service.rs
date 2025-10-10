@@ -1,0 +1,62 @@
+use actix_web::{Error, HttpResponse};
+use actix_web::web::Data;
+use indexmap::IndexMap;
+use serde::{Deserialize, Serialize};
+use tokio::sync::Mutex;
+use utoipa::ToSchema;
+use crate::client::command::command_details::CommandDetails;
+
+#[derive(ToSchema, Serialize, Deserialize, Debug, Clone)]
+pub struct Command {
+    name: String,
+    properties: Vec<Property>,
+    state: String,
+    waiting_at: u128,
+    running_at: Option<u128>,
+    terminated_at: Option<u128>,
+}
+
+impl Command {
+    pub fn new(name: String, properties: Vec<Property>, state: String, waiting_at: u128,
+               running_at: Option<u128>, terminated_at: Option<u128>) -> Self {
+        Self { name, properties, state, waiting_at, running_at, terminated_at }
+    }
+}
+
+#[derive(ToSchema, Serialize, Deserialize, Debug, Clone)]
+pub struct Property {
+    name: String,
+    value: String,
+}
+
+impl Property {
+    pub fn new(name: String, value: String) -> Self {
+        Self { name, value }
+    }
+}
+
+#[derive(utoipa::ToResponse, Serialize, Deserialize, Debug, Clone)]
+pub struct CommandList(Vec<Command>);
+
+pub struct CommandService {
+    commands_map: Data<Mutex<IndexMap<u128, CommandDetails>>>,
+}
+
+impl CommandService {
+    pub fn new(commands_map: Data<Mutex<IndexMap<u128, CommandDetails>>>) -> Self {
+        Self { commands_map }
+    }
+
+    pub async fn get_commands(&self) -> Result<HttpResponse, Error>{
+        let commands_map = self.commands_map.get_ref().lock().await;
+        let mut commands = Vec::<Command>::with_capacity(commands_map.len());
+
+        commands_map.values().for_each(|v|{
+            let mut properties = Vec::<Property>::with_capacity(v.properties().len());
+            v.properties().iter().for_each(|(k, v)|properties.push(Property::new(k.clone(), v.clone())));
+            commands.push(Command::new(v.name().clone(), properties, v.state().to_string(), v.waiting_at(), v.running_at(), v.terminated_at()))
+        });
+
+        Ok(HttpResponse::Ok().json(CommandList(commands)).into())
+    }
+}

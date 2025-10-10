@@ -2,13 +2,16 @@ use actix_web::web::Data;
 use async_trait::async_trait;
 use autonomi::{ScratchpadAddress, SecretKey};
 use bytes::Bytes;
+use indexmap::IndexMap;
 use log::{debug, info};
 use sha2::Digest;
 use tokio::sync::Mutex;
 use crate::client::client_harness::ClientHarness;
-use crate::client::command::{Command, CommandError};
+use crate::client::command::error::CommandError;
+use crate::client::command::Command;
 
 pub struct UpdatePrivateScratchpadCommand {
+    id: u128,
     client_harness: Data<Mutex<ClientHarness>>,
     owner: SecretKey,
     content_type: u64,
@@ -17,9 +20,12 @@ pub struct UpdatePrivateScratchpadCommand {
 
 impl UpdatePrivateScratchpadCommand {
     pub fn new(client_harness: Data<Mutex<ClientHarness>>, owner: SecretKey, content_type: u64, data: Bytes) -> Self {
-        Self { client_harness, owner, content_type, data }
+        let id = rand::random::<u128>();
+        Self { id, client_harness, owner, content_type, data }
     }
 }
+
+const STRUCT_NAME: &'static str = "UpdatePrivateScratchpadCommand";
 
 #[async_trait]
 impl Command for UpdatePrivateScratchpadCommand {
@@ -40,12 +46,28 @@ impl Command for UpdatePrivateScratchpadCommand {
         }
     }
 
-    fn get_hash(&self) -> Vec<u8> {
+    fn get_action_hash(&self) -> Vec<u8> {
         let mut hasher = sha2::Sha256::new();
-        hasher.update("UpdatePrivateScratchpadCommand");
+        hasher.update(STRUCT_NAME);
         hasher.update(self.owner.to_hex());
         hasher.update(self.content_type.to_string());
         hasher.update(self.data.clone());
         hasher.finalize().to_ascii_lowercase()
+    }
+
+    fn get_id(&self) -> u128 {
+        self.id
+    }
+
+    fn get_name(&self) -> String {
+        STRUCT_NAME.to_string()
+    }
+
+    fn get_properties(&self) -> IndexMap<String, String> {
+        let mut properties = IndexMap::new();
+        properties.insert("owner".to_string(), self.owner.to_hex());
+        properties.insert("content_type".to_string(), self.content_type.to_string());
+        properties.insert("data".to_string(), "tbc".to_string()); // todo: improve
+        properties
     }
 }

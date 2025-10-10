@@ -3,13 +3,16 @@ use async_trait::async_trait;
 use autonomi::SecretKey;
 use autonomi::client::payment::PaymentOption;
 use autonomi::register::{RegisterAddress, RegisterValue};
+use indexmap::IndexMap;
 use log::{debug, info};
 use sha2::Digest;
 use tokio::sync::Mutex;
 use crate::client::client_harness::ClientHarness;
-use crate::client::command::{Command, CommandError};
+use crate::client::command::error::CommandError;
+use crate::client::command::Command;
 
 pub struct CreateRegisterCommand {
+    id: u128,
     client_harness: Data<Mutex<ClientHarness>>,
     owner: SecretKey,
     register_value: RegisterValue,
@@ -19,9 +22,12 @@ pub struct CreateRegisterCommand {
 impl CreateRegisterCommand {
     pub fn new(client_harness: Data<Mutex<ClientHarness>>, owner: SecretKey, register_value: RegisterValue,
                payment_option: PaymentOption,) -> Self {
-        Self { client_harness, owner, register_value, payment_option }
+        let id = rand::random::<u128>();
+        Self { id, client_harness, owner, register_value, payment_option }
     }
 }
+
+const STRUCT_NAME: &'static str = "CreateRegisterCommand";
 
 #[async_trait]
 impl Command for CreateRegisterCommand {
@@ -42,11 +48,26 @@ impl Command for CreateRegisterCommand {
         }
     }
 
-    fn get_hash(&self) -> Vec<u8> {
+    fn get_action_hash(&self) -> Vec<u8> {
         let mut hasher = sha2::Sha256::new();
-        hasher.update("CreateRegisterCommand");
+        hasher.update(STRUCT_NAME);
         hasher.update(self.owner.to_hex());
         hasher.update(self.register_value);
         hasher.finalize().to_ascii_lowercase()
+    }
+
+    fn get_id(&self) -> u128 {
+        self.id
+    }
+
+    fn get_name(&self) -> String {
+        STRUCT_NAME.to_string()
+    }
+
+    fn get_properties(&self) -> IndexMap<String, String> {
+        let mut properties = IndexMap::new();
+        properties.insert("owner".to_string(), self.owner.to_hex());
+        properties.insert("register_value".to_string(), "tbc".to_string()); // todo: improve
+        properties
     }
 }

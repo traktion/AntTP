@@ -4,7 +4,7 @@ pub mod controller;
 pub mod service;
 pub mod model;
 
-use crate::controller::{chunk_controller, file_controller, graph_controller, pointer_controller, private_scratchpad_controller, public_archive_controller, public_data_controller, public_scratchpad_controller, register_controller};
+use crate::controller::{chunk_controller, command_controller, file_controller, graph_controller, pointer_controller, private_scratchpad_controller, public_archive_controller, public_data_controller, public_scratchpad_controller, register_controller};
 use crate::service::public_archive_service::Upload;
 use actix_files::Files;
 use actix_web::dev::ServerHandle;
@@ -22,6 +22,7 @@ use std::env;
 use std::path::Path;
 use async_job::Runner;
 use foyer::{BlockEngineBuilder, Compression, DeviceBuilder, FsDeviceBuilder, HybridCache, HybridCacheBuilder, HybridCachePolicy, IoEngineBuilder, LfuConfig, PsyncIoEngineBuilder, RecoverMode, RuntimeOptions, TokioRuntimeOptions};
+use indexmap::IndexMap;
 use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
 use utoipa::OpenApi;
@@ -29,6 +30,7 @@ use utoipa_swagger_ui::SwaggerUi;
 use crate::client::CachingClient;
 use crate::client::client_harness::ClientHarness;
 use client::command::executor::Executor;
+use crate::client::command::command_details::CommandDetails;
 
 static SERVER_HANDLE: Lazy<Mutex<Option<ServerHandle>>> = Lazy::new(|| Mutex::new(None));
 
@@ -85,6 +87,7 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> std::io::Result<()> {
         graph_controller::post_graph_entry,
         public_data_controller::get_public_data,
         public_data_controller::post_public_data,
+        command_controller::get_commands,
     ))]
     struct ApiDoc;
 
@@ -113,7 +116,8 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> std::io::Result<()> {
     let hybrid_cache: HybridCache<String, Vec<u8>> = build_foyer_cache(&ant_tp_config).await;
     let hybrid_cache_data = Data::new(hybrid_cache);
 
-    let command_executor = Executor::start(ant_tp_config.command_buffer_size).await;
+    let command_status = Data::new(Mutex::new(IndexMap::<u128, CommandDetails>::with_capacity(ant_tp_config.command_buffer_size * 2)));
+    let command_executor = Executor::start(ant_tp_config.command_buffer_size, command_status.clone()).await;
     let command_executor_data = Data::new(command_executor);
     
     let caching_client_data = Data::new(
@@ -177,6 +181,10 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> std::io::Result<()> {
                 web::get().to(public_data_controller::get_public_data)
             )
             .route(
+                format!("{}command", API_BASE).as_str(),
+                web::get().to(command_controller::get_commands)
+            )
+            .route(
                 "/{path:.*}",
                 web::get().to(file_controller::get_public_data),
             )
@@ -185,7 +193,8 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> std::io::Result<()> {
             .app_data(Data::new(evm_wallet.clone()))
             .app_data(uploader_state.clone())
             .app_data(upload_state.clone())
-            .app_data(hybrid_cache_data.clone());
+            .app_data(hybrid_cache_data.clone())
+            .app_data(command_status.clone());
 
         if !ant_tp_config.uploads_disabled {
             app = app

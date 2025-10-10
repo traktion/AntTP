@@ -2,7 +2,7 @@ use actix_web::{web, HttpRequest, Responder};
 use actix_web::error::ErrorInternalServerError;
 use actix_web::web::{Data, Payload};
 use ant_evm::EvmWallet;
-use log::info;
+use log::debug;
 use crate::client::CachingClient;
 use crate::controller::cache_only;
 use crate::service::public_data_service::{PublicData, PublicDataService};
@@ -30,7 +30,7 @@ pub async fn post_public_data(
 ) -> impl Responder {
     let public_data_service = PublicDataService::new(caching_client_data.get_ref().clone());
 
-    info!("Creating new public data");
+    debug!("Creating new public data");
     match payload.to_bytes().await {
         Ok(bytes) => {
             public_data_service.create_public_data(bytes, evm_wallet_data.get_ref().clone(), cache_only(request)).await
@@ -59,6 +59,6 @@ pub async fn get_public_data(
     let address = path.into_inner();
     let public_data_service = PublicDataService::new(caching_client_data.get_ref().clone());
 
-    info!("Getting public data at [{}]", address);
+    debug!("Getting public data at [{}]", address);
     public_data_service.get_public_data_binary(address).await
 }

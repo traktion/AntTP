@@ -14,7 +14,6 @@ use crate::controller::CacheType;
 impl ChunkGetter for CachingClient {
     async fn chunk_get(&self, address: &ChunkAddress) -> Result<Chunk, GetError> {
         let local_address = address.clone();
-        let local_hybrid_cache = self.hybrid_cache.clone();
         match self.hybrid_cache.get_ref().fetch(local_address.to_hex(), {
             let client = match self.client_harness.get_ref().lock().await.get_client().await {
                 Some(client) => client,
@@ -28,7 +27,6 @@ impl ChunkGetter for CachingClient {
                 match client.chunk_get(&local_address).await {
                     Ok(chunk) => {
                         info!("retrieved chunk for [{}] from network - storing in hybrid cache", local_address.to_hex());
-                        debug!("hybrid cache stats [{:?}], memory cache usage [{:?}]", local_hybrid_cache.statistics(), local_hybrid_cache.memory().usage());
                         Ok(Vec::from(chunk.value))
                     }
                     Err(err) => {

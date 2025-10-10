@@ -2,7 +2,7 @@ use actix_web::{web, HttpRequest, Responder};
 use actix_web::dev::ConnectionInfo;
 use actix_web::error::ErrorNotFound;
 use actix_web::web::Data;
-use log::info;
+use log::debug;
 use crate::config::anttp_config::AntTpConfig;
 use crate::{UploaderState, UploadState};
 use crate::service::public_archive_service::PublicArchiveService;
@@ -29,11 +29,11 @@ pub async fn get_public_data(
         Some(resolved_address) => {
             let file_service = FileService::new(caching_client.clone(), resolver_service.clone(), ant_tp_config.clone());
             if resolved_address.archive.is_some() {
-                info!("Retrieving file from archive [{:x}]", resolved_address.xor_name);
+                debug!("Retrieving file from archive [{:x}]", resolved_address.xor_name);
                 let public_archive_service = PublicArchiveService::new(file_service, resolver_service, uploader_state_data, upload_state_data, ant_tp_config, caching_client);
                 public_archive_service.get_data(resolved_address, request, path_parts).await
             } else {
-                info!("Retrieving file from XOR [{:x}]", resolved_address.xor_name);
+                debug!("Retrieving file from XOR [{:x}]", resolved_address.xor_name);
                 file_service.get_data(resolved_address, request, path_parts).await
             }
         },

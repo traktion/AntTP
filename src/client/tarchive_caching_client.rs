@@ -10,7 +10,6 @@ impl CachingClient {
     pub async fn get_archive_from_tar(&self, addr: &DataAddress) -> Result<Bytes, GetError> {
         let local_caching_client = self.clone();
         let local_address = addr.clone();
-        let local_hybrid_cache = self.hybrid_cache.clone();
         match self.hybrid_cache.get_ref().fetch(format!("tar{}", local_address.to_hex()), || async move {
             // todo: confirm whether checking header for tar signature improves performance/reliability
             // 20480
@@ -23,7 +22,6 @@ impl CachingClient {
                             let archive_idx_range_start = idx + 512 + 1;
                             let archive_idx_range_to = 20480;
                             info!("retrieved tarchive for [{}] with range_from [{}] and range_to [{}] from network - storing in hybrid cache", local_address.to_hex(), archive_idx_range_start, archive_idx_range_to);
-                            debug!("hybrid cache stats [{:?}], memory cache usage [{:?}]", local_hybrid_cache.statistics(), local_hybrid_cache.memory().usage());
                             Ok(Vec::from(&trailer_bytes[archive_idx_range_start..archive_idx_range_to]))
                         },
                         None => {

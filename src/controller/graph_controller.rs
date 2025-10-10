@@ -1,7 +1,7 @@
 use actix_web::{web, HttpRequest, Responder};
 use actix_web::web::Data;
 use ant_evm::EvmWallet;
-use log::info;
+use log::debug;
 use crate::client::CachingClient;
 use crate::config::anttp_config::AntTpConfig;
 use crate::controller::cache_only;
@@ -33,7 +33,7 @@ pub async fn post_graph_entry(
         ant_tp_config_data.get_ref().clone()
     );
 
-    info!("Creating new graph entry");
+    debug!("Creating new graph entry");
     graph_service.create_graph_entry(graph_entry.into_inner(), evm_wallet_data.get_ref().clone(), cache_only(request)).await
 }
 
@@ -60,6 +60,6 @@ pub async fn get_graph_entry(
         ant_tp_config_data.get_ref().clone()
     );
 
-    info!("Getting graph entry at [{}]", address);
+    debug!("Getting graph entry at [{}]", address);
     graph_service.get_graph_entry(address).await
 }

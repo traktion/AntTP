@@ -1,7 +1,7 @@
 use actix_web::{web, HttpRequest, Responder};
 use actix_web::web::Data;
 use ant_evm::EvmWallet;
-use log::info;
+use log::debug;
 use crate::client::CachingClient;
 use crate::config::anttp_config::AntTpConfig;
 use crate::controller::cache_only;
@@ -31,7 +31,7 @@ pub async fn post_pointer(
 ) -> impl Responder {
     let pointer_service = create_pointer_service(caching_client_data, ant_tp_config_data);
 
-    info!("Creating new pointer");
+    debug!("Creating new pointer");
     pointer_service.create_pointer(pointer.into_inner(), evm_wallet_data.get_ref().clone(), cache_only(request)).await
 }
 
@@ -61,7 +61,7 @@ pub async fn put_pointer(
 
     let pointer_service = create_pointer_service(caching_client_data, ant_tp_config_data);
 
-    info!("Updating pointer");
+    debug!("Updating pointer");
     pointer_service.update_pointer(address, pointer.into_inner(), cache_only(request)).await
 }
 
@@ -88,7 +88,7 @@ pub async fn get_pointer(
 
     let pointer_service = create_pointer_service(caching_client_data, ant_tp_config_data);
 
-    info!("Getting pointer at [{}]", address);
+    debug!("Getting pointer at [{}]", address);
     pointer_service.get_pointer(address).await
 }
 

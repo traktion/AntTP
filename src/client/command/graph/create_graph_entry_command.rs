@@ -1,14 +1,17 @@
 use actix_web::web::Data;
 use async_trait::async_trait;
-use autonomi::{GraphEntry};
+use autonomi::GraphEntry;
 use autonomi::client::payment::PaymentOption;
+use indexmap::IndexMap;
 use log::{debug, info};
 use sha2::Digest;
 use tokio::sync::Mutex;
 use crate::client::client_harness::ClientHarness;
-use crate::client::command::{Command, CommandError};
+use crate::client::command::error::CommandError;
+use crate::client::command::Command;
 
 pub struct CreateGraphEntryCommand {
+    id: u128,
     client_harness: Data<Mutex<ClientHarness>>,
     graph_entry: GraphEntry,
     payment_option: PaymentOption,
@@ -16,9 +19,12 @@ pub struct CreateGraphEntryCommand {
 
 impl CreateGraphEntryCommand {
     pub fn new(client_harness: Data<Mutex<ClientHarness>>, graph_entry: GraphEntry, payment_option: PaymentOption) -> Self {
-        Self { client_harness, graph_entry, payment_option }
+        let id = rand::random::<u128>();
+        Self { id, client_harness, graph_entry, payment_option }
     }
 }
+
+const STRUCT_NAME: &'static str = "CreateGraphEntryCommand";
 
 #[async_trait]
 impl Command for CreateGraphEntryCommand {
@@ -39,10 +45,24 @@ impl Command for CreateGraphEntryCommand {
         }
     }
 
-    fn get_hash(&self) -> Vec<u8> {
+    fn get_action_hash(&self) -> Vec<u8> {
         let mut hasher = sha2::Sha256::new();
-        hasher.update("CreateGraphEntryCommand");
+        hasher.update(STRUCT_NAME);
         hasher.update(self.graph_entry.owner.to_hex());
         hasher.finalize().to_ascii_lowercase()
+    }
+
+    fn get_id(&self) -> u128 {
+        self.id
+    }
+
+    fn get_name(&self) -> String {
+        STRUCT_NAME.to_string()
+    }
+
+    fn get_properties(&self) -> IndexMap<String, String> {
+        let mut properties = IndexMap::new();
+        properties.insert("graph_entry_owner".to_string(), self.graph_entry.owner.to_hex());
+        properties
     }
 }

@@ -1,15 +1,18 @@
 use actix_web::web::Data;
 use async_trait::async_trait;
-use autonomi::{SecretKey};
+use autonomi::SecretKey;
 use autonomi::client::payment::PaymentOption;
 use bytes::Bytes;
+use indexmap::IndexMap;
 use log::{debug, info};
 use sha2::Digest;
 use tokio::sync::Mutex;
 use crate::client::client_harness::ClientHarness;
-use crate::client::command::{Command, CommandError};
+use crate::client::command::Command;
+use crate::client::command::error::CommandError;
 
 pub struct CreatePrivateScratchpadCommand {
+    id: u128,
     client_harness: Data<Mutex<ClientHarness>>,
     owner: SecretKey,
     content_type: u64,
@@ -20,9 +23,12 @@ pub struct CreatePrivateScratchpadCommand {
 impl CreatePrivateScratchpadCommand {
     pub fn new(client_harness: Data<Mutex<ClientHarness>>, owner: SecretKey, content_type: u64,
                data: Bytes, payment_option: PaymentOption,) -> Self {
-        Self { client_harness, owner, content_type, data, payment_option }
+        let id = rand::random::<u128>();
+        Self { id, client_harness, owner, content_type, data, payment_option }
     }
 }
+
+const STRUCT_NAME: &'static str = "CreatePrivateScratchpadCommand";
 
 #[async_trait]
 impl Command for CreatePrivateScratchpadCommand {
@@ -43,12 +49,28 @@ impl Command for CreatePrivateScratchpadCommand {
         }
     }
 
-    fn get_hash(&self) -> Vec<u8> {
+    fn get_action_hash(&self) -> Vec<u8> {
         let mut hasher = sha2::Sha256::new();
-        hasher.update("CreatePrivateScratchpadCommand");
+        hasher.update(STRUCT_NAME);
         hasher.update(self.owner.to_hex());
         hasher.update(self.content_type.to_string());
         hasher.update(self.data.clone());
         hasher.finalize().to_ascii_lowercase()
+    }
+
+    fn get_id(&self) -> u128 {
+        self.id
+    }
+
+    fn get_name(&self) -> String {
+        STRUCT_NAME.to_string()
+    }
+
+    fn get_properties(&self) -> IndexMap<String, String> {
+        let mut properties = IndexMap::new();
+        properties.insert("owner".to_string(), self.owner.to_hex());
+        properties.insert("content_type".to_string(), self.content_type.to_string());
+        properties.insert("data".to_string(), "tbc".to_string()); // todo: improve
+        properties
     }
 }

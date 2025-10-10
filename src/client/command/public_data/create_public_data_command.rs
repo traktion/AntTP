@@ -2,24 +2,29 @@ use actix_web::web::Data;
 use async_trait::async_trait;
 use autonomi::client::payment::PaymentOption;
 use bytes::Bytes;
+use indexmap::IndexMap;
 use log::info;
 use sha2::Digest;
 use tokio::sync::Mutex;
 use crate::client::client_harness::ClientHarness;
-use crate::client::command::{Command, CommandError};
+use crate::client::command::error::CommandError;
+use crate::client::command::Command;
 
 pub struct CreatePublicDataCommand {
+    id: u128,
     client_harness: Data<Mutex<ClientHarness>>,
     data: Bytes,
     payment_option: PaymentOption,
 }
 
 impl CreatePublicDataCommand {
-    pub fn new(client_harness: Data<Mutex<ClientHarness>>, data: Bytes,
-               payment_option: PaymentOption) -> Self {
-        Self { client_harness, data, payment_option }
+    pub fn new(client_harness: Data<Mutex<ClientHarness>>, data: Bytes, payment_option: PaymentOption) -> Self {
+        let id = rand::random::<u128>();
+        Self { id, client_harness, data, payment_option }
     }
 }
+
+const STRUCT_NAME: &'static str = "CreatePublicDataCommand";
 
 #[async_trait]
 impl Command for CreatePublicDataCommand {
@@ -38,10 +43,24 @@ impl Command for CreatePublicDataCommand {
         }
     }
 
-    fn get_hash(&self) -> Vec<u8> {
+    fn get_action_hash(&self) -> Vec<u8> {
         let mut hasher = sha2::Sha256::new();
-        hasher.update("CreatePublicDataCommand");
+        hasher.update(STRUCT_NAME);
         hasher.update(self.data.clone());
         hasher.finalize().to_ascii_lowercase()
+    }
+
+    fn get_id(&self) -> u128 {
+        self.id
+    }
+
+    fn get_name(&self) -> String {
+        STRUCT_NAME.to_string()
+    }
+
+    fn get_properties(&self) -> IndexMap<String, String> {
+        let mut properties = IndexMap::new();
+        properties.insert("data".to_string(), "tbc".to_string()); // todo: improve
+        properties
     }
 }

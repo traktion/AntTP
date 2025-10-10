@@ -2,14 +2,17 @@ use actix_web::web::Data;
 use async_trait::async_trait;
 use autonomi::GraphEntryAddress;
 use foyer::HybridCache;
+use indexmap::IndexMap;
 use log::{debug, info};
 use sha2::Digest;
 use tokio::sync::Mutex;
 use crate::client::cache_item::CacheItem;
 use crate::client::client_harness::ClientHarness;
-use crate::client::command::{Command, CommandError};
+use crate::client::command::error::CommandError;
+use crate::client::command::Command;
 
 pub struct GetGraphEntryCommand {
+    id: u128,
     client_harness: Data<Mutex<ClientHarness>>,
     hybrid_cache: Data<HybridCache<String, Vec<u8>>>,
     graph_entry_address: GraphEntryAddress,
@@ -18,9 +21,12 @@ pub struct GetGraphEntryCommand {
 
 impl GetGraphEntryCommand {
     pub fn new(client_harness: Data<Mutex<ClientHarness>>, hybrid_cache: Data<HybridCache<String, Vec<u8>>>, graph_entry_address: GraphEntryAddress, ttl: u64) -> Self {
-        Self { client_harness, hybrid_cache, graph_entry_address, ttl }
+        let id = rand::random::<u128>();
+        Self { id, client_harness, hybrid_cache, graph_entry_address, ttl }
     }
 }
+
+const STRUCT_NAME: &'static str = "GetGraphEntryCommand";
 
 #[async_trait]
 impl Command for GetGraphEntryCommand {
@@ -49,10 +55,24 @@ impl Command for GetGraphEntryCommand {
         }
     }
 
-    fn get_hash(&self) -> Vec<u8> {
+    fn get_action_hash(&self) -> Vec<u8> {
         let mut hasher = sha2::Sha256::new();
-        hasher.update("GetGraphEntryCommand");
+        hasher.update(STRUCT_NAME);
         hasher.update(self.graph_entry_address.to_hex());
         hasher.finalize().to_ascii_lowercase()
+    }
+
+    fn get_id(&self) -> u128 {
+        self.id
+    }
+
+    fn get_name(&self) -> String {
+        STRUCT_NAME.to_string()
+    }
+
+    fn get_properties(&self) -> IndexMap<String, String> {
+        let mut properties = IndexMap::new();
+        properties.insert("graph_entry_address".to_string(), self.graph_entry_address.to_hex());
+        properties
     }
 }

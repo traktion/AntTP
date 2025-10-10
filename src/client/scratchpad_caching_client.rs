@@ -115,7 +115,6 @@ impl CachingClient {
 
     pub async fn scratchpad_get(&self, address: &ScratchpadAddress) -> Result<Scratchpad, ScratchpadError> {
         let local_address = address.clone();
-        let local_hybrid_cache = self.hybrid_cache.clone();
         let local_ant_tp_config = self.ant_tp_config.clone();
         match self.hybrid_cache.get_ref().fetch(format!("sg{}", local_address.to_hex()), {
             let maybe_local_client = self.client_harness.get_ref().lock().await.get_client().await;
@@ -125,7 +124,6 @@ impl CachingClient {
                         match client.scratchpad_get(&local_address).await {
                             Ok(scratchpad) => {
                                 debug!("found scratchpad for address [{}]", local_address.to_hex());
-                                debug!("hybrid cache stats [{:?}], memory cache usage [{:?}]", local_hybrid_cache.statistics(), local_hybrid_cache.memory().usage());
                                 let cache_item = CacheItem::new(Some(scratchpad.clone()), local_ant_tp_config.cached_mutable_ttl);
                                 Ok(rmp_serde::to_vec(&cache_item).expect("Failed to serialize scratchpad"))
                             }

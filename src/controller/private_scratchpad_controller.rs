@@ -1,7 +1,7 @@
 use actix_web::{web, HttpRequest, Responder};
 use actix_web::web::Data;
 use ant_evm::EvmWallet;
-use log::info;
+use log::debug;
 use crate::client::CachingClient;
 use crate::config::anttp_config::AntTpConfig;
 use crate::controller::cache_only;
@@ -36,7 +36,7 @@ pub async fn post_private_scratchpad(
         ant_tp_config_data.get_ref().clone(),
     );
 
-    info!("Creating new private scratchpad");
+    debug!("Creating new private scratchpad");
     scratchpad_service.create_scratchpad(name, scratchpad.into_inner(), evm_wallet_data.get_ref().clone(), true, cache_only(request)).await
 }
 
@@ -71,7 +71,7 @@ pub async fn put_private_scratchpad(
         ant_tp_config_data.get_ref().clone(),
     );
 
-    info!("Updating private scratchpad");
+    debug!("Updating private scratchpad");
     scratchpad_service.update_scratchpad(address, name, scratchpad.into_inner(), evm_wallet_data.get_ref().clone(), true, cache_only(request)).await
 }
 
@@ -99,6 +99,6 @@ pub async fn get_private_scratchpad(
         ant_tp_config_data.get_ref().clone(),
     );
 
-    info!("Getting private scratchpad at [{}] with name [{}]", address, name);
+    debug!("Getting private scratchpad at [{}] with name [{}]", address, name);
     scratchpad_service.get_scratchpad(address, Some(name), true).await
 }

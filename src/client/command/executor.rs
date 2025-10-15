@@ -33,11 +33,11 @@ impl Executor {
             while let Some(command) = command_executor_receiver.recv().await {
                 let command_action_hash = command.get_action_hash();
                 if last_hash == command_action_hash {
-                    Self::update_executor_map(&executor_map, command.get_id(), ABORTED).await;
+                    Self::update_executor_map(&executor_map, buffer_size, command.get_id(), ABORTED).await;
                 } else {
-                    Self::update_executor_map(&executor_map, command.get_id(), RUNNING).await;
+                    Self::update_executor_map(&executor_map, buffer_size, command.get_id(), RUNNING).await;
                     command.execute().await.unwrap();
-                    Self::update_executor_map(&executor_map, command.get_id(), COMPLETED).await;
+                    Self::update_executor_map(&executor_map, buffer_size, command.get_id(), COMPLETED).await;
                     last_hash = command_action_hash;
                 }
             }
@@ -52,7 +52,7 @@ impl Executor {
         debug!("command queue {:?}", executor_map_string);
     }*/
 
-    async fn update_executor_map(executor_map: &Data<Mutex<IndexMap<u128, CommandDetails>>>, command_id: u128, command_state: CommandState) {
+    async fn update_executor_map(executor_map: &Data<Mutex<IndexMap<u128, CommandDetails>>>, buffer_size: usize, command_id: u128, command_state: CommandState) {
         let maybe_command_details = match executor_map.get_ref().lock().await.get(&command_id) {
             Some(command_details) => {
                 let mut new_command_details = command_details.clone();
@@ -64,6 +64,11 @@ impl Executor {
         if let Some(command_detail) = maybe_command_details {
             executor_map.get_ref().lock().await.insert(command_id.clone(), command_detail.clone());
             debug!("command status: [{:?}]", command_detail);
+        }
+        if executor_map.get_ref().lock().await.len() > (buffer_size * 128) {
+            // todo: tune size/content to prevent useful records scrolling out of the map
+            // todo: improve performance as this is O(n)
+            executor_map.get_ref().lock().await.shift_remove_index(0);
         }
     }
 }

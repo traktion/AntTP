@@ -32,7 +32,7 @@ impl Command for UpdatePrivateScratchpadCommand {
     async fn execute(&self) -> Result<(), CommandError> {
         let client = match self.client_harness.get_ref().lock().await.get_client().await {
             Some(client) => client,
-            None => return Err(CommandError::from(String::from("network offline")))
+            None => return Err(CommandError::Recoverable(String::from("network offline")))
         };
 
         let scratchpad_address_hex = ScratchpadAddress::new(self.owner.public_key()).to_hex();
@@ -42,7 +42,7 @@ impl Command for UpdatePrivateScratchpadCommand {
                 info!("private scratchpad at address [{}] updated successfully", scratchpad_address_hex);
                 Ok(())
             },
-            Err(e) => Err(CommandError::from(e.to_string()))
+            Err(e) => Err(CommandError::Unrecoverable(e.to_string()))
         }
     }
 

@@ -31,7 +31,7 @@ impl Command for UpdatePointerCommand {
     async fn execute(&self) -> Result<(), CommandError> {
         let client = match self.client_harness.get_ref().lock().await.get_client().await {
             Some(client) => client,
-            None => return Err(CommandError::from(String::from("network offline")))
+            None => return Err(CommandError::Recoverable(String::from("network offline")))
         };
 
         let pointer_address_hex = PointerAddress::new(self.owner.public_key()).to_hex();
@@ -41,7 +41,7 @@ impl Command for UpdatePointerCommand {
                 info!("pointer at address [{}] updated successfully", pointer_address_hex);
                 Ok(())
             },
-            Err(e) => Err(CommandError::from(
+            Err(e) => Err(CommandError::Unrecoverable(
                 format!("Failed to update pointer for [{}] on network [{}]", pointer_address_hex, e)))
         }
     }

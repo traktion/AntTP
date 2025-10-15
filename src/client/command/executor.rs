@@ -1,11 +1,14 @@
+use std::time::Duration;
 use actix_web::web::Data;
 use indexmap::IndexMap;
-use log::debug;
+use log::{debug, error, warn};
 use tokio::sync::mpsc::{channel, Sender};
 use tokio::sync::Mutex;
+use tokio::time::sleep;
 use crate::client::command::Command;
 use crate::client::command::command_details::{CommandDetails, CommandState};
 use crate::client::command::command_details::CommandState::{ABORTED, COMPLETED, RUNNING};
+use crate::client::command::error::CommandError;
 
 pub struct Executor {}
 
@@ -36,7 +39,33 @@ impl Executor {
                     Self::update_executor_map(&executor_map, buffer_size, command.get_id(), ABORTED).await;
                 } else {
                     Self::update_executor_map(&executor_map, buffer_size, command.get_id(), RUNNING).await;
-                    command.execute().await.unwrap();
+
+                    let mut attempt = 1;
+                    loop {
+                        match command.execute().await {
+                            Ok(_) => break,
+                            Err(error) => {
+                                match error {
+                                    CommandError::Unrecoverable(_) => {
+                                        error!("failed to execute command [{}] with single attempt (skipping): [{:?}]", command.get_id(), error);
+                                        break;
+                                    },
+                                    CommandError::Recoverable(_) => {
+                                        if attempt <= 5 {
+                                            warn!("failed to execute command [{}] on attempt [{}] (retrying): [{:?}]", command.get_id(), attempt, error);
+                                            let backoff =  attempt * attempt;
+                                            sleep(Duration::from_secs(backoff)).await;
+                                            attempt += 1;
+                                        } else {
+                                            error!("failed to execute command [{}] after attempt [{}] (skipping): [{:?}]", command.get_id(), attempt, error);
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
                     Self::update_executor_map(&executor_map, buffer_size, command.get_id(), COMPLETED).await;
                     last_hash = command_action_hash;
                 }

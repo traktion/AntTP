@@ -31,7 +31,7 @@ impl Command for CreateGraphEntryCommand {
     async fn execute(&self) -> Result<(), CommandError> {
         let client = match self.client_harness.get_ref().lock().await.get_client().await {
             Some(client) => client,
-            None => return Err(CommandError::from(String::from("network offline")))
+            None => return Err(CommandError::Recoverable(String::from("network offline")))
         };
 
         let graph_entry_hex = self.graph_entry.address().to_string();
@@ -41,7 +41,7 @@ impl Command for CreateGraphEntryCommand {
                 info!("graph entry at address [{}] created successfully", graph_entry_hex);
                 Ok(())
             },
-            Err(e) => Err(CommandError::from(e.to_string()))
+            Err(e) => Err(CommandError::Unrecoverable(e.to_string()))
         }
     }
 

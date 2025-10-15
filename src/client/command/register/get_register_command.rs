@@ -33,7 +33,7 @@ impl Command for GetRegisterCommand {
     async fn execute(&self) -> Result<(), CommandError> {
         let client = match self.client_harness.get_ref().lock().await.get_client().await {
             Some(client) => client,
-            None => return Err(CommandError::from(String::from("network offline")))
+            None => return Err(CommandError::Recoverable(String::from("network offline")))
         };
         let register_address_hex = self.register_address.to_hex();
         debug!("refreshing hybrid cache with register for [{}] from network", register_address_hex);
@@ -48,7 +48,7 @@ impl Command for GetRegisterCommand {
                 Ok(())
             }
             Err(e) => {
-                Err(CommandError::from(
+                Err(CommandError::Unrecoverable(
                     format!("Failed to refresh hybrid cache with register for [{}] from network [{}]", register_address_hex, e)))
             }
         }

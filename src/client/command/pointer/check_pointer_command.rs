@@ -33,7 +33,7 @@ impl Command for CheckPointerCommand {
     async fn execute(&self) -> Result<(), CommandError> {
         let client = match self.client_harness.get_ref().lock().await.get_client().await {
             Some(client) => client,
-            None => return Err(CommandError::from(String::from("network offline")))
+            None => return Err(CommandError::Recoverable(String::from("network offline")))
         };
 
         let pointer_address_hex = self.pointer_address.to_hex();
@@ -49,7 +49,7 @@ impl Command for CheckPointerCommand {
                 Ok(())
             }
             Err(e) => {
-                Err(CommandError::from(
+                Err(CommandError::Recoverable(
                     format!("Failed to refresh hybrid cache with pointer check existence for [{}] from network [{}]", pointer_address_hex, e)))
             }
         }

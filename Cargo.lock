@@ -1048,15 +1048,16 @@ dependencies = [
 
 [[package]]
 name = "ant-bootstrap"
-version = "0.2.8"
+version = "0.2.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3a963b19fe0486aa507d5086ff77dbe8f80be2c24d2411263c4f7da780ce57d1"
+checksum = "e9fcc8926994650f50066d591ee60f6a19486189b7d92e7528180cb23b23bdce"
 dependencies = [
  "ant-logging",
  "ant-protocol",
  "atomic-write-file",
  "chrono",
  "clap",
+ "custom_debug",
  "dirs-next",
  "futures",
  "libp2p",
@@ -1152,7 +1153,7 @@ dependencies = [
 
 [[package]]
 name = "anttp"
-version = "0.16.3"
+version = "0.16.4"
 dependencies = [
  "actix-files",
  "actix-http",
@@ -1542,9 +1543,9 @@ checksum = "c08606f8c3cbf4ce6ec8e28fb0014a2c086708fe954eaa885384a6165172e7e8"
 
 [[package]]
 name = "autonomi"
-version = "0.6.1"
+version = "0.6.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "788c294c4bec41d8e436c3a91ee5b4181243d7b33ed53aec483f3f65edf7d759"
+checksum = "4097e084c85e7ee5145bbfc968b1118b313a50d4fb9fe12b2dd9ea9b3b5688ad"
 dependencies = [
  "ant-bootstrap",
  "ant-evm",
@@ -1567,7 +1568,7 @@ dependencies = [
  "rayon",
  "rmp-serde",
  "self_encryption 0.30.0",
- "self_encryption 0.34.1",
+ "self_encryption 0.34.2",
  "serde",
  "sha2",
  "thiserror 1.0.69",
@@ -1999,9 +2000,9 @@ dependencies = [
 
 [[package]]
 name = "chunk-streamer"
-version = "0.4.5"
+version = "0.4.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7e797648a9deefd909da54831e923fc024e2f040eca5b22f6c4ff44fdff7beb6"
+checksum = "a69516e92617671fe2f986ee23ae5a692dc2c426a1ae7fe37f041da213d90a29"
 dependencies = [
  "async-trait",
  "autonomi",
@@ -2010,7 +2011,7 @@ dependencies = [
  "futures-util",
  "log",
  "rmp-serde",
- "self_encryption 0.34.1",
+ "self_encryption 0.34.2",
  "tokio",
 ]
 
@@ -2860,9 +2861,9 @@ dependencies = [
 
 [[package]]
 name = "evmlib"
-version = "0.4.4"
+version = "0.4.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "165fa357f47d5290b3d141419eb25a17110a2c9fa1863f6947041a9221b96ff9"
+checksum = "19c3b7976496b986a46cd38235968b60fa025b869e53d7d85db0693e606703b2"
 dependencies = [
  "alloy",
  "rand 0.8.5",
@@ -6385,9 +6386,9 @@ dependencies = [
 
 [[package]]
 name = "self_encryption"
-version = "0.34.1"
+version = "0.34.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "636a9d557a649b7c30068e270212eb42967384034de9fa8250fbbc55b65b43a7"
+checksum = "2b64f0a0beeb7e5e98c76a53af19519f552c1b2fcd7c781c5b839063d34e6604"
 dependencies = [
  "aes",
  "bincode",
@@ -7003,29 +7004,26 @@ checksum = "1f3ccbac311fea05f86f61904b462b55fb3df8837a366dfc601a0161d0532f20"
 
 [[package]]
 name = "tokio"
-version = "1.47.1"
+version = "1.48.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "89e49afdadebb872d3145a5638b59eb0691ea23e46ca484037cfab3b76b95038"
+checksum = "ff360e02eab121e0bc37a2d3b4d4dc622e6eda3a8e5253d5435ecf5bd4c68408"
 dependencies = [
- "backtrace",
  "bytes",
- "io-uring",
  "libc",
  "mio",
  "parking_lot",
  "pin-project-lite",
  "signal-hook-registry",
- "slab",
  "socket2 0.6.0",
  "tokio-macros",
- "windows-sys 0.59.0",
+ "windows-sys 0.61.0",
 ]
 
 [[package]]
 name = "tokio-macros"
-version = "2.5.0"
+version = "2.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6e06d43f1345a3bcd39f6a56dbb7dcab2ba47e68e8ac134855e7e2bdbaf8cab8"
+checksum = "af407857209536a95c8e56f8231ef2c2e2aff839b22e07a1ffcbc617e9db9fa5"
 dependencies = [
  "proc-macro2",
  "quote",

@@ -17,6 +17,7 @@ impl Display for CommandState {
 
 #[derive(Clone, Debug)]
 pub struct CommandDetails {
+    id: u128,
     name: String,
     properties: IndexMap<String, String>,
     state: CommandState,
@@ -27,13 +28,14 @@ pub struct CommandDetails {
 
 impl CommandDetails {
     pub fn new(command: &Box<dyn Command>) -> Self {
+        let id = command.get_id();
         let name = command.get_name();
         let properties = command.get_properties();
         let state = CommandState::WAITING;
         let waiting_at = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_millis();
         let running_at = None;
         let terminated_at = None;
-        Self {name, properties, state, waiting_at, running_at, terminated_at }
+        Self { id, name, properties, state, waiting_at, running_at, terminated_at }
     }
 
     pub fn set_state(&mut self, state: CommandState) {
@@ -45,6 +47,10 @@ impl CommandDetails {
                 self.terminated_at = Some(SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_millis()),
             _ => warn!("can only change command state to running, completed or aborted"),
         }
+    }
+
+    pub fn id(&self) -> u128 {
+        self.id
     }
 
     pub fn name(&self) -> &String {
@@ -86,8 +92,8 @@ impl Display for CommandDetails {
         };
 
         write!(f,
-               "name: [{}], properties: [{}], state: [{}], waiting_at: [{}], running_at: [{}], terminated_at: [{}]",
-               self.name, properties, self.state, self.waiting_at, running_at, terminated_at
+               "id: [{}], name: [{}], properties: [{}], state: [{}], waiting_at: [{}], running_at: [{}], terminated_at: [{}]",
+               self.id, self.name, properties, self.state, self.waiting_at, running_at, terminated_at
         )
     }
 }

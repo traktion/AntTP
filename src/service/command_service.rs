@@ -8,6 +8,7 @@ use crate::client::command::command_details::CommandDetails;
 
 #[derive(ToSchema, Serialize, Deserialize, Debug, Clone)]
 pub struct Command {
+    id: String,
     name: String,
     properties: Vec<Property>,
     state: String,
@@ -17,9 +18,9 @@ pub struct Command {
 }
 
 impl Command {
-    pub fn new(name: String, properties: Vec<Property>, state: String, waiting_at: u128,
+    pub fn new(id: String, name: String, properties: Vec<Property>, state: String, waiting_at: u128,
                running_at: Option<u128>, terminated_at: Option<u128>) -> Self {
-        Self { name, properties, state, waiting_at, running_at, terminated_at }
+        Self { id, name, properties, state, waiting_at, running_at, terminated_at }
     }
 }
 
@@ -54,7 +55,10 @@ impl CommandService {
         commands_map.values().for_each(|v|{
             let mut properties = Vec::<Property>::with_capacity(v.properties().len());
             v.properties().iter().for_each(|(k, v)|properties.push(Property::new(k.clone(), v.clone())));
-            commands.push(Command::new(v.name().clone(), properties, v.state().to_string(), v.waiting_at(), v.running_at(), v.terminated_at()))
+            commands.push(
+                Command::new(v.id().to_string(), v.name().clone(), properties, v.state().to_string(),
+                             v.waiting_at(), v.running_at(), v.terminated_at())
+            )
         });
 
         Ok(HttpResponse::Ok().json(CommandList(commands)).into())

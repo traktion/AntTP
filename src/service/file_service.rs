@@ -1,19 +1,50 @@
 use std::path::Path;
-use std::time::{Duration, SystemTime};
-use actix_files::file_extension_to_mime;
 use actix_http::header;
-use actix_web::{Error, HttpRequest, HttpResponse};
+use actix_web::{Error, HttpRequest};
 use actix_web::error::{ErrorInternalServerError, ErrorNotFound};
-use actix_web::http::header::{CacheControl, CacheDirective, ContentLength, ContentRange, ContentRangeSpec, ContentType, ETag, EntityTag, Expires};
 use autonomi::{ChunkAddress};
 use chunk_streamer::chunk_receiver::ChunkReceiver;
 use chunk_streamer::chunk_streamer::ChunkStreamer;
 use log::{debug, info};
 use xor_name::XorName;
 use crate::client::CachingClient;
+use crate::client::error::{ChunkError, GetStreamError};
 use crate::config::anttp_config::AntTpConfig;
-use crate::service::archive_helper::{DataState};
-use crate::service::resolver_service::{ResolvedAddress, ResolverService};
+use crate::service::resolver_service::ResolvedAddress;
+
+pub struct RangeProps {
+    range_from: Option<u64>,
+    range_to: Option<u64>,
+    content_length: u64,
+    extension: String,
+}
+
+impl RangeProps {
+    pub fn new(range_from: Option<u64>, range_to: Option<u64>, content_length: u64, extension: String) -> Self {
+        Self { range_from, range_to, content_length, extension }
+    }
+
+    pub fn is_range(&self) -> bool {
+        self.range_from.is_some() && self.range_to.is_some()
+    }
+
+
+    pub fn range_from(&self) -> Option<u64> {
+        self.range_from
+    }
+
+    pub fn range_to(&self) -> Option<u64> {
+        self.range_to
+    }
+
+    pub fn content_length(&self) -> u64 {
+        self.content_length
+    }
+
+    pub fn extension(&self) -> &str {
+        &self.extension
+    }
+}
 
 pub struct Range {
     pub start: u64,
@@ -22,50 +53,30 @@ pub struct Range {
 
 pub struct FileService {
     caching_client: CachingClient,
-    xor_helper: ResolverService,
     ant_tp_config: AntTpConfig,
 }
 
 impl FileService {
-    pub fn new(caching_client: CachingClient, xor_helper: ResolverService, ant_tp_config: AntTpConfig) -> Self {
-        FileService { caching_client, xor_helper, ant_tp_config }
+    pub fn new(caching_client: CachingClient, ant_tp_config: AntTpConfig) -> Self {
+        FileService { caching_client, ant_tp_config }
     }
 
-    pub async fn get_data(&self, resolved_address: ResolvedAddress, request: HttpRequest, path_parts: Vec<String>) -> Result<HttpResponse, Error> {
-        let (archive_addr, _) = self.xor_helper.assign_path_parts(path_parts.clone());
+    pub async fn get_data(&self, resolved_address: &ResolvedAddress, request: &HttpRequest, path_parts: &Vec<String>) -> Result<(ChunkReceiver, RangeProps), ChunkError> {
         let archive_relative_path = path_parts[1..].join("/").to_string();
-
-        if self.xor_helper.get_data_state(request.headers(), &resolved_address.xor_name) == DataState::NotModified {
-            info!("ETag matches for path [{}] at address [{}]. Client can use cached version", archive_addr, format!("{:x}", resolved_address.xor_name).as_str());
-            let cache_control_header = self.build_cache_control_header(&resolved_address.xor_name, resolved_address.is_mutable);
-            let expires_header = self.build_expires_header(&resolved_address.xor_name, resolved_address.is_mutable);
-            let etag_header = ETag(EntityTag::new_strong(format!("{:x}", resolved_address.xor_name).to_owned()));
-            let cors_allow_all = (header::ACCESS_CONTROL_ALLOW_ORIGIN, "*");
-            let server_header = (header::SERVER, format!("{}/{}", env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION")));
-            Ok(HttpResponse::NotModified()
-                .insert_header(cache_control_header)
-                .insert_header(expires_header)
-                .insert_header(etag_header)
-                .insert_header(cors_allow_all)
-                .insert_header(server_header)
-                .finish())
-        } else {
-            self.download_data_stream(archive_relative_path, resolved_address.xor_name, resolved_address, &request,  0, 0).await
-        }
+        self.download_data_stream(archive_relative_path, resolved_address.xor_name, request,  0, 0).await
     }
 
     pub async fn download_data_stream(
         &self,
         path_str: String,
         xor_name: XorName,
-        resolved_address: ResolvedAddress,
         request: &HttpRequest,
         offset_modifier: u64,
         size_modifier: u64,
-    ) -> Result<HttpResponse, Error> {
+    ) -> Result<(ChunkReceiver, RangeProps), ChunkError> {
         let data_map_chunk = match self.caching_client.chunk_get_internal(&ChunkAddress::new(xor_name)).await {
             Ok(chunk) => chunk,
-            Err(e) => return Err(ErrorNotFound(format!("chunk not found [{}]", e)))
+            Err(e) => return Err(e)
         };
 
         let chunk_streamer = ChunkStreamer::new(xor_name.to_string(), data_map_chunk.value, self.caching_client.clone(), self.ant_tp_config.download_threads);
@@ -80,50 +91,25 @@ impl FileService {
 
         let (range_from, range_to, range_length, is_range_request) = self.get_range(&request, offset_modifier, content_length);
         if is_range_request && range_length == 0 {
-            return Ok(HttpResponse::RangeNotSatisfiable()
-                .insert_header(ContentRange(ContentRangeSpec::Bytes { range: None, instance_length: Some(content_length) }))
-                .finish());
+            return Err(ChunkError::GetStreamError(GetStreamError::BadRange(format!("Bad range length: [{}]", range_length))));
         }
 
         let chunk_receiver = match chunk_streamer.open(range_from, range_to).await {
             Ok(chunk_receiver) => chunk_receiver,
-            Err(e) => return Err(ErrorInternalServerError(format!("failed to open chunk stream: {}", e))),
+            Err(e) => return Err(ChunkError::GetStreamError(GetStreamError::BadReceiver(format!("failed to open chunk stream: {}", e)))),
         };
-        
-        let etag_header = ETag(EntityTag::new_strong(format!("{:x}", xor_name).to_owned()));
-        let cors_allow_all = (header::ACCESS_CONTROL_ALLOW_ORIGIN, "*");
-        let server_header = (header::SERVER, format!("{}/{}", env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION")));
-        
-        let cache_control_header = self.build_cache_control_header(&xor_name, resolved_address.is_mutable);
-        let expires_header = self.build_expires_header(&xor_name, resolved_address.is_mutable);
+
         let extension = Path::new(&path_str).extension().unwrap_or_default().to_str().unwrap_or_default();
         if is_range_request {
             let response_range_from = range_from - offset_modifier;
             let response_range_to = range_to - offset_modifier;
             info!("streaming item [{}] at addr [{}], range_from: [{}], range_to: [{}], offset_modifier: [{}], size_modifier: [{}], content_length: [{}], range_length: [{}], response_range_from: [{}], response_range_to: [{}]",
             path_str, format!("{:x}", xor_name), range_from, range_to, offset_modifier, size_modifier, content_length, range_length, response_range_from, response_range_to);
-            Ok(HttpResponse::PartialContent()
-                .insert_header(ContentRange(ContentRangeSpec::Bytes { range: Some((response_range_from, response_range_to)), instance_length: Some(content_length) }))
-                .insert_header((header::ACCEPT_RANGES, "bytes"))
-                .insert_header(cache_control_header)
-                .insert_header(expires_header)
-                .insert_header(etag_header)
-                .insert_header(cors_allow_all)
-                .insert_header(self.get_content_type_from_filename(extension))
-                .insert_header(server_header)
-                .streaming(chunk_receiver))
+            Ok((chunk_receiver, RangeProps::new(Some(response_range_from), Some(response_range_to), content_length, extension.to_string())))
         } else {
             info!("streaming item [{}] at addr [{}], offset_modifier: [{}], size_modifier: [{}], file_size: [{}]",
             path_str, format!("{:x}", xor_name), offset_modifier, size_modifier, content_length);
-            Ok(HttpResponse::Ok()
-                .insert_header(ContentLength(usize::try_from(content_length).unwrap()))
-                .insert_header(cache_control_header)
-                .insert_header(expires_header)
-                .insert_header(etag_header)
-                .insert_header(cors_allow_all)
-                .insert_header(self.get_content_type_from_filename(extension))
-                .insert_header(server_header)
-                .streaming(chunk_receiver))
+            Ok((chunk_receiver, RangeProps::new(None, None, content_length, extension.to_string())))
         }
     }
 
@@ -168,31 +154,6 @@ impl FileService {
             }
         } else {
             (offset_modifier, range_to, length, false)
-        }
-    }
-
-    fn build_cache_control_header(&self, xor_name: &XorName, is_resolved_file_name: bool) -> CacheControl {
-        if !is_resolved_file_name && self.xor_helper.is_immutable_address(&format!("{:x}", xor_name)) {
-            CacheControl(vec![CacheDirective::MaxAge(u32::MAX), CacheDirective::Public]) // immutable
-        } else {
-            CacheControl(vec![CacheDirective::MaxAge(u32::try_from(self.ant_tp_config.cached_mutable_ttl).unwrap()), CacheDirective::Public]) // mutable
-        }
-    }
-
-    fn build_expires_header(&self, xor_name: &XorName, is_resolved_file_name: bool) -> Expires {
-        if !is_resolved_file_name && self.xor_helper.is_immutable_address(&format!("{:x}", xor_name)) {
-            Expires((SystemTime::now() + Duration::from_secs(u64::from(u32::MAX))).into()) // immutable
-        } else {
-            Expires((SystemTime::now() + Duration::from_secs(self.ant_tp_config.cached_mutable_ttl)).into()) // mutable
-        }
-    }
-
-    fn get_content_type_from_filename(&self, extension: &str) -> ContentType {
-        // todo: remove markdown exclusion when IMIM fixed
-        if extension != "" && extension != "md" {
-            ContentType(file_extension_to_mime(extension))
-        } else {
-            ContentType(mime::TEXT_HTML) // default to text/html
         }
     }
 }

@@ -3,6 +3,7 @@ use actix_http::header::HeaderMap;
 use actix_web::{HttpRequest};
 use chrono::DateTime;
 use log::{debug, info};
+use mime::{Mime, APPLICATION_JSON, TEXT_HTML};
 use xor_name::XorName;
 use crate::client::CachingClient;
 use crate::config::anttp_config::AntTpConfig;
@@ -48,6 +49,15 @@ impl ArchiveInfo {
 impl ArchiveHelper {
     pub fn new(archive: Archive, ant_tp_config: AntTpConfig) -> ArchiveHelper {
         ArchiveHelper { archive, ant_tp_config }
+    }
+
+    pub fn get_accept_header_value(&self, header_map: &HeaderMap) -> Mime {
+        if header_map.contains_key("Accept")
+            && header_map.get("Accept").unwrap().to_str().unwrap().to_string().contains( "json") {
+            APPLICATION_JSON
+        } else {
+            TEXT_HTML
+        }
     }
     
     pub fn list_files(&self, path: String, header_map: &HeaderMap) -> String{
@@ -105,7 +115,7 @@ impl ArchiveHelper {
         output
     }
 
-    pub async fn resolve_archive_info(&self, path_parts: Vec<String>, request: HttpRequest, resolved_relative_path_route: String, has_route_map: bool, caching_client: CachingClient) -> ArchiveInfo {
+    pub async fn resolve_archive_info(&self, path_parts: &Vec<String>, request: HttpRequest, resolved_relative_path_route: String, has_route_map: bool, caching_client: CachingClient) -> ArchiveInfo {
         let request_path = request.path();
         let xor_helper = ResolverService::new(self.ant_tp_config.clone(), caching_client.clone());
         

@@ -2,10 +2,8 @@ use std::{env, fs};
 use std::fs::{create_dir};
 use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
-use actix_http::header;
 use actix_multipart::form::MultipartForm;
 use actix_multipart::form::tempfile::TempFile;
-use actix_web::http::header::{ETag, EntityTag};
 use actix_web::{Error, HttpRequest, HttpResponse};
 use actix_web::error::{ErrorNotFound};
 use actix_web::web::Data;
@@ -14,10 +12,11 @@ use autonomi::client::payment::PaymentOption;
 use autonomi::files::{Metadata, PublicArchive};
 use autonomi::files::archive_public::ArchiveAddress;
 use bytes::{BufMut, BytesMut};
+use chunk_streamer::chunk_receiver::ChunkReceiver;
 use log::{debug, error, info, warn};
-use crate::service::archive_helper::{ArchiveAction, ArchiveHelper, DataState};
+use crate::service::archive_helper::{ArchiveHelper, ArchiveInfo};
 use crate::client::CachingClient;
-use crate::service::file_service::FileService;
+use crate::service::file_service::{RangeProps, FileService};
 use crate::service::resolver_service::{ResolvedAddress, ResolverService};
 use futures_util::{StreamExt as _};
 use sanitize_filename::sanitize;
@@ -27,6 +26,7 @@ use uuid::Uuid;
 use xor_name::XorName;
 use crate::config::anttp_config::AntTpConfig;
 use crate::{UploadState, UploaderState};
+use crate::client::error::ChunkError;
 use crate::config::app_config::AppConfig;
 use crate::controller::CacheType;
 use crate::model::archive::Archive;
@@ -66,46 +66,29 @@ impl PublicArchiveService {
     pub fn new(file_client: FileService, resolver_service: ResolverService, uploader_state: Data<UploaderState>, upload_state: Data<UploadState>, ant_tp_config: AntTpConfig, caching_client: CachingClient) -> Self {
         PublicArchiveService { file_client, resolver_service, uploader_state, upload_state, ant_tp_config, caching_client }
     }
-    
-    pub async fn get_data(&self, resolved_address: ResolvedAddress, request: HttpRequest, path_parts: Vec<String>) -> Result<HttpResponse, Error> {
-        let archive = resolved_address.archive.clone().expect("Archive not found");
-        let (archive_addr, archive_file_name) = self.resolver_service.assign_path_parts(path_parts.clone());
-        debug!("Get data for archive_addr [{}], archive_file_name [{}]", archive_addr, archive_file_name);
 
+    pub async fn get_archive_info(&self, resolved_address: &ResolvedAddress, request: &HttpRequest, path_parts: &Vec<String>) -> ArchiveInfo {
+        let archive = resolved_address.archive.clone().expect("Archive not found");
         // load app_config from archive and resolve route
         let app_config = self.get_app_config(archive.clone(), resolved_address.xor_name).await;
         // resolve route
         let archive_relative_path = path_parts[1..].join("/").to_string();
+        let (archive_addr, archive_file_name) = self.resolver_service.assign_path_parts(path_parts.clone());
         let (resolved_relative_path_route, has_route_map) = app_config.resolve_route(archive_relative_path.clone(), archive_file_name.clone());
+
+
+        debug!("Get data for archive_addr [{}], archive_file_name [{}]", archive_addr, archive_file_name);
 
         // resolve file name to chunk address
         let archive_helper = ArchiveHelper::new(archive.clone(), self.ant_tp_config.clone());
-        let archive_info = archive_helper.resolve_archive_info(path_parts, request.clone(), resolved_relative_path_route.clone(), has_route_map, self.caching_client.clone()).await;
+        let archive_info = archive_helper.resolve_archive_info(&path_parts, request.clone(), resolved_relative_path_route.clone(), has_route_map, self.caching_client.clone()).await;
+        archive_info
+    }
+    
+    pub async fn get_data(&self, request: HttpRequest, path_parts: Vec<String>, archive_info: ArchiveInfo) -> Result<(ChunkReceiver, RangeProps), ChunkError> {
+        let archive_relative_path = path_parts[1..].join("/").to_string(); // todo: can this be in ArchiveInfo?
 
-        let server_header = (header::SERVER, format!("{}/{}", env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION")));
-        if archive_info.state == DataState::NotModified {
-            debug!("ETag matches for path [{}] at address [{}]. Client can use cached version", archive_info.path_string, format!("{:x}", archive_info.resolved_xor_addr));
-            Ok(HttpResponse::NotModified().into())
-        } else if archive_info.action == ArchiveAction::Redirect {
-            debug!("Redirect to archive directory [{}]", request.path().to_string() + "/");
-            Ok(HttpResponse::MovedPermanently()
-                .insert_header((header::LOCATION, request.path().to_string() + "/"))
-                .insert_header(server_header)
-                .finish())
-        } else if archive_info.action == ArchiveAction::NotFound {
-            debug!("Path not found {:?}", archive_info.path_string);
-            Err(ErrorNotFound(format!("File not found {:?}", archive_info.path_string)))
-        } else if archive_info.action == ArchiveAction::Listing {
-            debug!("List files in archive [{}]", archive_addr);
-            // todo: set header when js file
-            Ok(HttpResponse::Ok()
-                .insert_header(ETag(EntityTag::new_strong(format!("{:x}", resolved_address.xor_name).to_owned())))
-                .insert_header((header::ACCESS_CONTROL_ALLOW_ORIGIN, "*"))
-                .insert_header(server_header)
-                .body(archive_helper.list_files(archive_relative_path, request.headers()))) // todo: return .json / .body depending on accept header
-        } else {
-            self.file_client.download_data_stream(archive_relative_path, archive_info.resolved_xor_addr, resolved_address, &request, archive_info.offset, archive_info.size).await
-        }
+        self.file_client.download_data_stream(archive_relative_path, archive_info.resolved_xor_addr, &request, archive_info.offset, archive_info.size).await
     }
 
     pub async fn get_app_config(&self, archive: Archive, archive_address_xorname: XorName) -> AppConfig {

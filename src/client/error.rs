@@ -9,6 +9,8 @@ pub enum ChunkError {
     CreateError(SendError<Box<dyn Command>>),
     #[error("get error: {0}")]
     GetError(GetError),
+    #[error("get stream error: {0}")]
+    GetStreamError(GetStreamError),
 }
 
 #[derive(Error, Debug)]
@@ -31,6 +33,14 @@ pub enum PointerError {
     GetError(GetError),
     #[error("check error: {0}")]
     CheckError(CheckError),
+}
+
+#[derive(Error, Debug)]
+pub enum PublicArchiveError {
+    #[error("create error: {0}")]
+    CreateError(SendError<Box<dyn Command>>),
+    #[error("get error: {0}")]
+    GetError(GetError),
 }
 
 #[derive(Error, Debug)]
@@ -63,9 +73,9 @@ pub enum ScratchpadError {
 
 #[derive(Error, Debug)]
 pub enum GetError {
-    #[error("network error: {0}")]
+    #[error("record not found: {0}")]
     RecordNotFound(String),
-    #[error("bad address error: {0}")]
+    #[error("bad address: {0}")]
     BadAddress(String),
     #[error("address not derived from: {0}")]
     NotDerivedAddress(String),
@@ -77,12 +87,18 @@ pub enum GetError {
     DecryptionFailed(String),
     #[error("network is offline: {0}")]
     NetworkOffline(String),
-    #[error("streaming error: {0}")]
-    StreamingError(String),
+}
+
+#[derive(Error, Debug)]
+pub enum GetStreamError {
+    #[error("bad range: {0}")]
+    BadRange(String),
+    #[error("bad receiver: {0}")]
+    BadReceiver(String),
 }
 
 #[derive(Error, Debug)]
 pub enum CheckError {
-    #[error("network error: {0}")]
+    #[error("record not found: {0}")]
     RecordNotFound(String),
 }

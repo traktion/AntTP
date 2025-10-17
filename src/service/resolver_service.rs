@@ -22,7 +22,7 @@ pub struct ResolvedAddress {
 
 impl ResolvedAddress {
     pub fn new(is_found: bool, archive: Option<Archive>, xor_name: XorName, is_mutable: bool) -> Self {
-        ResolvedAddress { is_found, archive: archive, xor_name, is_mutable }
+        ResolvedAddress { is_found, archive, xor_name, is_mutable }
     }
 }
 

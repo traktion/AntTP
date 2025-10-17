@@ -15,7 +15,7 @@ use tokio::sync::Mutex;
 use crate::client::CachingClient;
 use crate::client::client_harness::ClientHarness;
 use crate::client::command::Command;
-use crate::client::error::{ChunkError, GetError};
+use crate::client::error::{ChunkError, GetStreamError};
 
 pub const ARCHIVE_TAR_IDX_BYTES: &[u8] = "\0archive.tar.idx\0".as_bytes();
 
@@ -88,7 +88,7 @@ impl CachingClient {
 
                 let mut chunk_receiver = match chunk_streamer.open(derived_range_from, derived_range_to).await {
                     Ok(chunk_receiver) => chunk_receiver,
-                    Err(e) => return Err(ChunkError::GetError(GetError::StreamingError(format!("failed to open chunk stream: {}", e)))),
+                    Err(e) => return Err(ChunkError::GetStreamError(GetStreamError::BadReceiver(format!("failed to open chunk stream: {}", e)))),
                 };
 
                 let mut buf = BytesMut::with_capacity(usize::try_from(derived_range_to - derived_range_from).expect("Failed to convert range from u64 to usize"));

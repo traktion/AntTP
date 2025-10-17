@@ -85,10 +85,10 @@ impl PublicArchiveService {
         archive_info
     }
     
-    pub async fn get_data(&self, request: HttpRequest, path_parts: Vec<String>, archive_info: ArchiveInfo) -> Result<(ChunkReceiver, RangeProps), ChunkError> {
+    pub async fn get_data(&self, request: &HttpRequest, path_parts: Vec<String>, archive_info: ArchiveInfo) -> Result<(ChunkReceiver, RangeProps), ChunkError> {
         let archive_relative_path = path_parts[1..].join("/").to_string(); // todo: can this be in ArchiveInfo?
 
-        self.file_client.download_data_stream(archive_relative_path, archive_info.resolved_xor_addr, &request, archive_info.offset, archive_info.size).await
+        self.file_client.download_data_stream(archive_relative_path, archive_info.resolved_xor_addr, request, archive_info.offset, archive_info.size).await
     }
 
     pub async fn get_app_config(&self, archive: Archive, archive_address_xorname: XorName) -> AppConfig {

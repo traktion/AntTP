@@ -1,27 +1,10 @@
-use std::error::Error;
-use std::fmt::{Debug, Display, Formatter};
+use std::fmt::Debug;
+use thiserror::Error;
 
+#[derive(Error, Debug)]
 pub enum CommandError {
+    #[error("unrecoverable error: {0}")]
     Unrecoverable(String),
+    #[error("recoverable error: {0}")]
     Recoverable(String),
 }
-
-impl Debug for CommandError {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match *self {
-            CommandError::Unrecoverable(ref message) => write!(f, "{}", message),
-            CommandError::Recoverable(ref message) => write!(f, "{}", message),
-        }
-    }
-}
-
-impl Display for CommandError {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match *self {
-            CommandError::Unrecoverable(ref message) => write!(f, "{}", message),
-            CommandError::Recoverable(ref message) => write!(f, "{}", message),
-        }
-    }
-}
-
-impl Error for CommandError {}

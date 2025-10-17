@@ -1,10 +1,10 @@
-use actix_web::{web, HttpRequest, Responder};
+use actix_web::{web, HttpRequest, HttpResponse, Responder};
 use actix_web::web::Data;
 use ant_evm::EvmWallet;
 use log::debug;
 use crate::client::CachingClient;
 use crate::config::anttp_config::AntTpConfig;
-use crate::controller::cache_only;
+use crate::controller::{cache_only, handle_scratchpad_error};
 use crate::service::scratchpad_service::{Scratchpad, ScratchpadService};
 
 #[utoipa::path(
@@ -100,5 +100,8 @@ pub async fn get_private_scratchpad(
     );
 
     debug!("Getting private scratchpad at [{}] with name [{}]", address, name);
-    scratchpad_service.get_scratchpad(address, Some(name), true).await
+    match scratchpad_service.get_scratchpad(address, Some(name), true).await {
+        Ok(scratchpad) => Ok(HttpResponse::Ok().json(scratchpad)),
+        Err(e) => Err(handle_scratchpad_error(e))
+    }
 }

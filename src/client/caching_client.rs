@@ -1,12 +1,10 @@
 use std::{fs};
-use actix_web::Error;
-use actix_web::error::ErrorInternalServerError;
 use actix_web::web::Data;
 use async_job::{Job, Schedule};
 use async_trait::async_trait;
 use autonomi::{ChunkAddress};
 use autonomi::data::DataAddress;
-use chunk_streamer::chunk_streamer::{ChunkGetter, ChunkStreamer};
+use chunk_streamer::chunk_streamer::ChunkStreamer;
 use foyer::HybridCache;
 use log::{error};
 use crate::config::anttp_config::AntTpConfig;
@@ -17,6 +15,7 @@ use tokio::sync::Mutex;
 use crate::client::CachingClient;
 use crate::client::client_harness::ClientHarness;
 use crate::client::command::Command;
+use crate::client::error::{ChunkError, GetError};
 
 pub const ARCHIVE_TAR_IDX_BYTES: &[u8] = "\0archive.tar.idx\0".as_bytes();
 
@@ -50,12 +49,12 @@ impl CachingClient {
 
     pub async fn download_stream(
         &self,
-        addr: DataAddress,
+        addr: &DataAddress,
         range_from: i64,
         range_to: i64,
-    ) -> Result<Bytes, Error> {
+    ) -> Result<Bytes, ChunkError> {
         // todo: combine with file_service code
-        match self.chunk_get(&ChunkAddress::new(*addr.xorname())).await {
+        match self.chunk_get_internal(&ChunkAddress::new(*addr.xorname())).await {
             Ok(data_map_chunk) => {
                 let chunk_streamer = ChunkStreamer::new(addr.to_hex(), data_map_chunk.value, self.clone(), self.ant_tp_config.download_threads);
                 // only retrieve the size when it is needed
@@ -89,7 +88,7 @@ impl CachingClient {
 
                 let mut chunk_receiver = match chunk_streamer.open(derived_range_from, derived_range_to).await {
                     Ok(chunk_receiver) => chunk_receiver,
-                    Err(e) => return Err(ErrorInternalServerError(format!("failed to open chunk stream: {}", e))),
+                    Err(e) => return Err(ChunkError::GetError(GetError::StreamingError(format!("failed to open chunk stream: {}", e)))),
                 };
 
                 let mut buf = BytesMut::with_capacity(usize::try_from(derived_range_to - derived_range_from).expect("Failed to convert range from u64 to usize"));
@@ -108,7 +107,7 @@ impl CachingClient {
                 }
                 Ok(buf.freeze())
             }
-            Err(e) => Err(ErrorInternalServerError(format!("Failed to download data map chunk: [{}]", e))),
+            Err(e) => Err(e)
         }
     }
 }

@@ -8,6 +8,7 @@ use log::{info, warn};
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 use crate::client::CachingClient;
+use crate::client::error::GraphError;
 use crate::config::anttp_config::AntTpConfig;
 use crate::controller::CacheType;
 
@@ -94,7 +95,7 @@ impl GraphService {
         }
     }
 
-    pub async fn get_graph_entry(&self, address: String) -> Result<HttpResponse, Error> {
+    pub async fn get_graph_entry(&self, address: String) -> Result<GraphEntry, GraphError> {
         let graph_entry_address = GraphEntryAddress::from_hex(address.as_str()).unwrap();
         match self.caching_client.graph_entry_get(&graph_entry_address).await {
             Ok(graph_entry) => {
@@ -121,13 +122,11 @@ impl GraphService {
                     None
                 };
 
-                let response_graph_entry = GraphEntry::new(
-                    None, hex::encode(graph_entry.content.clone()), Some(address), graph_parents, graph_descendants, None);
-                Ok(HttpResponse::Ok().json(response_graph_entry).into())
+                Ok(GraphEntry::new(None, hex::encode(graph_entry.content.clone()), Some(address), graph_parents, graph_descendants, None))
             }
             Err(e) => {
                 warn!("Failed to retrieve graph entry at address [{}]: [{:?}]", address, e);
-                Err(ErrorInternalServerError("Failed to retrieve graph entry at address"))
+                Err(e)
             }
         }
     }

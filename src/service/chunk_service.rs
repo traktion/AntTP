@@ -1,18 +1,16 @@
-use actix_http::header;
 use actix_web::{Error, HttpResponse};
 use actix_web::error::{ErrorInternalServerError};
-use actix_web::http::header::{ContentLength, ContentType};
 use autonomi::{ChunkAddress, Wallet};
 use autonomi::client::chunk as autonomi_chunk;
 use autonomi::client::payment::PaymentOption;
 use base64::Engine;
 use base64::prelude::BASE64_STANDARD;
 use bytes::{Bytes};
-use chunk_streamer::chunk_streamer::ChunkGetter;
 use log::{info, warn};
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 use crate::client::CachingClient;
+use crate::client::error::{ChunkError, GetError};
 use crate::controller::CacheType;
 
 #[derive(Serialize, Deserialize, ToSchema)]
@@ -72,39 +70,35 @@ impl ChunkService {
         }
     }
 
-    pub async fn get_chunk_binary(&self, address: String) -> Result<HttpResponse, Error> {
-        let chunk_address = ChunkAddress::from_hex(address.as_str()).unwrap();
-        match self.caching_client.chunk_get(&chunk_address).await {
-            Ok(chunk) => {
-                info!("Retrieved chunk at address [{}]", address);
-
-                // todo: add caching headers (etag, etc)
-                Ok(HttpResponse::Ok()
-                    .insert_header(ContentType::octet_stream())
-                    .insert_header(ContentLength(chunk.size()))
-                    .insert_header((header::SERVER, format!("{}/{}", env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION"))))
-                    .body(chunk.value))
-            }
-            Err(e) => {
-                warn!("Failed to retrieve chunk at address [{}]: [{:?}]", address, e);
-                Err(ErrorInternalServerError(format!("Failed to retrieve chunk at address [{}]", address)))
-            }
+    pub async fn get_chunk_binary(&self, address: String) -> Result<autonomi::Chunk, ChunkError> {
+        match ChunkAddress::from_hex(address.as_str()) {
+            Ok(chunk_address) => match self.caching_client.chunk_get_internal(&chunk_address).await {
+                Ok(chunk) => {
+                    info!("Retrieved chunk at address [{}]", address);
+                    Ok(chunk)
+                }
+                Err(e) => {
+                    warn!("Failed to retrieve chunk at address [{}]: [{:?}]", address, e);
+                    Err(ChunkError::GetError(GetError::RecordNotFound(e.to_string())))
+                }
+            },
+            Err(e) => Err(ChunkError::GetError(GetError::BadAddress(e.to_string())))
         }
     }
 
-    pub async fn get_chunk(&self, address: String) -> Result<HttpResponse, Error> {
-        let chunk_address = ChunkAddress::from_hex(address.as_str()).unwrap();
-        match self.caching_client.chunk_get(&chunk_address).await {
-            Ok(chunk) => {
-                info!("Retrieved chunk at address [{}]", address);
-                let encoded_chunk = BASE64_STANDARD.encode(chunk.value);
-                let response_chunk = Chunk::new(Some(encoded_chunk), Some(address), None);
-                Ok(HttpResponse::Ok().json(response_chunk).into())
-            }
-            Err(e) => {
-                warn!("Failed to retrieve chunk at address [{}]: [{:?}]", address, e);
-                Err(ErrorInternalServerError(format!("Failed to retrieve chunk at address [{}]", address)))
-            }
+    pub async fn get_chunk(&self, address: String) -> Result<Chunk, ChunkError> {
+        match ChunkAddress::from_hex(address.as_str()) {
+            Ok(chunk_address) => match self.caching_client.chunk_get_internal(&chunk_address).await {
+                Ok(chunk) => {
+                    info!("Retrieved chunk at address [{}]", address);
+                    Ok(Chunk::new(Some(BASE64_STANDARD.encode(chunk.value)), Some(address), None))
+                }
+                Err(e) => {
+                    warn!("Failed to retrieve chunk at address [{}]: [{:?}]", address, e);
+                    Err(ChunkError::GetError(GetError::RecordNotFound(e.to_string())))
+                }
+            },
+            Err(e) => Err(ChunkError::GetError(GetError::BadAddress(e.to_string()))),
         }
     }
 }

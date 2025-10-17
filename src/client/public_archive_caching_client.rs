@@ -32,7 +32,7 @@ impl CachingClient {
         let local_address = addr.clone();
         match self.hybrid_cache.get_ref().fetch(format!("pa{}", local_address.to_hex()), || async move {
             // todo: optimise range_to to first chunk length (to avoid downloading other chunks when not needed)
-            let maybe_bytes = local_caching_client.download_stream(local_address, 0, 524288).await;
+            let maybe_bytes = local_caching_client.download_stream(&local_address, 0, 524288).await;
             match maybe_bytes {
                 Ok(bytes) => {
                     let maybe_public_archive = PublicArchive::from_bytes(bytes.clone());

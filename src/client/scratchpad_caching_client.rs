@@ -1,7 +1,6 @@
 use ant_evm::AttoTokens;
 use autonomi::client::payment::PaymentOption;
 use autonomi::{Scratchpad, ScratchpadAddress, SecretKey};
-use autonomi::scratchpad::ScratchpadError;
 use bytes::Bytes;
 use log::{debug, info};
 use crate::client::cache_item::CacheItem;
@@ -11,6 +10,7 @@ use crate::client::command::scratchpad::create_public_scratchpad_command::Create
 use crate::client::command::scratchpad::get_scratchpad_command::GetScratchpadCommand;
 use crate::client::command::scratchpad::update_private_scratchpad_command::UpdatePrivateScratchpadCommand;
 use crate::client::command::scratchpad::update_public_scratchpad_command::UpdatePublicScratchpadCommand;
+use crate::client::error::{GetError, ScratchpadError};
 use crate::controller::CacheType;
 
 impl CachingClient {
@@ -117,20 +117,20 @@ impl CachingClient {
         let local_address = address.clone();
         let local_ant_tp_config = self.ant_tp_config.clone();
         match self.hybrid_cache.get_ref().fetch(format!("sg{}", local_address.to_hex()), {
-            let maybe_local_client = self.client_harness.get_ref().lock().await.get_client().await;
+            let client = match self.client_harness.get_ref().lock().await.get_client().await {
+                Some(client) => client,
+                None => return Err(ScratchpadError::GetError(GetError::NetworkOffline(
+                    format!("Failed to retrieve chunk for [{}] as offline network", local_address.to_hex()))))
+            };
+
             || async move {
-                match maybe_local_client {
-                    Some(client) => {
-                        match client.scratchpad_get(&local_address).await {
-                            Ok(scratchpad) => {
-                                debug!("found scratchpad for address [{}]", local_address.to_hex());
-                                let cache_item = CacheItem::new(Some(scratchpad.clone()), local_ant_tp_config.cached_mutable_ttl);
-                                Ok(rmp_serde::to_vec(&cache_item).expect("Failed to serialize scratchpad"))
-                            }
-                            Err(_) => Err(foyer::Error::other(format!("Failed to retrieve scratchpad for [{}] from network", local_address.to_hex())))
-                        }
-                    },
-                    None => Err(foyer::Error::other(format!("Failed to retrieve scratchpad for [{}] from offline network", local_address.to_hex())))
+                match client.scratchpad_get(&local_address).await {
+                    Ok(scratchpad) => {
+                        debug!("found scratchpad for address [{}]", local_address.to_hex());
+                        let cache_item = CacheItem::new(Some(scratchpad.clone()), local_ant_tp_config.cached_mutable_ttl);
+                        Ok(rmp_serde::to_vec(&cache_item).expect("Failed to serialize scratchpad"))
+                    }
+                    Err(_) => Err(foyer::Error::other(format!("Failed to retrieve scratchpad for [{}] from network", local_address.to_hex())))
                 }
             }
         }).await {
@@ -145,7 +145,7 @@ impl CachingClient {
                 // return last value
                 Ok(cache_item.item.unwrap())
             },
-            Err(_) => Err(ScratchpadError::Serialization),
+            Err(e) => Err(ScratchpadError::GetError(GetError::RecordNotFound(e.to_string()))),
         }
     }
 }

@@ -1,5 +1,5 @@
 use actix_web::{Error, HttpResponse};
-use actix_web::error::{ErrorBadRequest, ErrorInternalServerError, ErrorPreconditionFailed};
+use actix_web::error::{ErrorInternalServerError, ErrorPreconditionFailed};
 use autonomi::{Client, ScratchpadAddress, SecretKey, Wallet};
 use autonomi::client::payment::PaymentOption;
 use base64::Engine;
@@ -9,6 +9,7 @@ use log::{info, warn};
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 use crate::client::CachingClient;
+use crate::client::error::{GetError, ScratchpadError};
 use crate::config::anttp_config::AntTpConfig;
 use crate::controller::CacheType;
 
@@ -41,7 +42,6 @@ pub struct ScratchpadService {
 }
 
 impl ScratchpadService {
-
     pub fn new(caching_client: CachingClient, ant_tp_config: AntTpConfig) -> Self {
         ScratchpadService { caching_client, ant_tp_config }
     }
@@ -68,7 +68,7 @@ impl ScratchpadService {
                     Ok((cost, scratchpad_address)) => {
                         info!("Created {}scratchpad at [{}] for [{}] attos", if !is_encrypted { "public " } else { "" }, scratchpad_address.to_hex(), cost);
                         let response_scratchpad = Scratchpad::new(
-                            Some(name),Some(scratchpad_address.to_hex()), None, None, scratchpad.content, None, Some(cost.to_string()));
+                            Some(name), Some(scratchpad_address.to_hex()), None, None, scratchpad.content, None, Some(cost.to_string()));
                         Ok(HttpResponse::Created().json(response_scratchpad))
                     }
                     Err(e) => {
@@ -125,49 +125,57 @@ impl ScratchpadService {
         }
     }
 
-    pub async fn get_scratchpad(&self, address: String, name: Option<String>, is_encrypted: bool) -> Result<HttpResponse, Error> {
-        let scratchpad_address = ScratchpadAddress::from_hex(address.as_str()).unwrap();
-        match self.caching_client.scratchpad_get(&scratchpad_address).await {
-            Ok(scratchpad) => {
-                info!("Retrieved {}scratchpad at address [{}] with data sized [{}]", if !is_encrypted { "public " } else { "" }, address, scratchpad.encrypted_data().len());
+    pub async fn get_scratchpad(&self, address: String, name: Option<String>, is_encrypted: bool) -> Result<Scratchpad, ScratchpadError> {
+        match ScratchpadAddress::from_hex(address.as_str()) {
+            Ok(scratchpad_address) => match self.caching_client.scratchpad_get(&scratchpad_address).await {
+                Ok(scratchpad) => {
+                    info!("Retrieved {}scratchpad at address [{}] with data sized [{}]", if !is_encrypted { "public " } else { "" }, address, scratchpad.encrypted_data().len());
+                    match self.get_scratchpad_content(&address, name, is_encrypted, &scratchpad) {
+                        Ok(content) => {
+                            let signature = BASE64_STANDARD.encode(scratchpad.signature().to_bytes());
+                            Ok(Scratchpad::new(
+                                None, Some(address), Some(scratchpad.data_encoding()), Some(signature), Some(content), Some(scratchpad.counter()), None))
+                        },
+                        Err(e) => Err(e)
+                    }
+                }
+                Err(e) => {
+                    warn!("Failed to retrieve {}scratchpad at address [{}]: [{:?}]", if !is_encrypted { "public " } else { "" }, address, e);
+                    Err(e)
+                }
+            },
+            Err(e) => Err(ScratchpadError::GetError(GetError::BadAddress(e.to_string())))
+        }
+    }
 
-                let content = if is_encrypted {
-                    match name {
-                        Some(name) => {
-                            match SecretKey::from_hex(self.ant_tp_config.app_private_key.as_str()) {
-                                Ok(app_secret_key) => {
-                                    let scratchpad_key = Client::register_key_from_name(&app_secret_key, name.as_str());
-                                    if address != scratchpad_key.public_key().to_hex() {
-                                        warn!("Address [{}] is not derived from name [{}].", address, name);
-                                        return Err(ErrorPreconditionFailed(
-                                            format!("Address [{}] is not derived from name [{}].", address, name)));
-                                    }
-
-                                    match scratchpad.decrypt_data(&scratchpad_key) {
-                                        Ok(data) => BASE64_STANDARD.encode(data),
-                                        Err(e) => return Err(ErrorInternalServerError(
-                                            format!("Failed to decrypt private scratchpad at address [{}]: [{}]", address, e.to_string()))),
-                                    }
-                                },
-                                Err(e) => return Err(ErrorPreconditionFailed(
-                                    format!("AntTP app secret key must be provided: [{}]", e.to_string()))),
+    pub fn get_scratchpad_content(&self, address: &String, name: Option<String>, is_encrypted: bool, scratchpad: &autonomi::Scratchpad) -> Result<String, ScratchpadError> {
+        if is_encrypted {
+            match name {
+                Some(name) => {
+                    match SecretKey::from_hex(self.ant_tp_config.app_private_key.as_str()) {
+                        Ok(app_secret_key) => {
+                            let scratchpad_key = Client::register_key_from_name(&app_secret_key, name.as_str());
+                            if *address == scratchpad_key.public_key().to_hex() {
+                                match scratchpad.decrypt_data(&scratchpad_key) {
+                                    Ok(data) => Ok(BASE64_STANDARD.encode(data)),
+                                    Err(e) => Err(ScratchpadError::GetError(GetError::DecryptionFailed(
+                                        format!("Failed to decrypt private scratchpad at address [{}]: [{}]", address, e.to_string()))))
+                                }
+                            } else {
+                                warn!("Address [{}] is not derived from name [{}].", address, name);
+                                Err(ScratchpadError::GetError(GetError::NotDerivedAddress(
+                                    format!("Address [{}] is not derived from name [{}].", address, name))))
                             }
                         },
-                        None => return Err(ErrorBadRequest("Name required to get private scratchpad".to_string())),
+                        Err(e) => Err(ScratchpadError::GetError(GetError::DerivationKeyMissing(
+                            format!("AntTP app secret key must be provided: [{}]", e.to_string()))))
                     }
-                } else {
-                    BASE64_STANDARD.encode(scratchpad.encrypted_data())
-                };
-
-                let signature = BASE64_STANDARD.encode(scratchpad.signature().to_bytes());
-                let response_scratchpad = Scratchpad::new(
-                    None, Some(address), Some(scratchpad.data_encoding()), Some(signature), Some(content), Some(scratchpad.counter()), None);
-                Ok(HttpResponse::Ok().json(response_scratchpad).into())
+                },
+                None => Err(ScratchpadError::GetError(GetError::DerivationNameMissing(
+                    "Name required to get private scratchpad".to_string()))),
             }
-            Err(e) => {
-                warn!("Failed to retrieve {}scratchpad at address [{}]: [{:?}]", if !is_encrypted { "public " } else { "" }, address, e);
-                Err(ErrorInternalServerError(format!("Failed to retrieve {}scratchpad at address [{}]", if !is_encrypted { "public " } else { "" }, address.clone())))
-            }
+        } else {
+            Ok(BASE64_STANDARD.encode(scratchpad.encrypted_data()))
         }
     }
 }

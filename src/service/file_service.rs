@@ -7,7 +7,7 @@ use actix_web::error::{ErrorInternalServerError, ErrorNotFound};
 use actix_web::http::header::{CacheControl, CacheDirective, ContentLength, ContentRange, ContentRangeSpec, ContentType, ETag, EntityTag, Expires};
 use autonomi::{ChunkAddress};
 use chunk_streamer::chunk_receiver::ChunkReceiver;
-use chunk_streamer::chunk_streamer::{ChunkGetter, ChunkStreamer};
+use chunk_streamer::chunk_streamer::ChunkStreamer;
 use log::{debug, info};
 use xor_name::XorName;
 use crate::client::CachingClient;
@@ -63,7 +63,7 @@ impl FileService {
         offset_modifier: u64,
         size_modifier: u64,
     ) -> Result<HttpResponse, Error> {
-        let data_map_chunk = match self.caching_client.chunk_get(&ChunkAddress::new(xor_name)).await {
+        let data_map_chunk = match self.caching_client.chunk_get_internal(&ChunkAddress::new(xor_name)).await {
             Ok(chunk) => chunk,
             Err(e) => return Err(ErrorNotFound(format!("chunk not found [{}]", e)))
         };
@@ -129,7 +129,7 @@ impl FileService {
 
     pub async fn download_data(&self, xor_name: XorName, range_from: u64, size: u64) -> Result<ChunkReceiver, Error> {
         debug!("download data xor_name: [{}], offset: [{}], size: [{}]", xor_name.clone(), range_from, size);
-        let data_map_chunk = match self.caching_client.chunk_get(&ChunkAddress::new(xor_name)).await {
+        let data_map_chunk = match self.caching_client.chunk_get_internal(&ChunkAddress::new(xor_name)).await {
             Ok(chunk) => chunk,
             Err(e) => return Err(ErrorNotFound(format!("chunk not found [{}]", e)))
         };

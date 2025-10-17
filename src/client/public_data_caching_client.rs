@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 use ant_evm::AttoTokens;
 use autonomi::client::payment::PaymentOption;
-use autonomi::client::{GetError, PutError};
+use autonomi::client::PutError;
 use autonomi::data::DataAddress;
 use autonomi::files::{UploadError};
 use bytes::Bytes;
@@ -9,6 +9,7 @@ use chunk_streamer::chunk_encrypter::ChunkEncrypter;
 use log::{info};
 use crate::client::CachingClient;
 use crate::client::command::public_data::create_public_data_command::CreatePublicDataCommand;
+use crate::client::error::{GetError, PublicDataError};
 use crate::controller::CacheType;
 
 impl CachingClient {
@@ -56,17 +57,14 @@ impl CachingClient {
         }
     }
 
-    pub async fn data_get_public(&self, addr: &DataAddress) -> Result<Bytes, GetError> {
-        let local_caching_client = self.clone();
-        let local_address = addr.clone();
-
-        let maybe_bytes = local_caching_client.download_stream(local_address, 0, 0).await;
-        match maybe_bytes {
+    pub async fn data_get_public(&self, addr: &DataAddress) -> Result<Bytes, PublicDataError> {
+        match self.download_stream(addr, 0, 0).await {
             Ok(bytes) => {
-                info!("retrieved public data for [{}] with size [{}]", local_address.to_hex(), bytes.len());
+                info!("retrieved public data for [{}] with size [{}]", addr.to_hex(), bytes.len());
                 Ok(bytes)
             },
-            Err(_) => Err(GetError::RecordNotFound),
+            Err(e) => Err(PublicDataError::GetError(GetError::RecordNotFound(
+                format!("Failed to download stream at address [{}] with error [{}]", addr, e.to_string())))),
         }
     }
 

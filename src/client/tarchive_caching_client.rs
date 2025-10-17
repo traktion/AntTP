@@ -13,7 +13,7 @@ impl CachingClient {
         match self.hybrid_cache.get_ref().fetch(format!("tar{}", local_address.to_hex()), || async move {
             // todo: confirm whether checking header for tar signature improves performance/reliability
             // 20480
-            let trailer_bytes = local_caching_client.download_stream(local_address, -20480, 0).await;
+            let trailer_bytes = local_caching_client.download_stream(&local_address, -20480, 0).await;
             match trailer_bytes {
                 Ok(trailer_bytes) => {
                     match CachingClient::find_subsequence(trailer_bytes.iter().as_slice(), ARCHIVE_TAR_IDX_BYTES) {
@@ -30,7 +30,7 @@ impl CachingClient {
                         }
                     }
                 },
-                Err(err) => Err(foyer::Error::other(format!("Failed to download stream for [{}] from network {:?}", local_address.to_hex(), err)))
+                Err(e) => Err(foyer::Error::other(format!("Failed to download stream for [{}] from network {:?}", local_address.to_hex(), e)))
             }
         }).await {
             Ok(cache_entry) => {

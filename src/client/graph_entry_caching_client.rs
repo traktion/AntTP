@@ -1,12 +1,12 @@
 use ant_evm::AttoTokens;
 use autonomi::client::payment::PaymentOption;
 use autonomi::{GraphEntry, GraphEntryAddress};
-use autonomi::graph::GraphError;
 use log::{debug, info};
 use crate::client::cache_item::CacheItem;
 use crate::client::CachingClient;
 use crate::client::command::graph::create_graph_entry_command::CreateGraphEntryCommand;
 use crate::client::command::graph::get_graph_entry_command::GetGraphEntryCommand;
+use crate::client::error::{GetError, GraphError};
 use crate::controller::CacheType;
 
 impl CachingClient {
@@ -45,20 +45,20 @@ impl CachingClient {
         let local_address = address.clone();
         let local_ant_tp_config = self.ant_tp_config.clone();
         match self.hybrid_cache.get_ref().fetch(format!("gg{}", local_address.to_hex()), {
-            let maybe_local_client = self.client_harness.get_ref().lock().await.get_client().await;
+            let client = match self.client_harness.get_ref().lock().await.get_client().await {
+                Some(client) => client,
+                None => return Err(GraphError::GetError(GetError::NetworkOffline(
+                    format!("Failed to retrieve chunk for [{}] as offline network", local_address.to_hex()))))
+            };
+            
             || async move {
-                match maybe_local_client {
-                    Some(client) => {
-                        match client.graph_entry_get(&local_address).await {
-                            Ok(scratchpad) => {
-                                debug!("found graph entry for address [{}]", local_address.to_hex());
-                                let cache_item = CacheItem::new(Some(scratchpad.clone()), local_ant_tp_config.cached_mutable_ttl);
-                                Ok(rmp_serde::to_vec(&cache_item).expect("Failed to serialize graph entry"))
-                            }
-                            Err(_) => Err(foyer::Error::other(format!("Failed to retrieve graph entry for [{}] from network", local_address.to_hex())))
-                        }
-                    },
-                    None => Err(foyer::Error::other(format!("Failed to retrieve graph entry for [{}] from offline network", local_address.to_hex())))
+                match client.graph_entry_get(&local_address).await {
+                    Ok(scratchpad) => {
+                        debug!("found graph entry for address [{}]", local_address.to_hex());
+                        let cache_item = CacheItem::new(Some(scratchpad.clone()), local_ant_tp_config.cached_mutable_ttl);
+                        Ok(rmp_serde::to_vec(&cache_item).expect("Failed to serialize graph entry"))
+                    }
+                    Err(_) => Err(foyer::Error::other(format!("Failed to retrieve graph entry for [{}] from network", local_address.to_hex())))
                 }
             }
         }).await {
@@ -73,7 +73,7 @@ impl CachingClient {
                 // return last value
                 Ok(cache_item.item.unwrap())
             },
-            Err(_) => Err(GraphError::Serialization(format!("network offline"))),
+            Err(e) => Err(GraphError::GetError(GetError::RecordNotFound(e.to_string()))),
         }
     }
 }

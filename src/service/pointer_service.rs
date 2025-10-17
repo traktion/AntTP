@@ -7,6 +7,7 @@ use log::{info, warn};
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 use crate::client::CachingClient;
+use crate::client::error::{GetError, PointerError};
 use crate::config::anttp_config::AntTpConfig;
 use crate::controller::CacheType;
 use crate::service::resolver_service::ResolverService;
@@ -89,21 +90,22 @@ impl PointerService {
         }
     }
 
-    pub async fn get_pointer(&self, address: String) -> Result<HttpResponse, Error> {
+    pub async fn get_pointer(&self, address: String) -> Result<Pointer, PointerError> {
         let resolved_address = self.resolver_service.resolve_bookmark(&address).unwrap_or(address);
+
         info!("Get pointer with resolved_address [{}]", resolved_address);
-        let pointer_address = PointerAddress::from_hex(resolved_address.as_str()).expect("failed to create pointer from hex");
-        match self.caching_client.pointer_get(&pointer_address).await {
-            Ok(pointer) => {
-                info!("Retrieved pointer at address [{}] value [{}]", resolved_address, pointer.target().to_hex());
-                let response_pointer = Pointer::new(
-                    None, pointer.target().to_hex(), Some(resolved_address), Some(pointer.counter()), None);
-                Ok(HttpResponse::Ok().json(response_pointer).into())
-            }
-            Err(e) => {
-                warn!("Failed to retrieve pointer at address [{}]: [{:?}]", resolved_address, e);
-                Err(ErrorInternalServerError("Failed to retrieve pointer at address"))
-            }
+        match PointerAddress::from_hex(resolved_address.as_str()) {
+            Ok(pointer_address) => match self.caching_client.pointer_get(&pointer_address).await {
+                Ok(pointer) => {
+                    info!("Retrieved pointer at address [{}] value [{}]", resolved_address, pointer.target().to_hex());
+                    Ok(Pointer::new(None, pointer.target().to_hex(), Some(resolved_address), Some(pointer.counter()), None))
+                }
+                Err(e) => {
+                    warn!("Failed to retrieve pointer at address [{}]: [{:?}]", resolved_address, e);
+                    Err(e)
+                }
+            },
+            Err(e) => Err(PointerError::GetError(GetError::BadAddress(e.to_string()))),
         }
     }
 }

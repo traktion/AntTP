@@ -1,4 +1,5 @@
-use actix_web::Responder;
+use actix_web::{HttpResponse, Responder};
+use actix_web::error::ErrorInternalServerError;
 use actix_web::web::Data;
 use indexmap::IndexMap;
 use log::debug;
@@ -20,5 +21,8 @@ pub async fn get_commands(
     let command_service = CommandService::new(commands_map.clone());
 
     debug!("Getting command list");
-    command_service.get_commands().await
+    match command_service.get_commands().await {
+        Ok(commands) => Ok(HttpResponse::Ok().json(commands)),
+        Err(e) => Err(ErrorInternalServerError(e)),
+    }
 }

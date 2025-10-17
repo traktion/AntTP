@@ -1,4 +1,4 @@
-use actix_web::{Error, HttpResponse};
+use actix_web::Error;
 use actix_web::web::Data;
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
@@ -48,7 +48,7 @@ impl CommandService {
         Self { commands_map }
     }
 
-    pub async fn get_commands(&self) -> Result<HttpResponse, Error>{
+    pub async fn get_commands(&self) -> Result<CommandList, Error> {
         let commands_map = self.commands_map.get_ref().lock().await;
         let mut commands = Vec::<Command>::with_capacity(commands_map.len());
 
@@ -61,6 +61,6 @@ impl CommandService {
             )
         });
 
-        Ok(HttpResponse::Ok().json(CommandList(commands)).into())
+        Ok(CommandList(commands))
     }
 }

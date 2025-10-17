@@ -1,6 +1,6 @@
 use ant_evm::AttoTokens;
 use autonomi::client::payment::PaymentOption;
-use autonomi::register::{RegisterAddress, RegisterError, RegisterHistory, RegisterValue};
+use autonomi::register::{RegisterAddress, RegisterHistory, RegisterValue};
 use autonomi::SecretKey;
 use log::{debug, info};
 use crate::client::cache_item::CacheItem;
@@ -8,6 +8,7 @@ use crate::client::CachingClient;
 use crate::client::command::register::create_register_command::CreateRegisterCommand;
 use crate::client::command::register::get_register_command::GetRegisterCommand;
 use crate::client::command::register::update_register_command::UpdateRegisterCommand;
+use crate::client::error::{GetError, RegisterError};
 use crate::controller::CacheType;
 
 impl CachingClient {
@@ -64,20 +65,20 @@ impl CachingClient {
         let local_address = address.clone();
         let local_ant_tp_config = self.ant_tp_config.clone();
         match self.hybrid_cache.get_ref().fetch(format!("rg{}", local_address.to_hex()), {
-            let maybe_local_client = self.client_harness.get_ref().lock().await.get_client().await;
+            let client = match self.client_harness.get_ref().lock().await.get_client().await {
+                Some(client) => client,
+                None => return Err(RegisterError::GetError(GetError::NetworkOffline(
+                    format!("Failed to retrieve chunk for [{}] as offline network", local_address.to_hex()))))
+            };
+            
             || async move {
-                match maybe_local_client {
-                    Some(client) => {
-                        match client.register_get(&local_address).await {
-                            Ok(register_value) => {
-                                debug!("found register value [{}] for address [{}] from network", hex::encode(register_value.clone()), local_address.to_hex());
-                                let cache_item = CacheItem::new(Some(register_value.clone()), local_ant_tp_config.cached_mutable_ttl);
-                                Ok(rmp_serde::to_vec(&cache_item).expect("Failed to serialize register"))
-                            }
-                            Err(_) => Err(foyer::Error::other(format!("Failed to retrieve register for [{}] from network", local_address.to_hex())))
-                        }
-                    },
-                    None => Err(foyer::Error::other(format!("Failed to retrieve register for [{}] from offline network", local_address.to_hex())))
+                match client.register_get(&local_address).await {
+                    Ok(register_value) => {
+                        debug!("found register value [{}] for address [{}] from network", hex::encode(register_value.clone()), local_address.to_hex());
+                        let cache_item = CacheItem::new(Some(register_value.clone()), local_ant_tp_config.cached_mutable_ttl);
+                        Ok(rmp_serde::to_vec(&cache_item).expect("Failed to serialize register"))
+                    }
+                    Err(_) => Err(foyer::Error::other(format!("Failed to retrieve register for [{}] from network", local_address.to_hex())))
                 }
             }
         }).await {
@@ -92,7 +93,7 @@ impl CachingClient {
                 // return last value
                 Ok(cache_item.item.unwrap())
             },
-            Err(_) => Err(RegisterError::CannotUpdateNewRegister),
+            Err(e) => Err(RegisterError::GetError(GetError::RecordNotFound(e.to_string()))),
         }
     }
 

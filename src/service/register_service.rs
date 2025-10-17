@@ -2,11 +2,12 @@ use actix_web::{Error, HttpResponse};
 use actix_web::error::{ErrorInternalServerError, ErrorPreconditionFailed};
 use autonomi::{Client, SecretKey, Wallet};
 use autonomi::client::payment::PaymentOption;
-use autonomi::register::{RegisterAddress};
+use autonomi::register::RegisterAddress;
 use log::{info, warn};
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 use crate::client::CachingClient;
+use crate::client::error::{GetError, RegisterError};
 use crate::config::anttp_config::AntTpConfig;
 use crate::controller::CacheType;
 use crate::service::resolver_service::ResolverService;
@@ -88,20 +89,20 @@ impl RegisterService {
         }
     }
 
-    pub async fn get_register(&self, address: String) -> Result<HttpResponse, Error> {
+    pub async fn get_register(&self, address: String) -> Result<Register, RegisterError> {
         let resolved_address = self.resolver_service.resolve_bookmark(&address).unwrap_or(address);
-        let register_address = RegisterAddress::from_hex(resolved_address.as_str()).unwrap();
-        match self.caching_client.register_get(&register_address).await {
-            Ok(content) => {
-                info!("Retrieved register at address [{}] value [{}]", register_address, hex::encode(content));
-                let response_register = Register::new(
-                    None, hex::encode(content), Some(register_address.to_hex()), None);
-                Ok(HttpResponse::Ok().json(response_register).into())
-            }
-            Err(e) => {
-                warn!("Failed to retrieve register at address [{}]: [{:?}]", register_address.to_hex(), e);
-                Err(ErrorInternalServerError("Failed to retrieve register at address"))
-            }
+        match RegisterAddress::from_hex(resolved_address.as_str()) {
+            Ok(register_address) => match self.caching_client.register_get(&register_address).await {
+                Ok(content) => {
+                    info!("Retrieved register at address [{}] value [{}]", register_address, hex::encode(content));
+                    Ok(Register::new(None, hex::encode(content), Some(register_address.to_hex()), None))
+                }
+                Err(e) => {
+                    warn!("Failed to retrieve register at address [{}]: [{:?}]", register_address.to_hex(), e);
+                    Err(e)
+                }
+            },
+            Err(e) => Err(RegisterError::GetError(GetError::BadAddress(e.to_string()))),
         }
     }
 

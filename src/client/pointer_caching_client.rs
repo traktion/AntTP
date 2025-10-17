@@ -1,9 +1,8 @@
 use ant_evm::AttoTokens;
 use autonomi::client::payment::PaymentOption;
-use autonomi::pointer::{PointerError, PointerTarget};
+use autonomi::pointer::PointerTarget;
 use autonomi::{Pointer, PointerAddress, SecretKey};
-use autonomi::client::GetError;
-use log::{debug, info};
+use log::{debug, error, info};
 use crate::client::cache_item::CacheItem;
 use crate::client::CachingClient;
 use crate::client::command::pointer::check_pointer_command::CheckPointerCommand;
@@ -11,6 +10,7 @@ use crate::client::command::pointer::get_pointer_command::GetPointerCommand;
 use crate::controller::CacheType;
 use crate::client::command::pointer::create_pointer_command::CreatePointerCommand;
 use crate::client::command::pointer::update_pointer_command::UpdatePointerCommand;
+use crate::client::error::{CheckError, GetError, PointerError};
 
 impl CachingClient {
 
@@ -24,9 +24,12 @@ impl CachingClient {
         let pointer = self.cache_pointer(owner, &target, cache_only.clone());
 
         if !cache_only.is_some() {
-            self.command_executor.send(
-                Box::new(CreatePointerCommand::new(self.client_harness.clone(), owner.clone(), target, payment_option))
-            ).await.unwrap();
+            let command = Box::new(
+                CreatePointerCommand::new(self.client_harness.clone(), owner.clone(), target, payment_option)
+            );
+            if let Err(e) = self.command_executor.send(command).await {
+                return Err(PointerError::CreateError(e))
+            }
         }
         Ok((AttoTokens::zero(), pointer.address()))
     }
@@ -40,9 +43,12 @@ impl CachingClient {
         self.cache_pointer(owner, &target, cache_only.clone());
 
         if !cache_only.is_some() {
-            self.command_executor.send(
-                Box::new(UpdatePointerCommand::new(self.client_harness.clone(), owner.clone(), target))
-            ).await.unwrap();
+            let command = Box::new(
+                UpdatePointerCommand::new(self.client_harness.clone(), owner.clone(), target)
+            );
+            if let Err(e) = self.command_executor.send(command).await {
+                return Err(PointerError::UpdateError(e))
+            }
         }
         Ok(())
     }
@@ -65,20 +71,23 @@ impl CachingClient {
         let local_address = address.clone();
         let local_ant_tp_config = self.ant_tp_config.clone();
         match self.hybrid_cache.get_ref().fetch(format!("pg{}", local_address.to_hex()), {
-            let maybe_local_client = self.client_harness.get_ref().lock().await.get_client().await;
+            let client = match self.client_harness.get_ref().lock().await.get_client().await {
+                Some(client) => client,
+                None => {
+                    error!("Failed to retrieve chunk for [{}] as offline network", local_address.to_hex());
+                    return Err(PointerError::GetError(GetError::NetworkOffline(
+                        format!("Failed to retrieve chunk for [{}] as offline network", local_address.to_hex()))));
+                }
+            };
+            
             || async move {
-                match maybe_local_client {
-                    Some(client) => {
-                        match client.pointer_get(&local_address).await {
-                            Ok(pointer) => {
-                                debug!("found pointer [{}] for address [{}]", hex::encode(pointer.target().to_hex()), local_address.to_hex());
-                                let cache_item = CacheItem::new(Some(pointer.clone()), local_ant_tp_config.cached_mutable_ttl);
-                                Ok(rmp_serde::to_vec(&cache_item).expect("Failed to serialize pointer"))
-                            },
-                            Err(_) => Err(foyer::Error::other(format!("Failed to retrieve pointer for [{}] from network", local_address.to_hex())))
-                        }
+                match client.pointer_get(&local_address).await {
+                    Ok(pointer) => {
+                        debug!("found pointer [{}] for address [{}]", hex::encode(pointer.target().to_hex()), local_address.to_hex());
+                        let cache_item = CacheItem::new(Some(pointer.clone()), local_ant_tp_config.cached_mutable_ttl);
+                        Ok(rmp_serde::to_vec(&cache_item).expect("Failed to serialize pointer"))
                     },
-                    None => Err(foyer::Error::other(format!("Failed to retrieve pointer for [{}] from offline network", local_address.to_hex())))
+                    Err(_) => Err(foyer::Error::other(format!("Failed to retrieve pointer for [{}] from network", local_address.to_hex())))
                 }
             }
         }).await {
@@ -93,7 +102,7 @@ impl CachingClient {
                 // return last value
                 Ok(cache_item.item.unwrap())
             },
-            Err(_) => Err(PointerError::GetError(GetError::RecordNotFound)),
+            Err(e) => Err(PointerError::GetError(GetError::RecordNotFound(e.to_string()))),
         }
     }
 
@@ -101,20 +110,20 @@ impl CachingClient {
         let local_address = address.clone();
         let local_ant_tp_config = self.ant_tp_config.clone();
         match self.hybrid_cache.get_ref().fetch(format!("pce{}", local_address.to_hex()), {
-            let maybe_local_client = self.client_harness.get_ref().lock().await.get_client().await;
+            let client = match self.client_harness.get_ref().lock().await.get_client().await {
+                Some(client) => client,
+                None => return Err(PointerError::GetError(GetError::NetworkOffline(
+                    format!("Failed to retrieve chunk for [{}] as offline network", local_address.to_hex()))))
+            };
+            
             || async move {
-                match maybe_local_client {
-                    Some(client) => {
-                        match client.pointer_check_existence(&local_address).await {
-                            Ok(_) => {
-                                debug!("pointer exists for address [{}]", local_address.to_hex());
-                                let cache_item = CacheItem::new(Some(true), local_ant_tp_config.cached_mutable_ttl);
-                                Ok(rmp_serde::to_vec(&cache_item).expect("Failed to serialize pointer"))
-                            },
-                            Err(_) => Err(foyer::Error::other(format!("Failed to pointer check existence for [{}] from network", local_address.to_hex())))
-                        }
+                match client.pointer_check_existence(&local_address).await {
+                    Ok(_) => {
+                        debug!("pointer exists for address [{}]", local_address.to_hex());
+                        let cache_item = CacheItem::new(Some(true), local_ant_tp_config.cached_mutable_ttl);
+                        Ok(rmp_serde::to_vec(&cache_item).expect("Failed to serialize pointer"))
                     },
-                    None => Err(foyer::Error::other(format!("Failed to pointer check existence for [{}] from offline network", local_address.to_hex())))
+                    Err(_) => Err(foyer::Error::other(format!("Failed to pointer check existence for [{}] from network", local_address.to_hex())))
                 }
             }
         }).await {
@@ -129,7 +138,7 @@ impl CachingClient {
                 // return last value
                 Ok(cache_item.item.unwrap())
             },
-            Err(_) => Err(PointerError::GetError(GetError::RecordNotFound)),
+            Err(e) => Err(PointerError::CheckError(CheckError::RecordNotFound(e.to_string()))),
         }
     }
 }

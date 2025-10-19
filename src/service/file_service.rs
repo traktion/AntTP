@@ -61,9 +61,8 @@ impl FileService {
         FileService { caching_client, ant_tp_config }
     }
 
-    pub async fn get_data(&self, resolved_address: &ResolvedAddress, request: &HttpRequest, path_parts: &Vec<String>) -> Result<(ChunkReceiver, RangeProps), ChunkError> {
-        let archive_relative_path = path_parts[1..].join("/").to_string();
-        self.download_data_stream(archive_relative_path, resolved_address.xor_name, request,  0, 0).await
+    pub async fn get_data(&self, resolved_address: &ResolvedAddress, request: &HttpRequest, path_str: String) -> Result<(ChunkReceiver, RangeProps), ChunkError> {
+        self.download_data_stream(path_str, resolved_address.xor_name, request,  0, 0).await
     }
 
     pub async fn download_data_stream(
@@ -104,11 +103,11 @@ impl FileService {
             let response_range_from = range_from - offset_modifier;
             let response_range_to = range_to - offset_modifier;
             info!("streaming item [{}] at addr [{}], range_from: [{}], range_to: [{}], offset_modifier: [{}], size_modifier: [{}], content_length: [{}], range_length: [{}], response_range_from: [{}], response_range_to: [{}]",
-            path_str, format!("{:x}", xor_name), range_from, range_to, offset_modifier, size_modifier, content_length, range_length, response_range_from, response_range_to);
+                path_str, format!("{:x}", xor_name), range_from, range_to, offset_modifier, size_modifier, content_length, range_length, response_range_from, response_range_to);
             Ok((chunk_receiver, RangeProps::new(Some(response_range_from), Some(response_range_to), content_length, extension.to_string())))
         } else {
             info!("streaming item [{}] at addr [{}], offset_modifier: [{}], size_modifier: [{}], file_size: [{}]",
-            path_str, format!("{:x}", xor_name), offset_modifier, size_modifier, content_length);
+                path_str, format!("{:x}", xor_name), offset_modifier, size_modifier, content_length);
             Ok((chunk_receiver, RangeProps::new(None, None, content_length, extension.to_string())))
         }
     }

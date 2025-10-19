@@ -17,8 +17,8 @@ impl AppConfig {
         }
     }
     
-    pub fn resolve_route(&self, search_string: String, archive_file_name: String) -> (String, bool) {
-        debug!("resolving route [{}] in archive [{}]", search_string, archive_file_name);
+    pub fn resolve_route(&self, search_string: String) -> (String, bool) {
+        debug!("resolving route [{}]", search_string);
         for (key, value) in self.route_map.clone() {
             let glob = Glob::new(key.as_str()).unwrap().compile_matcher();
             debug!("route mapper comparing path [{}] with glob [{}]", search_string, key);
@@ -27,6 +27,6 @@ impl AppConfig {
                 return (value, true);
             }
         };
-        (archive_file_name, false)
+        (search_string, false)
     }
 }

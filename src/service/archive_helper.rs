@@ -8,7 +8,7 @@ use xor_name::XorName;
 use crate::client::CachingClient;
 use crate::config::anttp_config::AntTpConfig;
 use crate::model::archive::Archive;
-use crate::service::resolver_service::ResolverService;
+use crate::service::resolver_service::{ResolvedAddress, ResolverService};
 
 #[derive(Clone)]
 pub struct ArchiveHelper {
@@ -21,7 +21,7 @@ pub struct ArchiveInfo {
     pub path_string: String,
     pub resolved_xor_addr: XorName,
     pub action: ArchiveAction,
-    pub state: DataState,
+    pub is_modified: bool,
     pub offset: u64,
     pub size: u64,
     pub limit: u64,
@@ -32,17 +32,12 @@ pub enum ArchiveAction {
     Data, Listing, Redirect, NotFound
 }
 
-#[derive(Clone, PartialEq, Eq)]
-pub enum DataState {
-    Modified, NotModified
-}
-
 impl ArchiveInfo {
-    pub fn new(path_string: String, resolved_xor_addr: XorName, action: ArchiveAction, state: DataState, offset: u64, size: u64) -> ArchiveInfo {
+    pub fn new(path_string: String, resolved_xor_addr: XorName, action: ArchiveAction, is_modified: bool, offset: u64, size: u64) -> ArchiveInfo {
         // note: offset is 0 indexed, size is 1 indexed
         //       offset is never 0 in a tarchive, due to header
         let limit = if size > 0 { size - 1 } else { 0 };
-        ArchiveInfo { path_string, resolved_xor_addr, action, state, offset, size, limit }
+        ArchiveInfo { path_string, resolved_xor_addr, action, is_modified, offset, size, limit }
     }
 }
 
@@ -115,13 +110,13 @@ impl ArchiveHelper {
         output
     }
 
-    pub async fn resolve_archive_info(&self, path_parts: &Vec<String>, request: HttpRequest, resolved_relative_path_route: String, has_route_map: bool, caching_client: CachingClient) -> ArchiveInfo {
+    pub async fn resolve_archive_info(&self, resolved_address: &ResolvedAddress, request: HttpRequest, resolved_relative_path_route: String, has_route_map: bool, caching_client: CachingClient) -> ArchiveInfo {
         let request_path = request.path();
         let xor_helper = ResolverService::new(self.ant_tp_config.clone(), caching_client.clone());
         
         if self.has_moved_permanently(request_path, &resolved_relative_path_route) {
             debug!("has moved permanently");
-            ArchiveInfo::new(resolved_relative_path_route, XorName::default(), ArchiveAction::Redirect, DataState::Modified, 0, 0)
+            ArchiveInfo::new(resolved_relative_path_route, XorName::default(), ArchiveAction::Redirect, true, 0, 0)
         } else if has_route_map {
             debug!("retrieve route map index");
             match self.archive.find_file(resolved_relative_path_route.clone()) {
@@ -132,17 +127,16 @@ impl ArchiveHelper {
                         format!("{}{}", request_path.to_string(), data_address_offset.path.clone()),
                         *data_address_offset.data_address.xorname(),
                         ArchiveAction::Data,
-                        xor_helper.get_data_state(request.headers(), data_address_offset.data_address.xorname()),
+                        xor_helper.is_modified(request.headers(), data_address_offset.data_address.xorname()),
                         data_address_offset.offset,
                         data_address_offset.size
                     )
                 }
-                None => ArchiveInfo::new(resolved_relative_path_route, XorName::default(), ArchiveAction::NotFound, DataState::Modified, 0, 0)
+                None => ArchiveInfo::new(resolved_relative_path_route, XorName::default(), ArchiveAction::NotFound, true, 0, 0)
             }
         } else if !resolved_relative_path_route.is_empty() {
             debug!("retrieve path and data address");
-            let sub_path_part = path_parts[1..].join("/");
-            match self.archive.find_file(sub_path_part.clone()) {
+            match self.archive.find_file(resolved_address.file_path.clone()) {
                 Some(data_address_offset) => {
                     let path_buf = &PathBuf::from(resolved_relative_path_route.clone());
                     info!("Resolved path [{}], path_buf [{}] to xor address [{}]", resolved_relative_path_route, path_buf.display(), format!("{:x}", *data_address_offset.data_address.xorname()));
@@ -150,24 +144,24 @@ impl ArchiveHelper {
                         resolved_relative_path_route,
                         *data_address_offset.data_address.xorname(),
                         ArchiveAction::Data,
-                        xor_helper.get_data_state(request.headers(), data_address_offset.data_address.xorname()),
+                        xor_helper.is_modified(request.headers(), data_address_offset.data_address.xorname()),
                         data_address_offset.offset,
                         data_address_offset.size
                     )
                 }
-                None => if !self.archive.list_dir(sub_path_part.clone()).is_empty() {
-                    if sub_path_part.to_string().chars().last() != Some('/') {
-                        ArchiveInfo::new(format!("{}/", sub_path_part.clone()), XorName::default(), ArchiveAction::Redirect, DataState::Modified, 0, 0)
+                None => if !self.archive.list_dir(resolved_address.file_path.clone()).is_empty() {
+                    if resolved_address.file_path.to_string().chars().last() != Some('/') {
+                        ArchiveInfo::new(format!("{}/", resolved_address.file_path.clone()), XorName::default(), ArchiveAction::Redirect, true, 0, 0)
                     } else {
-                        ArchiveInfo::new(sub_path_part.clone(), XorName::default(), ArchiveAction::Listing, DataState::Modified, 0, 0)
+                        ArchiveInfo::new(resolved_address.file_path.clone(), XorName::default(), ArchiveAction::Listing, true, 0, 0)
                     }
                 } else {
-                    ArchiveInfo::new(resolved_relative_path_route, XorName::default(), ArchiveAction::NotFound, DataState::Modified, 0, 0)
+                    ArchiveInfo::new(resolved_relative_path_route, XorName::default(), ArchiveAction::NotFound, true, 0, 0)
                 }
             }
         } else {
             debug!("retrieve file listing");
-            ArchiveInfo::new(resolved_relative_path_route, XorName::default(), ArchiveAction::Listing, DataState::Modified, 0, 0)
+            ArchiveInfo::new(resolved_relative_path_route, XorName::default(), ArchiveAction::Listing, true, 0, 0)
         }
     }
 

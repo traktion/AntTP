@@ -9,7 +9,6 @@ use crate::service::public_archive_service::{PublicArchiveForm, PublicArchiveSer
 use crate::client::CachingClient;
 use crate::controller::cache_only;
 use crate::service::file_service::FileService;
-use crate::service::resolver_service::ResolverService;
 
 #[utoipa::path(
     post,
@@ -124,7 +123,6 @@ fn build_archive_service(
 ) -> PublicArchiveService {
     let ant_tp_config = ant_tp_config_data.get_ref();
     let caching_client = caching_client_data.get_ref();
-    let resolver_service = ResolverService::new(ant_tp_config.clone(), caching_client.clone());
     let file_service = FileService::new(caching_client.clone(), ant_tp_config.clone());
-    PublicArchiveService::new(file_service, resolver_service, uploader_state, upload_state, ant_tp_config.clone(), caching_client.clone())
+    PublicArchiveService::new(file_service, uploader_state, upload_state, ant_tp_config.clone(), caching_client.clone())
 }

@@ -17,7 +17,7 @@ use log::{debug, error, info, warn};
 use crate::service::archive_helper::{ArchiveHelper, ArchiveInfo};
 use crate::client::CachingClient;
 use crate::service::file_service::{RangeProps, FileService};
-use crate::service::resolver_service::{ResolvedAddress, ResolverService};
+use crate::service::resolver_service::ResolvedAddress;
 use futures_util::{StreamExt as _};
 use sanitize_filename::sanitize;
 use serde::{Deserialize, Serialize};
@@ -54,7 +54,6 @@ impl Upload {
 
 pub struct PublicArchiveService {
     file_client: FileService,
-    resolver_service: ResolverService,
     uploader_state: Data<UploaderState>,
     upload_state: Data<UploadState>,
     ant_tp_config: AntTpConfig,
@@ -63,31 +62,25 @@ pub struct PublicArchiveService {
 
 impl PublicArchiveService {
     
-    pub fn new(file_client: FileService, resolver_service: ResolverService, uploader_state: Data<UploaderState>, upload_state: Data<UploadState>, ant_tp_config: AntTpConfig, caching_client: CachingClient) -> Self {
-        PublicArchiveService { file_client, resolver_service, uploader_state, upload_state, ant_tp_config, caching_client }
+    pub fn new(file_client: FileService, uploader_state: Data<UploaderState>, upload_state: Data<UploadState>, ant_tp_config: AntTpConfig, caching_client: CachingClient) -> Self {
+        PublicArchiveService { file_client, uploader_state, upload_state, ant_tp_config, caching_client }
     }
 
-    pub async fn get_archive_info(&self, resolved_address: &ResolvedAddress, request: &HttpRequest, path_parts: &Vec<String>) -> ArchiveInfo {
+    pub async fn get_archive_info(&self, resolved_address: &ResolvedAddress, request: &HttpRequest) -> ArchiveInfo {
         let archive = resolved_address.archive.clone().expect("Archive not found");
         // load app_config from archive and resolve route
         let app_config = self.get_app_config(archive.clone(), resolved_address.xor_name).await;
         // resolve route
-        let archive_relative_path = path_parts[1..].join("/").to_string();
-        let (archive_addr, archive_file_name) = self.resolver_service.assign_path_parts(path_parts.clone());
-        let (resolved_relative_path_route, has_route_map) = app_config.resolve_route(archive_relative_path.clone(), archive_file_name.clone());
+        let (resolved_relative_path_route, has_route_map) = app_config.resolve_route(resolved_address.file_path.clone());
 
-
-        debug!("Get data for archive_addr [{}], archive_file_name [{}]", archive_addr, archive_file_name);
+        debug!("Get data for archive_addr [{:x}], archive_file_name [{}]", resolved_address.xor_name, resolved_relative_path_route);
 
         // resolve file name to chunk address
         let archive_helper = ArchiveHelper::new(archive.clone(), self.ant_tp_config.clone());
-        let archive_info = archive_helper.resolve_archive_info(&path_parts, request.clone(), resolved_relative_path_route.clone(), has_route_map, self.caching_client.clone()).await;
-        archive_info
+        archive_helper.resolve_archive_info(&resolved_address, request.clone(), resolved_relative_path_route.clone(), has_route_map, self.caching_client.clone()).await
     }
     
-    pub async fn get_data(&self, request: &HttpRequest, path_parts: Vec<String>, archive_info: ArchiveInfo) -> Result<(ChunkReceiver, RangeProps), ChunkError> {
-        let archive_relative_path = path_parts[1..].join("/").to_string(); // todo: can this be in ArchiveInfo?
-
+    pub async fn get_data(&self, request: &HttpRequest, archive_info: ArchiveInfo, archive_relative_path: String) -> Result<(ChunkReceiver, RangeProps), ChunkError> {
         self.file_client.download_data_stream(archive_relative_path, archive_info.resolved_xor_addr, request, archive_info.offset, archive_info.size).await
     }
 

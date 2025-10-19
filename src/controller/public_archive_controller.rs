@@ -124,5 +124,5 @@ fn build_archive_service(
     let ant_tp_config = ant_tp_config_data.get_ref();
     let caching_client = caching_client_data.get_ref();
     let file_service = FileService::new(caching_client.clone(), ant_tp_config.clone());
-    PublicArchiveService::new(file_service, uploader_state, upload_state, ant_tp_config.clone(), caching_client.clone())
+    PublicArchiveService::new(file_service, uploader_state, upload_state, caching_client.clone())
 }

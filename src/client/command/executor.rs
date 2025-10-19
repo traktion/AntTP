@@ -24,7 +24,7 @@ impl Executor {
             while let Some(command) = command_queue_receiver.recv().await {
                 let command_details = CommandDetails::new(&command);
                 debug!("command buffered: [{:?}]", command_details);
-                pre_executor_map.get_ref().lock().await.insert(command.get_id(), command_details);
+                pre_executor_map.get_ref().lock().await.insert(command.id(), command_details);
 
                 command_executor_sender.send(command).await.unwrap();
             }
@@ -34,11 +34,11 @@ impl Executor {
         tokio::spawn(async move {
             let mut last_hash = vec![];
             while let Some(command) = command_executor_receiver.recv().await {
-                let command_action_hash = command.get_action_hash();
+                let command_action_hash = command.action_hash();
                 if last_hash == command_action_hash {
-                    Self::update_executor_map(&executor_map, buffer_size, command.get_id(), ABORTED).await;
+                    Self::update_executor_map(&executor_map, buffer_size, command.id(), ABORTED).await;
                 } else {
-                    Self::update_executor_map(&executor_map, buffer_size, command.get_id(), RUNNING).await;
+                    Self::update_executor_map(&executor_map, buffer_size, command.id(), RUNNING).await;
 
                     let mut attempt = 1;
                     loop {
@@ -47,17 +47,17 @@ impl Executor {
                             Err(error) => {
                                 match error {
                                     CommandError::Unrecoverable(_) => {
-                                        error!("failed to execute command [{}] with single attempt (skipping): [{:?}]", command.get_id(), error);
+                                        error!("failed to execute command [{}] with single attempt (skipping): [{:?}]", command.id(), error);
                                         break;
                                     },
                                     CommandError::Recoverable(_) => {
                                         if attempt <= 5 {
-                                            warn!("failed to execute command [{}] on attempt [{}] (retrying): [{:?}]", command.get_id(), attempt, error);
+                                            warn!("failed to execute command [{}] on attempt [{}] (retrying): [{:?}]", command.id(), attempt, error);
                                             let backoff =  attempt * attempt;
                                             sleep(Duration::from_secs(backoff)).await;
                                             attempt += 1;
                                         } else {
-                                            error!("failed to execute command [{}] after attempt [{}] (skipping): [{:?}]", command.get_id(), attempt, error);
+                                            error!("failed to execute command [{}] after attempt [{}] (skipping): [{:?}]", command.id(), attempt, error);
                                             break;
                                         }
                                     }
@@ -66,7 +66,7 @@ impl Executor {
                         }
                     }
 
-                    Self::update_executor_map(&executor_map, buffer_size, command.get_id(), COMPLETED).await;
+                    Self::update_executor_map(&executor_map, buffer_size, command.id(), COMPLETED).await;
                     last_hash = command_action_hash;
                 }
             }

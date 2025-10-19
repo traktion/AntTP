@@ -43,22 +43,22 @@ impl Command for CreatePublicDataCommand {
         }
     }
 
-    fn get_action_hash(&self) -> Vec<u8> {
+    fn action_hash(&self) -> Vec<u8> {
         let mut hasher = sha2::Sha256::new();
         hasher.update(STRUCT_NAME);
         hasher.update(self.data.clone());
         hasher.finalize().to_ascii_lowercase()
     }
 
-    fn get_id(&self) -> u128 {
+    fn id(&self) -> u128 {
         self.id
     }
 
-    fn get_name(&self) -> String {
+    fn name(&self) -> String {
         STRUCT_NAME.to_string()
     }
 
-    fn get_properties(&self) -> IndexMap<String, String> {
+    fn properties(&self) -> IndexMap<String, String> {
         let mut properties = IndexMap::new();
         properties.insert("data".to_string(), "tbc".to_string()); // todo: improve
         properties

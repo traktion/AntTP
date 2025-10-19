@@ -24,7 +24,6 @@ use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 use uuid::Uuid;
 use xor_name::XorName;
-use crate::config::anttp_config::AntTpConfig;
 use crate::{UploadState, UploaderState};
 use crate::client::error::ChunkError;
 use crate::config::app_config::AppConfig;
@@ -56,14 +55,13 @@ pub struct PublicArchiveService {
     file_client: FileService,
     uploader_state: Data<UploaderState>,
     upload_state: Data<UploadState>,
-    ant_tp_config: AntTpConfig,
     caching_client: CachingClient,
 }
 
 impl PublicArchiveService {
     
-    pub fn new(file_client: FileService, uploader_state: Data<UploaderState>, upload_state: Data<UploadState>, ant_tp_config: AntTpConfig, caching_client: CachingClient) -> Self {
-        PublicArchiveService { file_client, uploader_state, upload_state, ant_tp_config, caching_client }
+    pub fn new(file_client: FileService, uploader_state: Data<UploaderState>, upload_state: Data<UploadState>, caching_client: CachingClient) -> Self {
+        PublicArchiveService { file_client, uploader_state, upload_state, caching_client }
     }
 
     pub async fn get_archive_info(&self, resolved_address: &ResolvedAddress, request: &HttpRequest) -> ArchiveInfo {
@@ -71,17 +69,17 @@ impl PublicArchiveService {
         // load app_config from archive and resolve route
         let app_config = self.get_app_config(archive.clone(), resolved_address.xor_name).await;
         // resolve route
-        let (resolved_relative_path_route, has_route_map) = app_config.resolve_route(resolved_address.file_path.clone());
+        let (resolved_route_path, has_route_map) = app_config.resolve_route(resolved_address.file_path.clone());
 
-        debug!("Get data for archive_addr [{:x}], archive_file_name [{}]", resolved_address.xor_name, resolved_relative_path_route);
+        debug!("Get data for archive_addr [{:x}], archive_file_name [{}]", resolved_address.xor_name, resolved_route_path);
 
         // resolve file name to chunk address
-        let archive_helper = ArchiveHelper::new(archive.clone(), self.ant_tp_config.clone());
-        archive_helper.resolve_archive_info(&resolved_address, request.clone(), resolved_relative_path_route.clone(), has_route_map, self.caching_client.clone()).await
+        let archive_helper = ArchiveHelper::new(archive.clone());
+        archive_helper.resolve_archive_info(&resolved_address, request.clone(), resolved_route_path.clone(), has_route_map).await
     }
     
-    pub async fn get_data(&self, request: &HttpRequest, archive_info: ArchiveInfo, archive_relative_path: String) -> Result<(ChunkReceiver, RangeProps), ChunkError> {
-        self.file_client.download_data_stream(archive_relative_path, archive_info.resolved_xor_addr, request, archive_info.offset, archive_info.size).await
+    pub async fn get_data(&self, request: &HttpRequest, archive_info: ArchiveInfo) -> Result<(ChunkReceiver, RangeProps), ChunkError> {
+        self.file_client.download_data_stream(request, archive_info.path_string, archive_info.resolved_xor_addr, archive_info.offset, archive_info.size).await
     }
 
     pub async fn get_app_config(&self, archive: Archive, archive_address_xorname: XorName) -> AppConfig {

@@ -1,7 +1,6 @@
 use std::path::Path;
 use actix_http::header;
-use actix_web::{Error, HttpRequest};
-use actix_web::error::{ErrorInternalServerError, ErrorNotFound};
+use actix_web::HttpRequest;
 use autonomi::{ChunkAddress};
 use chunk_streamer::chunk_receiver::ChunkReceiver;
 use chunk_streamer::chunk_streamer::ChunkStreamer;
@@ -61,15 +60,15 @@ impl FileService {
         FileService { caching_client, ant_tp_config }
     }
 
-    pub async fn get_data(&self, resolved_address: &ResolvedAddress, request: &HttpRequest, path_str: String) -> Result<(ChunkReceiver, RangeProps), ChunkError> {
-        self.download_data_stream(path_str, resolved_address.xor_name, request,  0, 0).await
+    pub async fn get_data(&self, request: &HttpRequest, resolved_address: &ResolvedAddress) -> Result<(ChunkReceiver, RangeProps), ChunkError> {
+        self.download_data_stream(request, resolved_address.file_path.clone(), resolved_address.xor_name, 0, 0).await
     }
 
     pub async fn download_data_stream(
         &self,
+        request: &HttpRequest,
         path_str: String,
         xor_name: XorName,
-        request: &HttpRequest,
         offset_modifier: u64,
         size_modifier: u64,
     ) -> Result<(ChunkReceiver, RangeProps), ChunkError> {
@@ -112,11 +111,11 @@ impl FileService {
         }
     }
 
-    pub async fn download_data(&self, xor_name: XorName, range_from: u64, size: u64) -> Result<ChunkReceiver, Error> {
+    pub async fn download_data(&self, xor_name: XorName, range_from: u64, size: u64) -> Result<ChunkReceiver, ChunkError> {
         debug!("download data xor_name: [{}], offset: [{}], size: [{}]", xor_name.clone(), range_from, size);
         let data_map_chunk = match self.caching_client.chunk_get_internal(&ChunkAddress::new(xor_name)).await {
             Ok(chunk) => chunk,
-            Err(e) => return Err(ErrorNotFound(format!("chunk not found [{}]", e)))
+            Err(e) => return Err(e),
         };
 
         let chunk_streamer = ChunkStreamer::new(xor_name.to_string(), data_map_chunk.value, self.caching_client.clone(), self.ant_tp_config.download_threads);
@@ -129,7 +128,7 @@ impl FileService {
 
         match chunk_streamer.open(range_from, range_to).await {
             Ok(chunk_receiver) => Ok(chunk_receiver),
-            Err(e) => Err(ErrorInternalServerError(format!("download_data failed [{}]", e)))
+            Err(e) => Err(ChunkError::GetStreamError(GetStreamError::BadReceiver(format!("failed to open chunk stream: {}", e)))),
         }
     }
 

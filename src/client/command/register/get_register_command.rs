@@ -54,22 +54,22 @@ impl Command for GetRegisterCommand {
         }
     }
 
-    fn get_action_hash(&self) -> Vec<u8> {
+    fn action_hash(&self) -> Vec<u8> {
         let mut hasher = sha2::Sha256::new();
         hasher.update(STRUCT_NAME);
         hasher.update(self.register_address.to_hex());
         hasher.finalize().to_ascii_lowercase()
     }
 
-    fn get_id(&self) -> u128 {
+    fn id(&self) -> u128 {
         self.id
     }
 
-    fn get_name(&self) -> String {
+    fn name(&self) -> String {
         STRUCT_NAME.to_string()
     }
 
-    fn get_properties(&self) -> IndexMap<String, String> {
+    fn properties(&self) -> IndexMap<String, String> {
         let mut properties = IndexMap::new();
         properties.insert("register_address".to_string(), self.register_address.to_hex());
         properties

@@ -18,11 +18,12 @@ pub struct ResolvedAddress {
     pub xor_name: XorName,
     pub file_path: String,
     pub is_mutable: bool,
+    pub is_modified: bool,
 }
 
 impl ResolvedAddress {
-    pub fn new(is_found: bool, archive: Option<Archive>, xor_name: XorName, file_path: String, is_mutable: bool) -> Self {
-        ResolvedAddress { is_found, archive, xor_name, file_path, is_mutable }
+    pub fn new(is_found: bool, archive: Option<Archive>, xor_name: XorName, file_path: String, is_mutable: bool, is_modified: bool) -> Self {
+        ResolvedAddress { is_found, archive, xor_name, file_path, is_mutable, is_modified }
     }
 }
 
@@ -37,64 +38,54 @@ impl ResolverService {
         ResolverService { ant_tp_config, caching_client }
     }
 
-    pub fn is_modified(&self, headers: &HeaderMap, xor_name: &XorName) -> bool {
-        if headers.contains_key(IF_NONE_MATCH) {
-            let e_tag = headers.get(IF_NONE_MATCH).unwrap().to_str().unwrap();
-            let source_e_tag = e_tag.to_string().replace("\"", "");
-            let target_e_tag = format!("{:x}", xor_name);
-            debug!("is_modified == [{}], source_e_tag = [{}], target_e_tag = [{}], IF_NONE_MATCH present", source_e_tag == target_e_tag, source_e_tag, target_e_tag);
-            source_e_tag != target_e_tag
-        } else {
-            debug!("is_modified == [true], IF_NONE_MATCH absent");
-            true
-        }
-    }
-
-    pub async fn resolve(&self, hostname: &str, path: &str) -> Option<ResolvedAddress> {
+    pub async fn resolve(&self, hostname: &str, path: &str, headers: &HeaderMap) -> Option<ResolvedAddress> {
         let path_parts = self.get_path_parts(&hostname, &path);
         let (archive_addr, archive_file_name, file_path) = self.assign_path_parts(&path_parts);
-        self.resolve_archive_or_file(&archive_addr, &archive_file_name, &file_path, false).await
+        self.resolve_archive_or_file(&archive_addr, &archive_file_name, &file_path, false, headers).await
     }
 
-    async fn resolve_archive_or_file(&self, archive_directory: &String, archive_file_name: &String, archive_file_path: &String, is_resolved_mutable: bool) -> Option<ResolvedAddress> {
+    async fn resolve_archive_or_file(&self, archive_directory: &String, archive_file_name: &String, archive_file_path: &String, is_resolved_mutable: bool, headers: &HeaderMap) -> Option<ResolvedAddress> {
         if self.is_bookmark(archive_directory) {
             debug!("found bookmark for [{}]", archive_directory);
             let resolved_bookmark = &self.resolve_bookmark(archive_directory).unwrap().to_string();
-            Box::pin(self.resolve_archive_or_file(resolved_bookmark, archive_file_name, archive_file_path, true)).await
+            Box::pin(self.resolve_archive_or_file(resolved_bookmark, archive_file_name, archive_file_path, true, headers)).await
         } else if self.is_bookmark(archive_file_name) {
             debug!("found bookmark for [{}]", archive_file_name);
             let resolved_bookmark = &self.resolve_bookmark(archive_file_name).unwrap().to_string();
-            Box::pin(self.resolve_archive_or_file(archive_directory, resolved_bookmark, archive_file_path, true)).await
+            Box::pin(self.resolve_archive_or_file(archive_directory, resolved_bookmark, archive_file_path, true, headers)).await
         } else if self.is_mutable_address(&archive_directory) {
             debug!("found mutable address for [{}]", archive_directory);
             match self.analyze_simple(archive_directory).await {
                 Some(data_address) => {
-                    Box::pin(self.resolve_archive_or_file(&data_address.to_hex(), archive_file_name, archive_file_path, true)).await
+                    Box::pin(self.resolve_archive_or_file(&data_address.to_hex(), archive_file_name, archive_file_path, true, headers)).await
                 }
-                None => {
-                    info!("No mutable data found at [{}]", archive_directory);
-                    None
-                }
+                None => None
             }
         } else if self.is_immutable_address(&archive_directory) {
             debug!("found immutable address for [{}]", archive_directory);
             let archive_directory_xorname = self.str_to_xor_name(&archive_directory).unwrap();
+            let is_modified = self.is_modified(headers, &archive_directory_xorname);
 
-            let archive_address = ArchiveAddress::new(archive_directory_xorname);
-            match self.caching_client.archive_get(archive_address).await {
-                Ok(archive) => {
-                    info!("Found archive at [{:x}]", archive_directory_xorname);
-                    Some(ResolvedAddress::new(true, Some(archive), archive_directory_xorname, archive_file_path.clone(), is_resolved_mutable))
-                }
-                Err(_) => {
-                    info!("Found XOR address at [{:x}]", archive_directory_xorname);
-                    Some(ResolvedAddress::new(true, None, archive_directory_xorname, archive_file_path.clone(), is_resolved_mutable))
+            if !is_modified {
+                Some(ResolvedAddress::new(true, None, archive_directory_xorname, archive_file_path.clone(), is_resolved_mutable, false))
+            } else {
+                let archive_address = ArchiveAddress::new(archive_directory_xorname);
+                match self.caching_client.archive_get(archive_address).await {
+                    Ok(archive) => {
+                        debug!("Found archive at [{:x}]", archive_directory_xorname);
+                        Some(ResolvedAddress::new(true, Some(archive), archive_directory_xorname, archive_file_path.clone(), is_resolved_mutable, true))
+                    }
+                    Err(_) => {
+                        debug!("Found XOR address at [{:x}]", archive_directory_xorname);
+                        Some(ResolvedAddress::new(true, None, archive_directory_xorname, archive_file_path.clone(), is_resolved_mutable, true))
+                    }
                 }
             }
         } else if self.is_immutable_address(&archive_file_name) {
             let archive_file_name_xorname = self.str_to_xor_name(&archive_file_name).unwrap();
-            info!("Found XOR address at [{:x}]", archive_file_name_xorname);
-            Some(ResolvedAddress::new(true, None, archive_file_name_xorname, archive_file_path.clone(), is_resolved_mutable))
+            let is_modified = self.is_modified(headers, &archive_file_name_xorname);
+            debug!("Found XOR address at [{:x}]", archive_file_name_xorname);
+            Some(ResolvedAddress::new(true, None, archive_file_name_xorname, archive_file_path.clone(), is_resolved_mutable, is_modified))
         } else {
             warn!("Failed to find archive or filename [{:?}]", archive_file_name);
             None
@@ -120,6 +111,19 @@ impl ResolverService {
                     }
                 }
             }
+        }
+    }
+
+    fn is_modified(&self, headers: &HeaderMap, xor_name: &XorName) -> bool {
+        if headers.contains_key(IF_NONE_MATCH) {
+            let e_tag = headers.get(IF_NONE_MATCH).unwrap().to_str().unwrap();
+            let source_e_tag = e_tag.to_string().replace("\"", "");
+            let target_e_tag = format!("{:x}", xor_name);
+            debug!("is_modified == [{}], source_e_tag = [{}], target_e_tag = [{}], IF_NONE_MATCH present", source_e_tag == target_e_tag, source_e_tag, target_e_tag);
+            source_e_tag != target_e_tag
+        } else {
+            debug!("is_modified == [true], IF_NONE_MATCH absent");
+            true
         }
     }
 
@@ -228,32 +232,6 @@ impl ResolverService {
         self.ant_tp_config.bookmarks_map.get(alias).cloned()
     }
 
-    pub async fn resolve_address(&self, name: &String) -> Option<String> {
-        if self.is_bookmark(name) {
-            debug!("found bookmark for [{}]", name);
-            let resolved_bookmark = &self.resolve_bookmark(name).unwrap().to_string();
-            Box::pin(self.resolve_address(resolved_bookmark)).await
-        } else if self.is_mutable_address(&name) {
-            debug!("found mutable address for [{}]", name);
-            match self.analyze_simple(name).await {
-                Some(data_address) => {
-                    debug!("found immutable address for [{}]", name);
-                    Some(data_address.to_hex())
-                }
-                None => {
-                    info!("No mutable data found at [{}]", name);
-                    None
-                }
-            }
-        } else if self.is_immutable_address(&name) {
-            debug!("found immutable address for [{}]", name);
-            Some(name.clone())
-        } else {
-            warn!("Failed to find name [{:?}]", name);
-            None
-        }
-    }
-
     fn str_to_xor_name(&self, str: &String) -> Result<XorName, Error> {
         match hex::decode(str) {
             Ok(bytes) => {
@@ -269,7 +247,7 @@ impl ResolverService {
         }
     }
 
-    pub fn assign_path_parts(&self, path_parts: &Vec<String>) -> (String, String, String) {
+    fn assign_path_parts(&self, path_parts: &Vec<String>) -> (String, String, String) {
         if path_parts.len() > 1 {
             (path_parts[0].to_string(), path_parts[1].to_string(), path_parts[1..].join("/").to_string())
         } else if path_parts.len() > 0 {
@@ -279,7 +257,7 @@ impl ResolverService {
         }
     }
 
-    pub fn get_path_parts(&self, hostname: &str, path: &str) -> Vec<String> {
+    fn get_path_parts(&self, hostname: &str, path: &str) -> Vec<String> {
         // assert: subdomain.autonomi as acceptable format
         if hostname.ends_with(".autonomi") {
             let mut subdomain_parts = hostname.split(".")

@@ -9,7 +9,7 @@ use crate::service::public_archive_service::PublicArchiveService;
 use crate::client::CachingClient;
 use crate::client::error::ChunkError;
 use crate::controller::handle_get_error;
-use crate::service::archive_helper::{ArchiveAction, ArchiveHelper};
+use crate::service::archive_helper::{ArchiveAction, ArchiveHelper, ArchiveInfo};
 use crate::service::file_service::{FileService, RangeProps};
 use crate::service::header_builder::HeaderBuilder;
 use crate::service::resolver_service::{ResolvedAddress, ResolverService};
@@ -27,64 +27,31 @@ pub async fn get_public_data(
     let caching_client = caching_client_data.get_ref().clone();
     let resolver_service = ResolverService::new(ant_tp_config.clone(), caching_client.clone());
 
-    match resolver_service.resolve(&conn.host(), &path.into_inner()).await {
+    match resolver_service.resolve(&conn.host(), &path.into_inner(), request.headers()).await {
         Some(resolved_address) => {
-            let file_service = FileService::new(caching_client.clone(), ant_tp_config.clone());
             let header_builder = HeaderBuilder::new(resolver_service.clone(), ant_tp_config.clone());
-            if resolved_address.archive.is_some() {
+            if !resolved_address.is_modified {
+                Ok(build_not_modified_response(&resolved_address, &header_builder))
+            } else if resolved_address.archive.is_some() {
                 debug!("Retrieving file from archive [{:x}]", resolved_address.xor_name);
-                let public_archive_service = PublicArchiveService::new(file_service, uploader_state_data, upload_state_data, ant_tp_config.clone(), caching_client);
+                let file_service = FileService::new(caching_client.clone(), ant_tp_config.clone());
+                let public_archive_service = PublicArchiveService::new(
+                    file_service, uploader_state_data, upload_state_data, caching_client);
                 let archive_info = public_archive_service.get_archive_info(&resolved_address, &request).await;
 
-                if !archive_info.is_modified {
-                    Ok(build_not_modified_response(&resolved_address, &header_builder))
-                } else {
-                    match archive_info.action {
-                        ArchiveAction::Redirect => Ok(build_moved_permanently_response(&request, &header_builder)),
-                        ArchiveAction::NotFound => Err(ErrorNotFound(format!("Path not found: [{}]", archive_info.path_string))),
-                        ArchiveAction::Listing  => Ok(build_list_files_response(&request, &resolved_address, &header_builder, ant_tp_config)),
-                        ArchiveAction::Data => {
-                            match public_archive_service.get_data(&request, archive_info, resolved_address.file_path.clone()).await {
-                                Ok((chunk_receiver, range_props)) => {
-                                    if range_props.is_range() {
-                                        let mut builder = HttpResponse::PartialContent();
-                                        update_partial_content_response(&mut builder, &resolved_address, &header_builder, &range_props);
-                                        Ok(builder.streaming(chunk_receiver))
-                                    } else {
-                                        let mut builder = HttpResponse::Ok();
-                                        update_full_content_response(&mut builder, &resolved_address, &header_builder, &range_props);
-                                        Ok(builder.streaming(chunk_receiver))
-                                    }
-                                }
-                                Err(e) => Err(handle_error(e))
-                            }
-                        }
-                    }
+                match archive_info.action {
+                    ArchiveAction::Redirect => Ok(build_moved_permanently_response(&request, &header_builder)),
+                    ArchiveAction::NotFound => Err(ErrorNotFound(format!("File not found: {}", request.full_url()))),
+                    ArchiveAction::Listing  => Ok(build_list_files_response(&request, &resolved_address, &header_builder)),
+                    ArchiveAction::Data => get_data_archive(&request, &resolved_address, &header_builder, public_archive_service, archive_info).await,
                 }
             } else {
                 debug!("Retrieving file from XOR [{:x}]", resolved_address.xor_name);
-                // todo: could move is_modified to resolved_address and maybe change name?
-                if !resolver_service.is_modified(request.headers(), &resolved_address.xor_name) {
-                    Ok(build_not_modified_response(&resolved_address, &header_builder))
-                } else {
-                    match file_service.get_data(&resolved_address, &request, resolved_address.file_path.clone()).await {
-                        Ok((chunk_receiver, range_props)) => {
-                            if range_props.is_range() {
-                                let mut builder = HttpResponse::PartialContent();
-                                update_partial_content_response(&mut builder, &resolved_address, &header_builder, &range_props);
-                                Ok(builder.streaming(chunk_receiver))
-                            } else {
-                                let mut builder = HttpResponse::Ok();
-                                update_full_content_response(&mut builder, &resolved_address, &header_builder, &range_props);
-                                Ok(builder.streaming(chunk_receiver))
-                            }
-                        }
-                        Err(e) => Err(handle_error(e))
-                    }
-                }
+                let file_service = FileService::new(caching_client.clone(), ant_tp_config.clone());
+                get_data_xor(&request, &resolved_address, &header_builder, file_service).await
             }
         },
-        None => Err(ErrorNotFound(format!("File not found {:?}", conn.host())))
+        None => Err(ErrorNotFound(format!("File not found: {}", request.full_url())))
     }
 }
 
@@ -105,9 +72,8 @@ fn build_moved_permanently_response(request: &HttpRequest, header_builder: &Head
         .finish()
 }
 
-fn build_list_files_response(request: &HttpRequest, resolved_address: &ResolvedAddress, header_builder: &HeaderBuilder,
-                             ant_tp_config: AntTpConfig) -> HttpResponse {
-    let archive_helper = ArchiveHelper::new(resolved_address.archive.clone().unwrap(), ant_tp_config);
+fn build_list_files_response(request: &HttpRequest, resolved_address: &ResolvedAddress, header_builder: &HeaderBuilder) -> HttpResponse {
+    let archive_helper = ArchiveHelper::new(resolved_address.archive.clone().unwrap());
     let mime = archive_helper.get_accept_header_value(request.headers());
     HttpResponse::Ok()
         .insert_header(header_builder.build_etag_header(&resolved_address.xor_name))
@@ -138,6 +104,40 @@ fn update_full_content_response(builder: &mut HttpResponseBuilder, resolved_addr
         .insert_header(header_builder.build_cors_header())
         .insert_header(header_builder.build_server_header())
         .insert_header(header_builder.build_content_type_header(range_props.extension()));
+}
+
+async fn get_data_archive(request: &HttpRequest, resolved_address: &ResolvedAddress, header_builder: &HeaderBuilder, public_archive_service: PublicArchiveService, archive_info: ArchiveInfo) -> Result<HttpResponse, Error> {
+    match public_archive_service.get_data(&request, archive_info).await {
+        Ok((chunk_receiver, range_props)) => {
+            if range_props.is_range() {
+                let mut builder = HttpResponse::PartialContent();
+                update_partial_content_response(&mut builder, &resolved_address, &header_builder, &range_props);
+                Ok(builder.streaming(chunk_receiver))
+            } else {
+                let mut builder = HttpResponse::Ok();
+                update_full_content_response(&mut builder, &resolved_address, &header_builder, &range_props);
+                Ok(builder.streaming(chunk_receiver))
+            }
+        }
+        Err(e) => Err(handle_error(e))
+    }
+}
+
+async fn get_data_xor(request: &HttpRequest, resolved_address: &ResolvedAddress, header_builder: &HeaderBuilder, file_service: FileService) -> Result<HttpResponse, Error> {
+    match file_service.get_data(&request, &resolved_address).await {
+        Ok((chunk_receiver, range_props)) => {
+            if range_props.is_range() {
+                let mut builder = HttpResponse::PartialContent();
+                update_partial_content_response(&mut builder, &resolved_address, &header_builder, &range_props);
+                Ok(builder.streaming(chunk_receiver))
+            } else {
+                let mut builder = HttpResponse::Ok();
+                update_full_content_response(&mut builder, &resolved_address, &header_builder, &range_props);
+                Ok(builder.streaming(chunk_receiver))
+            }
+        }
+        Err(e) => Err(handle_error(e))
+    }
 }
 
 fn handle_error(chunk_error: ChunkError) -> Error {

@@ -28,9 +28,9 @@ pub struct CommandDetails {
 
 impl CommandDetails {
     pub fn new(command: &Box<dyn Command>) -> Self {
-        let id = command.get_id();
-        let name = command.get_name();
-        let properties = command.get_properties();
+        let id = command.id();
+        let name = command.name();
+        let properties = command.properties();
         let state = CommandState::WAITING;
         let waiting_at = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_millis();
         let running_at = None;

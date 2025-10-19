@@ -67,27 +67,27 @@ impl PublicArchiveService {
     pub async fn get_archive_info(&self, resolved_address: &ResolvedAddress, request: &HttpRequest) -> ArchiveInfo {
         let archive = resolved_address.archive.clone().expect("Archive not found");
         // load app_config from archive and resolve route
-        let app_config = self.get_app_config(archive.clone(), resolved_address.xor_name).await;
+        let app_config = self.get_app_config(&archive, &resolved_address.xor_name).await;
         // resolve route
-        let (resolved_route_path, has_route_map) = app_config.resolve_route(resolved_address.file_path.clone());
+        let (resolved_route_path, has_route_map) = app_config.resolve_route(&resolved_address.file_path);
 
         debug!("Get data for archive_addr [{:x}], archive_file_name [{}]", resolved_address.xor_name, resolved_route_path);
 
         // resolve file name to chunk address
         let archive_helper = ArchiveHelper::new(archive.clone());
-        archive_helper.resolve_archive_info(&resolved_address, request.clone(), resolved_route_path.clone(), has_route_map).await
+        archive_helper.resolve_archive_info(&resolved_address, &request, &resolved_route_path, has_route_map).await
     }
     
     pub async fn get_data(&self, request: &HttpRequest, archive_info: ArchiveInfo) -> Result<(ChunkReceiver, RangeProps), ChunkError> {
         self.file_client.download_data_stream(request, archive_info.path_string, archive_info.resolved_xor_addr, archive_info.offset, archive_info.size).await
     }
 
-    pub async fn get_app_config(&self, archive: Archive, archive_address_xorname: XorName) -> AppConfig {
+    pub async fn get_app_config(&self, archive: &Archive, archive_address_xorname: &XorName) -> AppConfig {
         let path_str = "app-conf.json";
         let mut path_parts = Vec::<String>::new();
         path_parts.push("ignore".to_string());
         path_parts.push(path_str.to_string());
-        match archive.find_file(path_str.to_string()) {
+        match archive.find_file(&path_str.to_string()) {
             Some(data_address_offset) => {
                 info!("Downloading app-config [{}] with addr [{}] from archive [{}]", path_str, format!("{:x}", data_address_offset.data_address.xorname()), format!("{:x}", archive_address_xorname));
                 match self.file_client.download_data(*data_address_offset.data_address.xorname(), data_address_offset.offset, data_address_offset.size).await {

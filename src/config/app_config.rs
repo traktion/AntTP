@@ -17,7 +17,7 @@ impl AppConfig {
         }
     }
     
-    pub fn resolve_route(&self, search_string: String) -> (String, bool) {
+    pub fn resolve_route(&self, search_string: &String) -> (String, bool) {
         debug!("resolving route [{}]", search_string);
         for (key, value) in self.route_map.clone() {
             let glob = Glob::new(key.as_str()).unwrap().compile_matcher();
@@ -27,6 +27,6 @@ impl AppConfig {
                 return (value, true);
             }
         };
-        (search_string, false)
+        (search_string.clone(), false)
     }
 }

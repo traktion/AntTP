@@ -106,8 +106,8 @@ impl Archive {
         Archive::new(data_address_offsets_map, data_address_offsets_vec)
     }
 
-    pub fn find_file(&self, search_key: String) -> Option<&DataAddressOffset> {
-        self.data_address_offsets_map.get(&search_key)
+    pub fn find_file(&self, search_key: &String) -> Option<&DataAddressOffset> {
+        self.data_address_offsets_map.get(search_key)
     }
 
     pub fn list_dir(&self, search_key: String) -> Vec<PathDetail> {

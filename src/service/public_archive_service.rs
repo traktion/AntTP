@@ -79,7 +79,7 @@ impl PublicArchiveService {
     }
     
     pub async fn get_data(&self, request: &HttpRequest, archive_info: ArchiveInfo) -> Result<(ChunkReceiver, RangeProps), ChunkError> {
-        self.file_client.download_data_stream(request, archive_info.path_string, archive_info.resolved_xor_addr, archive_info.offset, archive_info.size).await
+        self.file_client.download_data_request(request, archive_info.path_string, archive_info.resolved_xor_addr, archive_info.offset, archive_info.size).await
     }
 
     pub async fn get_app_config(&self, archive: &Archive, archive_address_xorname: &XorName) -> AppConfig {

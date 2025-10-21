@@ -61,10 +61,10 @@ impl FileService {
     }
 
     pub async fn get_data(&self, request: &HttpRequest, resolved_address: &ResolvedAddress) -> Result<(ChunkReceiver, RangeProps), ChunkError> {
-        self.download_data_stream(request, resolved_address.file_path.clone(), resolved_address.xor_name, 0, 0).await
+        self.download_data_request(request, resolved_address.file_path.clone(), resolved_address.xor_name, 0, 0).await
     }
 
-    pub async fn download_data_stream(
+    pub async fn download_data_request(
         &self,
         request: &HttpRequest,
         path_str: String,
@@ -80,7 +80,7 @@ impl FileService {
         let chunk_streamer = ChunkStreamer::new(xor_name.to_string(), data_map_chunk.value, self.caching_client.clone(), self.ant_tp_config.download_threads);
         let content_length = self.get_content_length(&chunk_streamer, size_modifier).await;
 
-        let (range_from, range_to, range_length, is_range_request) = self.get_range(&request, offset_modifier, content_length);
+        let (range_from, range_to, range_length, is_range_request) = self.get_range(Some(&request), offset_modifier, content_length);
         if is_range_request && range_length == 0 {
             return Err(ChunkError::GetStreamError(GetStreamError::BadRange(format!("bad range length: [{}]", range_length))));
         }
@@ -92,7 +92,7 @@ impl FileService {
 
         let extension = Path::new(&path_str).extension().unwrap_or_default().to_str().unwrap_or_default().to_string();
         let (maybe_response_range_from, maybe_response_range_to) =
-            self.get_response_range(range_to, range_from, is_range_request, offset_modifier);
+            self.get_response_range(range_from, range_to, is_range_request, offset_modifier);
         info!("streaming item [{}] at addr [{}], range_from: [{}], range_to: [{}], offset_modifier: [{}], size_modifier: [{}], content_length: [{}], range_length: [{}], response_range_from: [{}], response_range_to: [{}]",
                 path_str, format!("{:x}", xor_name), range_from, range_to, offset_modifier, size_modifier, content_length, range_length, maybe_response_range_from.unwrap_or(0), maybe_response_range_to.unwrap_or(0));
         Ok((chunk_receiver, RangeProps::new(maybe_response_range_from, maybe_response_range_to, content_length, extension)))
@@ -109,11 +109,11 @@ impl FileService {
         }
     }
 
-    pub fn get_range(&self, request: &HttpRequest, offset_modifier: u64, size_modifier: u64) -> (u64, u64, u64, bool) {
+    pub fn get_range(&self, request: Option<&HttpRequest>, offset_modifier: u64, size_modifier: u64) -> (u64, u64, u64, bool) {
         debug!("get_range - offset_modifier [{}], size_modifier [{}]", offset_modifier, size_modifier);
         let length = if size_modifier > 0 { size_modifier - 1 } else { 0 }; // ranges are zero indexed
         let range_to= offset_modifier + length;
-        if let Some(range) = request.headers().get(header::RANGE) {
+        if request.is_some() && let Some(range) = request.unwrap().headers().get(header::RANGE) {
             // e.g. bytes=100-200/201
             let range_value = range.to_str()
                 .unwrap_or("")
@@ -132,7 +132,7 @@ impl FileService {
         }
     }
 
-    fn get_response_range(&self, range_to: u64, range_from: u64, is_range_request: bool, offset_modifier: u64) -> (Option<u64>, Option<u64>) {
+    fn get_response_range(&self, range_from: u64, range_to: u64, is_range_request: bool, offset_modifier: u64) -> (Option<u64>, Option<u64>) {
         if is_range_request {
             (Some(range_from - offset_modifier), Some(range_to - offset_modifier))
         } else {
@@ -140,20 +140,17 @@ impl FileService {
         }
     }
 
-    pub async fn download_data(&self, xor_name: XorName, range_from: u64, size: u64) -> Result<ChunkReceiver, ChunkError> {
-        debug!("download data xor_name: [{}], offset: [{}], size: [{}]", xor_name.clone(), range_from, size);
+    // todo: refactor/merge with download_data_request above
+    pub async fn download_data(&self, xor_name: XorName, range_from: u64, size_modifier: u64) -> Result<ChunkReceiver, ChunkError> {
+        debug!("download data xor_name: [{}], offset: [{}], size: [{}]", xor_name.clone(), range_from, size_modifier);
         let data_map_chunk = match self.caching_client.chunk_get_internal(&ChunkAddress::new(xor_name)).await {
             Ok(chunk) => chunk,
             Err(e) => return Err(e),
         };
 
         let chunk_streamer = ChunkStreamer::new(xor_name.to_string(), data_map_chunk.value, self.caching_client.clone(), self.ant_tp_config.download_threads);
-
-        let range_to = if size == u64::MAX {
-            u64::try_from(chunk_streamer.get_stream_size().await - 1).unwrap()
-        } else {
-            range_from + size - 1
-        };
+        let content_length = self.get_content_length(&chunk_streamer, size_modifier).await;
+        let (range_from, range_to, _, _) = self.get_range(None, range_from, content_length);
 
         match chunk_streamer.open(range_from, range_to).await {
             Ok(chunk_receiver) => Ok(chunk_receiver),

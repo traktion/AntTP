@@ -2,7 +2,7 @@ use std::convert::TryInto;
 use actix_http::header::{HeaderMap, IF_NONE_MATCH};
 use actix_web::Error;
 use actix_web::error::{ErrorBadGateway, ErrorBadRequest};
-use autonomi::{PointerAddress, PublicKey};
+use autonomi::{ChunkAddress, PointerAddress, PublicKey};
 use autonomi::data::DataAddress;
 use autonomi::files::archive_public::ArchiveAddress;
 use autonomi::register::{RegisterAddress};
@@ -63,29 +63,29 @@ impl ResolverService {
             }
         } else if self.is_immutable_address(&archive_directory) {
             debug!("found immutable address for [{}]", archive_directory);
-            let archive_directory_xorname = self.str_to_xor_name(&archive_directory).unwrap();
-            let is_modified = self.is_modified(headers, &archive_directory_xorname);
+            let archive_address = ArchiveAddress::from_hex(archive_directory).unwrap();
+            let archive_directory_xor_name = archive_address.xorname().clone();
+            let is_modified = self.is_modified(headers, &archive_directory);
 
             if !is_modified {
-                Some(ResolvedAddress::new(true, None, archive_directory_xorname, archive_file_path.clone(), is_resolved_mutable, false))
+                Some(ResolvedAddress::new(true, None, archive_directory_xor_name, archive_file_path.clone(), is_resolved_mutable, false))
             } else {
-                let archive_address = ArchiveAddress::new(archive_directory_xorname);
                 match self.caching_client.archive_get(archive_address).await {
                     Ok(archive) => {
-                        debug!("Found archive at [{:x}]", archive_directory_xorname);
-                        Some(ResolvedAddress::new(true, Some(archive), archive_directory_xorname, archive_file_path.clone(), is_resolved_mutable, true))
+                        debug!("Found archive at [{:x}]", archive_directory_xor_name);
+                        Some(ResolvedAddress::new(true, Some(archive), archive_directory_xor_name, archive_file_path.clone(), is_resolved_mutable, true))
                     }
                     Err(_) => {
-                        debug!("Found XOR address at [{:x}]", archive_directory_xorname);
-                        Some(ResolvedAddress::new(true, None, archive_directory_xorname, archive_file_path.clone(), is_resolved_mutable, true))
+                        info!("Found XOR address at [{:x}]", archive_directory_xor_name);
+                        Some(ResolvedAddress::new(true, None, archive_directory_xor_name, archive_file_path.clone(), is_resolved_mutable, true))
                     }
                 }
             }
         } else if self.is_immutable_address(&archive_file_name) {
-            let archive_file_name_xorname = self.str_to_xor_name(&archive_file_name).unwrap();
-            let is_modified = self.is_modified(headers, &archive_file_name_xorname);
-            debug!("Found XOR address at [{:x}]", archive_file_name_xorname);
-            Some(ResolvedAddress::new(true, None, archive_file_name_xorname, archive_file_path.clone(), is_resolved_mutable, is_modified))
+            let archive_file_name_xor_name = ChunkAddress::from_hex(archive_file_name).unwrap().xorname().clone();
+            let is_modified = self.is_modified(headers, &archive_file_name);
+            info!("Found XOR address at [{:x}]", archive_file_name_xor_name);
+            Some(ResolvedAddress::new(true, None, archive_file_name_xor_name, archive_file_path.clone(), is_resolved_mutable, is_modified))
         } else {
             warn!("Failed to find archive or filename [{:?}]", archive_file_name);
             None
@@ -114,15 +114,12 @@ impl ResolverService {
         }
     }
 
-    fn is_modified(&self, headers: &HeaderMap, xor_name: &XorName) -> bool {
-        if headers.contains_key(IF_NONE_MATCH) {
-            let e_tag = headers.get(IF_NONE_MATCH).unwrap().to_str().unwrap();
-            let source_e_tag = e_tag.to_string().replace("\"", "");
-            let target_e_tag = format!("{:x}", xor_name);
-            debug!("is_modified == [{}], source_e_tag = [{}], target_e_tag = [{}], IF_NONE_MATCH present", source_e_tag == target_e_tag, source_e_tag, target_e_tag);
-            source_e_tag != target_e_tag
+    fn is_modified(&self, headers: &HeaderMap, target_e_tag: &String) -> bool {
+        // todo: should this check content-type too? seeing some json returned on web browser indexes for IMIM data
+        if headers.contains_key(IF_NONE_MATCH) && let Some(header_value) = headers.get(IF_NONE_MATCH) {
+            let source_e_tag = header_value.to_str().unwrap_or("").trim_matches('"');
+            source_e_tag != target_e_tag.as_str()
         } else {
-            debug!("is_modified == [true], IF_NONE_MATCH absent");
             true
         }
     }
@@ -230,21 +227,6 @@ impl ResolverService {
     
     pub fn resolve_bookmark(&self, alias: &String) -> Option<String> {
         self.ant_tp_config.bookmarks_map.get(alias).cloned()
-    }
-
-    fn str_to_xor_name(&self, str: &String) -> Result<XorName, Error> {
-        match hex::decode(str) {
-            Ok(bytes) => {
-                let xor_name_bytes: [u8; 32] = match bytes.try_into() {
-                    Ok(bytes) => bytes,
-                    Err(_) => return Err(ErrorBadGateway("Failed to parse XorName from hex string")),
-                };
-                Ok(XorName(xor_name_bytes))
-            },
-            Err(_) => {
-                Err(ErrorBadRequest(format!("Invalid XorName [{}]", str)))
-            }
-        }
     }
 
     fn assign_path_parts(&self, path_parts: &Vec<String>) -> (String, String, String) {

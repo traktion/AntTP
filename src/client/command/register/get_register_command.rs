@@ -10,6 +10,7 @@ use crate::client::cache_item::CacheItem;
 use crate::client::client_harness::ClientHarness;
 use crate::client::command::error::CommandError;
 use crate::client::command::Command;
+use crate::client::REGISTER_CACHE_KEY;
 
 pub struct GetRegisterCommand {
     id: u128,
@@ -41,7 +42,7 @@ impl Command for GetRegisterCommand {
             Ok(register_value) => {
                 let new_cache_item = CacheItem::new(Some(register_value.clone()), self.ttl);
                 self.hybrid_cache.insert(
-                    format!("rg{}", register_address_hex),
+                    format!("{}{}", REGISTER_CACHE_KEY, register_address_hex),
                     rmp_serde::to_vec(&new_cache_item).expect("Failed to serialize register")
                 );
                 info!("refreshed hybrid cache with register for [{}] from network", register_address_hex);

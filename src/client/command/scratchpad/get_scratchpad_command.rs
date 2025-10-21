@@ -10,6 +10,7 @@ use crate::client::cache_item::CacheItem;
 use crate::client::client_harness::ClientHarness;
 use crate::client::command::error::CommandError;
 use crate::client::command::Command;
+use crate::client::SCRATCHPAD_CACHE_KEY;
 
 pub struct GetScratchpadCommand {
     id: u128,
@@ -42,7 +43,7 @@ impl Command for GetScratchpadCommand {
             Ok(scratchpad) => {
                 let new_cache_item = CacheItem::new(Some(scratchpad.clone()), self.ttl);
                 self.hybrid_cache.insert(
-                    format!("sg{}", scratchpad_address_hex),
+                    format!("{}{}", SCRATCHPAD_CACHE_KEY, scratchpad_address_hex),
                     rmp_serde::to_vec(&new_cache_item).expect("Failed to serialize scratchpad")
                 );
                 info!("refreshed hybrid cache with scratchpad for [{}] from network", scratchpad_address_hex);

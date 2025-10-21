@@ -82,7 +82,7 @@ impl FileService {
 
         let (range_from, range_to, range_length, is_range_request) = self.get_range(&request, offset_modifier, content_length);
         if is_range_request && range_length == 0 {
-            return Err(ChunkError::GetStreamError(GetStreamError::BadRange(format!("Bad range length: [{}]", range_length))));
+            return Err(ChunkError::GetStreamError(GetStreamError::BadRange(format!("bad range length: [{}]", range_length))));
         }
 
         let chunk_receiver = match chunk_streamer.open(range_from, range_to).await {

@@ -1,4 +1,4 @@
-use crate::client::CachingClient;
+use crate::client::{CachingClient, PUBLIC_ARCHIVE_CACHE_KEY};
 use ant_evm::AttoTokens;
 use autonomi::client::payment::PaymentOption;
 use autonomi::client::{GetError, PutError};
@@ -30,7 +30,7 @@ impl CachingClient {
     pub async fn archive_get_public_raw(&self, addr: &DataAddress) -> Result<Bytes, GetError> {
         let local_caching_client = self.clone();
         let local_address = addr.clone();
-        match self.hybrid_cache.get_ref().fetch(format!("pa{}", local_address.to_hex()), || async move {
+        match self.hybrid_cache.get_ref().fetch(format!("{}{}", PUBLIC_ARCHIVE_CACHE_KEY, local_address.to_hex()), || async move {
             // todo: optimise range_to to first chunk length (to avoid downloading other chunks when not needed)
             let maybe_bytes = local_caching_client.download_stream(&local_address, 0, 524288).await;
             match maybe_bytes {

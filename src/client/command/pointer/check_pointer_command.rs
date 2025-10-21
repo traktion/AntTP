@@ -10,6 +10,7 @@ use crate::client::cache_item::CacheItem;
 use crate::client::client_harness::ClientHarness;
 use crate::client::command::error::CommandError;
 use crate::client::command::Command;
+use crate::client::POINTER_CHECK_CACHE_KEY;
 
 pub struct CheckPointerCommand {
     id: u128,
@@ -42,7 +43,7 @@ impl Command for CheckPointerCommand {
             Ok(is_pointer) => {
                 let new_cache_item = CacheItem::new(Some(is_pointer.clone()), self.ttl);
                 self.hybrid_cache.insert(
-                    format!("pce{}", pointer_address_hex),
+                    format!("{}{}", POINTER_CHECK_CACHE_KEY, pointer_address_hex),
                     rmp_serde::to_vec(&new_cache_item).expect("Failed to serialize pointer check existence")
                 );
                 info!("refreshed hybrid cache with pointer check existence for [{}] from network", pointer_address_hex);

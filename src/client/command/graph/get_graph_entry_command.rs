@@ -10,6 +10,7 @@ use crate::client::cache_item::CacheItem;
 use crate::client::client_harness::ClientHarness;
 use crate::client::command::error::CommandError;
 use crate::client::command::Command;
+use crate::client::GRAPH_ENTRY_CACHE_KEY;
 
 pub struct GetGraphEntryCommand {
     id: u128,
@@ -42,7 +43,7 @@ impl Command for GetGraphEntryCommand {
             Ok(graph_entry) => {
                 let new_cache_item = CacheItem::new(Some(graph_entry.clone()), self.ttl);
                 self.hybrid_cache.insert(
-                    format!("gg{}", graph_entry_address_hex),
+                    format!("{}{}", GRAPH_ENTRY_CACHE_KEY, graph_entry_address_hex),
                     rmp_serde::to_vec(&new_cache_item).expect("Failed to serialize graph entry")
                 );
                 info!("refreshed hybrid cache with graph entry for [{}] from network", graph_entry_address_hex);

@@ -4,7 +4,7 @@ use autonomi::pointer::PointerTarget;
 use autonomi::{Pointer, PointerAddress, SecretKey};
 use log::{debug, error, info};
 use crate::client::cache_item::CacheItem;
-use crate::client::CachingClient;
+use crate::client::{CachingClient, POINTER_CACHE_KEY, POINTER_CHECK_CACHE_KEY};
 use crate::client::command::pointer::check_pointer_command::CheckPointerCommand;
 use crate::client::command::pointer::get_pointer_command::GetPointerCommand;
 use crate::controller::CacheType;
@@ -58,11 +58,11 @@ impl CachingClient {
         let ttl = if cache_only.is_some() { u64::MAX } else { self.ant_tp_config.cached_mutable_ttl };
         let cache_item = CacheItem::new(Some(pointer.clone()), ttl);
         let serialised_cache_item = rmp_serde::to_vec(&cache_item).expect("Failed to serialize pointer");
-        info!("updating cache with pointer at address pg[{}] to target [{}] and TTL [{}]", pointer.address().to_hex(), target.to_hex(), ttl);
+        info!("updating cache with pointer at address {}[{}] to target [{}] and TTL [{}]", POINTER_CACHE_KEY, pointer.address().to_hex(), target.to_hex(), ttl);
         if cache_only.is_some_and(|v| matches!(v, CacheType::Disk)) {
-            self.hybrid_cache.insert(format!("pg{}", pointer.address().to_hex()), serialised_cache_item);
+            self.hybrid_cache.insert(format!("{}{}", POINTER_CACHE_KEY, pointer.address().to_hex()), serialised_cache_item);
         } else {
-            self.hybrid_cache.memory().insert(format!("pg{}", pointer.address().to_hex()), serialised_cache_item);
+            self.hybrid_cache.memory().insert(format!("{}{}", POINTER_CACHE_KEY, pointer.address().to_hex()), serialised_cache_item);
         }
         pointer
     }
@@ -70,7 +70,7 @@ impl CachingClient {
     pub async fn pointer_get(&self, address: &PointerAddress) -> Result<Pointer, PointerError> {
         let local_address = address.clone();
         let local_ant_tp_config = self.ant_tp_config.clone();
-        match self.hybrid_cache.get_ref().fetch(format!("pg{}", local_address.to_hex()), {
+        match self.hybrid_cache.get_ref().fetch(format!("{}{}", POINTER_CACHE_KEY, local_address.to_hex()), {
             let client = match self.client_harness.get_ref().lock().await.get_client().await {
                 Some(client) => client,
                 None => {
@@ -109,7 +109,7 @@ impl CachingClient {
     pub async fn pointer_check_existence(&self, address: &PointerAddress) -> Result<bool, PointerError> {
         let local_address = address.clone();
         let local_ant_tp_config = self.ant_tp_config.clone();
-        match self.hybrid_cache.get_ref().fetch(format!("pce{}", local_address.to_hex()), {
+        match self.hybrid_cache.get_ref().fetch(format!("{}{}", POINTER_CHECK_CACHE_KEY, local_address.to_hex()), {
             let client = match self.client_harness.get_ref().lock().await.get_client().await {
                 Some(client) => client,
                 None => return Err(PointerError::GetError(GetError::NetworkOffline(

@@ -3,7 +3,7 @@ use autonomi::client::payment::PaymentOption;
 use autonomi::{GraphEntry, GraphEntryAddress};
 use log::{debug, info};
 use crate::client::cache_item::CacheItem;
-use crate::client::CachingClient;
+use crate::client::{CachingClient, GRAPH_ENTRY_CACHE_KEY};
 use crate::client::command::graph::create_graph_entry_command::CreateGraphEntryCommand;
 use crate::client::command::graph::get_graph_entry_command::GetGraphEntryCommand;
 use crate::client::error::{GetError, GraphError};
@@ -30,11 +30,11 @@ impl CachingClient {
         let ttl = if cache_only.is_some() { u64::MAX } else { self.ant_tp_config.cached_mutable_ttl };
         let cache_item = CacheItem::new(Some(graph_entry.clone()), ttl);
         let serialised_cache_item = rmp_serde::to_vec(&cache_item).expect("Failed to serialize graph entry");
-        info!("updating cache with graph_entry at address gg[{}] and TTL [{}]", graph_entry.address().to_hex(), ttl);
+        info!("updating cache with graph_entry at address {}[{}] and TTL [{}]", GRAPH_ENTRY_CACHE_KEY, graph_entry.address().to_hex(), ttl);
         if cache_only.is_some_and(|v| matches!(v, CacheType::Disk)) {
-            self.hybrid_cache.insert(format!("gg{}", graph_entry.address().to_hex()), serialised_cache_item);
+            self.hybrid_cache.insert(format!("{}{}", GRAPH_ENTRY_CACHE_KEY, graph_entry.address().to_hex()), serialised_cache_item);
         } else {
-            self.hybrid_cache.memory().insert(format!("gg{}", graph_entry.address().to_hex()), serialised_cache_item);
+            self.hybrid_cache.memory().insert(format!("{}{}", GRAPH_ENTRY_CACHE_KEY, graph_entry.address().to_hex()), serialised_cache_item);
         }
     }
 
@@ -44,7 +44,7 @@ impl CachingClient {
     ) -> Result<GraphEntry, GraphError> {
         let local_address = address.clone();
         let local_ant_tp_config = self.ant_tp_config.clone();
-        match self.hybrid_cache.get_ref().fetch(format!("gg{}", local_address.to_hex()), {
+        match self.hybrid_cache.get_ref().fetch(format!("{}{}", GRAPH_ENTRY_CACHE_KEY, local_address.to_hex()), {
             let client = match self.client_harness.get_ref().lock().await.get_client().await {
                 Some(client) => client,
                 None => return Err(GraphError::GetError(GetError::NetworkOffline(

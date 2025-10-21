@@ -14,6 +14,15 @@ pub struct CachingClient {
     command_executor: Data<Sender<Box<dyn Command>>>,
 }
 
+const ARCHIVE_CACHE_KEY: &'static str = "ar";
+const GRAPH_ENTRY_CACHE_KEY: &'static str = "gg";
+const POINTER_CACHE_KEY: &'static str = "pg";
+const POINTER_CHECK_CACHE_KEY: &'static str = "pce";
+const PUBLIC_ARCHIVE_CACHE_KEY: &'static str = "pa";
+const REGISTER_CACHE_KEY: &'static str = "rg";
+const SCRATCHPAD_CACHE_KEY: &'static str = "sg";
+const TARCHIVE_CACHE_KEY: &'static str = "tar";
+
 pub mod caching_client;
 pub mod cache_item;
 pub mod client_harness;

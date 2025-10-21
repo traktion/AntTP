@@ -3,7 +3,7 @@ use autonomi::files::PublicArchive;
 use log::{debug, info};
 use rmp_serde::decode;
 use tokio::join;
-use crate::client::CachingClient;
+use crate::client::{CachingClient, ARCHIVE_CACHE_KEY};
 use crate::model::archive::Archive;
 
 impl CachingClient {
@@ -12,7 +12,7 @@ impl CachingClient {
         // todo: could remove caching of sub-calls, unless called directly elsewhere?
         let local_caching_client = self.clone();
         let local_address = addr.clone();
-        match self.hybrid_cache.get_ref().fetch(format!("ar{}", local_address.to_hex()), || async move {
+        match self.hybrid_cache.get_ref().fetch(format!("{}{}", ARCHIVE_CACHE_KEY, local_address.to_hex()), || async move {
             let (public_archive, tarchive) = join!(local_caching_client.archive_get_public_raw(&addr), local_caching_client.get_archive_from_tar(&addr));
             match public_archive {
                 Ok(bytes) => match PublicArchive::from_bytes(bytes) {

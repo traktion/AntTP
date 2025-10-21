@@ -4,7 +4,7 @@ use autonomi::register::{RegisterAddress, RegisterHistory, RegisterValue};
 use autonomi::SecretKey;
 use log::{debug, info};
 use crate::client::cache_item::CacheItem;
-use crate::client::CachingClient;
+use crate::client::{CachingClient, REGISTER_CACHE_KEY};
 use crate::client::command::register::create_register_command::CreateRegisterCommand;
 use crate::client::command::register::get_register_command::GetRegisterCommand;
 use crate::client::command::register::update_register_command::UpdateRegisterCommand;
@@ -52,11 +52,11 @@ impl CachingClient {
         let ttl = if cache_only.is_some() { u64::MAX } else { self.ant_tp_config.cached_mutable_ttl };
         let cache_item = CacheItem::new(Some(register_value.clone()), ttl);
         let serialised_cache_item = rmp_serde::to_vec(&cache_item).expect("Failed to serialize register");
-        info!("updating cache with register at address rg[{}] to value [{:?}] and TTL [{}]", register_address.to_hex(), register_value, ttl);
+        info!("updating cache with register at address {}[{}] to value [{:?}] and TTL [{}]", REGISTER_CACHE_KEY, register_address.to_hex(), register_value, ttl);
         if cache_only.is_some_and(|v| matches!(v, CacheType::Disk)) {
-            self.hybrid_cache.insert(format!("rg{}", register_address.to_hex()), serialised_cache_item);
+            self.hybrid_cache.insert(format!("{}{}", REGISTER_CACHE_KEY, register_address.to_hex()), serialised_cache_item);
         } else {
-            self.hybrid_cache.memory().insert(format!("rg{}", register_address.to_hex()), serialised_cache_item);
+            self.hybrid_cache.memory().insert(format!("{}{}", REGISTER_CACHE_KEY, register_address.to_hex()), serialised_cache_item);
         }
         register_address
     }
@@ -64,7 +64,7 @@ impl CachingClient {
     pub async fn register_get(&self, address: &RegisterAddress) -> Result<RegisterValue, RegisterError> {
         let local_address = address.clone();
         let local_ant_tp_config = self.ant_tp_config.clone();
-        match self.hybrid_cache.get_ref().fetch(format!("rg{}", local_address.to_hex()), {
+        match self.hybrid_cache.get_ref().fetch(format!("{}{}", REGISTER_CACHE_KEY, local_address.to_hex()), {
             let client = match self.client_harness.get_ref().lock().await.get_client().await {
                 Some(client) => client,
                 None => return Err(RegisterError::GetError(GetError::NetworkOffline(

@@ -3,14 +3,14 @@ use autonomi::data::DataAddress;
 use bytes::Bytes;
 use log::{debug, info};
 use crate::client::caching_client::ARCHIVE_TAR_IDX_BYTES;
-use crate::client::CachingClient;
+use crate::client::{CachingClient, TARCHIVE_CACHE_KEY};
 
 impl CachingClient {
 
     pub async fn get_archive_from_tar(&self, addr: &DataAddress) -> Result<Bytes, GetError> {
         let local_caching_client = self.clone();
         let local_address = addr.clone();
-        match self.hybrid_cache.get_ref().fetch(format!("tar{}", local_address.to_hex()), || async move {
+        match self.hybrid_cache.get_ref().fetch(format!("{}{}", TARCHIVE_CACHE_KEY, local_address.to_hex()), || async move {
             // todo: confirm whether checking header for tar signature improves performance/reliability
             // 20480
             let trailer_bytes = local_caching_client.download_stream(&local_address, -20480, 0).await;

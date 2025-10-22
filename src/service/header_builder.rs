@@ -4,33 +4,30 @@ use actix_http::header;
 use actix_web::http::header::{CacheControl, CacheDirective, ContentLength, ContentRange, ContentRangeSpec, ContentType, ETag, EntityTag, Expires, HeaderName};
 use mime::Mime;
 use xor_name::XorName;
-use crate::config::anttp_config::AntTpConfig;
-use crate::service::resolver_service::ResolverService;
 
 pub struct HeaderBuilder {
-    resolver_service: ResolverService,
-    ant_tp_config: AntTpConfig
+    cached_mutable_ttl: u64
 }
 
 impl HeaderBuilder {
     
-    pub fn new(resolver_service: ResolverService, ant_tp_config: AntTpConfig) -> Self {
-        Self { resolver_service, ant_tp_config }
+    pub fn new(cached_mutable_ttl: u64) -> Self {
+        Self { cached_mutable_ttl }
     }
     
-    pub fn build_cache_control_header(&self, xor_name: &XorName, is_resolved_file_name: bool) -> CacheControl {
-        if !is_resolved_file_name && self.resolver_service.is_immutable_address(&format!("{:x}", xor_name)) {
+    pub fn build_cache_control_header(&self, is_resolved_from_mutable: bool) -> CacheControl {
+        if !is_resolved_from_mutable {
             CacheControl(vec![CacheDirective::MaxAge(u32::MAX), CacheDirective::Public]) // immutable
         } else {
-            CacheControl(vec![CacheDirective::MaxAge(u32::try_from(self.ant_tp_config.cached_mutable_ttl).unwrap()), CacheDirective::Public]) // mutable
+            CacheControl(vec![CacheDirective::MaxAge(u32::try_from(self.cached_mutable_ttl).unwrap()), CacheDirective::Public]) // mutable
         }
     }
 
-    pub fn build_expires_header(&self, xor_name: &XorName, is_resolved_file_name: bool) -> Expires {
-        if !is_resolved_file_name && self.resolver_service.is_immutable_address(&format!("{:x}", xor_name)) {
+    pub fn build_expires_header(&self, is_resolved_from_mutable: bool) -> Expires {
+        if !is_resolved_from_mutable {
             Expires((SystemTime::now() + Duration::from_secs(u64::from(u32::MAX))).into()) // immutable
         } else {
-            Expires((SystemTime::now() + Duration::from_secs(self.ant_tp_config.cached_mutable_ttl)).into()) // mutable
+            Expires((SystemTime::now() + Duration::from_secs(self.cached_mutable_ttl)).into()) // mutable
         }
     }
 

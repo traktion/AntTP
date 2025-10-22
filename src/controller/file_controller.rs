@@ -29,7 +29,7 @@ pub async fn get_public_data(
 
     match resolver_service.resolve(&conn.host(), &path.into_inner(), request.headers()).await {
         Some(resolved_address) => {
-            let header_builder = HeaderBuilder::new(resolver_service.clone(), ant_tp_config.clone());
+            let header_builder = HeaderBuilder::new(ant_tp_config.cached_mutable_ttl);
             if !resolved_address.is_modified {
                 Ok(build_not_modified_response(&resolved_address, &header_builder))
             } else if resolved_address.archive.is_some() {
@@ -40,10 +40,10 @@ pub async fn get_public_data(
                 let archive_info = public_archive_service.get_archive_info(&resolved_address, &request).await;
 
                 match archive_info.action {
-                    ArchiveAction::Redirect => Ok(build_moved_permanently_response(&request, &header_builder)),
-                    ArchiveAction::NotFound => Err(ErrorNotFound(format!("File not found: {}", request.full_url()))),
-                    ArchiveAction::Listing  => Ok(build_list_files_response(&request, &resolved_address, &header_builder)),
                     ArchiveAction::Data => get_data_archive(&request, &resolved_address, &header_builder, public_archive_service, archive_info).await,
+                    ArchiveAction::Redirect => Ok(build_moved_permanently_response(&request, &header_builder)),
+                    ArchiveAction::Listing  => Ok(build_list_files_response(&request, &resolved_address, &header_builder)),
+                    ArchiveAction::NotFound => Err(ErrorNotFound(format!("File not found: {}", request.full_url()))),
                 }
             } else {
                 debug!("Retrieving file from XOR [{:x}]", resolved_address.xor_name);
@@ -57,8 +57,8 @@ pub async fn get_public_data(
 
 fn build_not_modified_response(resolved_address: &ResolvedAddress, header_builder: &HeaderBuilder) -> HttpResponse {
     HttpResponse::NotModified()
-        .insert_header(header_builder.build_cache_control_header(&resolved_address.xor_name, resolved_address.is_mutable))
-        .insert_header(header_builder.build_expires_header(&resolved_address.xor_name, resolved_address.is_mutable))
+        .insert_header(header_builder.build_cache_control_header(resolved_address.is_resolved_from_mutable))
+        .insert_header(header_builder.build_expires_header(resolved_address.is_resolved_from_mutable))
         .insert_header(header_builder.build_etag_header(&resolved_address.xor_name))
         .insert_header(header_builder.build_cors_header())
         .insert_header(header_builder.build_server_header())
@@ -87,8 +87,8 @@ fn update_partial_content_response(builder: &mut HttpResponseBuilder, resolved_a
     builder
         .insert_header(header_builder.build_content_range_header(range_props.range_from().unwrap(), range_props.range_to().unwrap(), range_props.content_length()))
         .insert_header(header_builder.build_accept_ranges_header())
-        .insert_header(header_builder.build_cache_control_header(&resolved_address.xor_name, resolved_address.is_mutable))
-        .insert_header(header_builder.build_expires_header(&resolved_address.xor_name, resolved_address.is_mutable))
+        .insert_header(header_builder.build_cache_control_header(resolved_address.is_resolved_from_mutable))
+        .insert_header(header_builder.build_expires_header(resolved_address.is_resolved_from_mutable))
         .insert_header(header_builder.build_etag_header(&resolved_address.xor_name))
         .insert_header(header_builder.build_cors_header())
         .insert_header(header_builder.build_server_header())
@@ -98,8 +98,8 @@ fn update_partial_content_response(builder: &mut HttpResponseBuilder, resolved_a
 fn update_full_content_response(builder: &mut HttpResponseBuilder, resolved_address: &ResolvedAddress, header_builder: &HeaderBuilder, range_props: &RangeProps) {
     builder
         .insert_header(header_builder.build_content_length_header(range_props.content_length()))
-        .insert_header(header_builder.build_cache_control_header(&resolved_address.xor_name, resolved_address.is_mutable))
-        .insert_header(header_builder.build_expires_header(&resolved_address.xor_name, resolved_address.is_mutable))
+        .insert_header(header_builder.build_cache_control_header(resolved_address.is_resolved_from_mutable))
+        .insert_header(header_builder.build_expires_header(resolved_address.is_resolved_from_mutable))
         .insert_header(header_builder.build_etag_header(&resolved_address.xor_name))
         .insert_header(header_builder.build_cors_header())
         .insert_header(header_builder.build_server_header())

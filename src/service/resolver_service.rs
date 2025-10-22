@@ -1,7 +1,4 @@
-use std::convert::TryInto;
 use actix_http::header::{HeaderMap, IF_NONE_MATCH};
-use actix_web::Error;
-use actix_web::error::{ErrorBadGateway, ErrorBadRequest};
 use autonomi::{ChunkAddress, PointerAddress, PublicKey};
 use autonomi::data::DataAddress;
 use autonomi::files::archive_public::ArchiveAddress;
@@ -17,13 +14,13 @@ pub struct ResolvedAddress {
     pub archive: Option<Archive>,
     pub xor_name: XorName,
     pub file_path: String,
-    pub is_mutable: bool,
+    pub is_resolved_from_mutable: bool,
     pub is_modified: bool,
 }
 
 impl ResolvedAddress {
-    pub fn new(is_found: bool, archive: Option<Archive>, xor_name: XorName, file_path: String, is_mutable: bool, is_modified: bool) -> Self {
-        ResolvedAddress { is_found, archive, xor_name, file_path, is_mutable, is_modified }
+    pub fn new(is_found: bool, archive: Option<Archive>, xor_name: XorName, file_path: String, is_resolved_from_mutable: bool, is_modified: bool) -> Self {
+        ResolvedAddress { is_found, archive, xor_name, file_path, is_resolved_from_mutable, is_modified }
     }
 }
 
@@ -44,7 +41,8 @@ impl ResolverService {
         self.resolve_archive_or_file(&archive_addr, &archive_file_name, &file_path, false, headers).await
     }
 
-    async fn resolve_archive_or_file(&self, archive_directory: &String, archive_file_name: &String, archive_file_path: &String, is_resolved_mutable: bool, headers: &HeaderMap) -> Option<ResolvedAddress> {
+    async fn resolve_archive_or_file(&self, archive_directory: &String, archive_file_name: &String, archive_file_path: &String,
+                                     is_resolved_from_mutable: bool, headers: &HeaderMap) -> Option<ResolvedAddress> {
         if self.is_bookmark(archive_directory) {
             debug!("found bookmark for [{}]", archive_directory);
             let resolved_bookmark = &self.resolve_bookmark(archive_directory).unwrap().to_string();
@@ -68,16 +66,16 @@ impl ResolverService {
             let is_modified = self.is_modified(headers, &archive_directory);
 
             if !is_modified {
-                Some(ResolvedAddress::new(true, None, archive_directory_xor_name, archive_file_path.clone(), is_resolved_mutable, false))
+                Some(ResolvedAddress::new(true, None, archive_directory_xor_name, archive_file_path.clone(), is_resolved_from_mutable, false))
             } else {
                 match self.caching_client.archive_get(archive_address).await {
                     Ok(archive) => {
                         debug!("Found archive at [{:x}]", archive_directory_xor_name);
-                        Some(ResolvedAddress::new(true, Some(archive), archive_directory_xor_name, archive_file_path.clone(), is_resolved_mutable, true))
+                        Some(ResolvedAddress::new(true, Some(archive), archive_directory_xor_name, archive_file_path.clone(), is_resolved_from_mutable, true))
                     }
                     Err(_) => {
                         info!("Found XOR address at [{:x}]", archive_directory_xor_name);
-                        Some(ResolvedAddress::new(true, None, archive_directory_xor_name, archive_file_path.clone(), is_resolved_mutable, true))
+                        Some(ResolvedAddress::new(true, None, archive_directory_xor_name, archive_file_path.clone(), is_resolved_from_mutable, true))
                     }
                 }
             }
@@ -85,7 +83,7 @@ impl ResolverService {
             let archive_file_name_xor_name = ChunkAddress::from_hex(archive_file_name).unwrap().xorname().clone();
             let is_modified = self.is_modified(headers, &archive_file_name);
             info!("Found XOR address at [{:x}]", archive_file_name_xor_name);
-            Some(ResolvedAddress::new(true, None, archive_file_name_xor_name, archive_file_path.clone(), is_resolved_mutable, is_modified))
+            Some(ResolvedAddress::new(true, None, archive_file_name_xor_name, archive_file_path.clone(), is_resolved_from_mutable, is_modified))
         } else {
             warn!("Failed to find archive or filename [{:?}]", archive_file_name);
             None
@@ -122,6 +120,63 @@ impl ResolverService {
         } else {
             true
         }
+    }
+    
+    fn is_immutable_address(&self, chunk_address: &String) -> bool {
+        chunk_address.len() == 64 && autonomi::ChunkAddress::from_hex(chunk_address).ok().is_some()
+    }
+
+    fn is_mutable_address(&self, hex_address: &String) -> bool {
+        hex_address.len() == 96 && PublicKey::from_hex(hex_address).ok().is_some()
+    }
+
+    fn is_bookmark(&self, alias: &String) -> bool {
+        self.ant_tp_config.bookmarks_map.contains_key(alias)
+    }
+
+    pub fn resolve_bookmark(&self, alias: &String) -> Option<String> {
+        self.ant_tp_config.bookmarks_map.get(alias).cloned()
+    }
+
+    fn assign_path_parts(&self, path_parts: &Vec<String>) -> (String, String, String) {
+        if path_parts.len() > 1 {
+            (path_parts[0].to_string(), path_parts[1].to_string(), path_parts[1..].join("/").to_string())
+        } else if path_parts.len() > 0 {
+            (path_parts[0].to_string(), "".to_string(), "".to_string())
+        } else {
+            ("".to_string(), "".to_string(), "".to_string())
+        }
+    }
+
+    fn get_path_parts(&self, hostname: &str, path: &str) -> Vec<String> {
+        // assert: subdomain.autonomi as acceptable format
+        if hostname.ends_with(".autonomi") {
+            let mut subdomain_parts = hostname.split(".")
+                .map(str::to_string)
+                .collect::<Vec<String>>();
+            subdomain_parts.pop(); // discard 'autonomi' suffix
+            let path_parts = path.split("/")
+                .map(str::to_string)
+                .collect::<Vec<String>>();
+            subdomain_parts.append(&mut path_parts.clone());
+            subdomain_parts
+        } else if self.is_valid_hostname(&hostname.to_string()) {
+            let mut subdomain_parts = Vec::new();
+            subdomain_parts.push(hostname.to_string());
+            let path_parts = path.split("/")
+                .map(str::to_string)
+                .collect::<Vec<String>>();
+            subdomain_parts.append(&mut path_parts.clone());
+            subdomain_parts
+        } else {
+            path.split("/")
+                .map(str::to_string)
+                .collect::<Vec<String>>()
+        }
+    }
+
+    fn is_valid_hostname(&self, hostname: &str) -> bool {
+        self.is_immutable_address(&hostname.to_string()) || self.is_mutable_address(&hostname.to_string()) || self.is_bookmark(&hostname.to_string())
     }
 
     // todo: improve and test to see if reliable performance gains can be achieved
@@ -208,61 +263,4 @@ impl ResolverService {
             }
         }
     }*/
-    
-    pub fn is_valid_hostname(&self, hostname: &str) -> bool {
-        self.is_immutable_address(&hostname.to_string()) || self.is_mutable_address(&hostname.to_string()) || self.is_bookmark(&hostname.to_string())
-    }
-
-    pub fn is_immutable_address(&self, chunk_address: &String) -> bool {
-        chunk_address.len() == 64 && autonomi::ChunkAddress::from_hex(chunk_address).ok().is_some()
-    }
-
-    pub fn is_mutable_address(&self, hex_address: &String) -> bool {
-        hex_address.len() == 96 && PublicKey::from_hex(hex_address).ok().is_some()
-    }
-
-    pub fn is_bookmark(&self, alias: &String) -> bool {
-        self.ant_tp_config.bookmarks_map.contains_key(alias)
-    }
-    
-    pub fn resolve_bookmark(&self, alias: &String) -> Option<String> {
-        self.ant_tp_config.bookmarks_map.get(alias).cloned()
-    }
-
-    fn assign_path_parts(&self, path_parts: &Vec<String>) -> (String, String, String) {
-        if path_parts.len() > 1 {
-            (path_parts[0].to_string(), path_parts[1].to_string(), path_parts[1..].join("/").to_string())
-        } else if path_parts.len() > 0 {
-            (path_parts[0].to_string(), "".to_string(), "".to_string())
-        } else {
-            ("".to_string(), "".to_string(), "".to_string())
-        }
-    }
-
-    fn get_path_parts(&self, hostname: &str, path: &str) -> Vec<String> {
-        // assert: subdomain.autonomi as acceptable format
-        if hostname.ends_with(".autonomi") {
-            let mut subdomain_parts = hostname.split(".")
-                .map(str::to_string)
-                .collect::<Vec<String>>();
-            subdomain_parts.pop(); // discard 'autonomi' suffix
-            let path_parts = path.split("/")
-                .map(str::to_string)
-                .collect::<Vec<String>>();
-            subdomain_parts.append(&mut path_parts.clone());
-            subdomain_parts
-        } else if self.is_valid_hostname(&hostname.to_string()) {
-            let mut subdomain_parts = Vec::new();
-            subdomain_parts.push(hostname.to_string());
-            let path_parts = path.split("/")
-                .map(str::to_string)
-                .collect::<Vec<String>>();
-            subdomain_parts.append(&mut path_parts.clone());
-            subdomain_parts
-        } else {
-            path.split("/")
-                .map(str::to_string)
-                .collect::<Vec<String>>()
-        }
-    }
 }

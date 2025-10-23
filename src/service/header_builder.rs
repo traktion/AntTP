@@ -40,8 +40,8 @@ impl HeaderBuilder {
         }
     }
 
-    pub fn build_content_type_header_from_mime(&self, mime: Mime) -> ContentType {
-        ContentType(mime)
+    pub fn build_content_type_header_from_mime(&self, mime: &Mime) -> ContentType {
+        ContentType(mime.clone())
     }
     
     pub fn build_etag_header(&self, xor_name: &XorName) -> ETag {

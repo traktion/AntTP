@@ -35,27 +35,41 @@ impl ResolverService {
         ResolverService { ant_tp_config, caching_client }
     }
 
-    pub async fn resolve(&self, hostname: &str, path: &str, headers: &HeaderMap) -> Option<ResolvedAddress> {
+    pub async fn resolve(&self,
+                         hostname: &str,
+                         path: &str,
+                         headers: &HeaderMap
+    ) -> Option<ResolvedAddress> {
         let path_parts = self.get_path_parts(&hostname, &path);
         let (archive_addr, archive_file_name, file_path) = self.assign_path_parts(&path_parts);
-        self.resolve_archive_or_file(&archive_addr, &archive_file_name, &file_path, false, headers).await
+        self.resolve_archive_or_file(
+            &archive_addr, &archive_file_name, &file_path, false, headers).await
     }
 
-    async fn resolve_archive_or_file(&self, archive_directory: &String, archive_file_name: &String, archive_file_path: &String,
-                                     is_resolved_from_mutable: bool, headers: &HeaderMap) -> Option<ResolvedAddress> {
+    async fn resolve_archive_or_file(
+        &self,
+        archive_directory: &String,
+        archive_file_name: &String,
+        archive_file_path: &String,
+        is_resolved_from_mutable: bool,
+        headers: &HeaderMap
+    ) -> Option<ResolvedAddress> {
         if self.is_bookmark(archive_directory) {
             debug!("found bookmark for [{}]", archive_directory);
             let resolved_bookmark = &self.resolve_bookmark(archive_directory).unwrap().to_string();
-            Box::pin(self.resolve_archive_or_file(resolved_bookmark, archive_file_name, archive_file_path, true, headers)).await
+            Box::pin(self.resolve_archive_or_file(
+                resolved_bookmark, archive_file_name, archive_file_path, true, headers)).await
         } else if self.is_bookmark(archive_file_name) {
             debug!("found bookmark for [{}]", archive_file_name);
             let resolved_bookmark = &self.resolve_bookmark(archive_file_name).unwrap().to_string();
-            Box::pin(self.resolve_archive_or_file(archive_directory, resolved_bookmark, archive_file_path, true, headers)).await
+            Box::pin(self.resolve_archive_or_file(
+                archive_directory, resolved_bookmark, archive_file_path, true, headers)).await
         } else if self.is_mutable_address(&archive_directory) {
             debug!("found mutable address for [{}]", archive_directory);
             match self.analyze_simple(archive_directory).await {
                 Some(data_address) => {
-                    Box::pin(self.resolve_archive_or_file(&data_address.to_hex(), archive_file_name, archive_file_path, true, headers)).await
+                    Box::pin(self.resolve_archive_or_file(
+                        &data_address.to_hex(), archive_file_name, archive_file_path, true, headers)).await
                 }
                 None => None
             }
@@ -104,9 +118,7 @@ impl ResolverService {
                         info!("Analyze found register at address [{}] with value [{}]", address, hex::encode(register_value.clone()));
                         Some(DataAddress::from_hex(hex::encode(register_value.clone()).as_str()).unwrap())
                     }
-                    None => {
-                        None
-                    }
+                    None => None
                 }
             }
         }
@@ -123,7 +135,7 @@ impl ResolverService {
     }
     
     fn is_immutable_address(&self, chunk_address: &String) -> bool {
-        chunk_address.len() == 64 && autonomi::ChunkAddress::from_hex(chunk_address).ok().is_some()
+        chunk_address.len() == 64 && ChunkAddress::from_hex(chunk_address).ok().is_some()
     }
 
     fn is_mutable_address(&self, hex_address: &String) -> bool {
@@ -176,7 +188,8 @@ impl ResolverService {
     }
 
     fn is_valid_hostname(&self, hostname: &str) -> bool {
-        self.is_immutable_address(&hostname.to_string()) || self.is_mutable_address(&hostname.to_string()) || self.is_bookmark(&hostname.to_string())
+        let hostname_string = &hostname.to_string();
+        self.is_immutable_address(hostname_string) || self.is_mutable_address(hostname_string) || self.is_bookmark(hostname_string)
     }
 
     // todo: improve and test to see if reliable performance gains can be achieved

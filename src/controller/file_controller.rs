@@ -1,8 +1,10 @@
+use actix_http::header::{HeaderMap};
 use actix_web::{web, Error, HttpRequest, HttpResponse, HttpResponseBuilder, Responder};
 use actix_web::dev::ConnectionInfo;
 use actix_web::error::{ErrorInternalServerError, ErrorNotFound};
 use actix_web::web::Data;
 use log::debug;
+use mime::{Mime, APPLICATION_JSON, TEXT_HTML};
 use crate::config::anttp_config::AntTpConfig;
 use crate::{UploaderState, UploadState};
 use crate::service::public_archive_service::PublicArchiveService;
@@ -27,7 +29,7 @@ pub async fn get_public_data(
     let caching_client = caching_client_data.get_ref().clone();
     let resolver_service = ResolverService::new(ant_tp_config.clone(), caching_client.clone());
 
-    match resolver_service.resolve(&conn.host(), &path.into_inner(), request.headers()).await {
+    match resolver_service.resolve(&conn.host(), &path.into_inner(), &request.headers()).await {
         Some(resolved_address) => {
             let header_builder = HeaderBuilder::new(ant_tp_config.cached_mutable_ttl);
             if !resolved_address.is_modified {
@@ -41,7 +43,7 @@ pub async fn get_public_data(
 
                 match archive_info.action {
                     ArchiveAction::Data => get_data_archive(&request, &resolved_address, &header_builder, public_archive_service, archive_info).await,
-                    ArchiveAction::Redirect => Ok(build_moved_permanently_response(&request, &header_builder)),
+                    ArchiveAction::Redirect => Ok(build_moved_permanently_response(&request.path(), &header_builder)),
                     ArchiveAction::Listing  => Ok(build_list_files_response(&request, &resolved_address, &header_builder)),
                     ArchiveAction::NotFound => Err(ErrorNotFound(format!("File not found: {}", request.full_url()))),
                 }
@@ -65,22 +67,31 @@ fn build_not_modified_response(resolved_address: &ResolvedAddress, header_builde
         .finish()
 }
 
-fn build_moved_permanently_response(request: &HttpRequest, header_builder: &HeaderBuilder) -> HttpResponse {
+fn build_moved_permanently_response(request_path: &str, header_builder: &HeaderBuilder) -> HttpResponse {
     HttpResponse::MovedPermanently()
-        .insert_header(header_builder.build_location_header(format!("{}/", request.path())))
+        .insert_header(header_builder.build_location_header(format!("{}/", request_path)))
         .insert_header(header_builder.build_server_header())
         .finish()
 }
 
 fn build_list_files_response(request: &HttpRequest, resolved_address: &ResolvedAddress, header_builder: &HeaderBuilder) -> HttpResponse {
     let archive_helper = ArchiveHelper::new(resolved_address.archive.clone().unwrap());
-    let mime = archive_helper.get_accept_header_value(request.headers());
-    HttpResponse::Ok()
-        .insert_header(header_builder.build_etag_header(&resolved_address.xor_name))
-        .insert_header(header_builder.build_cors_header())
-        .insert_header(header_builder.build_server_header())
-        .insert_header(header_builder.build_content_type_header_from_mime(mime))
-        .body(archive_helper.list_files(resolved_address.file_path.clone(), request.headers()))
+    let mime = get_accept_header_value(request.headers());
+    if mime == APPLICATION_JSON {
+        HttpResponse::Ok()
+            .insert_header(header_builder.build_etag_header(&resolved_address.xor_name))
+            .insert_header(header_builder.build_cors_header())
+            .insert_header(header_builder.build_server_header())
+            .insert_header(header_builder.build_content_type_header_from_mime(&mime))
+            .body(archive_helper.list_files(resolved_address.file_path.clone(), request.headers()))
+    } else {
+        HttpResponse::Ok()
+            // can only use etag for one content-type currently. JSON can have priority as could cause app issues.
+            .insert_header(header_builder.build_cors_header())
+            .insert_header(header_builder.build_server_header())
+            .insert_header(header_builder.build_content_type_header_from_mime(&mime))
+            .body(archive_helper.list_files(resolved_address.file_path.clone(), request.headers()))
+    }
 }
 
 fn update_partial_content_response(builder: &mut HttpResponseBuilder, resolved_address: &ResolvedAddress, header_builder: &HeaderBuilder, range_props: &RangeProps) {
@@ -120,6 +131,15 @@ async fn get_data_archive(request: &HttpRequest, resolved_address: &ResolvedAddr
             }
         }
         Err(e) => Err(handle_error(e))
+    }
+}
+
+fn get_accept_header_value(header_map: &HeaderMap) -> Mime {
+    if header_map.contains_key("Accept")
+        && header_map.get("Accept").unwrap().to_str().unwrap_or("").to_string().contains( "json") {
+        APPLICATION_JSON
+    } else {
+        TEXT_HTML
     }
 }
 

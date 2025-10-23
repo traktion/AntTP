@@ -138,7 +138,7 @@ impl PublicArchiveService {
     pub async fn update_public_archive_common(&self, public_archive_form: MultipartForm<PublicArchiveForm>, evm_wallet: Wallet, mut public_archive: PublicArchive, cache_only: Option<CacheType>) -> Result<HttpResponse, Error> {
         let random_name = Uuid::new_v4();
         let tmp_dir = env::temp_dir().as_path().join(random_name.to_string());
-        create_dir(tmp_dir.clone()).unwrap();
+        create_dir(tmp_dir.clone())?;
         info!("Created temporary directory for archive with prefix: {:?}", tmp_dir.to_str());
 
         for temp_file in public_archive_form.files.iter() {

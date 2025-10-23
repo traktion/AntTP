@@ -11,8 +11,6 @@ impl CachingClient {
         let local_caching_client = self.clone();
         let local_address = addr.clone();
         match self.hybrid_cache.get_ref().fetch(format!("{}{}", TARCHIVE_CACHE_KEY, local_address.to_hex()), || async move {
-            // todo: confirm whether checking header for tar signature improves performance/reliability
-            // 20480
             let trailer_bytes = local_caching_client.download_stream(&local_address, -20480, 0).await;
             match trailer_bytes {
                 Ok(trailer_bytes) => {
@@ -44,15 +42,4 @@ impl CachingClient {
     fn find_subsequence(haystack: &[u8], needle: &[u8]) -> Option<usize> {
         haystack.windows(needle.len()).position(|window| window == needle)
     }
-
-    // todo: is this needed? see above
-    /*pub async fn is_tarchive(&self, xor_name: XorName, total_size: usize, data_map: &DataMap) -> bool {
-        // https://www.gnu.org/software/tar/manual/html_node/Standard.html
-        if total_size > 512 {
-            let tar_magic = self.download_stream(xor_name, data_map.clone(), 257, 261).await.to_vec();
-            String::from_utf8(tar_magic.clone()).unwrap_or(String::new()) == "ustar"
-        } else {
-            false
-        }
-    }*/
 }

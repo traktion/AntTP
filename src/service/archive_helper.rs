@@ -2,7 +2,6 @@ use actix_http::header::HeaderMap;
 use actix_web::{HttpRequest};
 use chrono::DateTime;
 use log::{debug, info};
-use mime::{Mime, APPLICATION_JSON, TEXT_HTML};
 use xor_name::XorName;
 use crate::model::archive::Archive;
 use crate::service::resolver_service::ResolvedAddress;
@@ -40,15 +39,6 @@ impl ArchiveInfo {
 impl ArchiveHelper {
     pub fn new(archive: Archive) -> ArchiveHelper {
         ArchiveHelper { archive }
-    }
-
-    pub fn get_accept_header_value(&self, header_map: &HeaderMap) -> Mime {
-        if header_map.contains_key("Accept")
-            && header_map.get("Accept").unwrap().to_str().unwrap().to_string().contains( "json") {
-            APPLICATION_JSON
-        } else {
-            TEXT_HTML
-        }
     }
     
     pub fn list_files(&self, path: String, header_map: &HeaderMap) -> String{

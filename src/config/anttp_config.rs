@@ -106,7 +106,5 @@ impl AntTpConfig {
             .map(|(key, val)| (key.to_string(), val[1..].to_string()))
             .collect();
         self
-        //self.bookmarks.clone().into_iter().map(|data| data.split("=")   ("1".to_string(), "2".to_string()) ).collect()
-        //self.bookmarks.iter().filter(|&s| s.starts_with(alias_with_delimiter.as_str())).next().is_some()
     }
 }

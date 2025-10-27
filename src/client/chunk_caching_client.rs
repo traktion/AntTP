@@ -2,7 +2,6 @@ use ant_evm::AttoTokens;
 use async_trait::async_trait;
 use autonomi::{Chunk, ChunkAddress};
 use autonomi::client::payment::PaymentOption;
-use autonomi::client::PutError;
 use bytes::Bytes;
 use chunk_streamer::chunk_streamer::ChunkGetter;
 use log::{debug, error, info};
@@ -27,13 +26,14 @@ impl CachingClient {
         chunk: &Chunk,
         payment_option: PaymentOption,
         cache_only: Option<CacheType>
-    ) -> Result<(AttoTokens, ChunkAddress), PutError> {
+    ) -> Result<(AttoTokens, ChunkAddress), ChunkError> {
         self.hybrid_cache.insert(chunk.address.to_hex(), Vec::from(chunk.value.clone()));
         debug!("creating chunk with address [{}] in cache", chunk.address.to_hex());
         if !cache_only.is_some() {
-            self.command_executor.send(
-                Box::new(CreateChunkCommand::new(self.client_harness.clone(), chunk.clone(), payment_option))
-            ).await.unwrap();
+            let command = Box::new(
+                CreateChunkCommand::new(self.client_harness.clone(), chunk.clone(), payment_option)
+            );
+            self.send_create_command(command).await?;
         }
         Ok((AttoTokens::zero(), chunk.address))
     }
@@ -43,8 +43,8 @@ impl CachingClient {
         match self.hybrid_cache.get_ref().fetch(local_address.to_hex(), {
             let client = match self.client_harness.get_ref().lock().await.get_client().await {
                 Some(client) => client,
-                None => return Err(ChunkError::GetError(GetError::NetworkOffline(
-                    format!("Failed to retrieve chunk for [{}] as offline network", local_address.to_hex()))))
+                None => return Err(GetError::NetworkOffline(
+                    format!("Failed to retrieve chunk for [{}] as offline network", local_address.to_hex())).into())
             };
 
             || async move {
@@ -63,7 +63,7 @@ impl CachingClient {
                 info!("retrieved chunk for [{}] from hybrid cache", address.to_hex());
                 Ok(Chunk::new(Bytes::from(cache_entry.value().to_vec())))
             },
-            Err(e) => Err(ChunkError::GetError(GetError::RecordNotFound(e.to_string())))
+            Err(e) => Err(ChunkError::GetError(e.into()))
         }
     }
 }

@@ -158,7 +158,7 @@ impl ScratchpadService {
                             if *address == scratchpad_key.public_key().to_hex() {
                                 match scratchpad.decrypt_data(&scratchpad_key) {
                                     Ok(data) => Ok(BASE64_STANDARD.encode(data)),
-                                    Err(e) => Err(ScratchpadError::GetError(GetError::DecryptionFailed(
+                                    Err(e) => Err(ScratchpadError::GetError(GetError::Decryption(
                                         format!("Failed to decrypt private scratchpad at address [{}]: [{}]", address, e.to_string()))))
                                 }
                             } else {

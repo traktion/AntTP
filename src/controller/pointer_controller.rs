@@ -1,12 +1,11 @@
-use actix_web::{web, Error, HttpRequest, HttpResponse, Responder};
-use actix_web::error::ErrorInternalServerError;
+use actix_web::{web, HttpRequest, HttpResponse, Responder};
 use actix_web::web::Data;
 use ant_evm::EvmWallet;
 use log::debug;
 use crate::client::CachingClient;
 use crate::client::error::PointerError;
 use crate::config::anttp_config::AntTpConfig;
-use crate::controller::{cache_only, handle_get_error};
+use crate::controller::cache_only;
 use crate::service::pointer_service::{Pointer, PointerService};
 use crate::service::resolver_service::ResolverService;
 
@@ -85,16 +84,13 @@ pub async fn get_pointer(
     path: web::Path<String>,
     caching_client_data: Data<CachingClient>,
     ant_tp_config_data: Data<AntTpConfig>,
-) -> impl Responder {
+) -> Result<HttpResponse, PointerError> {
     let address = path.into_inner();
 
     let pointer_service = create_pointer_service(caching_client_data, ant_tp_config_data);
 
     debug!("Getting pointer at [{}]", address);
-    match pointer_service.get_pointer(address).await {
-        Ok(pointer) => Ok(HttpResponse::Ok().json(pointer)),
-        Err(e) => Err(handle_error(e))
-    }
+    Ok(HttpResponse::Ok().json(pointer_service.get_pointer(address).await?))
 }
 
 fn create_pointer_service(caching_client_data: Data<CachingClient>, ant_tp_config_data: Data<AntTpConfig>) -> PointerService {
@@ -103,11 +99,4 @@ fn create_pointer_service(caching_client_data: Data<CachingClient>, ant_tp_confi
     let resolver_service = ResolverService::new(ant_tp_config.clone(), caching_client.clone());
     let pointer_service = PointerService::new(caching_client, ant_tp_config, resolver_service);
     pointer_service
-}
-
-fn handle_error(pointer_error: PointerError) -> Error {
-    match pointer_error {
-        PointerError::GetError(get_error) => handle_get_error(get_error),
-        _ => ErrorInternalServerError(pointer_error),
-    }
 }

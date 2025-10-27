@@ -1,12 +1,11 @@
-use actix_web::{web, Error, HttpRequest, HttpResponse, Responder};
-use actix_web::error::ErrorInternalServerError;
+use actix_web::{web, HttpRequest, HttpResponse, Responder};
 use actix_web::web::Data;
 use ant_evm::EvmWallet;
 use log::debug;
 use crate::client::CachingClient;
 use crate::client::error::GraphError;
 use crate::config::anttp_config::AntTpConfig;
-use crate::controller::{cache_only, handle_get_error};
+use crate::controller::cache_only;
 use crate::service::graph_service::{GraphEntry, GraphService};
 
 #[utoipa::path(
@@ -54,7 +53,7 @@ pub async fn get_graph_entry(
     path: web::Path<String>,
     caching_client_data: Data<CachingClient>,
     ant_tp_config_data: Data<AntTpConfig>,
-) -> impl Responder {
+) -> Result<HttpResponse, GraphError> {
     let address = path.into_inner();
     
     let graph_service = GraphService::new(
@@ -63,15 +62,5 @@ pub async fn get_graph_entry(
     );
 
     debug!("Getting graph entry at [{}]", address);
-    match graph_service.get_graph_entry(address).await {
-        Ok(graph_entry) => Ok(HttpResponse::Ok().json(graph_entry)),
-        Err(e) => Err(handle_error(e))
-    }
-}
-
-fn handle_error(graph_error: GraphError) -> Error {
-    match graph_error {
-        GraphError::GetError(get_error) => handle_get_error(get_error),
-        _ => ErrorInternalServerError(graph_error),
-    }
+    Ok(HttpResponse::Ok().json(graph_service.get_graph_entry(address).await?))
 }

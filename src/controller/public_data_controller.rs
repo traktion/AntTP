@@ -1,5 +1,5 @@
 use actix_http::header;
-use actix_web::{web, Error, HttpRequest, HttpResponse, Responder};
+use actix_web::{web, HttpRequest, HttpResponse, Responder};
 use actix_web::error::ErrorInternalServerError;
 use actix_web::http::header::{ContentLength, ContentType};
 use actix_web::web::{Data, Payload};
@@ -7,7 +7,7 @@ use ant_evm::EvmWallet;
 use log::debug;
 use crate::client::CachingClient;
 use crate::client::error::PublicDataError;
-use crate::controller::{cache_only, handle_get_error};
+use crate::controller::cache_only;
 use crate::service::public_data_service::{PublicData, PublicDataService};
 
 #[utoipa::path(
@@ -58,27 +58,16 @@ pub async fn post_public_data(
 pub async fn get_public_data(
     path: web::Path<String>,
     caching_client_data: Data<CachingClient>,
-) -> impl Responder {
+) -> Result<HttpResponse, PublicDataError> {
     let address = path.into_inner();
     let public_data_service = PublicDataService::new(caching_client_data.get_ref().clone());
 
     debug!("Getting public data at [{}]", address);
-    match public_data_service.get_public_data_binary(address).await {
-        Ok(bytes) => {
-            // todo: add caching headers (etag, etc)
-            Ok(HttpResponse::Ok()
-                .insert_header(ContentType::octet_stream())
-                .insert_header(ContentLength(bytes.len()))
-                .insert_header((header::SERVER, format!("{}/{}", env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION"))))
-                .body(bytes))
-        }
-        Err(e) => Err(handle_error(e))
-    }
-}
-
-fn handle_error(public_data_error: PublicDataError) -> Error {
-    match public_data_error {
-        PublicDataError::GetError(get_error) => handle_get_error(get_error),
-        _ => ErrorInternalServerError(public_data_error),
-    }
+    let bytes = public_data_service.get_public_data_binary(address).await?;
+    // todo: add caching headers (etag, etc)
+    Ok(HttpResponse::Ok()
+        .insert_header(ContentType::octet_stream())
+        .insert_header(ContentLength(bytes.len()))
+        .insert_header((header::SERVER, format!("{}/{}", env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION"))))
+        .body(bytes))
 }

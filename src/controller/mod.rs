@@ -1,8 +1,4 @@
-use actix_web::error::{ErrorBadRequest, ErrorInternalServerError, ErrorNotFound, ErrorPreconditionFailed};
-use actix_web::{Error, HttpRequest};
-use log::error;
-use crate::client::error::{GetError, ScratchpadError};
-
+use actix_web::HttpRequest;
 pub mod pointer_controller;
 pub mod register_controller;
 pub mod file_controller;
@@ -31,27 +27,4 @@ fn cache_only(request: HttpRequest) -> Option<CacheType> {
         },
         None => None,
     }
-}
-
-fn handle_scratchpad_error(scratchpad_error: ScratchpadError) -> Error {
-    match scratchpad_error {
-        ScratchpadError::GetError(get_error) => handle_get_error(get_error),
-        _ => {
-            error!("internal error: {}", scratchpad_error.to_string());
-            ErrorInternalServerError(scratchpad_error)
-        }
-    }
-}
-
-fn handle_get_error(get_error: GetError) -> Error {
-    match get_error {
-        GetError::RecordNotFound(message) => ErrorNotFound(message),
-        GetError::BadAddress(message) => ErrorBadRequest(message),
-        GetError::NotDerivedAddress(message) => ErrorPreconditionFailed(message),
-        GetError::DerivationNameMissing(message) => ErrorBadRequest(message),
-        _ => {
-            error!("internal error: {}", get_error.to_string());
-            ErrorInternalServerError(get_error)
-        }
-    }        
 }

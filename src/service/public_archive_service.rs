@@ -25,7 +25,7 @@ use utoipa::ToSchema;
 use uuid::Uuid;
 use xor_name::XorName;
 use crate::{UploadState, UploaderState};
-use crate::client::error::ChunkError;
+use crate::client::error::{ChunkError, PublicArchiveError};
 use crate::config::app_config::AppConfig;
 use crate::controller::CacheType;
 use crate::model::archive::Archive;
@@ -201,15 +201,15 @@ impl PublicArchiveService {
         Ok(HttpResponse::Ok().json(upload_response))
     }
 
-    pub async fn get_status(&self, task_id: String) -> Result<HttpResponse, Error> {
+    pub async fn get_status(&self, task_id: String) -> Result<Upload, PublicArchiveError> {
         // todo: update response with message containing a reason for success/failure
         // todo: rewrite - can't poll join handle multiple times after completion (bug!)
-        let _ = match self.upload_state.upload_map.lock().await.get_mut(&task_id) {
-            Some(uploader_state) => return Ok(HttpResponse::Ok().json(uploader_state)),
+        let _ = match self.upload_state.upload_map.lock().await.get(&task_id) {
+            Some(upload) => return Ok(upload.clone()),
             None => false 
         };
             
-        let upload_response = match self.uploader_state.uploader_map.lock().await.get_mut(&task_id) {
+        let upload = match self.uploader_state.uploader_map.lock().await.get_mut(&task_id) {
             Some(handle) => {
                 if handle.is_finished() {
                     match handle.await {
@@ -238,9 +238,9 @@ impl PublicArchiveService {
                 Upload::new(task_id.to_string(), "unknown".to_string(), "".to_string(), None)
             }
         };
-        if upload_response.status == "failed" || upload_response.status == "succeeded" {
+        if upload.status == "failed" || upload.status == "succeeded" {
             self.uploader_state.uploader_map.lock().await.remove(&task_id);
         }
-        Ok(HttpResponse::Ok().json(upload_response))
+        Ok(upload)
     }
 }

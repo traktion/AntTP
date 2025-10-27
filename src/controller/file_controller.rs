@@ -1,7 +1,6 @@
 use actix_http::header::{HeaderMap};
-use actix_web::{web, Error, HttpRequest, HttpResponse, HttpResponseBuilder, Responder};
+use actix_web::{web, HttpRequest, HttpResponse, HttpResponseBuilder};
 use actix_web::dev::ConnectionInfo;
-use actix_web::error::{ErrorInternalServerError, ErrorNotFound};
 use actix_web::web::Data;
 use log::debug;
 use mime::{Mime, APPLICATION_JSON, TEXT_HTML};
@@ -9,8 +8,7 @@ use crate::config::anttp_config::AntTpConfig;
 use crate::{UploaderState, UploadState};
 use crate::service::public_archive_service::PublicArchiveService;
 use crate::client::CachingClient;
-use crate::client::error::ChunkError;
-use crate::controller::handle_get_error;
+use crate::client::error::{ChunkError, GetError};
 use crate::service::archive_helper::{ArchiveAction, ArchiveHelper, ArchiveInfo};
 use crate::service::file_service::{FileService, RangeProps};
 use crate::service::header_builder::HeaderBuilder;
@@ -24,7 +22,7 @@ pub async fn get_public_data(
     uploader_state_data: Data<UploaderState>,
     upload_state_data: Data<UploadState>,
     ant_tp_config_data: Data<AntTpConfig>,
-) -> impl Responder {
+) -> Result<HttpResponse, ChunkError> {
     let ant_tp_config = ant_tp_config_data.get_ref().clone();
     let caching_client = caching_client_data.get_ref().clone();
     let resolver_service = ResolverService::new(ant_tp_config.clone(), caching_client.clone());
@@ -45,7 +43,7 @@ pub async fn get_public_data(
                     ArchiveAction::Data => get_data_archive(&request, &resolved_address, &header_builder, public_archive_service, archive_info).await,
                     ArchiveAction::Redirect => Ok(build_moved_permanently_response(&request.path(), &header_builder)),
                     ArchiveAction::Listing  => Ok(build_list_files_response(&request, &resolved_address, &header_builder)),
-                    ArchiveAction::NotFound => Err(ErrorNotFound(format!("File not found: {}", request.full_url()))),
+                    ArchiveAction::NotFound => Err(GetError::RecordNotFound(format!("File not found: {}", request.full_url())).into()),
                 }
             } else {
                 debug!("Retrieving file from XOR [{:x}]", resolved_address.xor_name);
@@ -53,7 +51,7 @@ pub async fn get_public_data(
                 get_data_xor(&request, &resolved_address, &header_builder, file_service).await
             }
         },
-        None => Err(ErrorNotFound(format!("File not found: {}", request.full_url())))
+        None => Err(GetError::RecordNotFound(format!("File not found: {}", request.full_url())).into())
     }
 }
 
@@ -117,20 +115,16 @@ fn update_full_content_response(builder: &mut HttpResponseBuilder, resolved_addr
         .insert_header(header_builder.build_content_type_header(range_props.extension()));
 }
 
-async fn get_data_archive(request: &HttpRequest, resolved_address: &ResolvedAddress, header_builder: &HeaderBuilder, public_archive_service: PublicArchiveService, archive_info: ArchiveInfo) -> Result<HttpResponse, Error> {
-    match public_archive_service.get_data(&request, archive_info).await {
-        Ok((chunk_receiver, range_props)) => {
-            if range_props.is_range() {
-                let mut builder = HttpResponse::PartialContent();
-                update_partial_content_response(&mut builder, &resolved_address, &header_builder, &range_props);
-                Ok(builder.streaming(chunk_receiver))
-            } else {
-                let mut builder = HttpResponse::Ok();
-                update_full_content_response(&mut builder, &resolved_address, &header_builder, &range_props);
-                Ok(builder.streaming(chunk_receiver))
-            }
-        }
-        Err(e) => Err(handle_error(e))
+async fn get_data_archive(request: &HttpRequest, resolved_address: &ResolvedAddress, header_builder: &HeaderBuilder, public_archive_service: PublicArchiveService, archive_info: ArchiveInfo) -> Result<HttpResponse, ChunkError> {
+    let (chunk_receiver, range_props) = public_archive_service.get_data(&request, archive_info).await?;
+    if range_props.is_range() {
+        let mut builder = HttpResponse::PartialContent();
+        update_partial_content_response(&mut builder, &resolved_address, &header_builder, &range_props);
+        Ok(builder.streaming(chunk_receiver))
+    } else {
+        let mut builder = HttpResponse::Ok();
+        update_full_content_response(&mut builder, &resolved_address, &header_builder, &range_props);
+        Ok(builder.streaming(chunk_receiver))
     }
 }
 
@@ -143,27 +137,17 @@ fn get_accept_header_value(header_map: &HeaderMap) -> Mime {
     }
 }
 
-async fn get_data_xor(request: &HttpRequest, resolved_address: &ResolvedAddress, header_builder: &HeaderBuilder, file_service: FileService) -> Result<HttpResponse, Error> {
-    match file_service.get_data(&request, &resolved_address).await {
-        Ok((chunk_receiver, range_props)) => {
-            if range_props.is_range() {
-                let mut builder = HttpResponse::PartialContent();
-                update_partial_content_response(&mut builder, &resolved_address, &header_builder, &range_props);
-                Ok(builder.streaming(chunk_receiver))
-            } else {
-                let mut builder = HttpResponse::Ok();
-                update_full_content_response(&mut builder, &resolved_address, &header_builder, &range_props);
-                Ok(builder.streaming(chunk_receiver))
-            }
-        }
-        Err(e) => Err(handle_error(e))
+async fn get_data_xor(request: &HttpRequest, resolved_address: &ResolvedAddress, header_builder: &HeaderBuilder, file_service: FileService) -> Result<HttpResponse, ChunkError> {
+    let (chunk_receiver, range_props) = file_service.get_data(&request, &resolved_address).await?;
+    if range_props.is_range() {
+        let mut builder = HttpResponse::PartialContent();
+        update_partial_content_response(&mut builder, &resolved_address, &header_builder, &range_props);
+        Ok(builder.streaming(chunk_receiver))
+    } else {
+        let mut builder = HttpResponse::Ok();
+        update_full_content_response(&mut builder, &resolved_address, &header_builder, &range_props);
+        Ok(builder.streaming(chunk_receiver))
     }
 }
 
-fn handle_error(chunk_error: ChunkError) -> Error {
-    match chunk_error {
-        ChunkError::GetError(get_error) => handle_get_error(get_error),
-        _ => ErrorInternalServerError(chunk_error),
-    }
-}
 

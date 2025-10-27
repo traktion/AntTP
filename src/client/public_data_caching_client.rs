@@ -1,15 +1,13 @@
 use std::path::PathBuf;
 use ant_evm::AttoTokens;
 use autonomi::client::payment::PaymentOption;
-use autonomi::client::PutError;
 use autonomi::data::DataAddress;
-use autonomi::files::{UploadError};
 use bytes::Bytes;
 use chunk_streamer::chunk_encrypter::ChunkEncrypter;
 use log::{info};
 use crate::client::CachingClient;
 use crate::client::command::public_data::create_public_data_command::CreatePublicDataCommand;
-use crate::client::error::{GetError, PublicDataError};
+use crate::client::error::{CreateError, GetError, PublicDataError};
 use crate::controller::CacheType;
 
 impl CachingClient {
@@ -19,22 +17,23 @@ impl CachingClient {
         data: Bytes,
         payment_option: PaymentOption,
         cache_only: Option<CacheType>,
-    ) -> Result<(AttoTokens, DataAddress), PutError> {
+    ) -> Result<(AttoTokens, DataAddress), PublicDataError> {
         // todo: can we avoid double encrypting on upload?
         match self.cache_public_data(data.clone(), cache_only.clone()).await {
             Ok(data_address) => {
                 if !cache_only.is_some() {
-                    self.command_executor.send(
-                        Box::new(CreatePublicDataCommand::new(self.client_harness.clone(), data, payment_option))
-                    ).await.unwrap();
+                    let command = Box::new(
+                        CreatePublicDataCommand::new(self.client_harness.clone(), data, payment_option)
+                    );
+                    self.send_create_command(command).await?;
                 }
                 Ok((AttoTokens::zero(), data_address))
             },
-            Err(err) => Err(err)
+            Err(e) => Err(e)
         }
     }
 
-    async fn cache_public_data(&self, data: Bytes, cache_only: Option<CacheType>) -> Result<DataAddress, PutError> {
+    async fn cache_public_data(&self, data: Bytes, cache_only: Option<CacheType>) -> Result<DataAddress, PublicDataError> {
         let chunk_encrypter = ChunkEncrypter::new();
         match chunk_encrypter.encrypt(true, data.clone()).await {
             Ok((chunks, data_map_chunk)) => {
@@ -53,7 +52,7 @@ impl CachingClient {
                 }
                 Ok(data_address)
             },
-            Err(err) => Err(err)
+            Err(e) => Err(CreateError::Encryption(e.to_string()).into())
         }
     }
 
@@ -63,15 +62,19 @@ impl CachingClient {
                 info!("retrieved public data for [{}] with size [{}]", addr.to_hex(), bytes.len());
                 Ok(bytes)
             },
-            Err(e) => Err(PublicDataError::GetError(GetError::RecordNotFound(
-                format!("Failed to download stream at address [{}] with error [{}]", addr, e.to_string())))),
+            Err(e) => Err(GetError::RecordNotFound(
+                format!("Failed to download stream at address [{}] with error [{}]", addr, e.to_string())).into()),
         }
     }
 
-    pub async fn file_content_upload_public(&self, path: PathBuf, payment_option: PaymentOption, cache_only: Option<CacheType>) -> Result<(AttoTokens, DataAddress), UploadError> {
-        let data = tokio::fs::read(path.clone()).await?;
-        let data = Bytes::from(data);
-        let (cost, addr) = self.data_put_public(data, payment_option.clone(), cache_only).await?;
-        Ok((cost, addr))
+    pub async fn file_content_upload_public(&self, path: PathBuf, payment_option: PaymentOption, cache_only: Option<CacheType>) -> Result<(AttoTokens, DataAddress), PublicDataError> {
+        match tokio::fs::read(path.clone()).await {
+            Ok(vec_data) => {
+                let data = Bytes::from(vec_data);
+                let (cost, addr) = self.data_put_public(data, payment_option.clone(), cache_only).await?;
+                Ok((cost, addr))
+            },
+            Err(e) => Err(CreateError::TemporaryStorage(e.to_string()).into())
+        }
     }
 }

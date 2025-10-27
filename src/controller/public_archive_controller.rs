@@ -1,5 +1,5 @@
 use actix_multipart::form::MultipartForm;
-use actix_web::{web, HttpRequest, Responder};
+use actix_web::{web, HttpRequest, HttpResponse, Responder};
 use actix_web::web::Data;
 use ant_evm::EvmWallet;
 use log::debug;
@@ -7,6 +7,7 @@ use crate::config::anttp_config::AntTpConfig;
 use crate::{UploaderState, UploadState};
 use crate::service::public_archive_service::{PublicArchiveForm, PublicArchiveService, Upload};
 use crate::client::CachingClient;
+use crate::client::error::PublicArchiveError;
 use crate::controller::cache_only;
 use crate::service::file_service::FileService;
 
@@ -102,7 +103,7 @@ pub async fn get_status_public_archive(
     uploader_state: Data<UploaderState>,
     upload_state: Data<UploadState>,
     ant_tp_config: Data<AntTpConfig>,
-) -> impl Responder {
+) -> Result<HttpResponse, PublicArchiveError> {
     let id = path.into_inner();
     let archive_service = build_archive_service(
         caching_client_data,
@@ -111,8 +112,8 @@ pub async fn get_status_public_archive(
         ant_tp_config.clone()
     );
 
-    debug!("Checking upload status for [{:?}]", id);
-    archive_service.get_status(id).await
+    debug!("Checking upload status for [{}]", id);
+    Ok(HttpResponse::Ok().json(archive_service.get_status(id).await?))
 }
 
 fn build_archive_service(

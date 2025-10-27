@@ -1,5 +1,5 @@
 use actix_http::header;
-use actix_web::{web, Error, HttpRequest, HttpResponse, Responder};
+use actix_web::{web, HttpRequest, HttpResponse, Responder};
 use actix_web::error::ErrorInternalServerError;
 use actix_web::http::header::{ContentLength, ContentType};
 use actix_web::web::{Data, Payload};
@@ -7,7 +7,7 @@ use ant_evm::EvmWallet;
 use log::debug;
 use crate::client::CachingClient;
 use crate::client::error::ChunkError;
-use crate::controller::{cache_only, handle_get_error};
+use crate::controller::cache_only;
 use crate::service::chunk_service::{Chunk, ChunkService};
 
 #[utoipa::path(
@@ -84,15 +84,12 @@ pub async fn post_chunk_binary(
 pub async fn get_chunk(
     path: web::Path<String>,
     caching_client_data: Data<CachingClient>,
-) -> impl Responder {
+) -> Result<HttpResponse, ChunkError> {
     let address = path.into_inner();
     let chunk_service = ChunkService::new(caching_client_data.get_ref().clone());
 
     debug!("Getting chunk at [{}]", address);
-    match chunk_service.get_chunk(address).await {
-        Ok(chunk) => Ok(HttpResponse::Ok().json(chunk)),
-        Err(e) => Err(handle_error(e))
-    }
+    Ok(HttpResponse::Ok().json(chunk_service.get_chunk(address).await?))
 }
 
 #[utoipa::path(
@@ -109,27 +106,15 @@ pub async fn get_chunk(
 pub async fn get_chunk_binary(
     path: web::Path<String>,
     caching_client_data: Data<CachingClient>,
-) -> impl Responder {
+) -> Result<HttpResponse, ChunkError> {
     let address = path.into_inner();
     let chunk_service = ChunkService::new(caching_client_data.get_ref().clone());
 
     debug!("Getting chunk at [{}]", address);
-    match chunk_service.get_chunk_binary(address).await {
-        Ok(chunk) => {
-            // todo: add caching headers (etag, etc) and align/combine with file_service
-            Ok(HttpResponse::Ok()
-                .insert_header(ContentType::octet_stream())
-                .insert_header(ContentLength(chunk.size()))
-                .insert_header((header::SERVER, format!("{}/{}", env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION"))))
-                .body(chunk.value))
-        },
-        Err(e) => Err(handle_error(e))
-    }
-}
-
-fn handle_error(chunk_error: ChunkError) -> Error {
-    match chunk_error {
-        ChunkError::GetError(get_error) => handle_get_error(get_error),
-        _ => ErrorInternalServerError(chunk_error),
-    }
+    let chunk = chunk_service.get_chunk_binary(address).await?;
+    Ok(HttpResponse::Ok()
+        .insert_header(ContentType::octet_stream())
+        .insert_header(ContentLength(chunk.size()))
+        .insert_header((header::SERVER, format!("{}/{}", env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION"))))
+        .body(chunk.value))
 }

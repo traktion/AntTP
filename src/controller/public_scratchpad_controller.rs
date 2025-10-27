@@ -3,8 +3,9 @@ use actix_web::web::Data;
 use ant_evm::EvmWallet;
 use log::debug;
 use crate::client::CachingClient;
+use crate::client::error::ScratchpadError;
 use crate::config::anttp_config::AntTpConfig;
-use crate::controller::{cache_only, handle_scratchpad_error};
+use crate::controller::cache_only;
 use crate::service::scratchpad_service::{Scratchpad, ScratchpadService};
 
 #[utoipa::path(
@@ -90,7 +91,7 @@ pub async fn get_public_scratchpad(
     path: web::Path<String>,
     caching_client_data: Data<CachingClient>,
     ant_tp_config_data: Data<AntTpConfig>,
-) -> impl Responder {
+) -> Result<HttpResponse, ScratchpadError> {
     let address = path.into_inner();
 
     let scratchpad_service = ScratchpadService::new(
@@ -99,8 +100,5 @@ pub async fn get_public_scratchpad(
     );
 
     debug!("Getting public scratchpad at [{}]", address);
-    match scratchpad_service.get_scratchpad(address, None, false).await {
-        Ok(scratchpad) => Ok(HttpResponse::Ok().json(scratchpad)),
-        Err(e) => Err(handle_scratchpad_error(e))
-    }
+    Ok(HttpResponse::Ok().json(scratchpad_service.get_scratchpad(address, None, false).await?))
 }

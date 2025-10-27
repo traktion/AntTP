@@ -23,9 +23,10 @@ impl CachingClient {
         let register_address = self.cache_register(owner, &register_value, cache_only.clone());
 
         if !cache_only.is_some() {
-            self.command_executor.send(
-                Box::new(CreateRegisterCommand::new(self.client_harness.clone(), owner.clone(), register_value, payment_option))
-            ).await.unwrap();
+            let command = Box::new(
+                CreateRegisterCommand::new(self.client_harness.clone(), owner.clone(), register_value, payment_option)
+            );
+            self.send_create_command(command).await?;
         }
         Ok((AttoTokens::zero(), register_address))
     }
@@ -40,9 +41,10 @@ impl CachingClient {
         self.cache_register(owner, &register_value, cache_only.clone());
 
         if !cache_only.is_some() {
-            self.command_executor.send(
-                Box::new(UpdateRegisterCommand::new(self.client_harness.clone(), owner.clone(), register_value, payment_option))
-            ).await.unwrap();
+            let command = Box::new(
+                UpdateRegisterCommand::new(self.client_harness.clone(), owner.clone(), register_value, payment_option)
+            );
+            self.send_update_command(command).await?;
         }
         Ok(AttoTokens::zero())
     }
@@ -67,8 +69,8 @@ impl CachingClient {
         match self.hybrid_cache.get_ref().fetch(format!("{}{}", REGISTER_CACHE_KEY, local_address.to_hex()), {
             let client = match self.client_harness.get_ref().lock().await.get_client().await {
                 Some(client) => client,
-                None => return Err(RegisterError::GetError(GetError::NetworkOffline(
-                    format!("Failed to retrieve chunk for [{}] as offline network", local_address.to_hex()))))
+                None => return Err(GetError::NetworkOffline(
+                    format!("Failed to retrieve chunk for [{}] as offline network", local_address.to_hex())).into())
             };
             
             || async move {
@@ -86,14 +88,15 @@ impl CachingClient {
                 let cache_item: CacheItem<RegisterValue> = rmp_serde::from_slice(cache_entry.value()).expect("Failed to deserialize register");
                 info!("retrieved register for [{}] from hybrid cache", address.to_hex());
                 if cache_item.has_expired() {
-                    self.command_executor.send(
-                        Box::new(GetRegisterCommand::new(self.client_harness.clone(), self.hybrid_cache.clone(), address.clone(), self.ant_tp_config.cached_mutable_ttl))
-                    ).await.unwrap();
+                    let command = Box::new(
+                        GetRegisterCommand::new(self.client_harness.clone(), self.hybrid_cache.clone(), address.clone(), self.ant_tp_config.cached_mutable_ttl)
+                    );
+                    self.send_get_command(command).await?;
                 }
                 // return last value
                 Ok(cache_item.item.unwrap())
             },
-            Err(e) => Err(RegisterError::GetError(GetError::RecordNotFound(e.to_string()))),
+            Err(e) => Err(RegisterError::GetError(e.into()))
         }
     }
 

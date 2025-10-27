@@ -1,9 +1,9 @@
-use autonomi::client::GetError;
 use autonomi::data::DataAddress;
 use bytes::Bytes;
 use log::{debug, info};
 use crate::client::caching_client::ARCHIVE_TAR_IDX_BYTES;
 use crate::client::{CachingClient, TARCHIVE_CACHE_KEY};
+use crate::client::error::GetError;
 
 impl CachingClient {
 
@@ -35,7 +35,7 @@ impl CachingClient {
                 info!("retrieved tarchive for [{}] from hybrid cache", addr.to_hex());
                 Ok(Bytes::from(cache_entry.value().to_vec()))
             },
-            Err(e) => Err(GetError::UnrecognizedDataMap(e.to_string())),
+            Err(e) => Err(GetError::RecordNotFound(e.to_string())),
         }
     }
 

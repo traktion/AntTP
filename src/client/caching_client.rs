@@ -15,7 +15,7 @@ use tokio::sync::Mutex;
 use crate::client::CachingClient;
 use crate::client::client_harness::ClientHarness;
 use crate::client::command::Command;
-use crate::client::error::{ChunkError, GetStreamError};
+use crate::client::error::{CheckError, ChunkError, CreateError, GetError, GetStreamError, UpdateError};
 
 pub const ARCHIVE_TAR_IDX_BYTES: &[u8] = "\0archive.tar.idx\0".as_bytes();
 
@@ -109,5 +109,21 @@ impl CachingClient {
             }
             Err(e) => Err(e)
         }
+    }
+
+    pub async fn send_create_command(&self, command: Box<dyn Command>) -> Result<(), CreateError> {
+        Ok(self.command_executor.send(command).await?)
+    }
+
+    pub async fn send_update_command(&self, command: Box<dyn Command>) -> Result<(), UpdateError> {
+        Ok(self.command_executor.send(command).await?)
+    }
+
+    pub async fn send_get_command(&self, command: Box<dyn Command>) -> Result<(), GetError> {
+        Ok(self.command_executor.send(command).await?)
+    }
+
+    pub async fn send_check_command(&self, command: Box<dyn Command>) -> Result<(), CheckError> {
+        Ok(self.command_executor.send(command).await?)
     }
 }

@@ -10,7 +10,7 @@ use crate::client::command::pointer::get_pointer_command::GetPointerCommand;
 use crate::controller::CacheType;
 use crate::client::command::pointer::create_pointer_command::CreatePointerCommand;
 use crate::client::command::pointer::update_pointer_command::UpdatePointerCommand;
-use crate::client::error::{CheckError, GetError, PointerError};
+use crate::client::error::{GetError, PointerError};
 
 impl CachingClient {
 
@@ -27,9 +27,7 @@ impl CachingClient {
             let command = Box::new(
                 CreatePointerCommand::new(self.client_harness.clone(), owner.clone(), target, payment_option)
             );
-            if let Err(e) = self.command_executor.send(command).await {
-                return Err(PointerError::CreateError(e))
-            }
+            self.send_create_command(command).await?;
         }
         Ok((AttoTokens::zero(), pointer.address()))
     }
@@ -46,9 +44,7 @@ impl CachingClient {
             let command = Box::new(
                 UpdatePointerCommand::new(self.client_harness.clone(), owner.clone(), target)
             );
-            if let Err(e) = self.command_executor.send(command).await {
-                return Err(PointerError::UpdateError(e))
-            }
+            self.send_update_command(command).await?;
         }
         Ok(())
     }
@@ -75,8 +71,8 @@ impl CachingClient {
                 Some(client) => client,
                 None => {
                     error!("Failed to retrieve chunk for [{}] as offline network", local_address.to_hex());
-                    return Err(PointerError::GetError(GetError::NetworkOffline(
-                        format!("Failed to retrieve chunk for [{}] as offline network", local_address.to_hex()))));
+                    return Err(GetError::NetworkOffline(
+                        format!("Failed to retrieve chunk for [{}] as offline network", local_address.to_hex())).into());
                 }
             };
             
@@ -95,14 +91,15 @@ impl CachingClient {
                 let cache_item: CacheItem<Pointer> = rmp_serde::from_slice(cache_entry.value()).expect("Failed to deserialize pointer");
                 info!("retrieved pointer for [{}] from hybrid cache", address.to_hex());
                 if cache_item.has_expired() {
-                    self.command_executor.send(
-                        Box::new(GetPointerCommand::new(self.client_harness.clone(), self.hybrid_cache.clone(), address.clone(), self.ant_tp_config.cached_mutable_ttl))
-                    ).await.unwrap();
+                    let command = Box::new(
+                        GetPointerCommand::new(self.client_harness.clone(), self.hybrid_cache.clone(), address.clone(), self.ant_tp_config.cached_mutable_ttl)
+                    );
+                    self.send_get_command(command).await?;
                 }
                 // return last value
                 Ok(cache_item.item.unwrap())
             },
-            Err(e) => Err(PointerError::GetError(GetError::RecordNotFound(e.to_string()))),
+            Err(e) => Err(PointerError::GetError(e.into()))
         }
     }
 
@@ -131,14 +128,15 @@ impl CachingClient {
                 let cache_item: CacheItem<bool> = rmp_serde::from_slice(cache_entry.value()).expect("Failed to deserialize pointer");
                 info!("retrieved pointer check existence for [{}] from hybrid cache", address.to_hex());
                 if cache_item.has_expired() {
-                    self.command_executor.send(
-                        Box::new(CheckPointerCommand::new(self.client_harness.clone(), self.hybrid_cache.clone(), address.clone(), self.ant_tp_config.cached_mutable_ttl))
-                    ).await.unwrap();
+                    let command = Box::new(
+                        CheckPointerCommand::new(self.client_harness.clone(), self.hybrid_cache.clone(), address.clone(), self.ant_tp_config.cached_mutable_ttl)
+                    );
+                    self.send_check_command(command).await?;
                 }
                 // return last value
                 Ok(cache_item.item.unwrap())
             },
-            Err(e) => Err(PointerError::CheckError(CheckError::RecordNotFound(e.to_string()))),
+            Err(e) => Err(PointerError::CheckError(e.into()))
         }
     }
 }

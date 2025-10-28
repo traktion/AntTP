@@ -8,8 +8,9 @@ use log::{info, warn};
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 use crate::client::CachingClient;
-use crate::client::error::{GetError, PublicDataError};
+use crate::error::GetError;
 use crate::controller::CacheType;
+use crate::error::public_data_error::PublicDataError;
 use crate::service::chunk_service::Chunk;
 
 #[derive(Serialize, Deserialize, ToSchema)]

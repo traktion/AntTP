@@ -4,11 +4,12 @@ use autonomi::client::payment::PaymentOption;
 use autonomi::data::DataAddress;
 use bytes::Bytes;
 use chunk_streamer::chunk_encrypter::ChunkEncrypter;
-use log::{info};
+use log::info;
 use crate::client::CachingClient;
 use crate::client::command::public_data::create_public_data_command::CreatePublicDataCommand;
-use crate::client::error::{CreateError, GetError, PublicDataError};
+use crate::error::{CreateError, GetError};
 use crate::controller::CacheType;
+use crate::error::public_data_error::PublicDataError;
 
 impl CachingClient {
 

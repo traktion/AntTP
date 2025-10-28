@@ -7,7 +7,7 @@ use crate::config::anttp_config::AntTpConfig;
 use crate::{UploaderState, UploadState};
 use crate::service::public_archive_service::{PublicArchiveForm, PublicArchiveService, Upload};
 use crate::client::CachingClient;
-use crate::client::error::PublicArchiveError;
+use crate::error::public_archive_error::PublicArchiveError;
 use crate::controller::cache_only;
 use crate::service::file_service::FileService;
 

@@ -6,7 +6,7 @@ use actix_web::web::{Data, Payload};
 use ant_evm::EvmWallet;
 use log::debug;
 use crate::client::CachingClient;
-use crate::client::error::PublicDataError;
+use crate::error::public_data_error::PublicDataError;
 use crate::controller::cache_only;
 use crate::service::public_data_service::{PublicData, PublicDataService};
 

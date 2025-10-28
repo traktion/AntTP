@@ -9,9 +9,10 @@ use log::{info, warn};
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 use crate::client::CachingClient;
-use crate::client::error::{GetError, ScratchpadError};
+use crate::error::GetError;
 use crate::config::anttp_config::AntTpConfig;
 use crate::controller::CacheType;
+use crate::error::scratchpad_error::ScratchpadError;
 
 #[derive(Serialize, Deserialize, ToSchema)]
 pub struct Scratchpad {

@@ -8,7 +8,7 @@ use log::{info, warn};
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 use crate::client::CachingClient;
-use crate::client::error::GraphError;
+use crate::error::graph_error::GraphError;
 use crate::config::anttp_config::AntTpConfig;
 use crate::controller::CacheType;
 

@@ -1,13 +1,14 @@
 use std::path::Path;
 use actix_http::header;
 use actix_web::HttpRequest;
-use autonomi::{ChunkAddress};
+use autonomi::ChunkAddress;
 use chunk_streamer::chunk_receiver::ChunkReceiver;
 use chunk_streamer::chunk_streamer::ChunkStreamer;
 use log::{debug, info};
 use xor_name::XorName;
 use crate::client::CachingClient;
-use crate::client::error::{ChunkError, GetStreamError};
+use crate::error::GetStreamError;
+use crate::error::chunk_error::ChunkError;
 use crate::config::anttp_config::AntTpConfig;
 use crate::service::resolver_service::ResolvedAddress;
 

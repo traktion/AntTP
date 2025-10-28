@@ -6,7 +6,7 @@ use actix_web::web::{Data, Payload};
 use ant_evm::EvmWallet;
 use log::debug;
 use crate::client::CachingClient;
-use crate::client::error::ChunkError;
+use crate::error::chunk_error::ChunkError;
 use crate::controller::cache_only;
 use crate::service::chunk_service::{Chunk, ChunkService};
 

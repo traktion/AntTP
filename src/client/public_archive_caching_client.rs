@@ -3,11 +3,12 @@ use ant_evm::AttoTokens;
 use autonomi::client::payment::PaymentOption;
 use autonomi::data::DataAddress;
 use autonomi::files::archive_public::ArchiveAddress;
-use autonomi::files::{PublicArchive};
+use autonomi::files::PublicArchive;
 use bytes::Bytes;
 use log::{info, warn};
-use crate::client::error::{CreateError, PublicArchiveError};
+use crate::error::CreateError;
 use crate::controller::CacheType;
+use crate::error::public_archive_error::PublicArchiveError;
 
 impl CachingClient {
 
@@ -42,15 +43,18 @@ impl CachingClient {
                         // confirm that serialization can be successful, before returning the data
                         Ok(public_archive) => {
                             info!("retrieved public archive for [{}] from network - storing in hybrid cache", local_address.to_hex());
-                            Ok(Vec::from(public_archive.to_bytes().expect("failed to convert PublicArchive to bytes")))
+                            match public_archive.to_bytes() {
+                                Ok(cache_item) => Ok(Vec::from(cache_item)),
+                                Err(e) => Err(foyer::Error::other(format!("Failed to convert PublicArchive to bytes for [{}]: {}", local_address.to_hex(), e.to_string())))
+                            }
                         },
-                        Err(err) => {
-                            warn!("Failed to retrieve public archive for [{}] from network {:?}", local_address.to_hex(), err);
-                            Err(foyer::Error::other(format!("Failed to retrieve public archive for [{}] from network {:?}", local_address.to_hex(), err)))
+                        Err(e) => {
+                            warn!("Failed to retrieve public archive for [{}] from network {:?}", local_address.to_hex(), e);
+                            Err(foyer::Error::other(format!("Failed to retrieve public archive for [{}] from network: {:?}", local_address.to_hex(), e)))
                         }
                     }
                 },
-                Err(err) => Err(foyer::Error::other(format!("Failed to download stream for [{}] from network {:?}", local_address.to_hex(), err)))
+                Err(e) => Err(foyer::Error::other(format!("Failed to download stream for [{}] from network: {:?}", local_address.to_hex(), e)))
             }
         }).await {
             Ok(cache_entry) => {

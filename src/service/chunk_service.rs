@@ -1,16 +1,17 @@
 use actix_web::{Error, HttpResponse};
-use actix_web::error::{ErrorInternalServerError};
+use actix_web::error::ErrorInternalServerError;
 use autonomi::{ChunkAddress, Wallet};
 use autonomi::client::chunk as autonomi_chunk;
 use autonomi::client::payment::PaymentOption;
 use base64::Engine;
 use base64::prelude::BASE64_STANDARD;
-use bytes::{Bytes};
+use bytes::Bytes;
 use log::{info, warn};
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 use crate::client::CachingClient;
-use crate::client::error::{ChunkError, GetError};
+use crate::error::GetError;
+use crate::error::chunk_error::ChunkError;
 use crate::controller::CacheType;
 
 #[derive(Serialize, Deserialize, ToSchema)]

@@ -3,14 +3,14 @@ use bytes::Bytes;
 use log::{debug, info};
 use crate::client::caching_client::ARCHIVE_TAR_IDX_BYTES;
 use crate::client::{CachingClient, TARCHIVE_CACHE_KEY};
-use crate::client::error::GetError;
+use crate::error::GetError;
 
 impl CachingClient {
 
     pub async fn get_archive_from_tar(&self, addr: &DataAddress) -> Result<Bytes, GetError> {
         let local_caching_client = self.clone();
         let local_address = addr.clone();
-        match self.hybrid_cache.get_ref().fetch(format!("{}{}", TARCHIVE_CACHE_KEY, local_address.to_hex()), || async move {
+        let cache_entry = self.hybrid_cache.get_ref().fetch(format!("{}{}", TARCHIVE_CACHE_KEY, local_address.to_hex()), || async move {
             let trailer_bytes = local_caching_client.download_stream(&local_address, -20480, 0).await;
             match trailer_bytes {
                 Ok(trailer_bytes) => {
@@ -30,13 +30,9 @@ impl CachingClient {
                 },
                 Err(e) => Err(foyer::Error::other(format!("Failed to download stream for [{}] from network {:?}", local_address.to_hex(), e)))
             }
-        }).await {
-            Ok(cache_entry) => {
-                info!("retrieved tarchive for [{}] from hybrid cache", addr.to_hex());
-                Ok(Bytes::from(cache_entry.value().to_vec()))
-            },
-            Err(e) => Err(GetError::RecordNotFound(e.to_string())),
-        }
+        }).await?;
+        info!("retrieved tarchive for [{}] from hybrid cache", addr.to_hex());
+        Ok(Bytes::from(cache_entry.value().to_vec()))
     }
 
     fn find_subsequence(haystack: &[u8], needle: &[u8]) -> Option<usize> {

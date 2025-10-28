@@ -36,4 +36,3 @@ mod tarchive_caching_client;
 mod archive_caching_client;
 mod public_data_caching_client;
 pub mod command;
-pub mod error;

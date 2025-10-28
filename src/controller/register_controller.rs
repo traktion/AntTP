@@ -3,7 +3,7 @@ use actix_web::web::Data;
 use ant_evm::EvmWallet;
 use log::debug;
 use crate::client::CachingClient;
-use crate::client::error::RegisterError;
+use crate::error::register_error::RegisterError;
 use crate::config::anttp_config::AntTpConfig;
 use crate::controller::cache_only;
 use crate::service::register_service::{Register, RegisterService};

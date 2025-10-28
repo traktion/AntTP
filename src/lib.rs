@@ -3,6 +3,7 @@ pub mod config;
 pub mod controller;
 pub mod service;
 pub mod model;
+pub mod error;
 
 use crate::controller::{chunk_controller, command_controller, file_controller, graph_controller, pointer_controller, private_scratchpad_controller, public_archive_controller, public_data_controller, public_scratchpad_controller, register_controller};
 use crate::service::public_archive_service::Upload;

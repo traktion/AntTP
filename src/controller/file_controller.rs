@@ -1,14 +1,15 @@
-use actix_http::header::{HeaderMap};
+use actix_http::header::HeaderMap;
 use actix_web::{web, HttpRequest, HttpResponse, HttpResponseBuilder};
 use actix_web::dev::ConnectionInfo;
 use actix_web::web::Data;
 use log::debug;
 use mime::{Mime, APPLICATION_JSON, TEXT_HTML};
 use crate::config::anttp_config::AntTpConfig;
-use crate::{UploaderState, UploadState};
+use crate::{UploadState, UploaderState};
 use crate::service::public_archive_service::PublicArchiveService;
 use crate::client::CachingClient;
-use crate::client::error::{ChunkError, GetError};
+use crate::error::GetError;
+use crate::error::chunk_error::ChunkError;
 use crate::service::archive_helper::{ArchiveAction, ArchiveHelper, ArchiveInfo};
 use crate::service::file_service::{FileService, RangeProps};
 use crate::service::header_builder::HeaderBuilder;

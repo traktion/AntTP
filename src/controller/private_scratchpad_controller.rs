@@ -3,7 +3,7 @@ use actix_web::web::Data;
 use ant_evm::EvmWallet;
 use log::debug;
 use crate::client::CachingClient;
-use crate::client::error::ScratchpadError;
+use crate::error::scratchpad_error::ScratchpadError;
 use crate::config::anttp_config::AntTpConfig;
 use crate::controller::cache_only;
 use crate::service::scratchpad_service::{Scratchpad, ScratchpadService};

@@ -1,12 +1,12 @@
-use std::{fs};
+use std::fs;
 use actix_web::web::Data;
 use async_job::{Job, Schedule};
 use async_trait::async_trait;
-use autonomi::{ChunkAddress};
+use autonomi::ChunkAddress;
 use autonomi::data::DataAddress;
 use chunk_streamer::chunk_streamer::ChunkStreamer;
 use foyer::HybridCache;
-use log::{error};
+use log::error;
 use crate::config::anttp_config::AntTpConfig;
 use bytes::{BufMut, Bytes, BytesMut};
 use futures_util::StreamExt;
@@ -15,7 +15,8 @@ use tokio::sync::Mutex;
 use crate::client::CachingClient;
 use crate::client::client_harness::ClientHarness;
 use crate::client::command::Command;
-use crate::client::error::{CheckError, ChunkError, CreateError, GetError, GetStreamError, UpdateError};
+use crate::error::{CheckError, CreateError, GetError, GetStreamError, UpdateError};
+use crate::error::chunk_error::ChunkError;
 
 pub const ARCHIVE_TAR_IDX_BYTES: &[u8] = "\0archive.tar.idx\0".as_bytes();
 

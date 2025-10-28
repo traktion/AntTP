@@ -8,8 +8,9 @@ use crate::client::{CachingClient, REGISTER_CACHE_KEY};
 use crate::client::command::register::create_register_command::CreateRegisterCommand;
 use crate::client::command::register::get_register_command::GetRegisterCommand;
 use crate::client::command::register::update_register_command::UpdateRegisterCommand;
-use crate::client::error::{GetError, RegisterError};
+use crate::error::GetError;
 use crate::controller::CacheType;
+use crate::error::register_error::RegisterError;
 
 impl CachingClient {
 
@@ -66,7 +67,7 @@ impl CachingClient {
     pub async fn register_get(&self, address: &RegisterAddress) -> Result<RegisterValue, RegisterError> {
         let local_address = address.clone();
         let local_ant_tp_config = self.ant_tp_config.clone();
-        match self.hybrid_cache.get_ref().fetch(format!("{}{}", REGISTER_CACHE_KEY, local_address.to_hex()), {
+        let cache_entry = self.hybrid_cache.get_ref().fetch(format!("{}{}", REGISTER_CACHE_KEY, local_address.to_hex()), {
             let client = match self.client_harness.get_ref().lock().await.get_client().await {
                 Some(client) => client,
                 None => return Err(GetError::NetworkOffline(
@@ -78,26 +79,24 @@ impl CachingClient {
                     Ok(register_value) => {
                         debug!("found register value [{}] for address [{}] from network", hex::encode(register_value.clone()), local_address.to_hex());
                         let cache_item = CacheItem::new(Some(register_value.clone()), local_ant_tp_config.cached_mutable_ttl);
-                        Ok(rmp_serde::to_vec(&cache_item).expect("Failed to serialize register"))
+                        match rmp_serde::to_vec(&cache_item) {
+                            Ok(cache_item) => Ok(cache_item),
+                            Err(e) => Err(foyer::Error::other(format!("Failed to serialize register for [{}]: {}", local_address.to_hex(), e.to_string())))
+                        }
                     }
-                    Err(_) => Err(foyer::Error::other(format!("Failed to retrieve register for [{}] from network", local_address.to_hex())))
+                    Err(e) => Err(foyer::Error::other(format!("Failed to retrieve register for [{}] from network: {}", local_address.to_hex(), e.to_string())))
                 }
             }
-        }).await {
-            Ok(cache_entry) => {
-                let cache_item: CacheItem<RegisterValue> = rmp_serde::from_slice(cache_entry.value()).expect("Failed to deserialize register");
-                info!("retrieved register for [{}] from hybrid cache", address.to_hex());
-                if cache_item.has_expired() {
-                    let command = Box::new(
-                        GetRegisterCommand::new(self.client_harness.clone(), self.hybrid_cache.clone(), address.clone(), self.ant_tp_config.cached_mutable_ttl)
-                    );
-                    self.send_get_command(command).await?;
-                }
-                // return last value
-                Ok(cache_item.item.unwrap())
-            },
-            Err(e) => Err(RegisterError::GetError(e.into()))
+        }).await?;
+        let cache_item: CacheItem<RegisterValue> = rmp_serde::from_slice(cache_entry.value())?;
+        info!("retrieved register for [{}] from hybrid cache", address.to_hex());
+        if cache_item.has_expired() {
+            let command = Box::new(
+                GetRegisterCommand::new(self.client_harness.clone(), self.hybrid_cache.clone(), address.clone(), self.ant_tp_config.cached_mutable_ttl)
+            );
+            self.send_get_command(command).await?;
         }
+        Ok(cache_item.item.unwrap())
     }
 
     pub async fn register_history(&self, addr: &RegisterAddress) -> RegisterHistory {

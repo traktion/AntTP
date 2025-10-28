@@ -7,9 +7,10 @@ use log::{info, warn};
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 use crate::client::CachingClient;
-use crate::client::error::{GetError, PointerError};
+use crate::error::GetError;
 use crate::config::anttp_config::AntTpConfig;
 use crate::controller::CacheType;
+use crate::error::pointer_error::PointerError;
 use crate::service::resolver_service::ResolverService;
 
 #[derive(Serialize, Deserialize, ToSchema)]

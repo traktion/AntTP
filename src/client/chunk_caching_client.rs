@@ -7,7 +7,8 @@ use chunk_streamer::chunk_streamer::ChunkGetter;
 use log::{debug, error, info};
 use crate::client::CachingClient;
 use crate::client::command::chunk::create_chunk_command::CreateChunkCommand;
-use crate::client::error::{ChunkError, GetError};
+use crate::error::GetError;
+use crate::error::chunk_error::ChunkError;
 use crate::controller::CacheType;
 
 #[async_trait]
@@ -40,7 +41,7 @@ impl CachingClient {
 
     pub async fn chunk_get_internal(&self, address: &ChunkAddress) -> Result<Chunk, ChunkError> {
         let local_address = address.clone();
-        match self.hybrid_cache.get_ref().fetch(local_address.to_hex(), {
+        let cache_entry = self.hybrid_cache.get_ref().fetch(local_address.to_hex(), {
             let client = match self.client_harness.get_ref().lock().await.get_client().await {
                 Some(client) => client,
                 None => return Err(GetError::NetworkOffline(
@@ -58,12 +59,9 @@ impl CachingClient {
                         Err(foyer::Error::other(format!("Failed to retrieve chunk for [{}] from network {:?}", local_address.to_hex(), err)))
                     }
                 }
-            }}).await {
-            Ok(cache_entry) => {
-                info!("retrieved chunk for [{}] from hybrid cache", address.to_hex());
-                Ok(Chunk::new(Bytes::from(cache_entry.value().to_vec())))
-            },
-            Err(e) => Err(ChunkError::GetError(e.into()))
-        }
+            }
+        }).await?;
+        info!("retrieved chunk for [{}] from hybrid cache", address.to_hex());
+        Ok(Chunk::new(Bytes::from(cache_entry.value().to_vec())))
     }
 }

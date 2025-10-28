@@ -10,8 +10,9 @@ use crate::client::command::scratchpad::create_public_scratchpad_command::Create
 use crate::client::command::scratchpad::get_scratchpad_command::GetScratchpadCommand;
 use crate::client::command::scratchpad::update_private_scratchpad_command::UpdatePrivateScratchpadCommand;
 use crate::client::command::scratchpad::update_public_scratchpad_command::UpdatePublicScratchpadCommand;
-use crate::client::error::{GetError, ScratchpadError};
+use crate::error::GetError;
 use crate::controller::CacheType;
+use crate::error::scratchpad_error::ScratchpadError;
 
 impl CachingClient {
     
@@ -120,7 +121,7 @@ impl CachingClient {
     pub async fn scratchpad_get(&self, address: &ScratchpadAddress) -> Result<Scratchpad, ScratchpadError> {
         let local_address = address.clone();
         let local_ant_tp_config = self.ant_tp_config.clone();
-        match self.hybrid_cache.get_ref().fetch(format!("{}{}", SCRATCHPAD_CACHE_KEY, local_address.to_hex()), {
+        let cache_entry = self.hybrid_cache.get_ref().fetch(format!("{}{}", SCRATCHPAD_CACHE_KEY, local_address.to_hex()), {
             let client = match self.client_harness.get_ref().lock().await.get_client().await {
                 Some(client) => client,
                 None => return Err(GetError::NetworkOffline(
@@ -132,25 +133,23 @@ impl CachingClient {
                     Ok(scratchpad) => {
                         debug!("found scratchpad for address [{}]", local_address.to_hex());
                         let cache_item = CacheItem::new(Some(scratchpad.clone()), local_ant_tp_config.cached_mutable_ttl);
-                        Ok(rmp_serde::to_vec(&cache_item).expect("Failed to serialize scratchpad"))
+                        match rmp_serde::to_vec(&cache_item) {
+                            Ok(cache_item) => Ok(cache_item),
+                            Err(e) => Err(foyer::Error::other(format!("Failed to serialize scratchpad for [{}]: {}", local_address.to_hex(), e.to_string())))
+                        }
                     }
-                    Err(_) => Err(foyer::Error::other(format!("Failed to retrieve scratchpad for [{}] from network", local_address.to_hex())))
+                    Err(e) => Err(foyer::Error::other(format!("Failed to retrieve scratchpad for [{}] from network: {}", local_address.to_hex(), e.to_string())))
                 }
             }
-        }).await {
-            Ok(cache_entry) => {
-                let cache_item: CacheItem<Scratchpad> = rmp_serde::from_slice(cache_entry.value()).expect("Failed to deserialize scratchpad");
-                info!("retrieved scratchpad for [{}] from hybrid cache", address.to_hex());
-                if cache_item.has_expired() {
-                    let command = Box::new(
-                        GetScratchpadCommand::new(self.client_harness.clone(), self.hybrid_cache.clone(), address.clone(), self.ant_tp_config.cached_mutable_ttl)
-                    );
-                    self.send_get_command(command).await?;
-                }
-                // return last value
-                Ok(cache_item.item.unwrap())
-            },
-            Err(e) => Err(ScratchpadError::GetError(e.into()))
+        }).await?;
+        let cache_item: CacheItem<Scratchpad> = rmp_serde::from_slice(cache_entry.value())?;
+        info!("retrieved scratchpad for [{}] from hybrid cache", address.to_hex());
+        if cache_item.has_expired() {
+            let command = Box::new(
+                GetScratchpadCommand::new(self.client_harness.clone(), self.hybrid_cache.clone(), address.clone(), self.ant_tp_config.cached_mutable_ttl)
+            );
+            self.send_get_command(command).await?;
         }
+        Ok(cache_item.item.unwrap())
     }
 }

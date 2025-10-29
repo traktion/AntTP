@@ -4,8 +4,7 @@ use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
 use actix_multipart::form::MultipartForm;
 use actix_multipart::form::tempfile::TempFile;
-use actix_web::{Error, HttpRequest, HttpResponse};
-use actix_web::error::ErrorNotFound;
+use actix_web::HttpRequest;
 use actix_web::web::Data;
 use autonomi::Wallet;
 use autonomi::client::payment::PaymentOption;
@@ -29,6 +28,7 @@ use crate::error::public_archive_error::PublicArchiveError;
 use crate::error::chunk_error::ChunkError;
 use crate::config::app_config::AppConfig;
 use crate::controller::CacheType;
+use crate::error::UpdateError;
 use crate::model::archive::Archive;
 
 #[derive(Serialize, Deserialize, Clone, ToSchema)]
@@ -119,27 +119,23 @@ impl PublicArchiveService {
         }
     }
 
-    pub async fn create_public_archive(&self, public_archive_form: MultipartForm<PublicArchiveForm>, evm_wallet: Wallet, cache_only: Option<CacheType>) -> Result<HttpResponse, Error> {
+    pub async fn create_public_archive(&self, public_archive_form: MultipartForm<PublicArchiveForm>, evm_wallet: Wallet, cache_only: Option<CacheType>) -> Result<Upload, PublicArchiveError> {
         info!("Uploading new public archive to the network");
         self.update_public_archive_common(public_archive_form, evm_wallet, PublicArchive::new(), cache_only).await
     }
 
-    pub async fn update_public_archive(&self, address: String, public_archive_form: MultipartForm<PublicArchiveForm>, evm_wallet: Wallet, cache_only: Option<CacheType>) -> Result<HttpResponse, Error> {
-        match self.caching_client.archive_get_public(ArchiveAddress::from_hex(address.as_str()).unwrap()).await {
-            Ok(public_archive) => {
-                info!("Uploading updated public archive to the network [{:?}]", public_archive);
-                self.update_public_archive_common(public_archive_form, evm_wallet, public_archive, cache_only).await
-            }
-            Err(e) => {
-                Err(ErrorNotFound(format!("Public archive not found at address [{}]: [{:?}]", address, e)))
-            }
-        }
+    pub async fn update_public_archive(&self, address: String, public_archive_form: MultipartForm<PublicArchiveForm>, evm_wallet: Wallet, cache_only: Option<CacheType>) -> Result<Upload, PublicArchiveError> {
+        let public_archive = self.caching_client.archive_get_public(ArchiveAddress::from_hex(address.as_str()).unwrap()).await?;
+        info!("Uploading updated public archive to the network [{:?}]", public_archive);
+        self.update_public_archive_common(public_archive_form, evm_wallet, public_archive, cache_only).await
     }
 
-    pub async fn update_public_archive_common(&self, public_archive_form: MultipartForm<PublicArchiveForm>, evm_wallet: Wallet, mut public_archive: PublicArchive, cache_only: Option<CacheType>) -> Result<HttpResponse, Error> {
+    pub async fn update_public_archive_common(&self, public_archive_form: MultipartForm<PublicArchiveForm>, evm_wallet: Wallet, mut public_archive: PublicArchive, cache_only: Option<CacheType>) -> Result<Upload, PublicArchiveError> {
         let random_name = Uuid::new_v4();
         let tmp_dir = env::temp_dir().as_path().join(random_name.to_string());
-        create_dir(tmp_dir.clone())?;
+        if create_dir(tmp_dir.clone()).is_err() {
+            return Err(UpdateError::TemporaryStorage("failed to create temporary directory".to_string()).into())
+        }
         info!("Created temporary directory for archive with prefix: {:?}", tmp_dir.to_str());
 
         for temp_file in public_archive_form.files.iter() {
@@ -198,8 +194,7 @@ impl PublicArchiveService {
         self.uploader_state.uploader_map.lock().await.insert(task_id.to_string(), handle);
 
         info!("Upload directory scheduled with handle id [{:?}]", task_id.to_string());
-        let upload_response = Upload::new(task_id.to_string(), "scheduled".to_string(), "".to_string(), None);
-        Ok(HttpResponse::Ok().json(upload_response))
+        Ok(Upload::new(task_id.to_string(), "scheduled".to_string(), "".to_string(), None))
     }
 
     pub async fn get_status(&self, task_id: String) -> Result<Upload, PublicArchiveError> {

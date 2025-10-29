@@ -5,6 +5,7 @@ use ant_evm::EvmNetwork::ArbitrumOne;
 use autonomi::{Multiaddr, SecretKey};
 use log::info;
 use clap::Parser;
+use crate::error::CreateError;
 
 #[derive(Clone, Parser, Debug)]
 #[command(version, about, long_about = None)]
@@ -106,5 +107,12 @@ impl AntTpConfig {
             .map(|(key, val)| (key.to_string(), val[1..].to_string()))
             .collect();
         self
+    }
+
+    pub fn get_app_private_key(&self) -> Result<SecretKey, CreateError> {
+        match SecretKey::from_hex(self.app_private_key.clone().as_str()) {
+            Ok(app_secret_key) => Ok(app_secret_key),
+            Err(e) => Err(CreateError::AppKeyMissing(e.to_string()))
+        }
     }
 }

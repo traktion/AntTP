@@ -33,20 +33,12 @@ const STRUCT_NAME: &'static str = "CreatePrivateScratchpadCommand";
 #[async_trait]
 impl Command for CreatePrivateScratchpadCommand {
     async fn execute(&self) -> Result<(), CommandError> {
-        let client = match self.client_harness.get_ref().lock().await.get_client().await {
-            Some(client) => client,
-            None => return Err(CommandError::Recoverable(String::from("network offline")))
-        };
-
+        let client = self.client_harness.get_ref().lock().await.get_client().await?;
         let scratchpad_address_hex = autonomi::ScratchpadAddress::new(self.owner.public_key()).to_hex();
         debug!("creating private scratchpad at [{}] async", scratchpad_address_hex);
-        match client.scratchpad_create(&self.owner, self.content_type, &self.data, self.payment_option.clone()).await {
-            Ok(_) => {
-                info!("private scratchpad at address [{}] created successfully", scratchpad_address_hex);
-                Ok(())
-            },
-            Err(e) => Err(CommandError::Unrecoverable(e.to_string()))
-        }
+        client.scratchpad_create(&self.owner, self.content_type, &self.data, self.payment_option.clone()).await?;
+        info!("private scratchpad at address [{}] created successfully", scratchpad_address_hex);
+        Ok(())
     }
 
     fn action_hash(&self) -> Vec<u8> {

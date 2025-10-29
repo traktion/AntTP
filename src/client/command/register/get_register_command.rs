@@ -32,27 +32,17 @@ const STRUCT_NAME: &'static str = "GetRegisterCommand";
 #[async_trait]
 impl Command for GetRegisterCommand {
     async fn execute(&self) -> Result<(), CommandError> {
-        let client = match self.client_harness.get_ref().lock().await.get_client().await {
-            Some(client) => client,
-            None => return Err(CommandError::Recoverable(String::from("network offline")))
-        };
+        let client = self.client_harness.get_ref().lock().await.get_client().await?;
         let register_address_hex = self.register_address.to_hex();
         debug!("refreshing hybrid cache with register for [{}] from network", register_address_hex);
-        match client.register_get(&self.register_address).await {
-            Ok(register_value) => {
-                let new_cache_item = CacheItem::new(Some(register_value.clone()), self.ttl);
-                self.hybrid_cache.insert(
-                    format!("{}{}", REGISTER_CACHE_KEY, register_address_hex),
-                    rmp_serde::to_vec(&new_cache_item).expect("Failed to serialize register")
-                );
-                info!("refreshed hybrid cache with register for [{}] from network", register_address_hex);
-                Ok(())
-            }
-            Err(e) => {
-                Err(CommandError::Unrecoverable(
-                    format!("Failed to refresh hybrid cache with register for [{}] from network [{}]", register_address_hex, e)))
-            }
-        }
+        let register_value = client.register_get(&self.register_address).await?;
+        let new_cache_item = CacheItem::new(Some(register_value.clone()), self.ttl);
+        self.hybrid_cache.insert(
+            format!("{}{}", REGISTER_CACHE_KEY, register_address_hex),
+            rmp_serde::to_vec(&new_cache_item)?
+        );
+        info!("refreshed hybrid cache with register for [{}] from network", register_address_hex);
+        Ok(())
     }
 
     fn action_hash(&self) -> Vec<u8> {

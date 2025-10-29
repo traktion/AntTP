@@ -1,5 +1,3 @@
-use actix_web::{Error, HttpResponse};
-use actix_web::error::{ErrorInternalServerError, ErrorPreconditionFailed};
 use autonomi::{Client, SecretKey, Wallet};
 use autonomi::client::payment::PaymentOption;
 use autonomi::register::RegisterAddress;
@@ -7,7 +5,7 @@ use log::{info, warn};
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 use crate::client::CachingClient;
-use crate::error::GetError;
+use crate::error::{GetError, UpdateError};
 use crate::config::anttp_config::AntTpConfig;
 use crate::controller::CacheType;
 use crate::error::register_error::RegisterError;
@@ -41,53 +39,36 @@ impl RegisterService {
         RegisterService { caching_client, ant_tp_config, resolver_service }
     }
 
-    pub async fn create_register(&self, register: Register, evm_wallet: Wallet, cache_only: Option<CacheType>) -> Result<HttpResponse, Error> {
+    pub async fn create_register(&self, register: Register, evm_wallet: Wallet, cache_only: Option<CacheType>) -> Result<Register, RegisterError> {
         let app_secret_key = SecretKey::from_hex(self.ant_tp_config.app_private_key.clone().as_str()).unwrap();
         let register_key = Client::register_key_from_name(&app_secret_key, register.name.clone().unwrap().as_str());
 
         info!("Create register from name [{}] and content [{}]", register.name.clone().unwrap(), register.content);
         let content = Client::register_value_from_bytes(hex::decode(register.content.clone()).expect("failed to decode hex").as_slice()).unwrap();
-        match self.caching_client
+        let (cost, register_address) = self.caching_client
             .register_create(&register_key, content, PaymentOption::from(&evm_wallet), cache_only)
-            .await {
-                Ok((cost, register_address)) => {
-                    info!("Created register at [{}] for [{}] attos", register_address.to_hex(), cost);
-                    let response_register = Register::new(
-                        register.name, register.content, Some(register_address.to_hex()), Some(cost.to_string()));
-                    Ok(HttpResponse::Created().json(response_register))
-                }
-                Err(e) => {
-                    // todo: refine error handling to return appropriate messages / payloads
-                    warn!("Failed to create register: [{:?}]", e);
-                    Err(ErrorInternalServerError("Failed to create register:"))
-                }
-        }
+            .await?;
+        info!("Created register at [{}] for [{}] attos", register_address.to_hex(), cost);
+        Ok(Register::new(register.name, register.content, Some(register_address.to_hex()), Some(cost.to_string())))
     }
 
-    pub async fn update_register(&self, address: String, register: Register, evm_wallet: Wallet, cache_only: Option<CacheType>) -> Result<HttpResponse, Error> {
+    pub async fn update_register(&self, address: String, register: Register, evm_wallet: Wallet, cache_only: Option<CacheType>) -> Result<Register, RegisterError> {
         let app_secret_key = SecretKey::from_hex(self.ant_tp_config.app_private_key.clone().as_str()).unwrap();
         let register_key = Client::register_key_from_name(&app_secret_key, register.name.clone().unwrap().as_str());
         let resolved_address = self.resolver_service.resolve_bookmark(&address).unwrap_or(address);
         if resolved_address.clone() != register_key.public_key().to_hex() {
             warn!("Address [{}] is not derived from name [{}].", resolved_address.clone(), register.name.clone().unwrap());
-            return Err(ErrorPreconditionFailed(format!("Address [{}] is not derived from name [{}].", resolved_address.clone(), register.name.clone().unwrap())));
+            return Err(UpdateError::NotDerivedAddress(
+                format!("Address [{}] is not derived from name [{}].", resolved_address.clone(), register.name.clone().unwrap())).into());
         }
 
         info!("Update register with name [{}] and content [{}]", register.name.clone().unwrap(), register.content);
         let content = Client::register_value_from_bytes(hex::decode(register.content.clone()).expect("failed to decode hex").as_slice()).unwrap();
-        match self.caching_client
+        let cost = self.caching_client
             .register_update(&register_key, content, PaymentOption::from(&evm_wallet), cache_only)
-            .await {
-            Ok(cost) => {
-                info!("Updated register with name [{}] for [{}] attos", register.name.clone().unwrap(), cost);
-                let response_register = Register::new(Some(register.name.unwrap()), register.content, Some(resolved_address), Some(cost.to_string()));
-                Ok(HttpResponse::Ok().json(response_register))
-            }
-            Err(e) => {
-                warn!("Failed to update register: [{:?}]", e);
-                Err(ErrorInternalServerError("Failed to update register"))
-            }
-        }
+            .await?;
+        info!("Updated register with name [{}] for [{}] attos", register.name.clone().unwrap(), cost);
+        Ok(Register::new(Some(register.name.unwrap()), register.content, Some(resolved_address), Some(cost.to_string())))
     }
 
     pub async fn get_register(&self, address: String) -> Result<Register, RegisterError> {
@@ -107,10 +88,10 @@ impl RegisterService {
         }
     }
 
-    pub async fn get_register_history(&self, address: String) -> Result<HttpResponse, Error> {
+    pub async fn get_register_history(&self, address: String) -> Result<Vec<Register>, RegisterError> {
         let resolved_address = self.resolver_service.resolve_bookmark(&address).unwrap_or(address);
         let register_address = RegisterAddress::from_hex(resolved_address.as_str()).unwrap();
-        match self.caching_client.register_history(&register_address).await.collect().await {
+        match self.caching_client.register_history(&register_address).await?.collect().await {
             Ok(content_vec) => {
                 let content_flattened: String = content_vec.iter().map(|&c|hex::encode(c)).collect();
                 info!("Retrieved register history [{}] at address [{}]", content_flattened, register_address);
@@ -118,12 +99,9 @@ impl RegisterService {
                 content_vec.iter().for_each(|content|response_registers.push(
                     Register::new(None, hex::encode(content), Some(register_address.to_hex()), None)
                 ));
-                Ok(HttpResponse::Ok().json(response_registers).into())
+                Ok(response_registers)
             }
-            Err(e) => {
-                warn!("Failed to retrieve register history at address [{}]: [{:?}]", register_address.to_hex(), e);
-                Err(ErrorInternalServerError("Failed to retrieve register history at address"))
-            }
+            Err(e) => Err(RegisterError::GetError(GetError::RecordNotFound(e.to_string())))
         }
     }
 }

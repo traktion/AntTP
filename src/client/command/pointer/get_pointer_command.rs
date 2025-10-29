@@ -32,28 +32,17 @@ const STRUCT_NAME: &'static str = "GetPointerCommand";
 #[async_trait]
 impl Command for GetPointerCommand {
     async fn execute(&self) -> Result<(), CommandError> {
-        let client = match self.client_harness.get_ref().lock().await.get_client().await {
-            Some(client) => client,
-            None => return Err(CommandError::Recoverable(String::from("network offline")))
-        };
-
+        let client = self.client_harness.get_ref().lock().await.get_client().await?;
         let pointer_address_hex = self.pointer_address.to_hex();
         debug!("refreshing hybrid cache with pointer for [{}] from network", pointer_address_hex);
-        match client.pointer_get(&self.pointer_address).await {
-            Ok(pointer) => {
-                let new_cache_item = CacheItem::new(Some(pointer.clone()), self.ttl);
-                self.hybrid_cache.insert(
-                    format!("{}{}", POINTER_CACHE_KEY, pointer_address_hex),
-                    rmp_serde::to_vec(&new_cache_item).expect("Failed to serialize pointer")
-                );
-                info!("refreshed hybrid cache with pointer for [{}] from network", pointer_address_hex);
-                Ok(())
-            },
-            Err(e) => {
-                Err(CommandError::Unrecoverable(
-                    format!("Failed to refresh hybrid cache with pointer for [{}] from network [{}]", pointer_address_hex, e)))
-            }
-        }
+        let pointer = client.pointer_get(&self.pointer_address).await?;
+        let new_cache_item = CacheItem::new(Some(pointer.clone()), self.ttl);
+        self.hybrid_cache.insert(
+            format!("{}{}", POINTER_CACHE_KEY, pointer_address_hex),
+            rmp_serde::to_vec(&new_cache_item)?
+        );
+        info!("refreshed hybrid cache with pointer for [{}] from network", pointer_address_hex);
+        Ok(())
     }
 
     fn action_hash(&self) -> Vec<u8> {

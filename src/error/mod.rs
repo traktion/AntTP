@@ -2,6 +2,7 @@ use std::fmt::Debug;
 use actix_http::StatusCode;
 use actix_web::{error, HttpResponse};
 use actix_web::http::header::ContentType;
+use autonomi::client::ConnectError;
 use serde::Serialize;
 use thiserror::Error;
 use tokio::sync::mpsc::error::SendError;
@@ -27,6 +28,10 @@ pub enum CreateError {
     Serialization(String),
     #[error("source data missing: {0}")]
     TemporaryStorage(String),
+    #[error("invalid data: {0}")]
+    InvalidData(String),
+    #[error("app key missing: {0}")]
+    AppKeyMissing(String),
     #[error("network is offline: {0}")]
     NetworkOffline(String),
 }
@@ -37,10 +42,34 @@ impl From<SendError<Box<dyn Command>>> for CreateError {
     }
 }
 
-impl error::ResponseError for CreateError {}
+impl error::ResponseError for CreateError {
+    fn status_code(&self) -> StatusCode {
+        match self {
+            CreateError::Command(_) => StatusCode::BAD_GATEWAY,
+            CreateError::Encryption(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            CreateError::Serialization(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            CreateError::TemporaryStorage(_) => StatusCode::INSUFFICIENT_STORAGE,
+            CreateError::InvalidData(_) => StatusCode::BAD_REQUEST,
+            CreateError::AppKeyMissing(_) => StatusCode::PRECONDITION_FAILED,
+            CreateError::NetworkOffline(_) => StatusCode::BAD_GATEWAY
+        }
+    }
+
+    fn error_response(&self) -> HttpResponse {
+        HttpResponse::build(self.status_code())
+            .insert_header(ContentType::json())
+            .json(self)
+    }
+}
 
 #[derive(Error, Debug, Serialize)]
 pub enum UpdateError {
+    #[error("address not derived from: {0}")]
+    NotDerivedAddress(String),
+    #[error("app key missing: {0}")]
+    AppKeyMissing(String),
+    #[error("source data missing: {0}")]
+    TemporaryStorage(String),
     #[error("command creation failed: {0}")]
     Command(String),
     #[error("network is offline: {0}")]
@@ -53,7 +82,23 @@ impl From<SendError<Box<dyn Command>>> for UpdateError {
     }
 }
 
-impl error::ResponseError for UpdateError {}
+impl error::ResponseError for UpdateError {
+    fn status_code(&self) -> StatusCode {
+        match self {
+            UpdateError::NotDerivedAddress(_) => StatusCode::BAD_REQUEST,
+            UpdateError::AppKeyMissing(_) => StatusCode::PRECONDITION_FAILED,
+            UpdateError::Command(_) => StatusCode::BAD_GATEWAY,
+            UpdateError::NetworkOffline(_) => StatusCode::BAD_GATEWAY,
+            UpdateError::TemporaryStorage(_) => StatusCode::INSUFFICIENT_STORAGE
+        }
+    }
+
+    fn error_response(&self) -> HttpResponse {
+        HttpResponse::build(self.status_code())
+            .insert_header(ContentType::json())
+            .json(self)
+    }
+}
 
 #[derive(Error, Debug, Serialize)]
 pub enum GetError {
@@ -86,8 +131,9 @@ impl error::ResponseError for GetError {
             GetError::DerivationNameMissing(_) => StatusCode::BAD_REQUEST,
             GetError::DerivationKeyMissing(_) => StatusCode::BAD_REQUEST,
             GetError::Decryption(_) => StatusCode::BAD_REQUEST,
+            GetError::Command(_) => StatusCode::BAD_GATEWAY,
+            GetError::Decode(_) => StatusCode::BAD_REQUEST,
             GetError::NetworkOffline(_) => StatusCode::BAD_GATEWAY,
-            _ => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
 
@@ -113,6 +159,12 @@ impl From<foyer::Error> for GetError {
 impl From<rmp_serde::decode::Error> for GetError {
     fn from(value: rmp_serde::decode::Error) -> Self {
         Self::Decode(value.to_string())
+    }
+}
+
+impl From<ConnectError> for GetError {
+    fn from(value: ConnectError) -> Self {
+        Self::NetworkOffline(value.to_string())
     }
 }
 

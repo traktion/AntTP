@@ -8,7 +8,6 @@ use crate::client::{CachingClient, REGISTER_CACHE_KEY};
 use crate::client::command::register::create_register_command::CreateRegisterCommand;
 use crate::client::command::register::get_register_command::GetRegisterCommand;
 use crate::client::command::register::update_register_command::UpdateRegisterCommand;
-use crate::error::GetError;
 use crate::controller::CacheType;
 use crate::error::register_error::RegisterError;
 
@@ -68,12 +67,7 @@ impl CachingClient {
         let local_address = address.clone();
         let local_ant_tp_config = self.ant_tp_config.clone();
         let cache_entry = self.hybrid_cache.get_ref().fetch(format!("{}{}", REGISTER_CACHE_KEY, local_address.to_hex()), {
-            let client = match self.client_harness.get_ref().lock().await.get_client().await {
-                Some(client) => client,
-                None => return Err(GetError::NetworkOffline(
-                    format!("Failed to retrieve chunk for [{}] as offline network", local_address.to_hex())).into())
-            };
-            
+            let client = self.client_harness.get_ref().lock().await.get_client().await?;
             || async move {
                 match client.register_get(&local_address).await {
                     Ok(register_value) => {
@@ -99,7 +93,7 @@ impl CachingClient {
         Ok(cache_item.item.unwrap())
     }
 
-    pub async fn register_history(&self, addr: &RegisterAddress) -> RegisterHistory {
-        self.client_harness.get_ref().lock().await.get_client().await.expect("network offline").register_history(addr)
+    pub async fn register_history(&self, addr: &RegisterAddress) -> Result<RegisterHistory, RegisterError> {
+        Ok(self.client_harness.get_ref().lock().await.get_client().await?.register_history(addr))
     }
 }

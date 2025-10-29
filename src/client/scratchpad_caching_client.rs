@@ -10,7 +10,6 @@ use crate::client::command::scratchpad::create_public_scratchpad_command::Create
 use crate::client::command::scratchpad::get_scratchpad_command::GetScratchpadCommand;
 use crate::client::command::scratchpad::update_private_scratchpad_command::UpdatePrivateScratchpadCommand;
 use crate::client::command::scratchpad::update_public_scratchpad_command::UpdatePublicScratchpadCommand;
-use crate::error::GetError;
 use crate::controller::CacheType;
 use crate::error::scratchpad_error::ScratchpadError;
 
@@ -122,12 +121,7 @@ impl CachingClient {
         let local_address = address.clone();
         let local_ant_tp_config = self.ant_tp_config.clone();
         let cache_entry = self.hybrid_cache.get_ref().fetch(format!("{}{}", SCRATCHPAD_CACHE_KEY, local_address.to_hex()), {
-            let client = match self.client_harness.get_ref().lock().await.get_client().await {
-                Some(client) => client,
-                None => return Err(GetError::NetworkOffline(
-                    format!("Failed to retrieve chunk for [{}] as offline network", local_address.to_hex())).into())
-            };
-
+            let client = self.client_harness.get_ref().lock().await.get_client().await?;
             || async move {
                 match client.scratchpad_get(&local_address).await {
                     Ok(scratchpad) => {

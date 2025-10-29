@@ -1,4 +1,4 @@
-use actix_web::{web, HttpRequest, HttpResponse, Responder};
+use actix_web::{web, HttpRequest, HttpResponse};
 use actix_web::web::Data;
 use ant_evm::EvmWallet;
 use log::debug;
@@ -28,14 +28,16 @@ pub async fn post_graph_entry(
     ant_tp_config_data: Data<AntTpConfig>,
     graph_entry: web::Json<GraphEntry>,
     request: HttpRequest,
-) -> impl Responder {
+) -> Result<HttpResponse, GraphError> {
     let graph_service = GraphService::new(
         caching_client_data.get_ref().clone(),
         ant_tp_config_data.get_ref().clone()
     );
 
     debug!("Creating new graph entry");
-    graph_service.create_graph_entry(graph_entry.into_inner(), evm_wallet_data.get_ref().clone(), cache_only(request)).await
+    Ok(HttpResponse::Created().json(
+        graph_service.create_graph_entry(graph_entry.into_inner(), evm_wallet_data.get_ref().clone(), cache_only(request)).await
+    ))
 }
 
 #[utoipa::path(

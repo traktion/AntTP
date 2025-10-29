@@ -1,6 +1,5 @@
 use actix_http::header;
-use actix_web::{web, HttpRequest, HttpResponse, Responder};
-use actix_web::error::ErrorInternalServerError;
+use actix_web::{web, HttpRequest, HttpResponse};
 use actix_web::http::header::{ContentLength, ContentType};
 use actix_web::web::{Data, Payload};
 use ant_evm::EvmWallet;
@@ -8,6 +7,7 @@ use log::debug;
 use crate::client::CachingClient;
 use crate::error::public_data_error::PublicDataError;
 use crate::controller::cache_only;
+use crate::error::CreateError;
 use crate::service::public_data_service::{PublicData, PublicDataService};
 
 #[utoipa::path(
@@ -30,16 +30,18 @@ pub async fn post_public_data(
     evm_wallet_data: Data<EvmWallet>,
     payload: Payload,
     request: HttpRequest
-) -> impl Responder {
+) -> Result<HttpResponse, PublicDataError> {
     let public_data_service = PublicDataService::new(caching_client_data.get_ref().clone());
 
     debug!("Creating new public data");
     match payload.to_bytes().await {
         Ok(bytes) => {
-            public_data_service.create_public_data(bytes, evm_wallet_data.get_ref().clone(), cache_only(request)).await
+            Ok(HttpResponse::Created().json(
+                public_data_service.create_public_data(bytes, evm_wallet_data.get_ref().clone(), cache_only(request)).await?
+            ))
         }
-        Err(_) => {
-            Err(ErrorInternalServerError("Failed to retrieve bytes from payload"))
+        Err(e) => {
+            Err(CreateError::InvalidData(e.to_string()).into())
         }
     }
 }

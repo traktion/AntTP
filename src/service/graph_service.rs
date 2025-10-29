@@ -1,5 +1,3 @@
-use actix_web::{Error, HttpResponse};
-use actix_web::error::{ErrorInternalServerError};
 use autonomi::{Client, GraphEntryAddress, PublicKey, SecretKey, Wallet};
 use autonomi::client::payment::PaymentOption;
 use autonomi::graph::{GraphContent};
@@ -53,7 +51,7 @@ impl GraphService {
         GraphService { caching_client, ant_tp_config }
     }
 
-    pub async fn create_graph_entry(&self, graph: GraphEntry, evm_wallet: Wallet, cache_only: Option<CacheType>) -> Result<HttpResponse, Error> {
+    pub async fn create_graph_entry(&self, graph: GraphEntry, evm_wallet: Wallet, cache_only: Option<CacheType>) -> Result<GraphEntry, GraphError> {
         let app_secret_key = SecretKey::from_hex(self.ant_tp_config.app_private_key.clone().as_str()).unwrap();
         let graph_key = Client::register_key_from_name(&app_secret_key, graph.name.clone().unwrap().as_str());
 
@@ -79,20 +77,11 @@ impl GraphService {
         let graph_content = GraphContent::from_hex(graph.content.clone()).unwrap();
         let graph_entry = autonomi::GraphEntry::new(&graph_key, graph_parents, graph_content.clone(), graph_descendants);
         info!("Create graph entry from name [{}] for content [{}]", graph.name.clone().unwrap(), graph.content.clone());
-        match self.caching_client
+        let (cost, graph_entry_address) = self.caching_client
             .graph_entry_put(graph_entry, PaymentOption::from(&evm_wallet), cache_only)
-            .await {
-                Ok((cost, graph_entry_address)) => {
-                    info!("Created graph entry at [{}] for [{}] attos", graph_entry_address.to_hex(), cost);
-                    let response_graph = GraphEntry::new(graph.name, graph.content, Some(graph_entry_address.to_hex()), graph.parents, graph.descendants, Some(cost.to_string()));
-                    Ok(HttpResponse::Created().json(response_graph))
-                }
-                Err(e) => {
-                    // todo: refine error handling to return appropriate messages / payloads
-                    warn!("Failed to create graph entry: [{:?}]", e);
-                    Err(ErrorInternalServerError("Failed to create graph entry"))
-                }
-        }
+            .await?;
+        info!("Created graph entry at [{}] for [{}] attos", graph_entry_address.to_hex(), cost);
+        Ok(GraphEntry::new(graph.name, graph.content, Some(graph_entry_address.to_hex()), graph.parents, graph.descendants, Some(cost.to_string())))
     }
 
     pub async fn get_graph_entry(&self, address: String) -> Result<GraphEntry, GraphError> {

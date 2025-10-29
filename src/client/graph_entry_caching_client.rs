@@ -6,7 +6,6 @@ use crate::client::cache_item::CacheItem;
 use crate::client::{CachingClient, GRAPH_ENTRY_CACHE_KEY};
 use crate::client::command::graph::create_graph_entry_command::CreateGraphEntryCommand;
 use crate::client::command::graph::get_graph_entry_command::GetGraphEntryCommand;
-use crate::error::GetError;
 use crate::error::graph_error::GraphError;
 use crate::controller::CacheType;
 
@@ -47,12 +46,7 @@ impl CachingClient {
         let local_address = address.clone();
         let local_ant_tp_config = self.ant_tp_config.clone();
         let cache_entry = self.hybrid_cache.get_ref().fetch(format!("{}{}", GRAPH_ENTRY_CACHE_KEY, local_address.to_hex()), {
-            let client = match self.client_harness.get_ref().lock().await.get_client().await {
-                Some(client) => client,
-                None => return Err(GetError::NetworkOffline(
-                    format!("Failed to retrieve chunk for [{}] as offline network", local_address.to_hex())).into())
-            };
-            
+            let client = self.client_harness.get_ref().lock().await.get_client().await?;           
             || async move {
                 match client.graph_entry_get(&local_address).await {
                     Ok(scratchpad) => {

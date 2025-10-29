@@ -1,5 +1,3 @@
-use actix_web::{Error, HttpResponse};
-use actix_web::error::{ErrorInternalServerError, ErrorPreconditionFailed};
 use autonomi::{ChunkAddress, Client, PointerAddress, SecretKey, Wallet};
 use autonomi::client::payment::PaymentOption;
 use autonomi::pointer::PointerTarget;
@@ -7,7 +5,7 @@ use log::{info, warn};
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 use crate::client::CachingClient;
-use crate::error::GetError;
+use crate::error::{GetError, UpdateError};
 use crate::config::anttp_config::AntTpConfig;
 use crate::controller::CacheType;
 use crate::error::pointer_error::PointerError;
@@ -43,52 +41,34 @@ impl PointerService {
         PointerService { caching_client, ant_tp_config, resolver_service }
     }
 
-    pub async fn create_pointer(&self, pointer: Pointer, evm_wallet: Wallet, cache_only: Option<CacheType>) -> Result<HttpResponse, Error> {
+    pub async fn create_pointer(&self, pointer: Pointer, evm_wallet: Wallet, cache_only: Option<CacheType>) -> Result<Pointer, PointerError> {
         let app_secret_key = SecretKey::from_hex(self.ant_tp_config.app_private_key.clone().as_str()).unwrap();
         let pointer_key = Client::register_key_from_name(&app_secret_key, pointer.name.clone().unwrap().as_str());
 
         let chunk_address = ChunkAddress::from_hex(pointer.content.clone().as_str()).unwrap();
         info!("Create pointer from name [{}] for chunk [{}]", pointer.name.clone().unwrap(), chunk_address);
-        match self.caching_client
+        let (cost, pointer_address) = self.caching_client
             .pointer_create(&pointer_key, PointerTarget::ChunkAddress(chunk_address), PaymentOption::from(&evm_wallet), cache_only)
-            .await {
-                Ok((cost, pointer_address)) => {
-                    info!("Created pointer at [{}] for [{}] attos", pointer_address.to_hex(), cost);
-                    let response_pointer = Pointer::new(pointer.name, pointer.content, Some(pointer_address.to_hex()), None, Some(cost.to_string()));
-                    Ok(HttpResponse::Created().json(response_pointer))
-                }
-                Err(e) => {
-                    // todo: refine error handling to return appropriate messages / payloads
-                    warn!("Failed to create pointer: [{:?}]", e);
-                    Err(ErrorInternalServerError("Failed to create pointer"))
-                }
-        }
+            .await?;
+        info!("Created pointer at [{}] for [{}] attos", pointer_address.to_hex(), cost);
+        Ok(Pointer::new(pointer.name, pointer.content, Some(pointer_address.to_hex()), None, Some(cost.to_string())))
     }
 
-    pub async fn update_pointer(&self, address: String, pointer: Pointer, cache_only: Option<CacheType>) -> Result<HttpResponse, Error> {
+    pub async fn update_pointer(&self, address: String, pointer: Pointer, cache_only: Option<CacheType>) -> Result<Pointer, PointerError> {
         let resolved_address = self.resolver_service.resolve_bookmark(&address).unwrap_or(address);
         let app_secret_key = SecretKey::from_hex(self.ant_tp_config.app_private_key.clone().as_str()).unwrap();
         let pointer_key = Client::register_key_from_name(&app_secret_key, pointer.name.clone().unwrap().as_str());
         if resolved_address.clone() != pointer_key.public_key().to_hex() {
             warn!("Address [{}] is not derived from name [{}].", resolved_address.clone(), pointer.name.clone().unwrap());
-            return Err(ErrorPreconditionFailed(format!("Address [{}] is not derived from name [{}].", resolved_address.clone(), pointer.name.clone().unwrap())));
+            return Err(UpdateError::NotDerivedAddress(
+                format!("Address [{}] is not derived from name [{}].", resolved_address.clone(), pointer.name.clone().unwrap())).into());
         }
 
         let chunk_address = ChunkAddress::from_hex(pointer.content.clone().as_str()).unwrap();
         info!("Update pointer with name [{}] for chunk [{}]", pointer.name.clone().unwrap(), chunk_address);
-        match self.caching_client
-            .pointer_update(&pointer_key, PointerTarget::ChunkAddress(chunk_address), cache_only)
-            .await {
-            Ok(()) => {
-                info!("Updated pointer with name [{}]", pointer.name.clone().unwrap());
-                let response_pointer = Pointer::new(pointer.name, pointer.content, Some(resolved_address), None, None);
-                Ok(HttpResponse::Ok().json(response_pointer))
-            }
-            Err(e) => {
-                warn!("Failed to update pointer: [{:?}]", e);
-                Err(ErrorInternalServerError("Failed to update pointer"))
-            }
-        }
+        self.caching_client.pointer_update(&pointer_key, PointerTarget::ChunkAddress(chunk_address), cache_only).await?;
+        info!("Updated pointer with name [{}]", pointer.name.clone().unwrap());
+        Ok(Pointer::new(pointer.name, pointer.content, Some(resolved_address), None, None))
     }
 
     pub async fn get_pointer(&self, address: String) -> Result<Pointer, PointerError> {

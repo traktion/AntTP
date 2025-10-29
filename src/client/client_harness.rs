@@ -1,7 +1,8 @@
 use std::time::{SystemTime, UNIX_EPOCH};
 use ant_evm::EvmNetwork;
 use autonomi::{BootstrapConfig, Client, ClientConfig, ClientOperatingStrategy};
-use log::{debug, info, warn};
+use autonomi::client::ConnectError;
+use log::{debug, info};
 use crate::config::anttp_config::AntTpConfig;
 
 #[derive(Clone)]
@@ -18,12 +19,12 @@ impl ClientHarness {
         ClientHarness { evm_network, ant_tp_config, maybe_client: None, last_accessed_time }
     }
 
-    pub async fn get_client(&mut self) -> Option<Client> {
+    pub async fn get_client(&mut self) -> Result<Client, ConnectError> {
         self.last_accessed_time = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
         if self.maybe_client.is_none() {
-            self.maybe_client = self.init_client().await;
-        };
-        self.maybe_client.clone()
+            self.maybe_client = Some(self.init_client().await?);
+        }
+        Ok(self.maybe_client.clone().unwrap())
     }
 
     pub fn try_sleep(&mut self) {
@@ -39,26 +40,18 @@ impl ClientHarness {
         }
     }
 
-    async fn init_client(&self) -> Option<Client> {
+    async fn init_client(&self) -> Result<Client, ConnectError> {
         let bootstrap_config = BootstrapConfig::new(false)
             .with_initial_peers(self.ant_tp_config.peers.clone());
 
         let mut strategy = ClientOperatingStrategy::default();
         strategy.chunk_cache_enabled = false; // disable cache to avoid double-caching
 
-        match Client::init_with_config(ClientConfig {
+        Ok(Client::init_with_config(ClientConfig {
             bootstrap_config,
             evm_network: self.evm_network.clone(),
             strategy,
             network_id: Some(1),
-        }).await {
-            Ok(client) => {
-                Some(client)
-            },
-            Err(e) => {
-                warn!("Failed to connect to Autonomi Network with error [{}]. Running in offline mode.", e);
-                None
-            },
-        }
+        }).await?)
     }
 }

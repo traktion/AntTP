@@ -2,7 +2,7 @@ use ant_evm::AttoTokens;
 use autonomi::client::payment::PaymentOption;
 use autonomi::pointer::PointerTarget;
 use autonomi::{Pointer, PointerAddress, SecretKey};
-use log::{debug, error, info};
+use log::{debug, info};
 use crate::client::cache_item::CacheItem;
 use crate::client::{CachingClient, POINTER_CACHE_KEY, POINTER_CHECK_CACHE_KEY};
 use crate::client::command::pointer::check_pointer_command::CheckPointerCommand;
@@ -10,7 +10,6 @@ use crate::client::command::pointer::get_pointer_command::GetPointerCommand;
 use crate::controller::CacheType;
 use crate::client::command::pointer::create_pointer_command::CreatePointerCommand;
 use crate::client::command::pointer::update_pointer_command::UpdatePointerCommand;
-use crate::error::GetError;
 use crate::error::pointer_error::PointerError;
 
 impl CachingClient {
@@ -68,15 +67,7 @@ impl CachingClient {
         let local_address = address.clone();
         let local_ant_tp_config = self.ant_tp_config.clone();
         let cache_entry = self.hybrid_cache.get_ref().fetch(format!("{}{}", POINTER_CACHE_KEY, local_address.to_hex()), {
-            let client = match self.client_harness.get_ref().lock().await.get_client().await {
-                Some(client) => client,
-                None => {
-                    error!("Failed to retrieve chunk for [{}] as offline network", local_address.to_hex());
-                    return Err(GetError::NetworkOffline(
-                        format!("Failed to retrieve chunk for [{}] as offline network", local_address.to_hex())).into());
-                }
-            };
-            
+            let client = self.client_harness.get_ref().lock().await.get_client().await?;            
             || async move {
                 match client.pointer_get(&local_address).await {
                     Ok(pointer) => {
@@ -103,12 +94,7 @@ impl CachingClient {
         let local_address = address.clone();
         let local_ant_tp_config = self.ant_tp_config.clone();
         let cache_entry = self.hybrid_cache.get_ref().fetch(format!("{}{}", POINTER_CHECK_CACHE_KEY, local_address.to_hex()), {
-            let client = match self.client_harness.get_ref().lock().await.get_client().await {
-                Some(client) => client,
-                None => return Err(PointerError::GetError(GetError::NetworkOffline(
-                    format!("Failed to retrieve chunk for [{}] as offline network", local_address.to_hex()))))
-            };
-            
+            let client = self.client_harness.get_ref().lock().await.get_client().await?;
             || async move {
                 match client.pointer_check_existence(&local_address).await {
                     Ok(_) => {

@@ -1,5 +1,5 @@
 use actix_multipart::form::MultipartForm;
-use actix_web::{web, HttpRequest, HttpResponse, Responder};
+use actix_web::{web, HttpRequest, HttpResponse};
 use actix_web::web::Data;
 use ant_evm::EvmWallet;
 use log::debug;
@@ -34,8 +34,7 @@ pub async fn post_public_archive(
     upload_state: Data<UploadState>,
     ant_tp_config: Data<AntTpConfig>,
     request: HttpRequest
-)
-    -> impl Responder {
+) -> Result<HttpResponse, PublicArchiveError> {
     let archive_service = build_archive_service(
         caching_client_data,
         uploader_state,
@@ -45,7 +44,9 @@ pub async fn post_public_archive(
     let evm_wallet = evm_wallet_data.get_ref().clone();
 
     debug!("Creating new archive from multipart POST");
-    archive_service.create_public_archive(public_archive_form, evm_wallet, cache_only(request)).await
+    Ok(HttpResponse::Created().json(
+        archive_service.create_public_archive(public_archive_form, evm_wallet, cache_only(request)).await?
+    ))
 }
 
 #[utoipa::path(
@@ -72,7 +73,7 @@ pub async fn put_public_archive(
     upload_state: Data<UploadState>,
     ant_tp_config: Data<AntTpConfig>,
     request: HttpRequest,
-) -> impl Responder {
+) -> Result<HttpResponse, PublicArchiveError> {
     let address = path.into_inner();
     let archive_service = build_archive_service(
         caching_client_data,
@@ -83,7 +84,9 @@ pub async fn put_public_archive(
     let evm_wallet = evm_wallet_data.get_ref().clone();
 
     debug!("Updating [{}] archive from multipart PUT with cache_only [{:?}]", address, cache_only(request.clone()));
-    archive_service.update_public_archive(address, public_archive_form, evm_wallet, cache_only(request)).await
+    Ok(HttpResponse::Ok().json(
+        archive_service.update_public_archive(address, public_archive_form, evm_wallet, cache_only(request)).await?
+    ))
 }
 
 #[utoipa::path(

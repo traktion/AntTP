@@ -3,6 +3,7 @@ use serde::Serialize;
 use actix_http::StatusCode;
 use actix_web::HttpResponse;
 use actix_web::http::header::ContentType;
+use autonomi::client::ConnectError;
 use crate::error::{CreateError, GetError};
 
 #[derive(Error, Debug, Serialize)]
@@ -22,6 +23,12 @@ impl From<CreateError> for PublicDataError {
 impl From<GetError> for PublicDataError {
     fn from(value: GetError) -> Self {
         Self::GetError(value)
+    }
+}
+
+impl From<ConnectError> for PublicDataError {
+    fn from(value: ConnectError) -> Self {
+        Self::GetError(value.into())
     }
 }
 

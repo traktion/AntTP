@@ -32,28 +32,17 @@ const STRUCT_NAME: &'static str = "GetGraphEntryCommand";
 #[async_trait]
 impl Command for GetGraphEntryCommand {
     async fn execute(&self) -> Result<(), CommandError> {
-        let client = match self.client_harness.get_ref().lock().await.get_client().await {
-            Some(client) => client,
-            None => return Err(CommandError::Recoverable(String::from("network offline")))
-        };
-
+        let client = self.client_harness.get_ref().lock().await.get_client().await?;
         let graph_entry_address_hex = self.graph_entry_address.to_hex();
         debug!("refreshing hybrid cache with graph_entry for [{}] from network", graph_entry_address_hex);
-        match client.graph_entry_get(&self.graph_entry_address).await {
-            Ok(graph_entry) => {
-                let new_cache_item = CacheItem::new(Some(graph_entry.clone()), self.ttl);
-                self.hybrid_cache.insert(
-                    format!("{}{}", GRAPH_ENTRY_CACHE_KEY, graph_entry_address_hex),
-                    rmp_serde::to_vec(&new_cache_item).expect("Failed to serialize graph entry")
-                );
-                info!("refreshed hybrid cache with graph entry for [{}] from network", graph_entry_address_hex);
-                Ok(())
-            },
-            Err(e) => {
-                Err(CommandError::Unrecoverable(
-                    format!("Failed to refresh hybrid cache with graph entry for [{}] from network [{}]", graph_entry_address_hex, e)))
-            }
-        }
+        let graph_entry = client.graph_entry_get(&self.graph_entry_address).await?;
+        let new_cache_item = CacheItem::new(Some(graph_entry.clone()), self.ttl);
+        self.hybrid_cache.insert(
+            format!("{}{}", GRAPH_ENTRY_CACHE_KEY, graph_entry_address_hex),
+            rmp_serde::to_vec(&new_cache_item)?
+        );
+        info!("refreshed hybrid cache with graph entry for [{}] from network", graph_entry_address_hex);
+        Ok(())
     }
 
     fn action_hash(&self) -> Vec<u8> {

@@ -29,20 +29,12 @@ const STRUCT_NAME: &'static str = "CreateGraphEntryCommand";
 #[async_trait]
 impl Command for CreateGraphEntryCommand {
     async fn execute(&self) -> Result<(), CommandError> {
-        let client = match self.client_harness.get_ref().lock().await.get_client().await {
-            Some(client) => client,
-            None => return Err(CommandError::Recoverable(String::from("network offline")))
-        };
-
+        let client = self.client_harness.get_ref().lock().await.get_client().await?;
         let graph_entry_hex = self.graph_entry.address().to_string();
         debug!("creating graph entry at [{}] async", graph_entry_hex);
-        match client.graph_entry_put(self.graph_entry.clone(), self.payment_option.clone()).await {
-            Ok(_) => {
-                info!("graph entry at address [{}] created successfully", graph_entry_hex);
-                Ok(())
-            },
-            Err(e) => Err(CommandError::Unrecoverable(e.to_string()))
-        }
+        client.graph_entry_put(self.graph_entry.clone(), self.payment_option.clone()).await?;
+        info!("graph entry at address [{}] created successfully", graph_entry_hex);
+        Ok(())
     }
 
     fn action_hash(&self) -> Vec<u8> {

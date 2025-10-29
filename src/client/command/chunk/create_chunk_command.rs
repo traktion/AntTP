@@ -29,20 +29,12 @@ const STRUCT_NAME: &'static str = "CreateChunkCommand";
 #[async_trait]
 impl Command for CreateChunkCommand {    
     async fn execute(&self) -> Result<(), CommandError> {
-        let client = match self.client_harness.get_ref().lock().await.get_client().await {
-            Some(client) => client,
-            None => return Err(CommandError::Recoverable(String::from("network offline")))
-        };
-
+        let client = self.client_harness.get_ref().lock().await.get_client().await?;
         let chunk_address_hex = self.chunk.address.to_hex();
         debug!("creating chunk with address [{}] on network", chunk_address_hex);
-        match client.chunk_put(&self.chunk, self.payment_option.clone()).await {
-            Ok(_) => {
-                info!("chunk at address [{}] created successfully", chunk_address_hex);
-                Ok(())
-            },
-            Err(e) => Err(CommandError::Unrecoverable(e.to_string()))
-        }
+        client.chunk_put(&self.chunk, self.payment_option.clone()).await?;
+        info!("chunk at address [{}] created successfully", chunk_address_hex);
+        Ok(())
     }
 
     fn action_hash(&self) -> Vec<u8> {

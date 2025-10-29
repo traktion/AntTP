@@ -26,7 +26,7 @@ impl Archive {
         Archive { data_address_offsets_map, data_address_offsets_vec }
     }
 
-    pub fn build_from_tar(tar_data_addr: &DataAddress, data: Bytes) -> Self{
+    pub fn build_from_tar(tar_data_addr: &DataAddress, data: Bytes) -> Self {
         let mut data_address_offsets_map = HashMap::new();
         let mut data_address_offsets_vec = Vec::new();
         match String::from_utf8(data.to_vec()) {

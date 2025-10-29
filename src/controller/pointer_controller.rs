@@ -1,4 +1,4 @@
-use actix_web::{web, HttpRequest, HttpResponse, Responder};
+use actix_web::{web, HttpRequest, HttpResponse};
 use actix_web::web::Data;
 use ant_evm::EvmWallet;
 use log::debug;
@@ -29,11 +29,13 @@ pub async fn post_pointer(
     ant_tp_config_data: Data<AntTpConfig>,
     pointer: web::Json<Pointer>,
     request: HttpRequest,
-) -> impl Responder {
+) -> Result<HttpResponse, PointerError> {
     let pointer_service = create_pointer_service(caching_client_data, ant_tp_config_data);
 
     debug!("Creating new pointer");
-    pointer_service.create_pointer(pointer.into_inner(), evm_wallet_data.get_ref().clone(), cache_only(request)).await
+    Ok(HttpResponse::Created().json(
+        pointer_service.create_pointer(pointer.into_inner(), evm_wallet_data.get_ref().clone(), cache_only(request)).await?
+    ))
 }
 
 #[utoipa::path(
@@ -57,13 +59,15 @@ pub async fn put_pointer(
     ant_tp_config_data: Data<AntTpConfig>,
     pointer: web::Json<Pointer>,
     request: HttpRequest,
-) -> impl Responder {
+) -> Result<HttpResponse, PointerError> {
     let address = path.into_inner();
 
     let pointer_service = create_pointer_service(caching_client_data, ant_tp_config_data);
 
     debug!("Updating pointer");
-    pointer_service.update_pointer(address, pointer.into_inner(), cache_only(request)).await
+    Ok(HttpResponse::Ok().json(
+        pointer_service.update_pointer(address, pointer.into_inner(), cache_only(request)).await?
+    ))
 }
 
 #[utoipa::path(
@@ -97,6 +101,5 @@ fn create_pointer_service(caching_client_data: Data<CachingClient>, ant_tp_confi
     let caching_client = caching_client_data.get_ref().clone();
     let ant_tp_config = ant_tp_config_data.get_ref().clone();
     let resolver_service = ResolverService::new(ant_tp_config.clone(), caching_client.clone());
-    let pointer_service = PointerService::new(caching_client, ant_tp_config, resolver_service);
-    pointer_service
+    PointerService::new(caching_client, ant_tp_config, resolver_service)
 }

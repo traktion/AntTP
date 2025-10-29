@@ -3,6 +3,7 @@ use serde::Serialize;
 use actix_http::StatusCode;
 use actix_web::HttpResponse;
 use actix_web::http::header::ContentType;
+use autonomi::client::ConnectError;
 use crate::error::{CreateError, GetError, UpdateError};
 
 #[derive(Error, Debug, Serialize)]
@@ -41,6 +42,12 @@ impl From<foyer::Error> for RegisterError {
 
 impl From<rmp_serde::decode::Error> for RegisterError {
     fn from(value: rmp_serde::decode::Error) -> Self {
+        Self::GetError(value.into())
+    }
+}
+
+impl From<ConnectError> for RegisterError {
+    fn from(value: ConnectError) -> Self {
         Self::GetError(value.into())
     }
 }

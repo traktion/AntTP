@@ -1,6 +1,7 @@
 use actix_http::StatusCode;
 use actix_web::HttpResponse;
 use actix_web::http::header::ContentType;
+use autonomi::client::ConnectError;
 use thiserror::Error;
 use serde::Serialize;
 use crate::error::{CreateError, GetError, UpdateError};
@@ -41,6 +42,12 @@ impl From<foyer::Error> for ScratchpadError {
 
 impl From<rmp_serde::decode::Error> for ScratchpadError {
     fn from(value: rmp_serde::decode::Error) -> Self {
+        Self::GetError(value.into())
+    }
+}
+
+impl From<ConnectError> for ScratchpadError {
+    fn from(value: ConnectError) -> Self {
         Self::GetError(value.into())
     }
 }

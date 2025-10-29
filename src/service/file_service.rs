@@ -73,10 +73,7 @@ impl FileService {
         offset_modifier: u64,
         size_modifier: u64,
     ) -> Result<(ChunkReceiver, RangeProps), ChunkError> {
-        let data_map_chunk = match self.caching_client.chunk_get_internal(&ChunkAddress::new(xor_name)).await {
-            Ok(chunk) => chunk,
-            Err(e) => return Err(e),
-        };
+        let data_map_chunk = self.caching_client.chunk_get_internal(&ChunkAddress::new(xor_name)).await?;
 
         let chunk_streamer = ChunkStreamer::new(xor_name.to_string(), data_map_chunk.value, self.caching_client.clone(), self.ant_tp_config.download_threads);
         let content_length = self.get_content_length(&chunk_streamer, size_modifier).await;

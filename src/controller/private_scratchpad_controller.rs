@@ -1,4 +1,4 @@
-use actix_web::{web, HttpRequest, HttpResponse, Responder};
+use actix_web::{web, HttpRequest, HttpResponse};
 use actix_web::web::Data;
 use ant_evm::EvmWallet;
 use log::debug;
@@ -30,7 +30,7 @@ pub async fn post_private_scratchpad(
     ant_tp_config_data: Data<AntTpConfig>,
     scratchpad: web::Json<Scratchpad>,
     request: HttpRequest,
-) -> impl Responder {
+) -> Result<HttpResponse, ScratchpadError> {
     let name = path.into_inner();
     let scratchpad_service = ScratchpadService::new(
         caching_client_data.get_ref().clone(),
@@ -38,7 +38,15 @@ pub async fn post_private_scratchpad(
     );
 
     debug!("Creating new private scratchpad");
-    scratchpad_service.create_scratchpad(name, scratchpad.into_inner(), evm_wallet_data.get_ref().clone(), true, cache_only(request)).await
+    Ok(HttpResponse::Ok().json(
+        scratchpad_service.create_scratchpad(
+            name,
+            scratchpad.into_inner(),
+            evm_wallet_data.get_ref().clone(),
+            true,
+            cache_only(request)
+        ).await?
+    ))
 }
 
 #[utoipa::path(
@@ -64,7 +72,7 @@ pub async fn put_private_scratchpad(
     ant_tp_config_data: Data<AntTpConfig>,
     scratchpad: web::Json<Scratchpad>,
     request: HttpRequest,
-) -> impl Responder {
+) -> Result<HttpResponse, ScratchpadError> {
     let (address, name) = path.into_inner();
 
     let scratchpad_service = ScratchpadService::new(
@@ -73,7 +81,16 @@ pub async fn put_private_scratchpad(
     );
 
     debug!("Updating private scratchpad");
-    scratchpad_service.update_scratchpad(address, name, scratchpad.into_inner(), evm_wallet_data.get_ref().clone(), true, cache_only(request)).await
+    Ok(HttpResponse::Ok().json(
+        scratchpad_service.update_scratchpad(
+            address,
+            name,
+            scratchpad.into_inner(),
+            evm_wallet_data.get_ref().clone(),
+            true,
+            cache_only(request)
+        ).await?
+    ))
 }
 
 #[utoipa::path(

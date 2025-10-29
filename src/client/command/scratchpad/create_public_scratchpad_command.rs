@@ -30,11 +30,9 @@ impl CreatePublicScratchpadCommand {
     async fn scratchpad_check_existence(
         &self,
         address: &ScratchpadAddress,
-    ) -> bool {
-        match self.client_harness.get_ref().lock().await.get_client().await {
-            Some(client) => client.scratchpad_check_existence(address).await.is_ok(),
-            None => false,
-        }
+    ) -> Result<bool, CommandError> {
+        let client = self.client_harness.get_ref().lock().await.get_client().await?;
+        Ok(client.scratchpad_check_existence(address).await.is_ok())
     }
 }
 
@@ -43,13 +41,9 @@ const STRUCT_NAME: &'static str = "CreatePublicScratchpadCommand";
 #[async_trait]
 impl Command for CreatePublicScratchpadCommand {
     async fn execute(&self) -> Result<(), CommandError> {
-        let client = match self.client_harness.get_ref().lock().await.get_client().await {
-            Some(client) => client,
-            None => return Err(CommandError::Recoverable(String::from("network offline")))
-        };
-
+        let client = self.client_harness.get_ref().lock().await.get_client().await?;
         let address = ScratchpadAddress::new(self.owner.public_key());
-        if self.scratchpad_check_existence(&address).await {
+        if self.scratchpad_check_existence(&address).await? {
             Ok(())
         } else {
             let counter = 0;
@@ -64,13 +58,9 @@ impl Command for CreatePublicScratchpadCommand {
                 self.owner.public_key(), self.content_type, self.data.clone(), counter, signature);
 
             debug!("creating public scratchpad at [{}] async", address.to_hex());
-            match client.scratchpad_put(scratchpad, self.payment_option.clone()).await {
-                Ok(_) => {
-                    info!("public scratchpad at address [{}] created successfully", address.to_hex());
-                    Ok(())
-                },
-                Err(e) => Err(CommandError::Unrecoverable(e.to_string()))
-            }
+            client.scratchpad_put(scratchpad, self.payment_option.clone()).await?;
+            info!("public scratchpad at address [{}] created successfully", address.to_hex());
+            Ok(())
         }
     }
 

@@ -1,6 +1,5 @@
 use actix_http::header;
-use actix_web::{web, HttpRequest, HttpResponse, Responder};
-use actix_web::error::ErrorInternalServerError;
+use actix_web::{web, HttpRequest, HttpResponse};
 use actix_web::http::header::{ContentLength, ContentType};
 use actix_web::web::{Data, Payload};
 use ant_evm::EvmWallet;
@@ -8,6 +7,7 @@ use log::debug;
 use crate::client::CachingClient;
 use crate::error::chunk_error::ChunkError;
 use crate::controller::cache_only;
+use crate::error::CreateError;
 use crate::service::chunk_service::{Chunk, ChunkService};
 
 #[utoipa::path(
@@ -29,11 +29,12 @@ pub async fn post_chunk(
     evm_wallet_data: Data<EvmWallet>,
     chunk: web::Json<Chunk>,
     request: HttpRequest
-) -> impl Responder {
+) -> Result<HttpResponse, ChunkError> {
     let chunk_service = ChunkService::new(caching_client_data.get_ref().clone());
 
     debug!("Creating new chunk");
-    chunk_service.create_chunk(chunk.into_inner(), evm_wallet_data.get_ref().clone(), cache_only(request)).await
+    Ok(HttpResponse::Created().json(
+        chunk_service.create_chunk(chunk.into_inner(), evm_wallet_data.get_ref().clone(), cache_only(request)).await?))
 }
 
 #[utoipa::path(
@@ -56,16 +57,17 @@ pub async fn post_chunk_binary(
     evm_wallet_data: Data<EvmWallet>,
     payload: Payload,
     request: HttpRequest
-) -> impl Responder {
+) -> Result<HttpResponse, ChunkError> {
     let chunk_service = ChunkService::new(caching_client_data.get_ref().clone());
 
     debug!("Creating new chunk");
     match payload.to_bytes().await {
         Ok(bytes) => {
-            chunk_service.create_chunk_binary(bytes, evm_wallet_data.get_ref().clone(), cache_only(request)).await
+            Ok(HttpResponse::Created().json(
+                chunk_service.create_chunk_binary(bytes, evm_wallet_data.get_ref().clone(), cache_only(request)).await?))
         }
         Err(_) => {
-            Err(ErrorInternalServerError("Failed to retrieve bytes from payload"))
+            Err(ChunkError::CreateError(CreateError::InvalidData("Failed to retrieve bytes from payload".to_string())))
         }
     }
 }

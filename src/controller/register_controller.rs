@@ -1,4 +1,4 @@
-use actix_web::{web, HttpRequest, HttpResponse, Responder};
+use actix_web::{web, HttpRequest, HttpResponse};
 use actix_web::web::Data;
 use ant_evm::EvmWallet;
 use log::debug;
@@ -29,11 +29,13 @@ pub async fn post_register(
     evm_wallet_data: Data<EvmWallet>,
     register: web::Json<Register>,
     request: HttpRequest,
-) -> impl Responder {
+) -> Result<HttpResponse, RegisterError> {
     let register_service = create_register_service(caching_client_data, ant_tp_config_data);
 
     debug!("Creating new register");
-    register_service.create_register(register.into_inner(), evm_wallet_data.get_ref().clone(), cache_only(request)).await
+    Ok(HttpResponse::Created().json(
+        register_service.create_register(register.into_inner(), evm_wallet_data.get_ref().clone(), cache_only(request)).await?
+    ))
 }
 
 #[utoipa::path(
@@ -58,13 +60,15 @@ pub async fn put_register(
     evm_wallet_data: Data<EvmWallet>,
     register: web::Json<Register>,
     request: HttpRequest,
-) -> impl Responder {
+) -> Result<HttpResponse, RegisterError> {
     let address = path.into_inner();
 
     let register_service = create_register_service(caching_client_data, ant_tp_config_data);
 
     debug!("Updating register");
-    register_service.update_register(address, register.into_inner(), evm_wallet_data.get_ref().clone(), cache_only(request)).await
+    Ok(HttpResponse::Ok().json(
+        register_service.update_register(address, register.into_inner(), evm_wallet_data.get_ref().clone(), cache_only(request)).await?
+    ))
 }
 
 #[utoipa::path(
@@ -106,13 +110,13 @@ pub async fn get_register_history(
     caching_client_data: Data<CachingClient>,
     ant_tp_config_data: Data<AntTpConfig>,
     path: web::Path<String>,
-) -> impl Responder {
+) -> Result<HttpResponse, RegisterError> {
     let address = path.into_inner();
 
     let register_service = create_register_service(caching_client_data, ant_tp_config_data);
 
     debug!("Getting register history at [{}]", address);
-    register_service.get_register_history(address).await
+    Ok(HttpResponse::Ok().json(register_service.get_register_history(address).await?))
 }
 
 fn create_register_service(caching_client_data: Data<CachingClient>, ant_tp_config_data: Data<AntTpConfig>) -> RegisterService {

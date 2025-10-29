@@ -1,5 +1,4 @@
-use actix_web::{HttpResponse, Responder};
-use actix_web::error::ErrorInternalServerError;
+use actix_web::{Error, HttpResponse};
 use actix_web::web::Data;
 use indexmap::IndexMap;
 use log::debug;
@@ -16,13 +15,9 @@ use crate::service::command_service::{CommandList, CommandService};
 )]
 pub async fn get_commands(
     commands_map: Data<Mutex<IndexMap<u128, CommandDetails>>>,
-) -> impl Responder {
-
+) -> Result<HttpResponse, Error> {
     let command_service = CommandService::new(commands_map.clone());
 
     debug!("Getting command list");
-    match command_service.get_commands().await {
-        Ok(commands) => Ok(HttpResponse::Ok().json(commands)),
-        Err(e) => Err(ErrorInternalServerError(e)),
-    }
+    Ok(HttpResponse::Ok().json(command_service.get_commands().await?))
 }

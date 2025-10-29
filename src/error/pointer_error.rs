@@ -1,6 +1,7 @@
 use actix_http::StatusCode;
 use actix_web::HttpResponse;
 use actix_web::http::header::ContentType;
+use autonomi::client::ConnectError;
 use thiserror::Error;
 use serde::Serialize;
 use crate::error::{CheckError, CreateError, GetError, UpdateError};
@@ -43,6 +44,12 @@ impl From<CheckError> for PointerError {
 
 impl From<foyer::Error> for PointerError {
     fn from(value: foyer::Error) -> Self {
+        Self::GetError(value.into())
+    }
+}
+
+impl From<ConnectError> for PointerError {
+    fn from(value: ConnectError) -> Self {
         Self::GetError(value.into())
     }
 }

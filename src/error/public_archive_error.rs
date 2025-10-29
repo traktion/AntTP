@@ -3,13 +3,16 @@ use serde::Serialize;
 use actix_http::StatusCode;
 use actix_web::HttpResponse;
 use actix_web::http::header::ContentType;
-use crate::error::{CreateError, GetError};
+use autonomi::client::ConnectError;
+use crate::error::{CreateError, GetError, UpdateError};
 use crate::error::public_data_error::PublicDataError;
 
 #[derive(Error, Debug, Serialize)]
 pub enum PublicArchiveError {
     #[error("create error: {0}")]
     CreateError(CreateError),
+    #[error("update error: {0}")]
+    UpdateError(UpdateError),
     #[error("get error: {0}")]
     GetError(GetError),
 }
@@ -26,9 +29,21 @@ impl From<GetError> for PublicArchiveError {
     }
 }
 
+impl From<UpdateError> for PublicArchiveError {
+    fn from(value: UpdateError) -> Self {
+        Self::UpdateError(value)
+    }
+}
+
 impl From<PublicDataError> for PublicArchiveError {
     fn from(value: PublicDataError) -> Self {
         value.into()
+    }
+}
+
+impl From<ConnectError> for PublicArchiveError {
+    fn from(value: ConnectError) -> Self {
+        Self::GetError(value.into())
     }
 }
 

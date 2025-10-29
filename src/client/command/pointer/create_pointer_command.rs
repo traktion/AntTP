@@ -32,20 +32,12 @@ const STRUCT_NAME: &'static str = "CheckPointerCommand";
 #[async_trait]
 impl Command for CreatePointerCommand {
     async fn execute(&self) -> Result<(), CommandError> {
-        let client = match self.client_harness.get_ref().lock().await.get_client().await {
-            Some(client) => client,
-            None => return Err(CommandError::Recoverable(String::from("network offline")))
-        };
-
+        let client = self.client_harness.get_ref().lock().await.get_client().await?;
         let pointer_address_hex = PointerAddress::new(self.owner.public_key()).to_hex();
         debug!("creating pointer at [{}] async", pointer_address_hex);
-        match client.pointer_create(&self.owner, self.target.clone(), self.payment_option.clone()).await {
-            Ok(_) => {
-                info!("pointer at address [{}] created successfully", pointer_address_hex);
-                Ok(())
-            },
-            Err(e) => Err(CommandError::Unrecoverable(e.to_string()))
-        }
+        client.pointer_create(&self.owner, self.target.clone(), self.payment_option.clone()).await?;
+        info!("pointer at address [{}] created successfully", pointer_address_hex);
+        Ok(())
     }
 
     fn action_hash(&self) -> Vec<u8> {

@@ -1,3 +1,4 @@
+use autonomi::client::ConnectError;
 use thiserror::Error;
 use serde::Serialize;
 use crate::error::GetError;
@@ -16,6 +17,12 @@ impl From<rmp_serde::decode::Error> for ArchiveError {
 
 impl From<foyer::Error> for ArchiveError {
     fn from(value: foyer::Error) -> Self {
+        Self::GetError(value.into())
+    }
+}
+
+impl From<ConnectError> for ArchiveError {
+    fn from(value: ConnectError) -> Self {
         Self::GetError(value.into())
     }
 }

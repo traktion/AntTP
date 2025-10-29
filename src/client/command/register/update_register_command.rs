@@ -32,20 +32,12 @@ const STRUCT_NAME: &'static str = "UpdateRegisterCommand";
 #[async_trait]
 impl Command for UpdateRegisterCommand {
     async fn execute(&self) -> Result<(), CommandError> {
-        let client = match self.client_harness.get_ref().lock().await.get_client().await {
-            Some(client) => client,
-            None => return Err(CommandError::Recoverable(String::from("network offline")))
-        };
-
+        let client = self.client_harness.get_ref().lock().await.get_client().await?;
         let register_address_hex = RegisterAddress::new(self.owner.public_key()).to_hex();
         debug!("updating register at [{}] async", register_address_hex);
-        match client.register_update(&self.owner, self.register_value, self.payment_option.clone()).await {
-            Ok(_) => {
-                info!("register at address [{}] updated successfully", register_address_hex);
-                Ok(())
-            },
-            Err(e) => Err(CommandError::Unrecoverable(e.to_string()))
-        }
+        client.register_update(&self.owner, self.register_value, self.payment_option.clone()).await?;
+        info!("register at address [{}] updated successfully", register_address_hex);
+        Ok(())
     }
 
     fn action_hash(&self) -> Vec<u8> {

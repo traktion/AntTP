@@ -32,28 +32,17 @@ const STRUCT_NAME: &'static str = "GetScratchpadCommand";
 #[async_trait]
 impl Command for GetScratchpadCommand {
     async fn execute(&self) -> Result<(), CommandError> {
-        let client = match self.client_harness.get_ref().lock().await.get_client().await {
-            Some(client) => client,
-            None => return Err(CommandError::Recoverable(String::from("network offline")))
-        };
-
+        let client = self.client_harness.get_ref().lock().await.get_client().await?;
         let scratchpad_address_hex = self.scratchpad_address.to_hex();
         debug!("refreshing hybrid cache with scratchpad for [{}] from network", scratchpad_address_hex);
-        match client.scratchpad_get(&self.scratchpad_address).await {
-            Ok(scratchpad) => {
-                let new_cache_item = CacheItem::new(Some(scratchpad.clone()), self.ttl);
-                self.hybrid_cache.insert(
-                    format!("{}{}", SCRATCHPAD_CACHE_KEY, scratchpad_address_hex),
-                    rmp_serde::to_vec(&new_cache_item).expect("Failed to serialize scratchpad")
-                );
-                info!("refreshed hybrid cache with scratchpad for [{}] from network", scratchpad_address_hex);
-                Ok(())
-            }
-            Err(e) => {
-                Err(CommandError::Unrecoverable(
-                    format!("Failed to refresh hybrid cache with scratchpad for [{}] from network [{}]", scratchpad_address_hex, e)))
-            }
-        }
+        let scratchpad = client.scratchpad_get(&self.scratchpad_address).await?;
+        let new_cache_item = CacheItem::new(Some(scratchpad.clone()), self.ttl);
+        self.hybrid_cache.insert(
+            format!("{}{}", SCRATCHPAD_CACHE_KEY, scratchpad_address_hex),
+            rmp_serde::to_vec(&new_cache_item)?
+        );
+        info!("refreshed hybrid cache with scratchpad for [{}] from network", scratchpad_address_hex);
+        Ok(())
     }
 
     fn action_hash(&self) -> Vec<u8> {

@@ -40,7 +40,7 @@ impl RegisterService {
     }
 
     pub async fn create_register(&self, register: Register, evm_wallet: Wallet, cache_only: Option<CacheType>) -> Result<Register, RegisterError> {
-        let app_secret_key = SecretKey::from_hex(self.ant_tp_config.app_private_key.clone().as_str()).unwrap();
+        let app_secret_key = self.ant_tp_config.get_app_private_key()?;
         let register_key = Client::register_key_from_name(&app_secret_key, register.name.clone().unwrap().as_str());
 
         info!("Create register from name [{}] and content [{}]", register.name.clone().unwrap(), register.content);
@@ -53,7 +53,7 @@ impl RegisterService {
     }
 
     pub async fn update_register(&self, address: String, register: Register, evm_wallet: Wallet, cache_only: Option<CacheType>) -> Result<Register, RegisterError> {
-        let app_secret_key = SecretKey::from_hex(self.ant_tp_config.app_private_key.clone().as_str()).unwrap();
+        let app_secret_key = self.ant_tp_config.get_app_private_key()?;
         let register_key = Client::register_key_from_name(&app_secret_key, register.name.clone().unwrap().as_str());
         let resolved_address = self.resolver_service.resolve_bookmark(&address).unwrap_or(address);
         if resolved_address.clone() != register_key.public_key().to_hex() {

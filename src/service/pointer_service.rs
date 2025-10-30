@@ -42,7 +42,7 @@ impl PointerService {
     }
 
     pub async fn create_pointer(&self, pointer: Pointer, evm_wallet: Wallet, cache_only: Option<CacheType>) -> Result<Pointer, PointerError> {
-        let app_secret_key = SecretKey::from_hex(self.ant_tp_config.app_private_key.clone().as_str()).unwrap();
+        let app_secret_key = self.ant_tp_config.get_app_private_key()?;
         let pointer_key = Client::register_key_from_name(&app_secret_key, pointer.name.clone().unwrap().as_str());
 
         let chunk_address = ChunkAddress::from_hex(pointer.content.clone().as_str()).unwrap();
@@ -56,7 +56,7 @@ impl PointerService {
 
     pub async fn update_pointer(&self, address: String, pointer: Pointer, cache_only: Option<CacheType>) -> Result<Pointer, PointerError> {
         let resolved_address = self.resolver_service.resolve_bookmark(&address).unwrap_or(address);
-        let app_secret_key = SecretKey::from_hex(self.ant_tp_config.app_private_key.clone().as_str()).unwrap();
+        let app_secret_key = self.ant_tp_config.get_app_private_key()?;
         let pointer_key = Client::register_key_from_name(&app_secret_key, pointer.name.clone().unwrap().as_str());
         if resolved_address.clone() != pointer_key.public_key().to_hex() {
             warn!("Address [{}] is not derived from name [{}].", resolved_address.clone(), pointer.name.clone().unwrap());

@@ -52,7 +52,7 @@ impl GraphService {
     }
 
     pub async fn create_graph_entry(&self, graph: GraphEntry, evm_wallet: Wallet, cache_only: Option<CacheType>) -> Result<GraphEntry, GraphError> {
-        let app_secret_key = SecretKey::from_hex(self.ant_tp_config.app_private_key.clone().as_str()).unwrap();
+        let app_secret_key = self.ant_tp_config.get_app_private_key()?;
         let graph_key = Client::register_key_from_name(&app_secret_key, graph.name.clone().unwrap().as_str());
 
         let mut graph_parents = vec![];

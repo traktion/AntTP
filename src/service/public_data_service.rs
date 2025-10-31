@@ -15,8 +15,6 @@ use crate::service::chunk_service::Chunk;
 pub struct PublicData {
     #[schema(read_only)]
     address: Option<String>,
-    #[schema(read_only)]
-    cost: Option<String>,
 }
 
 pub struct PublicDataService {
@@ -29,9 +27,9 @@ impl PublicDataService {
     }
 
     pub async fn create_public_data(&self, bytes: Bytes, evm_wallet: Wallet, cache_only: Option<CacheType>) -> Result<Chunk, PublicDataError> {
-        let (cost, data_address) = self.caching_client.data_put_public(bytes, PaymentOption::from(&evm_wallet), cache_only).await?;
-        info!("Created public data at [{}] for [{}] attos", data_address.to_hex(), cost);
-        Ok(Chunk::new(None, Some(data_address.to_hex()), Some(cost.to_string())))
+        let data_address = self.caching_client.data_put_public(bytes, PaymentOption::from(&evm_wallet), cache_only).await?;
+        info!("Queued command to create public data at [{}]", data_address.to_hex());
+        Ok(Chunk::new(None, Some(data_address.to_hex())))
     }
 
     pub async fn get_public_data_binary(&self, address: String) -> Result<Bytes, PublicDataError> {

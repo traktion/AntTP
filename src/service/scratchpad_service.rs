@@ -25,13 +25,11 @@ pub struct Scratchpad {
     content: Option<String>,
     #[schema(read_only)]
     counter: Option<u64>,
-    #[schema(read_only)]
-    cost: Option<String>,
 }
 
 impl Scratchpad {
-    pub fn new(name: Option<String>, address: Option<String>, data_encoding: Option<u64>, signature: Option<String>, content: Option<String>, counter: Option<u64>, cost: Option<String>) -> Self {
-        Scratchpad { name, address, data_encoding, signature, content, counter, cost }
+    pub fn new(name: Option<String>, address: Option<String>, data_encoding: Option<u64>, signature: Option<String>, content: Option<String>, counter: Option<u64>) -> Self {
+        Scratchpad { name, address, data_encoding, signature, content, counter }
     }
 }
 
@@ -51,7 +49,7 @@ impl ScratchpadService {
         let content = scratchpad.content.clone().unwrap_or_else(|| "".to_ascii_lowercase());
         info!("Create scratchpad from name [{}] for data sized [{}]", name, content.len());
         let decoded_content = Bytes::from(BASE64_STANDARD.decode(content).unwrap_or_else(|_| Vec::new()));
-        let (cost, scratchpad_address) = if is_encrypted {
+        let scratchpad_address = if is_encrypted {
             self.caching_client
                 .scratchpad_create(
                     &scratchpad_key, 1, &decoded_content, PaymentOption::from(&evm_wallet), cache_only)
@@ -62,9 +60,9 @@ impl ScratchpadService {
                     &scratchpad_key, 1, &decoded_content, PaymentOption::from(&evm_wallet), cache_only)
                 .await?
         };
-        info!("Created {}scratchpad at [{}] for [{}] attos", if !is_encrypted { "public " } else { "" }, scratchpad_address.to_hex(), cost);
+        info!("Queued command to create{}scratchpad at [{}]", if !is_encrypted { "public " } else { "" }, scratchpad_address.to_hex());
         Ok(Scratchpad::new(
-            Some(name), Some(scratchpad_address.to_hex()), None, None, scratchpad.content, None, Some(cost.to_string())))
+            Some(name), Some(scratchpad_address.to_hex()), None, None, scratchpad.content, None))
     }
 
     pub async fn update_scratchpad(&self, address: String, name: String, scratchpad: Scratchpad, evm_wallet: Wallet, is_encrypted: bool, cache_only: Option<CacheType>) -> Result<Scratchpad, ScratchpadError> {
@@ -90,27 +88,18 @@ impl ScratchpadService {
                 .await?
         };
         info!("Updated {}scratchpad with name [{}]", if !is_encrypted { "public " } else { "" }, name);
-        Ok(Scratchpad::new(Some(name), Some(address), None, None, scratchpad.content, None, None))
+        Ok(Scratchpad::new(Some(name), Some(address), None, None, scratchpad.content, None))
     }
 
     pub async fn get_scratchpad(&self, address: String, name: Option<String>, is_encrypted: bool) -> Result<Scratchpad, ScratchpadError> {
         match ScratchpadAddress::from_hex(address.as_str()) {
-            Ok(scratchpad_address) => match self.caching_client.scratchpad_get(&scratchpad_address).await {
-                Ok(scratchpad) => {
-                    info!("Retrieved {}scratchpad at address [{}] with data sized [{}]", if !is_encrypted { "public " } else { "" }, address, scratchpad.encrypted_data().len());
-                    match self.get_scratchpad_content(&address, name, is_encrypted, &scratchpad) {
-                        Ok(content) => {
-                            let signature = BASE64_STANDARD.encode(scratchpad.signature().to_bytes());
-                            Ok(Scratchpad::new(
-                                None, Some(address), Some(scratchpad.data_encoding()), Some(signature), Some(content), Some(scratchpad.counter()), None))
-                        },
-                        Err(e) => Err(e)
-                    }
-                }
-                Err(e) => {
-                    warn!("Failed to retrieve {}scratchpad at address [{}]: [{:?}]", if !is_encrypted { "public " } else { "" }, address, e);
-                    Err(e)
-                }
+            Ok(scratchpad_address) => {
+                let scratchpad = self.caching_client.scratchpad_get(&scratchpad_address).await?;
+                info!("Retrieved {}scratchpad at address [{}] with data sized [{}]", if !is_encrypted { "public " } else { "" }, address, scratchpad.encrypted_data().len());
+                let content = self.get_scratchpad_content(&address, name, is_encrypted, &scratchpad)?;
+                let signature = BASE64_STANDARD.encode(scratchpad.signature().to_bytes());
+                Ok(Scratchpad::new(
+                    None, Some(address), Some(scratchpad.data_encoding()), Some(signature), Some(content), Some(scratchpad.counter())))
             },
             Err(e) => Err(ScratchpadError::GetError(GetError::BadAddress(e.to_string())))
         }

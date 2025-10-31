@@ -1,5 +1,4 @@
 use crate::client::{CachingClient, PUBLIC_ARCHIVE_CACHE_KEY};
-use ant_evm::AttoTokens;
 use autonomi::client::payment::PaymentOption;
 use autonomi::data::DataAddress;
 use autonomi::files::archive_public::ArchiveAddress;
@@ -12,7 +11,7 @@ use crate::error::public_archive_error::PublicArchiveError;
 
 impl CachingClient {
 
-    pub async fn archive_put_public(&self, archive: &PublicArchive, payment_option: PaymentOption, cache_only: Option<CacheType>) -> Result<(AttoTokens, ArchiveAddress), PublicArchiveError> {
+    pub async fn archive_put_public(&self, archive: &PublicArchive, payment_option: PaymentOption, cache_only: Option<CacheType>) -> Result<ArchiveAddress, PublicArchiveError> {
         match archive.to_bytes() {
             Ok(bytes) => Ok(self.data_put_public(bytes, payment_option, cache_only).await?),
             Err(e) => Err(CreateError::Serialization(format!("Failed to serialize archive: {}", e.to_string())).into()),

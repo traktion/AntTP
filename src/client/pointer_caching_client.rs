@@ -1,4 +1,3 @@
-use ant_evm::AttoTokens;
 use autonomi::client::payment::PaymentOption;
 use autonomi::pointer::PointerTarget;
 use autonomi::{Pointer, PointerAddress, SecretKey};
@@ -20,7 +19,7 @@ impl CachingClient {
         target: PointerTarget,
         payment_option: PaymentOption,
         cache_only: Option<CacheType>,
-    ) -> Result<(AttoTokens, PointerAddress), PointerError> {
+    ) -> Result<PointerAddress, PointerError> {
         let pointer = self.cache_pointer(owner, &target, cache_only.clone());
 
         if !cache_only.is_some() {
@@ -29,7 +28,7 @@ impl CachingClient {
             );
             self.send_create_command(command).await?;
         }
-        Ok((AttoTokens::zero(), pointer.address()))
+        Ok(pointer.address())
     }
 
     pub async fn pointer_update(

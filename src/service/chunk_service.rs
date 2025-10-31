@@ -17,13 +17,11 @@ pub struct Chunk {
     content: Option<String>,
     #[schema(read_only)]
     address: Option<String>,
-    #[schema(read_only)]
-    cost: Option<String>,
 }
 
 impl Chunk {
-    pub fn new(content: Option<String>, address: Option<String>, cost: Option<String>) -> Self {
-        Chunk { content, address, cost }
+    pub fn new(content: Option<String>, address: Option<String>) -> Self {
+        Chunk { content, address }
     }
 }
 
@@ -55,13 +53,9 @@ impl ChunkService {
 
     pub async fn create_chunk_raw(&self, chunk: autonomi_chunk::Chunk, evm_wallet: Wallet, cache_only: Option<CacheType>) -> Result<Chunk, ChunkError> {
         info!("Create chunk at address [{}]", chunk.address.to_hex());
-        match self.caching_client.chunk_put(&chunk, PaymentOption::from(&evm_wallet), cache_only).await {
-            Ok((cost, chunk_address)) => {
-                info!("Created chunk at [{}] for [{}] attos", chunk_address.to_hex(), cost);
-                Ok(Chunk::new(None, Some(chunk_address.to_hex()), Some(cost.to_string())))
-            }
-            Err(e) => Err(e)
-        }
+        let chunk_address = self.caching_client.chunk_put(&chunk, PaymentOption::from(&evm_wallet), cache_only).await?;
+        info!("Queued command to create chunk at [{}]", chunk_address.to_hex());
+        Ok(Chunk::new(None, Some(chunk_address.to_hex())))
     }
 
     pub async fn get_chunk_binary(&self, address: String) -> Result<autonomi::Chunk, ChunkError> {
@@ -85,7 +79,7 @@ impl ChunkService {
             Ok(chunk_address) => match self.caching_client.chunk_get_internal(&chunk_address).await {
                 Ok(chunk) => {
                     info!("Retrieved chunk at address [{}]", address);
-                    Ok(Chunk::new(Some(BASE64_STANDARD.encode(chunk.value)), Some(address), None))
+                    Ok(Chunk::new(Some(BASE64_STANDARD.encode(chunk.value)), Some(address)))
                 }
                 Err(e) => {
                     warn!("Failed to retrieve chunk at address [{}]: [{:?}]", address, e);

@@ -155,7 +155,7 @@ impl PublicArchiveService {
                 let entry = entry.expect("Failed to get directory entry");
                 let path = entry.path();
 
-                let (_, data_address) = local_client
+                let data_address = local_client
                     .file_content_upload_public(path.clone(), PaymentOption::Wallet(evm_wallet.clone()), cache_only.clone())
                     .await.unwrap();
                 let created_at = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
@@ -176,8 +176,8 @@ impl PublicArchiveService {
 
             info!("Uploading public archive [{:?}]", public_archive);
             match local_client.archive_put_public(&public_archive, PaymentOption::Wallet(evm_wallet), cache_only).await {
-                Ok((cost, archive_address)) => {
-                    info!("Uploaded public archive at [{:?}] for cost [{:?}]", archive_address, cost);
+                Ok(archive_address) => {
+                    info!("Queued command to upload public archive at [{:?}]", archive_address);
                     fs::remove_dir_all(tmp_dir.clone()).unwrap();
                     Some(archive_address)
                 }

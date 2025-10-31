@@ -1,5 +1,4 @@
 use std::path::PathBuf;
-use ant_evm::AttoTokens;
 use autonomi::client::payment::PaymentOption;
 use autonomi::data::DataAddress;
 use bytes::Bytes;
@@ -18,20 +17,16 @@ impl CachingClient {
         data: Bytes,
         payment_option: PaymentOption,
         cache_only: Option<CacheType>,
-    ) -> Result<(AttoTokens, DataAddress), PublicDataError> {
+    ) -> Result<DataAddress, PublicDataError> {
         // todo: can we avoid double encrypting on upload?
-        match self.cache_public_data(data.clone(), cache_only.clone()).await {
-            Ok(data_address) => {
-                if !cache_only.is_some() {
-                    let command = Box::new(
-                        CreatePublicDataCommand::new(self.client_harness.clone(), data, payment_option)
-                    );
-                    self.send_create_command(command).await?;
-                }
-                Ok((AttoTokens::zero(), data_address))
-            },
-            Err(e) => Err(e)
+        let data_address = self.cache_public_data(data.clone(), cache_only.clone()).await?;
+        if !cache_only.is_some() {
+            let command = Box::new(
+                CreatePublicDataCommand::new(self.client_harness.clone(), data, payment_option)
+            );
+            self.send_create_command(command).await?;
         }
+        Ok(data_address)
     }
 
     async fn cache_public_data(&self, data: Bytes, cache_only: Option<CacheType>) -> Result<DataAddress, PublicDataError> {
@@ -68,12 +63,12 @@ impl CachingClient {
         }
     }
 
-    pub async fn file_content_upload_public(&self, path: PathBuf, payment_option: PaymentOption, cache_only: Option<CacheType>) -> Result<(AttoTokens, DataAddress), PublicDataError> {
+    pub async fn file_content_upload_public(&self, path: PathBuf, payment_option: PaymentOption, cache_only: Option<CacheType>) -> Result<DataAddress, PublicDataError> {
         match tokio::fs::read(path.clone()).await {
             Ok(vec_data) => {
                 let data = Bytes::from(vec_data);
-                let (cost, addr) = self.data_put_public(data, payment_option.clone(), cache_only).await?;
-                Ok((cost, addr))
+                let addr = self.data_put_public(data, payment_option.clone(), cache_only).await?;
+                Ok(addr)
             },
             Err(e) => Err(CreateError::TemporaryStorage(e.to_string()).into())
         }

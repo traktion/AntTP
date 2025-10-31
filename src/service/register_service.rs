@@ -1,4 +1,4 @@
-use autonomi::{Client, SecretKey, Wallet};
+use autonomi::{Client, Wallet};
 use autonomi::client::payment::PaymentOption;
 use autonomi::register::RegisterAddress;
 use log::{info, warn};
@@ -17,13 +17,11 @@ pub struct Register {
     content: String,
     #[schema(read_only)]
     address: Option<String>,
-    #[schema(read_only)]
-    cost: Option<String>,
 }
 
 impl Register {
-    pub fn new(name: Option<String>, content: String, address: Option<String>, cost: Option<String>) -> Self {
-        Register { name, content, address, cost } 
+    pub fn new(name: Option<String>, content: String, address: Option<String>) -> Self {
+        Register { name, content, address } 
     }
 }
 
@@ -45,11 +43,11 @@ impl RegisterService {
 
         info!("Create register from name [{}] and content [{}]", register.name.clone().unwrap(), register.content);
         let content = Client::register_value_from_bytes(hex::decode(register.content.clone()).expect("failed to decode hex").as_slice()).unwrap();
-        let (cost, register_address) = self.caching_client
+        let register_address = self.caching_client
             .register_create(&register_key, content, PaymentOption::from(&evm_wallet), cache_only)
             .await?;
-        info!("Created register at [{}] for [{}] attos", register_address.to_hex(), cost);
-        Ok(Register::new(register.name, register.content, Some(register_address.to_hex()), Some(cost.to_string())))
+        info!("Queued command to create register at [{}]", register_address.to_hex());
+        Ok(Register::new(register.name, register.content, Some(register_address.to_hex())))
     }
 
     pub async fn update_register(&self, address: String, register: Register, evm_wallet: Wallet, cache_only: Option<CacheType>) -> Result<Register, RegisterError> {
@@ -64,11 +62,11 @@ impl RegisterService {
 
         info!("Update register with name [{}] and content [{}]", register.name.clone().unwrap(), register.content);
         let content = Client::register_value_from_bytes(hex::decode(register.content.clone()).expect("failed to decode hex").as_slice()).unwrap();
-        let cost = self.caching_client
+        self.caching_client
             .register_update(&register_key, content, PaymentOption::from(&evm_wallet), cache_only)
             .await?;
-        info!("Updated register with name [{}] for [{}] attos", register.name.clone().unwrap(), cost);
-        Ok(Register::new(Some(register.name.unwrap()), register.content, Some(resolved_address), Some(cost.to_string())))
+        info!("Queued command to update register with name [{}]", register.name.clone().unwrap());
+        Ok(Register::new(Some(register.name.unwrap()), register.content, Some(resolved_address)))
     }
 
     pub async fn get_register(&self, address: String) -> Result<Register, RegisterError> {
@@ -77,7 +75,7 @@ impl RegisterService {
             Ok(register_address) => match self.caching_client.register_get(&register_address).await {
                 Ok(content) => {
                     info!("Retrieved register at address [{}] value [{}]", register_address, hex::encode(content));
-                    Ok(Register::new(None, hex::encode(content), Some(register_address.to_hex()), None))
+                    Ok(Register::new(None, hex::encode(content), Some(register_address.to_hex())))
                 }
                 Err(e) => {
                     warn!("Failed to retrieve register at address [{}]: [{:?}]", register_address.to_hex(), e);
@@ -97,7 +95,7 @@ impl RegisterService {
                 info!("Retrieved register history [{}] at address [{}]", content_flattened, register_address);
                 let mut response_registers = Vec::new();
                 content_vec.iter().for_each(|content|response_registers.push(
-                    Register::new(None, hex::encode(content), Some(register_address.to_hex()), None)
+                    Register::new(None, hex::encode(content), Some(register_address.to_hex()))
                 ));
                 Ok(response_registers)
             }

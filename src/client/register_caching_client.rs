@@ -1,4 +1,3 @@
-use ant_evm::AttoTokens;
 use autonomi::client::payment::PaymentOption;
 use autonomi::register::{RegisterAddress, RegisterHistory, RegisterValue};
 use autonomi::SecretKey;
@@ -19,7 +18,7 @@ impl CachingClient {
         register_value: RegisterValue,
         payment_option: PaymentOption,
         cache_only: Option<CacheType>,
-    ) -> Result<(AttoTokens, RegisterAddress), RegisterError> {
+    ) -> Result<RegisterAddress, RegisterError> {
         let register_address = self.cache_register(owner, &register_value, cache_only.clone());
 
         if !cache_only.is_some() {
@@ -28,7 +27,7 @@ impl CachingClient {
             );
             self.send_create_command(command).await?;
         }
-        Ok((AttoTokens::zero(), register_address))
+        Ok(register_address)
     }
 
     pub async fn register_update(
@@ -37,7 +36,7 @@ impl CachingClient {
         register_value: RegisterValue,
         payment_option: PaymentOption,
         cache_only: Option<CacheType>,
-    ) -> Result<AttoTokens, RegisterError> {
+    ) -> Result<(), RegisterError> {
         self.cache_register(owner, &register_value, cache_only.clone());
 
         if !cache_only.is_some() {
@@ -46,7 +45,7 @@ impl CachingClient {
             );
             self.send_update_command(command).await?;
         }
-        Ok(AttoTokens::zero())
+        Ok(())
     }
 
     fn cache_register(&self, owner: &SecretKey, register_value: &RegisterValue, cache_only: Option<CacheType>) -> RegisterAddress {

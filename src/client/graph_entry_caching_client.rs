@@ -1,4 +1,3 @@
-use ant_evm::AttoTokens;
 use autonomi::client::payment::PaymentOption;
 use autonomi::{GraphEntry, GraphEntryAddress};
 use log::{debug, info};
@@ -16,7 +15,7 @@ impl CachingClient {
         graph_entry: GraphEntry,
         payment_option: PaymentOption,
         cache_only: Option<CacheType>,
-    ) -> Result<(AttoTokens, GraphEntryAddress), GraphError> {
+    ) -> Result<GraphEntryAddress, GraphError> {
         self.cache_graph_entry(graph_entry.clone(), cache_only.clone());
         if !cache_only.is_some() {
             let command = Box::new(
@@ -24,7 +23,7 @@ impl CachingClient {
             );
             self.send_create_command(command).await?;
         }
-        Ok((AttoTokens::zero(), graph_entry.address()))
+        Ok(graph_entry.address())
     }
 
     fn cache_graph_entry(&self, graph_entry: GraphEntry, cache_only: Option<CacheType>) {

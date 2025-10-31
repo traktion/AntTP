@@ -1,4 +1,3 @@
-use ant_evm::AttoTokens;
 use autonomi::client::payment::PaymentOption;
 use autonomi::{Scratchpad, ScratchpadAddress, SecretKey};
 use bytes::Bytes;
@@ -22,7 +21,7 @@ impl CachingClient {
         data: &Bytes,
         payment_option: PaymentOption,
         cache_only: Option<CacheType>,
-    ) -> Result<(AttoTokens, ScratchpadAddress), ScratchpadError> {
+    ) -> Result<ScratchpadAddress, ScratchpadError> {
         let scratchpad_address = self.cache_scratchpad(owner, content_type, data, true, cache_only.clone());
 
         if !cache_only.is_some() {
@@ -31,7 +30,7 @@ impl CachingClient {
             );
             self.send_create_command(command).await?;
         }
-        Ok((AttoTokens::zero(), scratchpad_address))
+        Ok(scratchpad_address)
     }
 
     pub async fn scratchpad_update(
@@ -59,7 +58,7 @@ impl CachingClient {
         data: &Bytes,
         payment_option: PaymentOption,
         cache_only: Option<CacheType>,
-    ) -> Result<(AttoTokens, ScratchpadAddress), ScratchpadError> {
+    ) -> Result<ScratchpadAddress, ScratchpadError> {
         let scratchpad_address = self.cache_scratchpad(owner, content_type, data, false, cache_only.clone());
 
         if !cache_only.is_some() {
@@ -68,7 +67,7 @@ impl CachingClient {
             );
             self.send_create_command(command).await?;
         }
-        Ok((AttoTokens::zero(), scratchpad_address))
+        Ok(scratchpad_address)
     }
 
     pub async fn scratchpad_update_public(

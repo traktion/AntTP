@@ -1,4 +1,3 @@
-use ant_evm::AttoTokens;
 use async_trait::async_trait;
 use autonomi::{Chunk, ChunkAddress};
 use autonomi::client::payment::PaymentOption;
@@ -26,7 +25,7 @@ impl CachingClient {
         chunk: &Chunk,
         payment_option: PaymentOption,
         cache_only: Option<CacheType>
-    ) -> Result<(AttoTokens, ChunkAddress), ChunkError> {
+    ) -> Result<ChunkAddress, ChunkError> {
         self.hybrid_cache.insert(chunk.address.to_hex(), Vec::from(chunk.value.clone()));
         debug!("creating chunk with address [{}] in cache", chunk.address.to_hex());
         if !cache_only.is_some() {
@@ -35,7 +34,7 @@ impl CachingClient {
             );
             self.send_create_command(command).await?;
         }
-        Ok((AttoTokens::zero(), chunk.address))
+        Ok(chunk.address)
     }
 
     pub async fn chunk_get_internal(&self, address: &ChunkAddress) -> Result<Chunk, ChunkError> {

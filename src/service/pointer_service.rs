@@ -1,4 +1,4 @@
-use autonomi::{ChunkAddress, Client, PointerAddress, SecretKey, Wallet};
+use autonomi::{ChunkAddress, Client, PointerAddress, Wallet};
 use autonomi::client::payment::PaymentOption;
 use autonomi::pointer::PointerTarget;
 use log::{info, warn};
@@ -47,11 +47,11 @@ impl PointerService {
 
         let chunk_address = ChunkAddress::from_hex(pointer.content.clone().as_str()).unwrap();
         info!("Create pointer from name [{}] for chunk [{}]", pointer.name.clone().unwrap(), chunk_address);
-        let (cost, pointer_address) = self.caching_client
+        let pointer_address = self.caching_client
             .pointer_create(&pointer_key, PointerTarget::ChunkAddress(chunk_address), PaymentOption::from(&evm_wallet), cache_only)
             .await?;
-        info!("Created pointer at [{}] for [{}] attos", pointer_address.to_hex(), cost);
-        Ok(Pointer::new(pointer.name, pointer.content, Some(pointer_address.to_hex()), None, Some(cost.to_string())))
+        info!("Queued command to create pointer at [{}]", pointer_address.to_hex());
+        Ok(Pointer::new(pointer.name, pointer.content, Some(pointer_address.to_hex()), None, None))
     }
 
     pub async fn update_pointer(&self, address: String, pointer: Pointer, cache_only: Option<CacheType>) -> Result<Pointer, PointerError> {

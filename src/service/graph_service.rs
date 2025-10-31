@@ -1,4 +1,4 @@
-use autonomi::{Client, GraphEntryAddress, PublicKey, SecretKey, Wallet};
+use autonomi::{Client, GraphEntryAddress, PublicKey, Wallet};
 use autonomi::client::payment::PaymentOption;
 use autonomi::graph::{GraphContent};
 use hex::FromHex;
@@ -18,8 +18,6 @@ pub struct GraphEntry {
     address: Option<String>,
     parents: Option<Vec<String>>,
     descendants: Option<Vec<GraphDescendants>>,
-    #[schema(read_only)]
-    cost: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, ToSchema, Clone)]
@@ -29,8 +27,8 @@ pub struct GraphDescendants {
 }
 
 impl GraphEntry {
-    pub fn new(name: Option<String>, content: String, address: Option<String>, parents: Option<Vec<String>>, descendants: Option<Vec<GraphDescendants>>, cost: Option<String>) -> Self {
-        GraphEntry { name, content, address, parents, descendants, cost }
+    pub fn new(name: Option<String>, content: String, address: Option<String>, parents: Option<Vec<String>>, descendants: Option<Vec<GraphDescendants>>) -> Self {
+        GraphEntry { name, content, address, parents, descendants }
     }
 }
 
@@ -77,11 +75,11 @@ impl GraphService {
         let graph_content = GraphContent::from_hex(graph.content.clone()).unwrap();
         let graph_entry = autonomi::GraphEntry::new(&graph_key, graph_parents, graph_content.clone(), graph_descendants);
         info!("Create graph entry from name [{}] for content [{}]", graph.name.clone().unwrap(), graph.content.clone());
-        let (cost, graph_entry_address) = self.caching_client
+        let graph_entry_address = self.caching_client
             .graph_entry_put(graph_entry, PaymentOption::from(&evm_wallet), cache_only)
             .await?;
-        info!("Created graph entry at [{}] for [{}] attos", graph_entry_address.to_hex(), cost);
-        Ok(GraphEntry::new(graph.name, graph.content, Some(graph_entry_address.to_hex()), graph.parents, graph.descendants, Some(cost.to_string())))
+        info!("Queued command to create graph entry at [{}]", graph_entry_address.to_hex());
+        Ok(GraphEntry::new(graph.name, graph.content, Some(graph_entry_address.to_hex()), graph.parents, graph.descendants))
     }
 
     pub async fn get_graph_entry(&self, address: String) -> Result<GraphEntry, GraphError> {
@@ -111,7 +109,7 @@ impl GraphService {
                     None
                 };
 
-                Ok(GraphEntry::new(None, hex::encode(graph_entry.content.clone()), Some(address), graph_parents, graph_descendants, None))
+                Ok(GraphEntry::new(None, hex::encode(graph_entry.content.clone()), Some(address), graph_parents, graph_descendants))
             }
             Err(e) => {
                 warn!("Failed to retrieve graph entry at address [{}]: [{:?}]", address, e);

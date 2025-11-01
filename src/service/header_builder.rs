@@ -32,8 +32,7 @@ impl HeaderBuilder {
     }
 
     pub fn build_content_type_header(&self, extension: &str) -> ContentType {
-        // todo: remove markdown exclusion when IMIM fixed
-        if extension != "" && extension != "md" {
+        if extension != "" {
             ContentType(file_extension_to_mime(extension))
         } else {
             ContentType(mime::TEXT_HTML) // default to text/html

@@ -4,7 +4,6 @@ use actix_web::web::Data;
 use ant_evm::EvmWallet;
 use log::debug;
 use crate::config::anttp_config::AntTpConfig;
-use crate::{UploaderState, UploadState};
 use crate::service::public_archive_service::{PublicArchiveForm, PublicArchiveService, Upload};
 use crate::client::CachingClient;
 use crate::error::public_archive_error::PublicArchiveError;
@@ -30,17 +29,10 @@ pub async fn post_public_archive(
     public_archive_form: MultipartForm<PublicArchiveForm>,
     caching_client_data: Data<CachingClient>,
     evm_wallet_data: Data<EvmWallet>,
-    uploader_state: Data<UploaderState>,
-    upload_state: Data<UploadState>,
     ant_tp_config: Data<AntTpConfig>,
     request: HttpRequest
 ) -> Result<HttpResponse, PublicArchiveError> {
-    let archive_service = build_archive_service(
-        caching_client_data,
-        uploader_state,
-        upload_state,
-        ant_tp_config.clone()
-    );
+    let archive_service = build_archive_service(caching_client_data, ant_tp_config.clone());
     let evm_wallet = evm_wallet_data.get_ref().clone();
 
     debug!("Creating new archive from multipart POST");
@@ -69,16 +61,12 @@ pub async fn put_public_archive(
     public_archive_form: MultipartForm<PublicArchiveForm>,
     caching_client_data: Data<CachingClient>,
     evm_wallet_data: Data<EvmWallet>,
-    uploader_state: Data<UploaderState>,
-    upload_state: Data<UploadState>,
     ant_tp_config: Data<AntTpConfig>,
     request: HttpRequest,
 ) -> Result<HttpResponse, PublicArchiveError> {
     let address = path.into_inner();
     let archive_service = build_archive_service(
         caching_client_data,
-        uploader_state,
-        upload_state,
         ant_tp_config.clone()
     );
     let evm_wallet = evm_wallet_data.get_ref().clone();
@@ -102,31 +90,19 @@ pub async fn put_public_archive(
 )]
 pub async fn get_status_public_archive(
     path: web::Path<String>,
-    caching_client_data: Data<CachingClient>,
-    uploader_state: Data<UploaderState>,
-    upload_state: Data<UploadState>,
-    ant_tp_config: Data<AntTpConfig>,
 ) -> Result<HttpResponse, PublicArchiveError> {
     let id = path.into_inner();
-    let archive_service = build_archive_service(
-        caching_client_data,
-        uploader_state,
-        upload_state,
-        ant_tp_config.clone()
-    );
-
     debug!("Checking upload status for [{}]", id);
-    Ok(HttpResponse::Ok().json(archive_service.get_status(id).await?))
+    // todo: deprecate
+    Ok(HttpResponse::Ok().json(Upload::new(None)))
 }
 
 fn build_archive_service(
     caching_client_data: Data<CachingClient>,
-    uploader_state: Data<UploaderState>,
-    upload_state: Data<UploadState>,
     ant_tp_config_data: Data<AntTpConfig>,
 ) -> PublicArchiveService {
     let ant_tp_config = ant_tp_config_data.get_ref();
     let caching_client = caching_client_data.get_ref();
     let file_service = FileService::new(caching_client.clone(), ant_tp_config.clone());
-    PublicArchiveService::new(file_service, uploader_state, upload_state, caching_client.clone())
+    PublicArchiveService::new(file_service, caching_client.clone())
 }

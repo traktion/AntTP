@@ -1,3 +1,4 @@
+use std::io;
 use thiserror::Error;
 use serde::Serialize;
 use actix_http::StatusCode;
@@ -44,6 +45,12 @@ impl From<PublicDataError> for PublicArchiveError {
 impl From<ConnectError> for PublicArchiveError {
     fn from(value: ConnectError) -> Self {
         Self::GetError(value.into())
+    }
+}
+
+impl From<io::Error> for PublicArchiveError {
+    fn from(value: io::Error) -> Self {
+        Self::UpdateError(value.into())
     }
 }
 

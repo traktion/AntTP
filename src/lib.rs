@@ -6,26 +6,22 @@ pub mod model;
 pub mod error;
 
 use crate::controller::{chunk_controller, command_controller, file_controller, graph_controller, pointer_controller, private_scratchpad_controller, public_archive_controller, public_data_controller, public_scratchpad_controller, register_controller};
-use crate::service::public_archive_service::Upload;
 use actix_files::Files;
 use actix_web::dev::ServerHandle;
 use actix_web::web::Data;
 use actix_web::{middleware, middleware::Logger, web, App, HttpServer};
 use ant_evm::EvmNetwork::{ArbitrumOne, ArbitrumSepoliaTest};
 use ant_evm::EvmWallet;
-use autonomi::files::archive_public::ArchiveAddress;
 use autonomi::Network;
 use config::anttp_config::AntTpConfig;
 use log::info;
 use once_cell::sync::Lazy;
-use std::collections::HashMap;
 use std::env;
 use std::path::Path;
 use async_job::Runner;
 use foyer::{BlockEngineBuilder, Compression, DeviceBuilder, FsDeviceBuilder, HybridCache, HybridCacheBuilder, HybridCachePolicy, IoEngineBuilder, LfuConfig, PsyncIoEngineBuilder, RecoverMode, RuntimeOptions, TokioRuntimeOptions};
 use indexmap::IndexMap;
 use tokio::sync::Mutex;
-use tokio::task::JoinHandle;
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
 use crate::client::CachingClient;
@@ -36,30 +32,6 @@ use crate::client::command::command_details::CommandDetails;
 static SERVER_HANDLE: Lazy<Mutex<Option<ServerHandle>>> = Lazy::new(|| Mutex::new(None));
 
 const API_BASE: &'static str = "/anttp-0/";
-
-pub struct UploadState {
-    upload_map: Mutex<HashMap<String, Upload>>,
-}
-
-impl UploadState {
-    pub fn new() -> Self {
-        UploadState {
-            upload_map: Mutex::new(HashMap::<String, Upload>::new()),
-        }
-    }
-}
-
-pub struct UploaderState {
-    uploader_map: Mutex<HashMap<String, JoinHandle<Option<ArchiveAddress>>>>,
-}
-
-impl UploaderState {
-    pub fn new() -> Self {
-        UploaderState {
-            uploader_map: Mutex::new(HashMap::<String, JoinHandle<Option<ArchiveAddress>>>::new()),
-        }
-    }
-}
 
 pub async fn run_server(ant_tp_config: AntTpConfig) -> std::io::Result<()> {
     #[derive(OpenApi)]
@@ -110,9 +82,6 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> std::io::Result<()> {
     } else {
         EvmWallet::new_with_random_wallet(evm_network)
     };
-
-    let uploader_state = Data::new(UploaderState::new());
-    let upload_state = Data::new(UploadState::new());
 
     let hybrid_cache: HybridCache<String, Vec<u8>> = build_foyer_cache(&ant_tp_config).await;
     let hybrid_cache_data = Data::new(hybrid_cache);
@@ -192,10 +161,9 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> std::io::Result<()> {
             .app_data(Data::new(ant_tp_config.clone()))
             .app_data(caching_client_data.clone())
             .app_data(Data::new(evm_wallet.clone()))
-            .app_data(uploader_state.clone())
-            .app_data(upload_state.clone())
             .app_data(hybrid_cache_data.clone())
-            .app_data(command_status.clone());
+            .app_data(command_status.clone())
+            .app_data(web::PayloadConfig::new(1024 * 1024 * 10));
 
         if !ant_tp_config.uploads_disabled {
             app = app

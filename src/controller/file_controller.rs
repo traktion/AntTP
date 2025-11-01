@@ -5,7 +5,6 @@ use actix_web::web::Data;
 use log::debug;
 use mime::{Mime, APPLICATION_JSON, TEXT_HTML};
 use crate::config::anttp_config::AntTpConfig;
-use crate::{UploadState, UploaderState};
 use crate::service::public_archive_service::PublicArchiveService;
 use crate::client::CachingClient;
 use crate::error::GetError;
@@ -20,8 +19,6 @@ pub async fn get_public_data(
     path: web::Path<String>,
     caching_client_data: Data<CachingClient>,
     conn: ConnectionInfo,
-    uploader_state_data: Data<UploaderState>,
-    upload_state_data: Data<UploadState>,
     ant_tp_config_data: Data<AntTpConfig>,
 ) -> Result<HttpResponse, ChunkError> {
     let ant_tp_config = ant_tp_config_data.get_ref().clone();
@@ -36,8 +33,7 @@ pub async fn get_public_data(
             } else if resolved_address.archive.is_some() {
                 debug!("Retrieving file from archive [{:x}]", resolved_address.xor_name);
                 let file_service = FileService::new(caching_client.clone(), ant_tp_config.clone());
-                let public_archive_service = PublicArchiveService::new(
-                    file_service, uploader_state_data, upload_state_data, caching_client);
+                let public_archive_service = PublicArchiveService::new(file_service, caching_client);
                 let archive_info = public_archive_service.get_archive_info(&resolved_address, &request).await;
 
                 match archive_info.action {

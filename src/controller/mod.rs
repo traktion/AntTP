@@ -16,15 +16,9 @@ pub enum CacheType {
 }
 
 fn cache_only(request: HttpRequest) -> Option<CacheType> {
-    match request.headers().get("x-cache-only") {
-        Some(header_value) => match header_value.to_str() {
-            Ok(value) => match value {
-                "memory" => Some(CacheType::Memory),
-                "disk" => Some(CacheType::Disk),
-                _ => None
-            },
-            Err(_) => None
-        },
-        None => None,
+    match request.headers().get("x-cache-only")?.to_str().unwrap_or("") {
+        "memory" => Some(CacheType::Memory),
+        "disk" => Some(CacheType::Disk),
+        _ => None
     }
 }

@@ -1,4 +1,5 @@
 use std::fmt::Debug;
+use std::io;
 use actix_http::StatusCode;
 use actix_web::{error, HttpResponse};
 use actix_web::http::header::ContentType;
@@ -79,6 +80,12 @@ pub enum UpdateError {
 impl From<SendError<Box<dyn Command>>> for UpdateError {
     fn from(value: SendError<Box<dyn Command>>) -> Self {
         Self::Command(value.to_string())
+    }
+}
+
+impl From<io::Error> for UpdateError {
+    fn from(value: io::Error) -> Self {
+        Self::TemporaryStorage(value.to_string())
     }
 }
 

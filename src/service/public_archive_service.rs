@@ -1,11 +1,11 @@
 use std::{env, fs};
 use std::fs::create_dir;
+use std::io::Error;
 use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
 use actix_multipart::form::MultipartForm;
 use actix_multipart::form::tempfile::TempFile;
 use actix_web::HttpRequest;
-use actix_web::web::Data;
 use autonomi::Wallet;
 use autonomi::client::payment::PaymentOption;
 use autonomi::files::{Metadata, PublicArchive};
@@ -23,7 +23,6 @@ use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 use uuid::Uuid;
 use xor_name::XorName;
-use crate::{UploadState, UploaderState};
 use crate::error::public_archive_error::PublicArchiveError;
 use crate::error::chunk_error::ChunkError;
 use crate::config::app_config::AppConfig;
@@ -33,9 +32,7 @@ use crate::model::archive::Archive;
 
 #[derive(Serialize, Deserialize, Clone, ToSchema)]
 pub struct Upload {
-    id: String,
-    status: String,
-    message: String,
+    #[schema(read_only)]
     address: Option<String>,
 }
 
@@ -47,22 +44,20 @@ pub struct PublicArchiveForm {
 }
 
 impl Upload {
-    pub fn new(id: String, status: String, message: String, address: Option<String>) -> Self {
-        Upload { id, status, message, address }
+    pub fn new(address: Option<String>) -> Self {
+        Upload { address }
     }
 }
 
 pub struct PublicArchiveService {
     file_client: FileService,
-    uploader_state: Data<UploaderState>,
-    upload_state: Data<UploadState>,
     caching_client: CachingClient,
 }
 
 impl PublicArchiveService {
     
-    pub fn new(file_client: FileService, uploader_state: Data<UploaderState>, upload_state: Data<UploadState>, caching_client: CachingClient) -> Self {
-        PublicArchiveService { file_client, uploader_state, upload_state, caching_client }
+    pub fn new(file_client: FileService, caching_client: CachingClient) -> Self {
+        PublicArchiveService { file_client, caching_client }
     }
 
     pub async fn get_archive_info(&self, resolved_address: &ResolvedAddress, request: &HttpRequest) -> ArchiveInfo {
@@ -121,122 +116,98 @@ impl PublicArchiveService {
 
     pub async fn create_public_archive(&self, public_archive_form: MultipartForm<PublicArchiveForm>, evm_wallet: Wallet, cache_only: Option<CacheType>) -> Result<Upload, PublicArchiveError> {
         info!("Uploading new public archive to the network");
-        self.update_public_archive_common(public_archive_form, evm_wallet, PublicArchive::new(), cache_only).await
+        Ok(self.update_public_archive_common(public_archive_form, evm_wallet, &mut PublicArchive::new(), cache_only).await?)
     }
 
     pub async fn update_public_archive(&self, address: String, public_archive_form: MultipartForm<PublicArchiveForm>, evm_wallet: Wallet, cache_only: Option<CacheType>) -> Result<Upload, PublicArchiveError> {
-        let public_archive = self.caching_client.archive_get_public(ArchiveAddress::from_hex(address.as_str()).unwrap()).await?;
+        let public_archive = &mut self.caching_client.archive_get_public(ArchiveAddress::from_hex(address.as_str()).unwrap()).await?;
         info!("Uploading updated public archive to the network [{:?}]", public_archive);
-        self.update_public_archive_common(public_archive_form, evm_wallet, public_archive, cache_only).await
+        Ok(self.update_public_archive_common(public_archive_form, evm_wallet, public_archive, cache_only).await?)
     }
 
-    pub async fn update_public_archive_common(&self, public_archive_form: MultipartForm<PublicArchiveForm>, evm_wallet: Wallet, mut public_archive: PublicArchive, cache_only: Option<CacheType>) -> Result<Upload, PublicArchiveError> {
+    pub async fn update_public_archive_common(&self, public_archive_form: MultipartForm<PublicArchiveForm>, evm_wallet: Wallet, public_archive: &mut PublicArchive, cache_only: Option<CacheType>) -> Result<Upload, PublicArchiveError> {
+        let tmp_dir = Self::create_tmp_dir()?;
+        if let Some(e) = Self::move_files_to_tmp_dir(public_archive_form, tmp_dir.clone()).err() {
+            Self::purge_tmp_dir(&tmp_dir);
+            return Err(e);
+        }
+        if let Some(e) = self.update_archive(public_archive, tmp_dir.clone(), evm_wallet.clone(), cache_only.clone()).await.err() {
+            Self::purge_tmp_dir(&tmp_dir);
+            return Err(e);
+        }
+
+        info!("Uploading public archive [{:?}]", public_archive);
+        match self.caching_client.archive_put_public(&public_archive, PaymentOption::Wallet(evm_wallet), cache_only).await {
+            Ok(archive_address) => {
+                info!("Queued command to upload public archive at [{:?}]", archive_address);
+                Self::purge_tmp_dir(&tmp_dir);
+                Ok(Upload::new(Some(archive_address.to_hex())))
+            }
+            Err(e) => {
+                warn!("Failed to upload public archive: [{:?}]", e);
+                Self::purge_tmp_dir(&tmp_dir);
+                Err(e)
+            }
+        }
+    }
+
+    async fn update_archive(&self, public_archive: &mut PublicArchive, tmp_dir: PathBuf, evm_wallet: Wallet, cache_only: Option<CacheType>) -> Result<(), PublicArchiveError> {
+        info!("Reading directory: {:?}", &tmp_dir);
+        for entry in fs::read_dir(tmp_dir.clone())? {
+            let path = entry?.path();
+            info!("Reading directory path: {:?}", path);
+
+            let data_address = self.caching_client
+                .file_content_upload_public(path.clone(), PaymentOption::Wallet(evm_wallet.clone()), cache_only.clone())
+                .await?;
+            let created_at = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
+            let custom_metadata = Metadata {
+                created: created_at,
+                modified: created_at,
+                size: path.metadata()?.len(),
+                extra: None,
+            };
+
+            match path.file_name() {
+                Some(os_file_name) => {
+                    let file_name = os_file_name.to_str().unwrap_or("").to_string();
+                    let target_path = PathBuf::from(file_name);
+                    info!("Adding file [{:?}] at address [{}] to public archive", target_path, data_address.to_hex());
+                    public_archive.add_file(target_path, data_address, custom_metadata);
+                }
+                None => return Err(UpdateError::TemporaryStorage("Failed to get filename from temporary file".to_string()).into())
+            }
+        }
+        info!("public archive [{:?}]", public_archive);
+        Ok(())
+    }
+
+    fn create_tmp_dir() -> Result<PathBuf, Error> {
         let random_name = Uuid::new_v4();
         let tmp_dir = env::temp_dir().as_path().join(random_name.to_string());
-        if create_dir(tmp_dir.clone()).is_err() {
-            return Err(UpdateError::TemporaryStorage("failed to create temporary directory".to_string()).into())
-        }
-        info!("Created temporary directory for archive with prefix: {:?}", tmp_dir.to_str());
-
-        for temp_file in public_archive_form.files.iter() {
-            let filename = sanitize(temp_file.file_name.clone().expect("Failed to get filename from multipart field"));
-            let file_path = tmp_dir.clone().join(filename.clone());
-
-            info!("Creating temporary file for archive: {:?}", file_path.to_str().unwrap());
-
-            fs::rename(temp_file.file.path(), file_path).expect(format!("failed to rename tmp file [{}]", filename).as_str());
-        }
-
-        let local_client = self.caching_client.clone();
-        let handle = tokio::spawn(async move {
-            info!("Reading directory: {:?}", tmp_dir.clone());
-            for entry in fs::read_dir(tmp_dir.clone()).unwrap() {
-                info!("Reading directory entry: {:?}", entry);
-                let entry = entry.expect("Failed to get directory entry");
-                let path = entry.path();
-
-                let data_address = local_client
-                    .file_content_upload_public(path.clone(), PaymentOption::Wallet(evm_wallet.clone()), cache_only.clone())
-                    .await.unwrap();
-                let created_at = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
-                let custom_metadata = Metadata {
-                    created: created_at,
-                    modified: created_at,
-                    size: path.metadata().unwrap().len(),
-                    extra: None,
-                };
-
-                let filename = path.file_name().unwrap().to_str().unwrap().to_string();
-                // todo: derive path for CLI uploads with subdirs, or just migrate archive to move all files to root (better!)?
-                let target_path = PathBuf::from(format!("{}", filename));
-                info!("Adding file [{:?}] at address [{}] to public archive", target_path, data_address.to_hex());
-                public_archive.add_file(target_path, data_address, custom_metadata);
-            }
-            info!("public archive [{:?}]", public_archive);
-
-            info!("Uploading public archive [{:?}]", public_archive);
-            match local_client.archive_put_public(&public_archive, PaymentOption::Wallet(evm_wallet), cache_only).await {
-                Ok(archive_address) => {
-                    info!("Queued command to upload public archive at [{:?}]", archive_address);
-                    fs::remove_dir_all(tmp_dir.clone()).unwrap();
-                    Some(archive_address)
-                }
-                Err(e) => {
-                    warn!("Failed to upload public archive: [{:?}]", e);
-                    fs::remove_dir_all(tmp_dir.clone()).unwrap();
-                    None
-                }
-            }
-        });
-
-        // todo: replace with command executor status (as this is only a fast cache insert now)
-        let task_id = Uuid::new_v4();
-        self.uploader_state.uploader_map.lock().await.insert(task_id.to_string(), handle);
-
-        info!("Upload directory scheduled with handle id [{:?}]", task_id.to_string());
-        Ok(Upload::new(task_id.to_string(), "scheduled".to_string(), "".to_string(), None))
+        create_dir(&tmp_dir)?;
+        info!("Created temporary directory for archive with prefix: {:?}", &tmp_dir);
+        Ok(tmp_dir)
     }
 
-    pub async fn get_status(&self, task_id: String) -> Result<Upload, PublicArchiveError> {
-        // todo: update response with message containing a reason for success/failure
-        // todo: rewrite - can't poll join handle multiple times after completion (bug!)
-        let _ = match self.upload_state.upload_map.lock().await.get(&task_id) {
-            Some(upload) => return Ok(upload.clone()),
-            None => false 
-        };
-            
-        let upload = match self.uploader_state.uploader_map.lock().await.get_mut(&task_id) {
-            Some(handle) => {
-                if handle.is_finished() {
-                    match handle.await {
-                        Ok(archive_address) => {
-                            if archive_address.is_some() {
-                                let upload = Upload::new(task_id.to_string(), "succeeded".to_string(), "".to_string(), Some(archive_address.unwrap().to_hex()));
-                                self.upload_state.upload_map.lock().await.insert(task_id.to_string(), upload.clone());
-                                upload
-                            } else {
-                                let upload = Upload::new(task_id.to_string(), "failed".to_string(), "Missing address".to_string(), None);
-                                self.upload_state.upload_map.lock().await.insert(task_id.to_string(), upload.clone());
-                                upload
-                            }
-                        }
-                        Err(e) => {
-                            let upload = Upload::new(task_id.to_string(), "failed".to_string(), e.to_string(), None);
-                            self.upload_state.upload_map.lock().await.insert(task_id.to_string(), upload.clone());
-                            upload
-                        }
-                    }
-                } else {
-                    Upload::new(task_id.to_string(), "started".to_string(), "".to_string(), None)
+    fn move_files_to_tmp_dir(public_archive_form: MultipartForm<PublicArchiveForm>, tmp_dir: PathBuf) -> Result<(), PublicArchiveError> {
+        info!("Moving files in {:?} to tmp directory: {:?}", public_archive_form.files, &tmp_dir);
+        for temp_file in public_archive_form.files.iter() {
+            match temp_file.file_name.clone() {
+                Some(raw_file_name) => {
+                    let file_name = sanitize(raw_file_name);
+                    let file_path = tmp_dir.clone().join(&file_name);
+
+                    info!("Creating temporary file for archive: {:?}", file_path);
+                    fs::rename(temp_file.file.path(), file_path)?;
                 }
+                None => return Err(UpdateError::TemporaryStorage("Failed to get filename from multipart field".to_string()).into())
             }
-            None => {
-                Upload::new(task_id.to_string(), "unknown".to_string(), "".to_string(), None)
-            }
-        };
-        if upload.status == "failed" || upload.status == "succeeded" {
-            self.uploader_state.uploader_map.lock().await.remove(&task_id);
         }
-        Ok(upload)
+        Ok(())
+    }
+
+    fn purge_tmp_dir(tmp_dir: &PathBuf) {
+        fs::remove_dir_all(tmp_dir.clone()).unwrap_or_else(|e| warn!("failed to delete temporary directory at [{:?}]: {}", tmp_dir, e));
     }
 }

@@ -377,8 +377,6 @@ local per-user configuration data (e.g. arbitrary data that only the user needs 
   - [x] Enable directory listing in HTML (default)
   - [x] Enable directory listing with JSON (using `accept` header)
   - [x] Enable multiple file uploads as multipart form data
-    - Creates an archive, adds the files, then uploads to Autonomi
-    - Async operation, with POST for data and GET for status checks
 - [x] Caching
   - [x] Cache immutable archive indexes to disk to reduce lookups to Autonomi
   - [x] Set response headers to encourage long term caching of XOR data
@@ -409,7 +407,7 @@ local per-user configuration data (e.g. arbitrary data that only the user needs 
       - [ ] Send tokens
       - [ ] Get transaction history
       - [ ] Remote data payments (via gateway)
-    - [ ] Asyc upload queue
+    - [x] Async command/upload queue
   - [ ] gRPC API
     - [ ] Pointer
     - [ ] Scratchpad
@@ -432,22 +430,24 @@ local per-user configuration data (e.g. arbitrary data that only the user needs 
   - [ ] Websockets
     - [ ] Stream immutable data types
     - [ ] Stream changes to mutable data types
-  - [ ] AntTP status
-    - [ ] Active data uploads (listing/CRUD)
+  - [x] AntTP status
+    - [x] Async command/upload queue (listing)
+    - [ ] Async command/upload queue (CRUD)
 - [ ] Testing
   - [ ] Core unit test coverage
   - [ ] Full unit test coverage
   - [x] Immutable performance testing
   - [ ] Mutable performance testing
 - [x] Improve CLI arguments
-- [ ] Offline mode (requests without connected client library dependency)
+- [x] Offline mode (requests without connected client library dependency)
   - [x] Offline downloaded data
-  - [ ] Offline uploaded data (with optional async publishing to Autonomi)
+  - [x] Offline uploaded data (with optional async publishing to Autonomi)
 - [ ] Accounting features
   - [ ] Bandwidth usage/tracking
   - [ ] Payments for data uploads (i.e. for public proxies)
-- [ ] AntTP status
-  - [ ] Active data uploads (listing/CRUD)
+- [ ] AntTP status page
+  - [ ] Async command/upload queue (listing)
+  - [ ] Async command/upload queue (CRUD)
 
 ## Codebase to Tutorial
 

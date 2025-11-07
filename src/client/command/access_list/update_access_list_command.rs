@@ -1,0 +1,76 @@
+use actix_http::header::HeaderMap;
+use actix_web::web::Data;
+use async_trait::async_trait;
+use indexmap::IndexMap;
+use log::{debug, info};
+use sha2::Digest;
+use tokio::sync::Mutex;
+use crate::client::CachingClient;
+use crate::client::command::error::CommandError;
+use crate::client::command::Command;
+use crate::config::access_list::AccessList;
+use crate::config::anttp_config::AntTpConfig;
+use crate::service::access_checker::AccessChecker;
+use crate::service::file_service::FileService;
+use crate::service::resolver_service::ResolverService;
+
+pub struct UpdateAccessListCommand {
+    id: u128,
+    caching_client: Data<Mutex<CachingClient>>,
+    ant_tp_config: AntTpConfig,
+    access_checker: Data<Mutex<AccessChecker>>,
+}
+
+impl UpdateAccessListCommand {
+    pub fn new(caching_client: Data<Mutex<CachingClient>>, ant_tp_config: AntTpConfig, access_checker: Data<Mutex<AccessChecker>>) -> Self {
+        let id = rand::random::<u128>();
+        Self { id, caching_client, ant_tp_config, access_checker }
+    }
+}
+
+const STRUCT_NAME: &'static str = "UpdateAccessListCommand";
+
+#[async_trait]
+impl Command for UpdateAccessListCommand {
+    async fn execute(&self) -> Result<(), CommandError> {
+        let caching_client = self.caching_client.get_ref().lock().await.clone();
+        let resolver_service = ResolverService::new(self.ant_tp_config.clone(), caching_client.clone(), self.access_checker.clone());
+        let file_service = FileService::new(caching_client, 1);
+        
+        let access_list = match resolver_service.resolve(&self.ant_tp_config.access_list_address, &"", &HeaderMap::new()).await {
+            Some(resolved_address) => match file_service.download_data_bytes(resolved_address.xor_name, 0, 0).await {
+                Ok(buf) => {
+                    let json = String::from_utf8(buf.to_vec()).unwrap_or(String::new());
+                    debug!("json [{}]", json);
+                    serde_json::from_str(&json.as_str().trim()).unwrap_or(AccessList::default())
+                }
+                Err(_) => AccessList::default()
+            }
+            None => AccessList::default()
+        };
+        self.access_checker.lock().await.update(&access_list);
+        info!("access list at [{}] processed successfully: [{:?}]", self.ant_tp_config.access_list_address, access_list);
+        Ok(())
+    }
+
+    fn action_hash(&self) -> Vec<u8> {
+        let mut hasher = sha2::Sha256::new();
+        hasher.update(STRUCT_NAME);
+        hasher.update(self.ant_tp_config.access_list_address.clone());
+        hasher.finalize().to_ascii_lowercase()
+    }
+
+    fn id(&self) -> u128 {
+        self.id
+    }
+
+    fn name(&self) -> String {
+        STRUCT_NAME.to_string()
+    }
+
+    fn properties(&self) -> IndexMap<String, String> {
+        let mut properties = IndexMap::new();
+        properties.insert("access_list_archive".to_string(), self.ant_tp_config.access_list_address.clone());
+        properties
+    }
+}

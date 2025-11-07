@@ -3,20 +3,13 @@ use std::collections::HashMap;
 use globset::Glob;
 use log::{debug, info};
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct AppConfig {
     route_map: HashMap<String, String>
 }
 
 impl AppConfig {
-
-    pub fn default() -> Self {
-        Self {
-            route_map: HashMap::new(),
-        }
-    }
-    
     pub fn resolve_route(&self, search_string: &String) -> (String, bool) {
         debug!("resolving route [{}]", search_string);
         for (key, value) in self.route_map.clone() {

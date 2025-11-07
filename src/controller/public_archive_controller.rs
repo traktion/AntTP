@@ -103,6 +103,6 @@ fn build_archive_service(
 ) -> PublicArchiveService {
     let ant_tp_config = ant_tp_config_data.get_ref();
     let caching_client = caching_client_data.get_ref();
-    let file_service = FileService::new(caching_client.clone(), ant_tp_config.clone());
+    let file_service = FileService::new(caching_client.clone(), ant_tp_config.download_threads);
     PublicArchiveService::new(file_service, caching_client.clone())
 }

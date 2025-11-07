@@ -4,11 +4,13 @@ use actix_web::dev::ConnectionInfo;
 use actix_web::web::Data;
 use log::debug;
 use mime::{Mime, APPLICATION_JSON, TEXT_HTML};
+use tokio::sync::Mutex;
 use crate::config::anttp_config::AntTpConfig;
 use crate::service::public_archive_service::PublicArchiveService;
 use crate::client::CachingClient;
 use crate::error::GetError;
 use crate::error::chunk_error::ChunkError;
+use crate::service::access_checker::AccessChecker;
 use crate::service::archive_helper::{ArchiveAction, ArchiveHelper, ArchiveInfo};
 use crate::service::file_service::{FileService, RangeProps};
 use crate::service::header_builder::HeaderBuilder;
@@ -20,19 +22,22 @@ pub async fn get_public_data(
     caching_client_data: Data<CachingClient>,
     conn: ConnectionInfo,
     ant_tp_config_data: Data<AntTpConfig>,
+    access_checker: Data<Mutex<AccessChecker>>,
 ) -> Result<HttpResponse, ChunkError> {
     let ant_tp_config = ant_tp_config_data.get_ref().clone();
     let caching_client = caching_client_data.get_ref().clone();
-    let resolver_service = ResolverService::new(ant_tp_config.clone(), caching_client.clone());
+    let resolver_service = ResolverService::new(ant_tp_config.clone(), caching_client.clone(), access_checker);
 
     match resolver_service.resolve(&conn.host(), &path.into_inner(), &request.headers()).await {
         Some(resolved_address) => {
             let header_builder = HeaderBuilder::new(ant_tp_config.cached_mutable_ttl);
-            if !resolved_address.is_modified {
+            if !resolved_address.is_allowed {
+                Err(GetError::AccessNotAllowed(format!("Access forbidden: {}", resolved_address.xor_name)).into())
+            } else if !resolved_address.is_modified {
                 Ok(build_not_modified_response(&resolved_address, &header_builder))
             } else if resolved_address.archive.is_some() {
                 debug!("Retrieving file from archive [{:x}]", resolved_address.xor_name);
-                let file_service = FileService::new(caching_client.clone(), ant_tp_config.clone());
+                let file_service = FileService::new(caching_client.clone(), ant_tp_config.download_threads);
                 let public_archive_service = PublicArchiveService::new(file_service, caching_client);
                 let archive_info = public_archive_service.get_archive_info(&resolved_address, &request).await;
 
@@ -44,7 +49,7 @@ pub async fn get_public_data(
                 }
             } else {
                 debug!("Retrieving file from XOR [{:x}]", resolved_address.xor_name);
-                let file_service = FileService::new(caching_client.clone(), ant_tp_config.clone());
+                let file_service = FileService::new(caching_client.clone(), ant_tp_config.download_threads);
                 get_data_xor(&request, &resolved_address, &header_builder, file_service).await
             }
         },

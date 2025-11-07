@@ -2,10 +2,12 @@ use actix_web::{web, HttpRequest, HttpResponse};
 use actix_web::web::Data;
 use ant_evm::EvmWallet;
 use log::debug;
+use tokio::sync::Mutex;
 use crate::client::CachingClient;
 use crate::error::pointer_error::PointerError;
 use crate::config::anttp_config::AntTpConfig;
 use crate::controller::cache_only;
+use crate::service::access_checker::AccessChecker;
 use crate::service::pointer_service::{Pointer, PointerService};
 use crate::service::resolver_service::ResolverService;
 
@@ -27,10 +29,11 @@ pub async fn post_pointer(
     caching_client_data: Data<CachingClient>,
     evm_wallet_data: Data<EvmWallet>,
     ant_tp_config_data: Data<AntTpConfig>,
+    access_checker: Data<Mutex<AccessChecker>>,
     pointer: web::Json<Pointer>,
     request: HttpRequest,
 ) -> Result<HttpResponse, PointerError> {
-    let pointer_service = create_pointer_service(caching_client_data, ant_tp_config_data);
+    let pointer_service = create_pointer_service(caching_client_data, ant_tp_config_data, access_checker);
 
     debug!("Creating new pointer");
     Ok(HttpResponse::Created().json(
@@ -57,12 +60,13 @@ pub async fn put_pointer(
     path: web::Path<String>,
     caching_client_data: Data<CachingClient>,
     ant_tp_config_data: Data<AntTpConfig>,
+    access_checker: Data<Mutex<AccessChecker>>,
     pointer: web::Json<Pointer>,
     request: HttpRequest,
 ) -> Result<HttpResponse, PointerError> {
     let address = path.into_inner();
 
-    let pointer_service = create_pointer_service(caching_client_data, ant_tp_config_data);
+    let pointer_service = create_pointer_service(caching_client_data, ant_tp_config_data, access_checker);
 
     debug!("Updating pointer");
     Ok(HttpResponse::Ok().json(
@@ -88,18 +92,23 @@ pub async fn get_pointer(
     path: web::Path<String>,
     caching_client_data: Data<CachingClient>,
     ant_tp_config_data: Data<AntTpConfig>,
+    access_checker: Data<Mutex<AccessChecker>>,
 ) -> Result<HttpResponse, PointerError> {
     let address = path.into_inner();
 
-    let pointer_service = create_pointer_service(caching_client_data, ant_tp_config_data);
+    let pointer_service = create_pointer_service(caching_client_data, ant_tp_config_data, access_checker);
 
     debug!("Getting pointer at [{}]", address);
     Ok(HttpResponse::Ok().json(pointer_service.get_pointer(address).await?))
 }
 
-fn create_pointer_service(caching_client_data: Data<CachingClient>, ant_tp_config_data: Data<AntTpConfig>) -> PointerService {
+fn create_pointer_service(
+    caching_client_data: Data<CachingClient>,
+    ant_tp_config_data: Data<AntTpConfig>,
+    access_checker: Data<Mutex<AccessChecker>>
+) -> PointerService {
     let caching_client = caching_client_data.get_ref().clone();
     let ant_tp_config = ant_tp_config_data.get_ref().clone();
-    let resolver_service = ResolverService::new(ant_tp_config.clone(), caching_client.clone());
+    let resolver_service = ResolverService::new(ant_tp_config.clone(), caching_client.clone(), access_checker);
     PointerService::new(caching_client, ant_tp_config, resolver_service)
 }

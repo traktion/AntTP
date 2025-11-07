@@ -136,14 +136,32 @@ impl ArchiveHelper {
                     if resolved_address.file_path.to_string().chars().last() != Some('/') {
                         ArchiveInfo::new(format!("{}/", resolved_address.file_path.clone()), XorName::default(), ArchiveAction::Redirect, true, 0, 0)
                     } else {
-                        ArchiveInfo::new(resolved_address.file_path.clone(), XorName::default(), ArchiveAction::Listing, true, 0, 0)
+                        let default_index = format!("{}index.html", resolved_address.file_path.clone());
+                        debug!("Lookup default index: {}", default_index);
+                        match self.archive.find_file(&default_index) {
+                            Some(data_address_offset) => {
+                                info!("Resolved path [{}] to xor address [{}] to default [{}]", resolved_route_path, format!("{:x}", *data_address_offset.data_address.xorname()), default_index);
+                                ArchiveInfo::new(
+                                    resolved_route_path.clone(),
+                                    *data_address_offset.data_address.xorname(),
+                                    ArchiveAction::Data,
+                                    resolved_address.is_modified,
+                                    data_address_offset.offset,
+                                    data_address_offset.size
+                                )
+                            }
+                            None => {
+                                debug!("default index not found, retrieve file listing");
+                                ArchiveInfo::new(resolved_address.file_path.clone(), XorName::default(), ArchiveAction::Listing, true, 0, 0)
+                            }
+                        }
                     }
                 } else {
                     ArchiveInfo::new(resolved_route_path.clone(), XorName::default(), ArchiveAction::NotFound, true, 0, 0)
                 }
             }
         } else {
-            debug!("retrieve file listing");
+            debug!("resolved_route_path not found, retrieve file listing");
             ArchiveInfo::new(resolved_route_path.clone(), XorName::default(), ArchiveAction::Listing, true, 0, 0)
         }
     }

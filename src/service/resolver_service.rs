@@ -1,13 +1,16 @@
 use actix_http::header::{HeaderMap, IF_NONE_MATCH};
+use actix_web::web::Data;
 use autonomi::{ChunkAddress, PointerAddress, PublicKey};
 use autonomi::data::DataAddress;
 use autonomi::files::archive_public::ArchiveAddress;
 use autonomi::register::{RegisterAddress};
-use log::{debug, info, warn};
+use log::{debug, info};
+use tokio::sync::Mutex;
 use xor_name::XorName;
 use crate::config::anttp_config::AntTpConfig;
 use crate::client::CachingClient;
 use crate::model::archive::Archive;
+use crate::service::access_checker::AccessChecker;
 
 pub struct ResolvedAddress {
     pub is_found: bool,
@@ -16,23 +19,24 @@ pub struct ResolvedAddress {
     pub file_path: String,
     pub is_resolved_from_mutable: bool,
     pub is_modified: bool,
+    pub is_allowed: bool,
 }
 
 impl ResolvedAddress {
-    pub fn new(is_found: bool, archive: Option<Archive>, xor_name: XorName, file_path: String, is_resolved_from_mutable: bool, is_modified: bool) -> Self {
-        ResolvedAddress { is_found, archive, xor_name, file_path, is_resolved_from_mutable, is_modified }
+    pub fn new(is_found: bool, archive: Option<Archive>, xor_name: XorName, file_path: String, is_resolved_from_mutable: bool, is_modified: bool, is_allowed: bool) -> Self {
+        ResolvedAddress { is_found, archive, xor_name, file_path, is_resolved_from_mutable, is_modified, is_allowed }
     }
 }
 
-#[derive(Clone)]
 pub struct ResolverService {
     ant_tp_config: AntTpConfig,
-    caching_client: CachingClient
+    caching_client: CachingClient,
+    access_checker: Data<Mutex<AccessChecker>>,
 }
 
 impl ResolverService {
-    pub fn new(ant_tp_config: AntTpConfig, caching_client: CachingClient) -> ResolverService {
-        ResolverService { ant_tp_config, caching_client }
+    pub fn new(ant_tp_config: AntTpConfig, caching_client: CachingClient, access_checker: Data<Mutex<AccessChecker>>) -> ResolverService {
+        ResolverService { ant_tp_config, caching_client, access_checker }
     }
 
     pub async fn resolve(&self,
@@ -78,30 +82,38 @@ impl ResolverService {
             let archive_address = ArchiveAddress::from_hex(archive_directory).unwrap();
             let archive_directory_xor_name = archive_address.xorname().clone();
             let is_modified = self.is_modified(headers, &archive_directory);
+            let is_allowed = self.is_allowed(archive_directory).await;
 
-            if !is_modified {
-                Some(ResolvedAddress::new(true, None, archive_directory_xor_name, archive_file_path.clone(), is_resolved_from_mutable, false))
+
+            if !is_modified || !is_allowed {
+                Some(ResolvedAddress::new(true, None, archive_directory_xor_name, archive_file_path.clone(), is_resolved_from_mutable, is_modified, is_allowed))
             } else {
                 match self.caching_client.archive_get(archive_address).await {
                     Ok(archive) => {
                         debug!("Found archive at [{:x}]", archive_directory_xor_name);
-                        Some(ResolvedAddress::new(true, Some(archive), archive_directory_xor_name, archive_file_path.clone(), is_resolved_from_mutable, true))
+                        Some(ResolvedAddress::new(true, Some(archive), archive_directory_xor_name, archive_file_path.clone(), is_resolved_from_mutable, is_modified, is_allowed))
                     }
                     Err(_) => {
                         info!("Found XOR address at [{:x}]", archive_directory_xor_name);
-                        Some(ResolvedAddress::new(true, None, archive_directory_xor_name, archive_file_path.clone(), is_resolved_from_mutable, true))
+                        Some(ResolvedAddress::new(true, None, archive_directory_xor_name, archive_file_path.clone(), is_resolved_from_mutable, is_modified, is_allowed))
                     }
                 }
             }
         } else if self.is_immutable_address(&archive_file_name) {
             let archive_file_name_xor_name = ChunkAddress::from_hex(archive_file_name).unwrap().xorname().clone();
             let is_modified = self.is_modified(headers, &archive_file_name);
+            let is_allowed = self.is_allowed(archive_file_name).await;
             info!("Found XOR address at [{:x}]", archive_file_name_xor_name);
-            Some(ResolvedAddress::new(true, None, archive_file_name_xor_name, archive_file_path.clone(), is_resolved_from_mutable, is_modified))
+            Some(ResolvedAddress::new(true, None, archive_file_name_xor_name, archive_file_path.clone(), is_resolved_from_mutable, is_modified, is_allowed))
         } else {
-            warn!("Failed to find archive or filename [{:?}]", archive_file_name);
+            debug!("Failed to find archive or filename [{:?}]", archive_file_name);
             None
         }
+    }
+
+    async fn is_allowed(&self, address: &String) -> bool {
+        let access_checker = self.access_checker.lock().await;
+        access_checker.is_allowed(address)
     }
 
     async fn analyze_simple(&self, address: &String) -> Option<DataAddress> {
@@ -161,20 +173,16 @@ impl ResolverService {
     }
 
     fn get_path_parts(&self, hostname: &str, path: &str) -> Vec<String> {
-        // assert: subdomain.autonomi as acceptable format
-        if hostname.ends_with(".autonomi") {
-            let mut subdomain_parts = hostname.split(".")
-                .map(str::to_string)
-                .collect::<Vec<String>>();
-            subdomain_parts.pop(); // discard 'autonomi' suffix
-            let path_parts = path.split("/")
-                .map(str::to_string)
-                .collect::<Vec<String>>();
-            subdomain_parts.append(&mut path_parts.clone());
-            subdomain_parts
-        } else if self.is_valid_hostname(&hostname.to_string()) {
+        // assert: <address>.any.domain.name as acceptable format
+        let hostname_parts = hostname.split(".").map(|s| s.to_string()).collect::<Vec<String>>();
+        let address = if hostname_parts.len() > 1 {
+            hostname_parts[0].clone()
+        } else {
+            hostname.to_string()
+        };
+        if self.is_valid_address(&address) {
             let mut subdomain_parts = Vec::new();
-            subdomain_parts.push(hostname.to_string());
+            subdomain_parts.push(address);
             let path_parts = path.split("/")
                 .map(str::to_string)
                 .collect::<Vec<String>>();
@@ -187,9 +195,8 @@ impl ResolverService {
         }
     }
 
-    fn is_valid_hostname(&self, hostname: &str) -> bool {
-        let hostname_string = &hostname.to_string();
-        self.is_immutable_address(hostname_string) || self.is_mutable_address(hostname_string) || self.is_bookmark(hostname_string)
+    fn is_valid_address(&self, address: &String) -> bool {
+        self.is_immutable_address(address) || self.is_mutable_address(address) || self.is_bookmark(address)
     }
 
     // todo: improve and test to see if reliable performance gains can be achieved

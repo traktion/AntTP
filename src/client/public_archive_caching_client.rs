@@ -4,7 +4,7 @@ use autonomi::data::DataAddress;
 use autonomi::files::archive_public::ArchiveAddress;
 use autonomi::files::PublicArchive;
 use bytes::Bytes;
-use log::{info, warn};
+use log::info;
 use crate::error::CreateError;
 use crate::controller::CacheType;
 use crate::error::public_archive_error::PublicArchiveError;
@@ -48,7 +48,6 @@ impl CachingClient {
                             }
                         },
                         Err(e) => {
-                            warn!("Failed to retrieve public archive for [{}] from network {:?}", local_address.to_hex(), e);
                             Err(foyer::Error::other(format!("Failed to retrieve public archive for [{}] from network: {:?}", local_address.to_hex(), e)))
                         }
                     }

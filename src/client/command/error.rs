@@ -5,6 +5,7 @@ use autonomi::pointer::PointerError;
 use autonomi::register::RegisterError;
 use autonomi::scratchpad::ScratchpadError;
 use thiserror::Error;
+use crate::error::chunk_error::ChunkError;
 
 #[derive(Error, Debug)]
 pub enum CommandError {
@@ -17,6 +18,12 @@ pub enum CommandError {
 impl From<ConnectError> for CommandError {
     fn from(value: ConnectError) -> Self {
         Self::Recoverable(value.to_string())
+    }
+}
+
+impl From<ChunkError> for CommandError {
+    fn from(value: ChunkError) -> Self {
+        Self::Unrecoverable(value.to_string())
     }
 }
 

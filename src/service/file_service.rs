@@ -2,14 +2,15 @@ use std::path::Path;
 use actix_http::header;
 use actix_web::HttpRequest;
 use autonomi::ChunkAddress;
+use bytes::{BufMut, BytesMut};
 use chunk_streamer::chunk_receiver::ChunkReceiver;
 use chunk_streamer::chunk_streamer::ChunkStreamer;
+use futures_util::StreamExt;
 use log::{debug, info};
 use xor_name::XorName;
 use crate::client::CachingClient;
-use crate::error::GetStreamError;
+use crate::error::{GetError, GetStreamError};
 use crate::error::chunk_error::ChunkError;
-use crate::config::anttp_config::AntTpConfig;
 use crate::service::resolver_service::ResolvedAddress;
 
 pub struct RangeProps {
@@ -53,12 +54,12 @@ pub struct Range {
 
 pub struct FileService {
     caching_client: CachingClient,
-    ant_tp_config: AntTpConfig,
+    download_threads: usize,
 }
 
 impl FileService {
-    pub fn new(caching_client: CachingClient, ant_tp_config: AntTpConfig) -> Self {
-        FileService { caching_client, ant_tp_config }
+    pub fn new(caching_client: CachingClient, download_threads: usize) -> Self {
+        FileService { caching_client, download_threads }
     }
 
     pub async fn get_data(&self, request: &HttpRequest, resolved_address: &ResolvedAddress) -> Result<(ChunkReceiver, RangeProps), ChunkError> {
@@ -75,17 +76,17 @@ impl FileService {
     ) -> Result<(ChunkReceiver, RangeProps), ChunkError> {
         let data_map_chunk = self.caching_client.chunk_get_internal(&ChunkAddress::new(xor_name)).await?;
 
-        let chunk_streamer = ChunkStreamer::new(xor_name.to_string(), data_map_chunk.value, self.caching_client.clone(), self.ant_tp_config.download_threads);
+        let chunk_streamer = ChunkStreamer::new(xor_name.to_string(), data_map_chunk.value, self.caching_client.clone(), self.download_threads);
         let content_length = self.get_content_length(&chunk_streamer, size_modifier).await;
 
         let (range_from, range_to, range_length, is_range_request) = self.get_range(Some(&request), offset_modifier, content_length);
         if is_range_request && range_length == 0 {
-            return Err(ChunkError::GetStreamError(GetStreamError::BadRange(format!("bad range length: [{}]", range_length))));
+            return Err(GetStreamError::BadRange(format!("bad range length: [{}]", range_length)).into());
         }
 
         let chunk_receiver = match chunk_streamer.open(range_from, range_to).await {
             Ok(chunk_receiver) => chunk_receiver,
-            Err(e) => return Err(ChunkError::GetStreamError(GetStreamError::BadReceiver(format!("failed to open chunk stream: {}", e)))),
+            Err(e) => return Err(GetStreamError::BadReceiver(format!("failed to open chunk stream: {}", e)).into()),
         };
 
         let extension = Path::new(&path_str).extension().unwrap_or_default().to_str().unwrap_or_default().to_string();
@@ -137,22 +138,45 @@ impl FileService {
             (None, None)
         }
     }
+    
+    pub async fn download_data_bytes(&self, xor_name: XorName, range_from: u64, size_modifier: u64) -> Result<BytesMut, ChunkError> {
+        match self.download_data(xor_name, range_from, size_modifier).await {
+            Ok(mut chunk_receiver) => {
+                // todo: optimise buffer sizes
+                let mut buf = BytesMut::new();
+                let mut has_data = true;
+                while has_data {
+                    match chunk_receiver.next().await {
+                        Some(item) => match item {
+                            Ok(bytes) => buf.put(bytes),
+                            Err(e) => {
+                                return Err(ChunkError::GetError(GetError::RecordNotFound(e.to_string())));
+                            },
+                        },
+                        None => has_data = false
+                    };
+                }
+                Ok(buf)
+            }
+            Err(e) => Err(e)
+        }
+    }
 
     // todo: refactor/merge with download_data_request above
-    pub async fn download_data(&self, xor_name: XorName, range_from: u64, size_modifier: u64) -> Result<ChunkReceiver, ChunkError> {
+    async fn download_data(&self, xor_name: XorName, range_from: u64, size_modifier: u64) -> Result<ChunkReceiver, ChunkError> {
         debug!("download data xor_name: [{}], offset: [{}], size: [{}]", xor_name.clone(), range_from, size_modifier);
         let data_map_chunk = match self.caching_client.chunk_get_internal(&ChunkAddress::new(xor_name)).await {
             Ok(chunk) => chunk,
             Err(e) => return Err(e),
         };
 
-        let chunk_streamer = ChunkStreamer::new(xor_name.to_string(), data_map_chunk.value, self.caching_client.clone(), self.ant_tp_config.download_threads);
+        let chunk_streamer = ChunkStreamer::new(xor_name.to_string(), data_map_chunk.value, self.caching_client.clone(), self.download_threads);
         let content_length = self.get_content_length(&chunk_streamer, size_modifier).await;
         let (range_from, range_to, _, _) = self.get_range(None, range_from, content_length);
 
         match chunk_streamer.open(range_from, range_to).await {
             Ok(chunk_receiver) => Ok(chunk_receiver),
-            Err(e) => Err(ChunkError::GetStreamError(GetStreamError::BadReceiver(format!("failed to open chunk stream: {}", e)))),
+            Err(e) => Err(GetStreamError::BadReceiver(format!("failed to open chunk stream: {}", e)).into()),
         }
     }
 }

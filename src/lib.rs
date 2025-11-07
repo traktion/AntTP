@@ -27,7 +27,9 @@ use utoipa_swagger_ui::SwaggerUi;
 use crate::client::CachingClient;
 use crate::client::client_harness::ClientHarness;
 use client::command::executor::Executor;
+use crate::client::command::access_list::update_access_list_command::UpdateAccessListCommand;
 use crate::client::command::command_details::CommandDetails;
+use crate::service::access_checker::AccessChecker;
 
 static SERVER_HANDLE: Lazy<Mutex<Option<ServerHandle>>> = Lazy::new(|| Mutex::new(None));
 
@@ -88,11 +90,16 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> std::io::Result<()> {
 
     let command_status = Data::new(Mutex::new(IndexMap::<u128, CommandDetails>::with_capacity(ant_tp_config.command_buffer_size * 2)));
     let command_executor = Executor::start(ant_tp_config.command_buffer_size, command_status.clone()).await;
-    let command_executor_data = Data::new(command_executor);
-    
-    let caching_client_data = Data::new(
-        CachingClient::new(client_harness_data, ant_tp_config.clone(), hybrid_cache_data.clone(), command_executor_data.clone())
+    let command_executor_data = Data::new(command_executor.clone());
+
+    let caching_client = CachingClient::new(client_harness_data, ant_tp_config.clone(), hybrid_cache_data.clone(), command_executor_data.clone());
+    let caching_client_data = Data::new(caching_client.clone());
+
+    let access_checker_data = Data::new(Mutex::new(AccessChecker::new()));
+    let update_access_list_command = Box::new(
+        UpdateAccessListCommand::new(Data::new(Mutex::new(caching_client.clone())), ant_tp_config.clone(), access_checker_data.clone())
     );
+    command_executor.send(update_access_list_command).await.expect("failed to send UpdateAccessListCommand");
 
     // schedule idle disconnects for client_harness
     Runner::new().add(Box::new(caching_client_data.get_ref().clone())).run().await;
@@ -163,6 +170,7 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> std::io::Result<()> {
             .app_data(Data::new(evm_wallet.clone()))
             .app_data(hybrid_cache_data.clone())
             .app_data(command_status.clone())
+            .app_data(access_checker_data.clone())
             .app_data(web::PayloadConfig::new(1024 * 1024 * 10));
 
         if !ant_tp_config.uploads_disabled {
@@ -234,8 +242,8 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> std::io::Result<()> {
             app
         }
     })
-    .bind(listen_address)?
-    .run();
+        .bind(listen_address)?
+        .run();
 
     {
         let mut guard = SERVER_HANDLE.lock().await;

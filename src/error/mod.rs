@@ -125,6 +125,8 @@ pub enum GetError {
     Command(String),
     #[error("decode error: {0}")]
     Decode(String),
+    #[error("access not allowed: {0}")]
+    AccessNotAllowed(String),
     #[error("network is offline: {0}")]
     NetworkOffline(String),
 }
@@ -140,6 +142,7 @@ impl error::ResponseError for GetError {
             GetError::Decryption(_) => StatusCode::BAD_REQUEST,
             GetError::Command(_) => StatusCode::BAD_GATEWAY,
             GetError::Decode(_) => StatusCode::BAD_REQUEST,
+            GetError::AccessNotAllowed(_) => StatusCode::FORBIDDEN,
             GetError::NetworkOffline(_) => StatusCode::BAD_GATEWAY,
         }
     }

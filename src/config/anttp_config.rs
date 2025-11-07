@@ -64,6 +64,9 @@ pub struct AntTpConfig {
 
     #[arg(long, default_value_t = 128)]
     pub command_buffer_size: usize,
+
+    #[arg(long, default_value = "")]
+    pub access_list_address: String,
 }
 
 impl AntTpConfig {
@@ -89,6 +92,7 @@ impl AntTpConfig {
         info!("Immutable memory cache size (slots): {:?}", ant_tp_config.immutable_memory_cache_size);
         info!("Idle disconnect from Autonomi (seconds): {:?}", ant_tp_config.idle_disconnect);
         info!("Command buffer size (slots): {:?}", ant_tp_config.command_buffer_size);
+        info!("Access list archive: {:?}", ant_tp_config.access_list_address);
         ant_tp_config.update_bookmarks_map()
     }
 

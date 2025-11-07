@@ -10,14 +10,12 @@ use autonomi::Wallet;
 use autonomi::client::payment::PaymentOption;
 use autonomi::files::{Metadata, PublicArchive};
 use autonomi::files::archive_public::ArchiveAddress;
-use bytes::{BufMut, BytesMut};
 use chunk_streamer::chunk_receiver::ChunkReceiver;
-use log::{debug, error, info, warn};
+use log::{debug, info, warn};
 use crate::service::archive_helper::{ArchiveHelper, ArchiveInfo};
 use crate::client::CachingClient;
 use crate::service::file_service::{FileService, RangeProps};
 use crate::service::resolver_service::ResolvedAddress;
-use futures_util::StreamExt as _;
 use sanitize_filename::sanitize;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
@@ -86,23 +84,8 @@ impl PublicArchiveService {
         match archive.find_file(&path_str.to_string()) {
             Some(data_address_offset) => {
                 info!("Downloading app-config [{}] with addr [{}] from archive [{}]", path_str, format!("{:x}", data_address_offset.data_address.xorname()), format!("{:x}", archive_address_xorname));
-                match self.file_client.download_data(*data_address_offset.data_address.xorname(), data_address_offset.offset, data_address_offset.size).await {
-                    Ok(mut chunk_receiver) => {
-                        // todo: optimise buffer sizes
-                        let mut buf = BytesMut::new();
-                        let mut has_data = true;
-                        while has_data {
-                            match chunk_receiver.next().await {
-                                Some(item) => match item {
-                                    Ok(bytes) => buf.put(bytes),
-                                    Err(e) => {
-                                        error!("Error streaming app-config from archive: {}", e);
-                                        has_data = false
-                                    },
-                                },
-                                None => has_data = false
-                            };
-                        }
+                match self.file_client.download_data_bytes(*data_address_offset.data_address.xorname(), data_address_offset.offset, data_address_offset.size).await {
+                    Ok(buf) => {
                         let json = String::from_utf8(buf.to_vec()).unwrap_or(String::new());
                         debug!("json [{}]", json);
                         serde_json::from_str(&json.as_str().trim()).unwrap_or(AppConfig::default())

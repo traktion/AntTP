@@ -1,6 +1,6 @@
 [package]
 name = "anttp"
-version = "0.18.0"
+version = "0.18.1"
 edition = "2024"
 authors = ["Paul Green"]
 description = "AntTP is an HTTP server for the Autonomi Network"
@@ -16,7 +16,7 @@ exclude = [".github", ".gitignore", "cache/", "target/", "test/"]
 [dependencies]
 actix-files = "0.6"
 actix-http = { version = "3.11", default-features = false, features = ["http2", "compress-gzip"] }
-actix-web = { version = "4.11", default-features = false, features = ["cookies", "macros", "secure-cookies", "compress-brotli", "compress-gzip"] }
+actix-web = { version = "4.11", default-features = false, features = ["cookies", "macros", "secure-cookies", "compress-brotli", "compress-gzip", "rustls-0_23"] }
 actix-multipart = "0.7"
 async_job = "0.1.4"
 log = "0.4"
@@ -48,3 +48,8 @@ sha2 = "0.10"
 indexmap = "2.11"
 rand = "0.9"
 thiserror = "2.0"
+async-stream = "0.3.6"
+rustls = { version = "0.23.35", default-features = false }
+rustls-pemfile = "2.2.0"
+rcgen = "0.14.5"
+futures-core = "0.3.31"

@@ -5,7 +5,7 @@ pub mod service;
 pub mod model;
 pub mod error;
 
-use crate::controller::{chunk_controller, command_controller, file_controller, graph_controller, pointer_controller, private_scratchpad_controller, public_archive_controller, public_data_controller, public_scratchpad_controller, register_controller};
+use crate::controller::{chunk_controller, command_controller, connect_controller, file_controller, graph_controller, pointer_controller, private_scratchpad_controller, public_archive_controller, public_data_controller, public_scratchpad_controller, register_controller};
 use actix_files::Files;
 use actix_web::dev::ServerHandle;
 use actix_web::web::Data;
@@ -16,8 +16,9 @@ use autonomi::Network;
 use config::anttp_config::AntTpConfig;
 use log::info;
 use once_cell::sync::Lazy;
-use std::env;
+use std::{env, io};
 use std::path::Path;
+use actix_web::http::Method;
 use async_job::Runner;
 use foyer::{BlockEngineBuilder, Compression, DeviceBuilder, FsDeviceBuilder, HybridCache, HybridCacheBuilder, HybridCachePolicy, IoEngineBuilder, LfuConfig, PsyncIoEngineBuilder, RecoverMode, RuntimeOptions, TokioRuntimeOptions};
 use indexmap::IndexMap;
@@ -67,6 +68,7 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> std::io::Result<()> {
     struct ApiDoc;
 
     let listen_address = ant_tp_config.listen_address.clone();
+    let https_listen_address = ant_tp_config.https_listen_address.clone();
     let wallet_private_key = ant_tp_config.wallet_private_key.clone();
 
     // initialise safe network connection
@@ -116,6 +118,10 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> std::io::Result<()> {
             .service(
                 SwaggerUi::new("/swagger-ui/{_:.*}")
                     .url("/api-docs/openapi.json", ApiDoc::openapi()),
+            )
+            .route(
+                "",
+                web::method(Method::CONNECT).to(connect_controller::forward)
             )
             .route(
                 format!("{}chunk/{{address}}", API_BASE).as_str(),
@@ -230,7 +236,7 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> std::io::Result<()> {
                 .route(
                     format!("{}binary/public_data", API_BASE).as_str(),
                     web::post().to(public_data_controller::post_public_data)
-                );
+                )
         };
 
         if ant_tp_config.static_file_directory != "" {
@@ -243,6 +249,7 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> std::io::Result<()> {
         }
     })
         .bind(listen_address)?
+        .bind_rustls_0_23(https_listen_address, rustls_config())?
         .run();
 
     {
@@ -311,4 +318,38 @@ pub async fn stop_server() -> Result<(), String> {
     } else {
         Err("Server handle not found or already stopped".to_string())
     }
+}
+
+fn rustls_config() -> rustls::ServerConfig {
+    let rcgen::CertifiedKey { cert, signing_key } =
+        rcgen::generate_simple_self_signed(["*".to_owned()]).unwrap();
+    let cert_file = cert.pem();
+    let key_file = signing_key.serialize_pem();
+
+    let cert_file = &mut io::BufReader::new(cert_file.as_bytes());
+    let key_file = &mut io::BufReader::new(key_file.as_bytes());
+
+    let cert_chain = rustls_pemfile::certs(cert_file)
+        .collect::<Result<Vec<_>, _>>()
+        .unwrap();
+    let mut keys = rustls_pemfile::pkcs8_private_keys(key_file)
+        .collect::<Result<Vec<_>, _>>()
+        .unwrap();
+
+
+    let mut config = rustls::ServerConfig::builder()
+        .with_no_client_auth()
+        .with_single_cert(
+            cert_chain,
+            rustls::pki_types::PrivateKeyDer::Pkcs8(keys.remove(0)),
+        )
+        .unwrap();
+
+    const H1_ALPN: &[u8] = b"http/1.1";
+    const H2_ALPN: &[u8] = b"h2";
+
+    config.alpn_protocols.push(H2_ALPN.to_vec());
+    config.alpn_protocols.push(H1_ALPN.to_vec());
+
+    config
 }

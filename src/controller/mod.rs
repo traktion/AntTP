@@ -9,6 +9,7 @@ pub mod chunk_controller;
 pub mod graph_controller;
 pub mod public_data_controller;
 pub mod command_controller;
+pub mod connect_controller;
 
 #[derive(Clone,Debug)]
 pub enum CacheType {

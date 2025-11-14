@@ -55,7 +55,7 @@ impl PointerService {
     }
 
     pub async fn update_pointer(&self, address: String, pointer: Pointer, cache_only: Option<CacheType>) -> Result<Pointer, PointerError> {
-        let resolved_address = self.resolver_service.resolve_bookmark(&address).unwrap_or(address);
+        let resolved_address = self.resolver_service.resolve_bookmark(&address).await.unwrap_or(address);
         let app_secret_key = self.ant_tp_config.get_app_private_key()?;
         let pointer_key = Client::register_key_from_name(&app_secret_key, pointer.name.clone().unwrap().as_str());
         if resolved_address.clone() != pointer_key.public_key().to_hex() {
@@ -72,7 +72,7 @@ impl PointerService {
     }
 
     pub async fn get_pointer(&self, address: String) -> Result<Pointer, PointerError> {
-        let resolved_address = self.resolver_service.resolve_bookmark(&address).unwrap_or(address);
+        let resolved_address = self.resolver_service.resolve_bookmark(&address).await.unwrap_or(address);
 
         info!("Get pointer with resolved_address [{}]", resolved_address);
         match PointerAddress::from_hex(resolved_address.as_str()) {

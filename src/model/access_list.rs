@@ -15,12 +15,4 @@ impl AccessList {
     pub fn deny(&self) -> &Vec<String> {
         &self.deny
     }
-
-    pub fn set_allow(&mut self, allow: Vec<String>) {
-        self.allow = allow;
-    }
-
-    pub fn set_deny(&mut self, deny: Vec<String>) {
-        self.deny = deny;
-    }
 }

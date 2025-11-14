@@ -1,0 +1,1 @@
+pub mod update_bookmark_resolver_command;

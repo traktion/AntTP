@@ -53,7 +53,7 @@ impl RegisterService {
     pub async fn update_register(&self, address: String, register: Register, evm_wallet: Wallet, cache_only: Option<CacheType>) -> Result<Register, RegisterError> {
         let app_secret_key = self.ant_tp_config.get_app_private_key()?;
         let register_key = Client::register_key_from_name(&app_secret_key, register.name.clone().unwrap().as_str());
-        let resolved_address = self.resolver_service.resolve_bookmark(&address).unwrap_or(address);
+        let resolved_address = self.resolver_service.resolve_bookmark(&address).await.unwrap_or(address);
         if resolved_address.clone() != register_key.public_key().to_hex() {
             warn!("Address [{}] is not derived from name [{}].", resolved_address.clone(), register.name.clone().unwrap());
             return Err(UpdateError::NotDerivedAddress(
@@ -70,7 +70,7 @@ impl RegisterService {
     }
 
     pub async fn get_register(&self, address: String) -> Result<Register, RegisterError> {
-        let resolved_address = self.resolver_service.resolve_bookmark(&address).unwrap_or(address);
+        let resolved_address = self.resolver_service.resolve_bookmark(&address).await.unwrap_or(address);
         match RegisterAddress::from_hex(resolved_address.as_str()) {
             Ok(register_address) => match self.caching_client.register_get(&register_address).await {
                 Ok(content) => {
@@ -87,7 +87,7 @@ impl RegisterService {
     }
 
     pub async fn get_register_history(&self, address: String) -> Result<Vec<Register>, RegisterError> {
-        let resolved_address = self.resolver_service.resolve_bookmark(&address).unwrap_or(address);
+        let resolved_address = self.resolver_service.resolve_bookmark(&address).await.unwrap_or(address);
         let register_address = RegisterAddress::from_hex(resolved_address.as_str()).unwrap();
         match self.caching_client.register_history(&register_address).await?.collect().await {
             Ok(content_vec) => {

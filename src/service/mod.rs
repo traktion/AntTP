@@ -11,3 +11,4 @@ pub mod public_data_service;
 pub mod command_service;
 pub mod header_builder;
 pub mod access_checker;
+pub mod bookmark_resolver;

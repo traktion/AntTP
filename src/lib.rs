@@ -22,15 +22,19 @@ use actix_web::http::Method;
 use async_job::Runner;
 use foyer::{BlockEngineBuilder, Compression, DeviceBuilder, FsDeviceBuilder, HybridCache, HybridCacheBuilder, HybridCachePolicy, IoEngineBuilder, LfuConfig, PsyncIoEngineBuilder, RecoverMode, RuntimeOptions, TokioRuntimeOptions};
 use indexmap::IndexMap;
+use tokio::sync::mpsc::Sender;
 use tokio::sync::Mutex;
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
 use crate::client::CachingClient;
 use crate::client::client_harness::ClientHarness;
 use client::command::executor::Executor;
-use crate::client::command::access_list::update_access_list_command::UpdateAccessListCommand;
+use crate::client::command::access_checker::update_access_checker_command::UpdateAccessCheckerCommand;
+use crate::client::command::bookmark_resolver::update_bookmark_resolver_command::UpdateBookmarkResolverCommand;
+use crate::client::command::Command;
 use crate::client::command::command_details::CommandDetails;
 use crate::service::access_checker::AccessChecker;
+use crate::service::bookmark_resolver::BookmarkResolver;
 
 static SERVER_HANDLE: Lazy<Mutex<Option<ServerHandle>>> = Lazy::new(|| Mutex::new(None));
 
@@ -97,11 +101,10 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> std::io::Result<()> {
     let caching_client = CachingClient::new(client_harness_data, ant_tp_config.clone(), hybrid_cache_data.clone(), command_executor_data.clone());
     let caching_client_data = Data::new(caching_client.clone());
 
-    let access_checker_data = Data::new(Mutex::new(AccessChecker::new()));
-    let update_access_list_command = Box::new(
-        UpdateAccessListCommand::new(Data::new(Mutex::new(caching_client.clone())), ant_tp_config.clone(), access_checker_data.clone())
-    );
-    command_executor.send(update_access_list_command).await.expect("failed to send UpdateAccessListCommand");
+    let bookmark_resolver_data = hydrate_bookmark_resolver(
+        &ant_tp_config, &command_executor, &caching_client).await;
+    let access_checker_data = hydrate_access_checker(
+        &ant_tp_config, &command_executor, &caching_client, &bookmark_resolver_data).await;
 
     // schedule idle disconnects for client_harness
     Runner::new().add(Box::new(caching_client_data.get_ref().clone())).run().await;
@@ -177,6 +180,7 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> std::io::Result<()> {
             .app_data(hybrid_cache_data.clone())
             .app_data(command_status.clone())
             .app_data(access_checker_data.clone())
+            .app_data(bookmark_resolver_data.clone())
             .app_data(web::PayloadConfig::new(1024 * 1024 * 10));
 
         if !ant_tp_config.uploads_disabled {
@@ -258,6 +262,32 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> std::io::Result<()> {
     }
 
     server_instance.await
+}
+
+async fn hydrate_access_checker(ant_tp_config: &AntTpConfig,
+                                command_executor: &Sender<Box<dyn Command>>,
+                                caching_client: &CachingClient,
+                                bookmark_resolver_data: &Data<Mutex<BookmarkResolver>>
+) -> Data<Mutex<AccessChecker>> {
+    let access_checker_data = Data::new(Mutex::new(AccessChecker::new()));
+    let update_access_checker_command = Box::new(
+        UpdateAccessCheckerCommand::new(Data::new(Mutex::new(caching_client.clone())), ant_tp_config.clone(), access_checker_data.clone(), bookmark_resolver_data.clone())
+    );
+    command_executor.send(update_access_checker_command).await.expect("failed to send UpdateAccessCheckerCommand");
+    access_checker_data
+}
+
+async fn hydrate_bookmark_resolver(ant_tp_config: &AntTpConfig,
+                                   command_executor: &Sender<Box<dyn Command>>,
+                                   caching_client: &CachingClient
+) -> Data<Mutex<BookmarkResolver>> {
+    let access_checker_data = Data::new(Mutex::new(AccessChecker::new()));
+    let bookmark_resolver_data = Data::new(Mutex::new(BookmarkResolver::new()));
+    let update_bookmark_resolver_command = Box::new(
+        UpdateBookmarkResolverCommand::new(Data::new(Mutex::new(caching_client.clone())), ant_tp_config.clone(), access_checker_data.clone(), bookmark_resolver_data.clone())
+    );
+    command_executor.send(update_bookmark_resolver_command).await.expect("failed to send UpdateBookmarkResolverCommand");
+    bookmark_resolver_data
 }
 
 async fn build_foyer_cache(app_config: &AntTpConfig) -> HybridCache<String, Vec<u8>> {

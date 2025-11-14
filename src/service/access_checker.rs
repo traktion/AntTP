@@ -1,6 +1,6 @@
-use crate::config::access_list::AccessList;
+use crate::model::access_list::AccessList;
 use std::collections::HashMap;
-use log::info;
+use log::debug;
 
 #[derive(Debug)]
 enum AccessType {
@@ -17,6 +17,7 @@ impl AccessChecker {
         let map = HashMap::new();
         AccessChecker { map }
     }
+
     pub fn update(&mut self, access_list: &AccessList) {
         for allow_address in access_list.allow() {
             self.map.insert(allow_address.clone(), AccessType::Allow);
@@ -27,14 +28,18 @@ impl AccessChecker {
     }
 
     pub fn is_allowed(&self, address: &String) -> bool {
-        info!("map: {:?}, address: {}", self.map, address);
+        debug!("map: {:?}, address: {}", self.map, address);
         match self.map.get(address) {
             Some(AccessType::Allow) => true,
             Some(AccessType::Deny) => false,
-            None => match self.map.get(&"all".to_string()) {
-                Some(AccessType::Deny) => false, // default to deny
-                _ => true, // default to allow
-            }
+            None => self.is_allowed_default()
+        }
+    }
+
+    pub fn is_allowed_default(&self) -> bool {
+        match self.map.get(&"all".to_string()) {
+            Some(AccessType::Deny) => false, // default to deny
+            _ => true, // default to allow
         }
     }
 }

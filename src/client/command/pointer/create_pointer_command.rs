@@ -27,7 +27,7 @@ impl CreatePointerCommand {
     }
 }
 
-const STRUCT_NAME: &'static str = "CheckPointerCommand";
+const STRUCT_NAME: &'static str = "CreatePointerCommand";
 
 #[async_trait]
 impl Command for CreatePointerCommand {

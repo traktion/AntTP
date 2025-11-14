@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::env;
 use std::net::SocketAddr;
 use ant_evm::EvmNetwork::ArbitrumOne;
@@ -28,18 +27,8 @@ pub struct AntTpConfig {
     #[arg(short, long, default_value = "")]
     pub app_private_key: String,
 
-    #[arg(short, long, value_delimiter = ',', default_value =
-        "traktion-blog=8e16406561d0c460f3dbe37fef129582d6410ec7cb9d5aebdf9cbb051676624c543a315f7e857103cd71088a927c9085,\
-        imim=959c2ba5b84e1a68fedc14caaae96e97cfff19ff381127844586b2e0cdd2afdfb1687086a5668bced9f3dc35c03c9bd7,\
-        gimim=82fb48d691a65e771e2279ff56d8c5f7bc007fa386c9de95d64be52e081f01b1fdfb248095238b93db820836cc88c67a,\
-        index=b970cf40a1ba880ecc27d5495f543af387fcb014863d0286dd2b1518920df38ac311d854013de5d50b9b04b84a6da021,\
-        gindex=879d061580e6200a3f1dbfc5c87c13544fcd391dfec772033f1138a9469df35c98429ecd3acb4a9ab631ea7d5f6fae0f,\
-        cinema=953ff297c689723a59e20d6f80b67233b0c0fe17ff4cb37a2c8cfb46e276ce0e45d59c17e006e4990deaa634141e4c77"
-    )]
-    pub bookmarks_vec: Vec<String>,
-
-    #[clap(skip)]
-    pub bookmarks_map: HashMap<String, String>,
+    #[arg(short, long, default_value = "95484badd3a5a731ec020cc137a4b070efa66981700dc75cf47a715909516ac839482ce9a5cabd3a49019e253ff2f02f")]
+    pub bookmarks_address: String,
 
     #[arg(short, long, default_value_t = false)]
     pub uploads_disabled: bool,
@@ -86,7 +75,7 @@ impl AntTpConfig {
         } else {
             info!("App private key: [*****]");
         }
-        info!("Bookmarks: {:?}", ant_tp_config.bookmarks_vec);
+        info!("Bookmarks address: {:?}", ant_tp_config.bookmarks_address);
         info!("Cached mutable TTL: {:?}", ant_tp_config.cached_mutable_ttl);
         info!("Peers: {:?}", ant_tp_config.peers);
         info!("Map cache directory: {:?}", ant_tp_config.map_cache_directory);
@@ -96,7 +85,7 @@ impl AntTpConfig {
         info!("Idle disconnect from Autonomi (seconds): {:?}", ant_tp_config.idle_disconnect);
         info!("Command buffer size (slots): {:?}", ant_tp_config.command_buffer_size);
         info!("Access list archive: {:?}", ant_tp_config.access_list_address);
-        ant_tp_config.update_bookmarks_map()
+        ant_tp_config
     }
 
     pub fn get_default_map_cache_directory() -> String {
@@ -105,15 +94,6 @@ impl AntTpConfig {
 
     pub fn get_default_evm_network() -> String {
         ArbitrumOne.to_string()
-    }
-
-    pub fn update_bookmarks_map(mut self) -> Self {
-        self.bookmarks_map = self.bookmarks_vec.clone().iter()
-            .into_iter()
-            .map(|s| s.split_at(s.find("=").unwrap()))
-            .map(|(key, val)| (key.to_string(), val[1..].to_string()))
-            .collect();
-        self
     }
 
     pub fn get_app_private_key(&self) -> Result<SecretKey, CreateError> {

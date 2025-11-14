@@ -28,4 +28,5 @@ pub mod error;
 pub mod graph;
 pub mod scratchpad;
 pub mod command_details;
-pub mod access_list;
+pub mod access_checker;
+pub mod bookmark_resolver;

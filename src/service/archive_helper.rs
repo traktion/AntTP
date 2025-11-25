@@ -22,7 +22,7 @@ pub struct ArchiveInfo {
     pub limit: u64,
 }
 
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq, Debug)]
 pub enum ArchiveAction {
     Data, Listing, Redirect, NotFound
 }
@@ -185,5 +185,160 @@ impl ArchiveHelper {
 
     fn has_moved_permanently(&self, request_path: &str, resolved_relative_path_route: &String) -> bool {
         resolved_relative_path_route.is_empty() && request_path.to_string().chars().last() != Some('/')
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use actix_web::test::TestRequest;
+    use std::collections::HashMap;
+    use autonomi::data::DataAddress;
+    use crate::model::archive::DataAddressOffset;
+    use actix_http::header::HeaderName;
+
+    fn create_test_archive() -> Archive {
+        let mut map = HashMap::new();
+        let mut vec = Vec::new();
+
+        let file1 = DataAddressOffset {
+            data_address: DataAddress::from_hex("0000000000000000000000000000000000000000000000000000000000000000").unwrap(),
+            path: "index.html".to_string(),
+            offset: 0,
+            size: 100,
+            modified: 1,
+        };
+        map.insert("index.html".to_string(), file1.clone());
+        vec.push(file1);
+
+        let file2 = DataAddressOffset {
+            data_address: DataAddress::from_hex("0000000000000000000000000000000000000000000000000000000000000000").unwrap(),
+            path: "style.css".to_string(),
+            offset: 100,
+            size: 50,
+            modified: 2,
+        };
+        map.insert("style.css".to_string(), file2.clone());
+        vec.push(file2);
+
+        let file3 = DataAddressOffset {
+            data_address: DataAddress::from_hex("0000000000000000000000000000000000000000000000000000000000000000").unwrap(),
+            path: "sub/test.txt".to_string(),
+            offset: 150,
+            size: 20,
+            modified: 3,
+        };
+        map.insert("sub/test.txt".to_string(), file3.clone());
+        vec.push(file3);
+
+        Archive::new(map, vec)
+    }
+
+    fn create_resolved_address(file_path: &str) -> ResolvedAddress {
+        ResolvedAddress::new(
+            true,
+            None,
+            XorName::default(),
+            file_path.to_string(),
+            false,
+            false,
+            true
+        )
+    }
+
+    #[test]
+    fn test_list_files_html() {
+        let archive = create_test_archive();
+        let helper = ArchiveHelper::new(archive);
+        let header_map = HeaderMap::new();
+
+        let output = helper.list_files("".to_string(), &header_map);
+        assert!(output.contains("<html>"));
+        assert!(output.contains("index.html"));
+        assert!(output.contains("style.css"));
+        assert!(output.contains("sub/"));
+    }
+
+    #[test]
+    fn test_list_files_json() {
+        let archive = create_test_archive();
+        let helper = ArchiveHelper::new(archive);
+        let mut header_map = HeaderMap::new();
+        header_map.insert(HeaderName::from_static("accept"), "application/json".parse().unwrap());
+
+        let output = helper.list_files("".to_string(), &header_map);
+        assert!(output.contains("["));
+        assert!(output.contains("\"name\": \"index.html\""));
+        assert!(output.contains("\"name\": \"style.css\""));
+        assert!(output.contains("]"));
+    }
+
+    #[actix_web::test]
+    async fn test_resolve_file() {
+        let archive = create_test_archive();
+        let helper = ArchiveHelper::new(archive);
+        let req = TestRequest::with_uri("/index.html").to_http_request();
+        let resolved_addr = create_resolved_address("index.html");
+
+        let info = helper.resolve_archive_info(&resolved_addr, &req, &"index.html".to_string(), false).await;
+        
+        assert_eq!(info.action, ArchiveAction::Data);
+        assert_eq!(info.path_string, "index.html");
+        assert_eq!(info.size, 100);
+    }
+
+    #[actix_web::test]
+    async fn test_resolve_directory_redirect() {
+        let archive = create_test_archive();
+        let helper = ArchiveHelper::new(archive);
+        let req = TestRequest::with_uri("/sub").to_http_request();
+        let resolved_addr = create_resolved_address("sub");
+
+        let info = helper.resolve_archive_info(&resolved_addr, &req, &"sub".to_string(), false).await;
+        
+        assert_eq!(info.action, ArchiveAction::Redirect);
+        assert_eq!(info.path_string, "sub/");
+    }
+
+    #[actix_web::test]
+    async fn test_resolve_directory_index() {
+        let archive = create_test_archive();
+        let helper = ArchiveHelper::new(archive);
+        // "root" maps to empty string in file path logic usually, but here we simulate resolving to empty path (root)
+        let req = TestRequest::with_uri("/").to_http_request();
+        let resolved_addr = create_resolved_address("");
+
+        let info = helper.resolve_archive_info(&resolved_addr, &req, &"".to_string(), false).await;
+        
+        // Should resolve to index.html
+        assert_eq!(info.action, ArchiveAction::Data);
+        assert_eq!(info.path_string, ""); // The resolved route path passed in is empty
+        // But internally it found index.html data
+        assert_eq!(info.size, 100);
+    }
+
+    #[actix_web::test]
+    async fn test_resolve_directory_listing() {
+        let archive = create_test_archive();
+        let helper = ArchiveHelper::new(archive);
+        let req = TestRequest::with_uri("/sub/").to_http_request();
+        let resolved_addr = create_resolved_address("sub/");
+
+        let info = helper.resolve_archive_info(&resolved_addr, &req, &"".to_string(), false).await;
+        
+        assert_eq!(info.action, ArchiveAction::Listing);
+        assert_eq!(info.path_string, "sub/");
+    }
+
+    #[actix_web::test]
+    async fn test_resolve_not_found() {
+        let archive = create_test_archive();
+        let helper = ArchiveHelper::new(archive);
+        let req = TestRequest::with_uri("/missing.txt").to_http_request();
+        let resolved_addr = create_resolved_address("missing.txt");
+
+        let info = helper.resolve_archive_info(&resolved_addr, &req, &"missing.txt".to_string(), false).await;
+        
+        assert_eq!(info.action, ArchiveAction::NotFound);
     }
 }

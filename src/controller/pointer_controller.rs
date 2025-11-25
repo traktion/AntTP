@@ -49,8 +49,8 @@ pub async fn post_pointer(
     path = "/anttp-0/pointer/{address}",
     params(
         ("address", description = "Address of pointer"),
-        ("x-cache-only", Header, description = "Only persist to cache and do not publish (true|false)",
-        example = "true")
+        ("x-cache-only", Header, description = "Only persist to cache and do not publish (memory|disk|none)",
+        example = "memory"),
     ),
     request_body(
         content = Pointer

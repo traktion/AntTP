@@ -377,6 +377,7 @@ local per-user configuration data (e.g. arbitrary data that only the user needs 
   - [x] Enable directory listing in HTML (default)
   - [x] Enable directory listing with JSON (using `accept` header)
   - [x] Enable multiple file uploads as multipart form data
+  - [x] Enable defaulting to index.html when present
 - [x] Caching
   - [x] Cache immutable archive indexes to disk to reduce lookups to Autonomi
   - [x] Set response headers to encourage long term caching of XOR data
@@ -384,6 +385,7 @@ local per-user configuration data (e.g. arbitrary data that only the user needs 
 - [x] Proxy server
   - [x] Resolve hostnames to XOR addresses for files
   - [x] Resolve hostnames to XOR addresses for archives
+  - [x] HTTPS proxy support
 - [x] Streaming downloads
   - [x] Add streaming support for data requested with RANGE headers
   - [x] Add streaming support for all other data requested
@@ -445,6 +447,7 @@ local per-user configuration data (e.g. arbitrary data that only the user needs 
 - [ ] Accounting features
   - [ ] Bandwidth usage/tracking
   - [ ] Payments for data uploads (i.e. for public proxies)
+  - [x] Access list (allow/deny controls)
 - [ ] AntTP status page
   - [ ] Async command/upload queue (listing)
   - [ ] Async command/upload queue (CRUD)

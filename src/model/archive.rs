@@ -184,3 +184,86 @@ impl Archive {
         &self.data_address_offsets_vec
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use xor_name::XorName;
+
+    fn create_test_data_address() -> DataAddress {
+        DataAddress::new(XorName::default())
+    }
+
+    #[test]
+    fn test_sanitise_path() {
+        assert_eq!(Archive::sanitise_path("folder\\file.txt"), "folder/file.txt");
+        assert_eq!(Archive::sanitise_path("./file.txt"), "file.txt");
+        assert_eq!(Archive::sanitise_path("/file.txt"), "file.txt");
+        assert_eq!(Archive::sanitise_path("file.txt"), "file.txt");
+    }
+
+    #[test]
+    fn test_build_from_tar() {
+        let tar_content = "file1.txt 100 50\nfolder/file2.txt 200 60\n";
+        let data = Bytes::from(tar_content);
+        let addr = create_test_data_address();
+        
+        let archive = Archive::build_from_tar(&addr, data);
+        
+        assert_eq!(archive.map().len(), 2);
+        assert!(archive.find_file(&"file1.txt".to_string()).is_some());
+        assert!(archive.find_file(&"folder/file2.txt".to_string()).is_some());
+        
+        let file1 = archive.find_file(&"file1.txt".to_string()).unwrap();
+        assert_eq!(file1.offset, 100);
+        assert_eq!(file1.size, 50);
+    }
+
+    #[test]
+    fn test_find_file() {
+        let tar_content = "file1.txt 100 50\n";
+        let data = Bytes::from(tar_content);
+        let addr = create_test_data_address();
+        let archive = Archive::build_from_tar(&addr, data);
+
+        assert!(archive.find_file(&"file1.txt".to_string()).is_some());
+        assert!(archive.find_file(&"nonexistent.txt".to_string()).is_none());
+    }
+
+    #[test]
+    fn test_list_dir_root() {
+        let tar_content = "file1.txt 100 50\nfolder/file2.txt 200 60\n";
+        let data = Bytes::from(tar_content);
+        let addr = create_test_data_address();
+        let archive = Archive::build_from_tar(&addr, data);
+
+        let list = archive.list_dir("".to_string());
+        assert_eq!(list.len(), 2); // file1.txt and folder/
+        
+        let has_file1 = list.iter().any(|p| p.path == "file1.txt" && p.path_type == PathDetailType::FILE);
+        let has_folder = list.iter().any(|p| p.path == "folder/" && p.path_type == PathDetailType::DIRECTORY);
+        
+        assert!(has_file1);
+        assert!(has_folder);
+    }
+
+    #[test]
+    fn test_list_dir_sub() {
+        let tar_content = "folder/file2.txt 200 60\nfolder/sub/file3.txt 300 70\n";
+        let data = Bytes::from(tar_content);
+        let addr = create_test_data_address();
+        let archive = Archive::build_from_tar(&addr, data);
+
+        let list = archive.list_dir("folder".to_string());
+        // Should contain file2.txt, sub/, and ../
+        assert_eq!(list.len(), 3);
+        
+        let has_file2 = list.iter().any(|p| p.path == "file2.txt");
+        let has_sub = list.iter().any(|p| p.path == "sub/");
+        let has_parent = list.iter().any(|p| p.path == "../");
+
+        assert!(has_file2);
+        assert!(has_sub);
+        assert!(has_parent);
+    }
+}

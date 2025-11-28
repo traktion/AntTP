@@ -9,7 +9,7 @@ pub struct PathDetail {
     pub path_type: PathDetailType,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub enum PathDetailType {
     FILE, DIRECTORY
 }

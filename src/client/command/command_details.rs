@@ -4,7 +4,7 @@ use indexmap::IndexMap;
 use log::warn;
 use crate::client::command::Command;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum CommandState {
     WAITING, RUNNING, COMPLETED, ABORTED,
 }

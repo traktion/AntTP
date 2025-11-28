@@ -180,3 +180,97 @@ impl FileService {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use actix_web::test::TestRequest;
+    use crate::config::anttp_config::AntTpConfig;
+    use crate::client::CachingClient;
+    use crate::client::client_harness::ClientHarness;
+    use ant_evm::EvmNetwork;
+    use foyer::HybridCacheBuilder;
+    use crate::client::command::Command;
+    use tokio::sync::mpsc;
+    use actix_web::web::Data;
+    use tokio::sync::Mutex;
+    use clap::Parser;
+
+    async fn create_test_service() -> FileService {
+        let config = AntTpConfig::parse_from(vec!["anttp"]);
+        let evm_network = EvmNetwork::ArbitrumOne;
+        let client_harness = Data::new(Mutex::new(ClientHarness::new(evm_network, config.clone())));
+        let hybrid_cache = Data::new(HybridCacheBuilder::new().memory(10).storage().build().await.unwrap());
+        let (tx, _rx) = mpsc::channel::<Box<dyn Command>>(100);
+        let command_executor = Data::new(tx);
+        
+        let caching_client = CachingClient::new(client_harness, config, hybrid_cache, command_executor);
+
+        FileService::new(caching_client, 8)
+    }
+
+    #[test]
+    fn test_range_props() {
+        let props = RangeProps::new(Some(0), Some(100), 200, "txt".to_string());
+        assert!(props.is_range());
+        assert_eq!(props.range_from(), Some(0));
+        assert_eq!(props.range_to(), Some(100));
+        assert_eq!(props.content_length(), 200);
+        assert_eq!(props.extension(), "txt");
+
+        let props_no_range = RangeProps::new(None, None, 200, "txt".to_string());
+        assert!(!props_no_range.is_range());
+    }
+
+    #[actix_web::test]
+    async fn test_get_range_no_header() {
+        let service = create_test_service().await;
+        let (start, end, length, is_range) = service.get_range(None, 0, 100);
+        assert_eq!(start, 0);
+        assert_eq!(end, 99);
+        assert_eq!(length, 99); // 100 - 1
+        assert!(!is_range);
+    }
+
+    #[actix_web::test]
+    async fn test_get_range_with_header() {
+        let service = create_test_service().await;
+        let req = TestRequest::default().insert_header((header::RANGE, "bytes=10-50")).to_http_request();
+        
+        let (start, end, length, is_range) = service.get_range(Some(&req), 0, 100);
+        assert_eq!(start, 10);
+        assert_eq!(end, 50);
+        assert_eq!(length, 40);
+        assert!(is_range);
+    }
+
+    #[actix_web::test]
+    async fn test_get_range_with_header_open_end() {
+        let service = create_test_service().await;
+        let req = TestRequest::default().insert_header((header::RANGE, "bytes=10-")).to_http_request();
+        
+        let (start, end, length, is_range) = service.get_range(Some(&req), 0, 100);
+        assert_eq!(start, 10);
+        assert_eq!(end, 99);
+        assert_eq!(length, 89);
+        assert!(is_range);
+    }
+
+    #[actix_web::test]
+    async fn test_get_response_range() {
+        let service = create_test_service().await;
+        
+        let (start, end) = service.get_response_range(10, 50, true, 0);
+        assert_eq!(start, Some(10));
+        assert_eq!(end, Some(50));
+
+        let (start, end) = service.get_response_range(10, 50, false, 0);
+        assert_eq!(start, None);
+        assert_eq!(end, None);
+
+        // With offset modifier
+        let (start, end) = service.get_response_range(15, 55, true, 5);
+        assert_eq!(start, Some(10));
+        assert_eq!(end, Some(50));
+    }
+}

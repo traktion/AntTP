@@ -1069,9 +1069,9 @@ dependencies = [
 
 [[package]]
 name = "ant-bootstrap"
-version = "0.2.11"
+version = "0.2.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a2a74bcc6ad8991c1688264dc70fddc57603e9e12c20536e1422352daabba20c"
+checksum = "cbfaecaf75e497cbed73f3251917df879b8736cc3003709a181f3aa9c01a82ae"
 dependencies = [
  "ant-logging",
  "ant-protocol",
@@ -1127,9 +1127,9 @@ dependencies = [
 
 [[package]]
 name = "ant-logging"
-version = "0.2.52"
+version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9c2237f602d7cdffbf55afaa13c9149c739a36082e712c8bb78b6670f4d101e7"
+checksum = "2efdf98eb19e81959464b67c68e57a061124bbb743443bf3364616ab60c922c7"
 dependencies = [
  "chrono",
  "dirs-next",
@@ -1174,7 +1174,7 @@ dependencies = [
 
 [[package]]
 name = "anttp"
-version = "0.19.1"
+version = "0.19.2"
 dependencies = [
  "actix-files",
  "actix-http",
@@ -1570,9 +1570,9 @@ checksum = "c08606f8c3cbf4ce6ec8e28fb0014a2c086708fe954eaa885384a6165172e7e8"
 
 [[package]]
 name = "autonomi"
-version = "0.6.4"
+version = "0.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7d52bee36db86424606022c9fb2c1a4e55a65260bee42acef21984d1cd064202"
+checksum = "1fe6b70d883fd7729adc7d50e842bd786af075899b584e0c3de7030f0258c56f"
 dependencies = [
  "ant-bootstrap",
  "ant-evm",
@@ -1595,7 +1595,7 @@ dependencies = [
  "rayon",
  "rmp-serde",
  "self_encryption 0.30.0",
- "self_encryption 0.34.2",
+ "self_encryption 0.34.3",
  "serde",
  "sha2",
  "thiserror 1.0.69",
@@ -2027,9 +2027,9 @@ dependencies = [
 
 [[package]]
 name = "chunk-streamer"
-version = "0.4.8"
+version = "0.4.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "05d2d65556dde34d5be623440f03af7e83f8b58cf6c901c0480feb7c2bc8b227"
+checksum = "c791742f646129079c9d187d4904aced4daa9b781cd17f03e9ce33245e05dd42"
 dependencies = [
  "async-trait",
  "autonomi",
@@ -2038,7 +2038,7 @@ dependencies = [
  "futures-util",
  "log",
  "rmp-serde",
- "self_encryption 0.34.2",
+ "self_encryption 0.34.3",
  "tokio",
 ]
 
@@ -6435,9 +6435,9 @@ dependencies = [
 
 [[package]]
 name = "self_encryption"
-version = "0.34.2"
+version = "0.34.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2b64f0a0beeb7e5e98c76a53af19519f552c1b2fcd7c781c5b839063d34e6604"
+checksum = "45480c8fa045f158ab05f445ce7d0b6dfcb6e3028d91b78013271b48daa435b2"
 dependencies = [
  "aes",
  "bincode",

@@ -27,7 +27,7 @@ pub struct AntTpConfig {
     #[arg(short, long, default_value = "")]
     pub app_private_key: String,
 
-    #[arg(short, long, default_value = "95484badd3a5a731ec020cc137a4b070efa66981700dc75cf47a715909516ac839482ce9a5cabd3a49019e253ff2f02f")]
+    #[arg(short, long, default_value = "a40e045a6fbed33b27039aa8383c9dbf286e19a7265141c2da3085e0c8571527a73a699f9f96a80045391a23356ed0e3")]
     pub bookmarks_address: String,
 
     #[arg(short, long, default_value_t = false)]

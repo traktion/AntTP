@@ -1,4 +1,4 @@
-use actix_http::header::HeaderMap;
+use actix_http::header::{HeaderMap, ACCEPT};
 use actix_web::{HttpRequest};
 use chrono::DateTime;
 use log::{debug, info};
@@ -41,9 +41,9 @@ impl ArchiveHelper {
         ArchiveHelper { archive }
     }
     
-    pub fn list_files(&self, path: String, header_map: &HeaderMap) -> String{
-        if header_map.contains_key("Accept")
-            && header_map.get("Accept").unwrap().to_str().unwrap().to_string().contains( "json") {
+    pub fn list_files(&self, path: String, header_map: &HeaderMap) -> String {
+        if header_map.contains_key(ACCEPT)
+            && header_map.get(ACCEPT).unwrap().to_str().unwrap_or("").to_string().contains( "json") {
             self.list_files_json(path)
         } else {
             self.list_files_html(path)
@@ -57,7 +57,9 @@ impl ArchiveHelper {
         output.push_str("<tr><th>Name</th><th>Last Modified</th><th>Size</th></tr>\n");
 
         for path_detail in self.archive.list_dir(path) {
-            let mtime_datetime = DateTime::from_timestamp_millis( i64::try_from(path_detail.modified).unwrap() * 1000).unwrap();
+            let mtime_datetime = DateTime::from_timestamp_millis( i64::try_from(path_detail.modified)
+                .unwrap_or(0) * 1000)
+                .unwrap_or(DateTime::default());
             let mtime_iso = mtime_datetime.format("%+");
             output.push_str("<tr>");
             output.push_str(&format!("<td><a href=\"{}\">{}</a></td>\n", path_detail.path, path_detail.display));
@@ -77,7 +79,9 @@ impl ArchiveHelper {
         let mut i = 1;
         let count = list_dir.len();
         for path_detail in list_dir {
-            let mtime_datetime = DateTime::from_timestamp_millis(i64::try_from(path_detail.modified).unwrap() * 1000).unwrap();
+            let mtime_datetime = DateTime::from_timestamp_millis( i64::try_from(path_detail.modified)
+                .unwrap_or(0) * 1000)
+                .unwrap_or(DateTime::default());
             let mtime_iso = mtime_datetime.format("%+");
             output.push_str("{");
             output.push_str(

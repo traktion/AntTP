@@ -9,6 +9,7 @@ use crate::client::CachingClient;
 use crate::error::graph_error::GraphError;
 use crate::config::anttp_config::AntTpConfig;
 use crate::controller::CacheType;
+use crate::error::CreateError;
 
 #[derive(Serialize, Deserialize, ToSchema)]
 pub struct GraphEntry {
@@ -50,40 +51,46 @@ impl GraphService {
     }
 
     pub async fn create_graph_entry(&self, graph: GraphEntry, evm_wallet: Wallet, cache_only: Option<CacheType>) -> Result<GraphEntry, GraphError> {
-        let app_secret_key = self.ant_tp_config.get_app_private_key()?;
-        let graph_key = Client::register_key_from_name(&app_secret_key, graph.name.clone().unwrap().as_str());
+        match graph.name {
+            Some(name) => {
+                let app_secret_key = self.ant_tp_config.get_app_private_key()?;
+                let graph_key = Client::register_key_from_name(&app_secret_key, name.as_str());
 
-        let mut graph_parents = vec![];
-        let parents = graph.parents.clone();
-        if parents.is_some() {
-            parents.unwrap().iter().for_each(|p| {
-                graph_parents.push(PublicKey::from_hex(p).unwrap());
-            });
+                let mut graph_parents = vec![];
+                let parents = graph.parents.clone();
+                if parents.is_some() {
+                    parents.unwrap().iter().for_each(|p| {
+                        graph_parents.push(PublicKey::from_hex(p).unwrap());
+                    });
+                }
+
+                let mut graph_descendants = vec![];
+                let descendants = graph.descendants.clone();
+                if descendants.is_some() {
+                    descendants.unwrap().iter()
+                        .for_each(|d| {
+                            // todo: remove unwraps
+                            let key = PublicKey::from_hex(d.clone().public_key.as_str()).unwrap();
+                            let content = GraphContent::from_hex(d.clone().content.clone()).unwrap();
+                            graph_descendants.push((key, content))
+                        });
+                }
+
+                let graph_content = GraphContent::from_hex(graph.content.clone())?;
+                let graph_entry = autonomi::GraphEntry::new(&graph_key, graph_parents, graph_content.clone(), graph_descendants);
+                info!("Create graph entry from name [{}] for content [{}]", name, graph.content.clone());
+                let graph_entry_address = self.caching_client
+                    .graph_entry_put(graph_entry, PaymentOption::from(&evm_wallet), cache_only)
+                    .await?;
+                info!("Queued command to create graph entry at [{}]", graph_entry_address.to_hex());
+                Ok(GraphEntry::new(Some(name), graph.content, Some(graph_entry_address.to_hex()), graph.parents, graph.descendants))
+            },
+            None => Err(GraphError::CreateError(CreateError::InvalidData("Name must be provided".to_string())))
         }
-
-        let mut graph_descendants = vec![];
-        let descendants = graph.descendants.clone();
-        if descendants.is_some() {
-            descendants.unwrap().iter()
-                .for_each(|d| {
-                    let key = PublicKey::from_hex(d.clone().public_key.as_str()).unwrap();
-                    let content = GraphContent::from_hex(d.clone().content.clone()).unwrap();
-                    graph_descendants.push((key, content))
-                });
-        }
-
-        let graph_content = GraphContent::from_hex(graph.content.clone()).unwrap();
-        let graph_entry = autonomi::GraphEntry::new(&graph_key, graph_parents, graph_content.clone(), graph_descendants);
-        info!("Create graph entry from name [{}] for content [{}]", graph.name.clone().unwrap(), graph.content.clone());
-        let graph_entry_address = self.caching_client
-            .graph_entry_put(graph_entry, PaymentOption::from(&evm_wallet), cache_only)
-            .await?;
-        info!("Queued command to create graph entry at [{}]", graph_entry_address.to_hex());
-        Ok(GraphEntry::new(graph.name, graph.content, Some(graph_entry_address.to_hex()), graph.parents, graph.descendants))
     }
 
     pub async fn get_graph_entry(&self, address: String) -> Result<GraphEntry, GraphError> {
-        let graph_entry_address = GraphEntryAddress::from_hex(address.as_str()).unwrap();
+        let graph_entry_address = GraphEntryAddress::from_hex(address.as_str())?;
         match self.caching_client.graph_entry_get(&graph_entry_address).await {
             Ok(graph_entry) => {
                 info!("Retrieved graph entry at address [{}] value [{}]", address, hex::encode(graph_entry.content.clone()));

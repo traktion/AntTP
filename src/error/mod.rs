@@ -3,7 +3,10 @@ use std::io;
 use actix_http::StatusCode;
 use actix_web::{error, HttpResponse};
 use actix_web::http::header::ContentType;
+use autonomi::AddressParseError;
 use autonomi::client::ConnectError;
+use autonomi::register::RegisterError;
+use hex::FromHexError;
 use serde::Serialize;
 use thiserror::Error;
 use tokio::sync::mpsc::error::SendError;
@@ -71,6 +74,8 @@ pub enum UpdateError {
     AppKeyMissing(String),
     #[error("source data missing: {0}")]
     TemporaryStorage(String),
+    #[error("invalid data: {0}")]
+    InvalidData(String),
     #[error("command creation failed: {0}")]
     Command(String),
     #[error("network is offline: {0}")]
@@ -96,7 +101,8 @@ impl error::ResponseError for UpdateError {
             UpdateError::AppKeyMissing(_) => StatusCode::PRECONDITION_FAILED,
             UpdateError::Command(_) => StatusCode::BAD_GATEWAY,
             UpdateError::NetworkOffline(_) => StatusCode::BAD_GATEWAY,
-            UpdateError::TemporaryStorage(_) => StatusCode::INSUFFICIENT_STORAGE
+            UpdateError::TemporaryStorage(_) => StatusCode::INSUFFICIENT_STORAGE,
+            UpdateError::InvalidData(_) => StatusCode::BAD_REQUEST
         }
     }
 
@@ -175,6 +181,31 @@ impl From<rmp_serde::decode::Error> for GetError {
 impl From<ConnectError> for GetError {
     fn from(value: ConnectError) -> Self {
         Self::NetworkOffline(value.to_string())
+    }
+}
+
+impl From<AddressParseError> for GetError {
+    fn from(value: AddressParseError) -> Self {
+        match value {
+            AddressParseError::PublicKey(_) => Self::Decryption(value.to_string()),
+            _ => Self::BadAddress(value.to_string()),
+        }
+    }
+}
+
+impl From<FromHexError> for GetError {
+    fn from(value: FromHexError) -> Self {
+        Self::BadAddress(value.to_string())
+    }
+}
+
+impl From<RegisterError> for GetError {
+    fn from(value: RegisterError) -> Self {
+        match value {
+            // todo: add other error mappings
+            RegisterError::Corrupt(_) => Self::Decryption(value.to_string()),
+            _ => Self::BadAddress(value.to_string()),
+        }
     }
 }
 

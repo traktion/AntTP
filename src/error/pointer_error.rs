@@ -1,6 +1,7 @@
 use actix_http::StatusCode;
 use actix_web::HttpResponse;
 use actix_web::http::header::ContentType;
+use autonomi::AddressParseError;
 use autonomi::client::ConnectError;
 use thiserror::Error;
 use serde::Serialize;
@@ -56,6 +57,12 @@ impl From<ConnectError> for PointerError {
 
 impl From<rmp_serde::decode::Error> for PointerError {
     fn from(value: rmp_serde::decode::Error) -> Self {
+        Self::GetError(value.into())
+    }
+}
+
+impl From<AddressParseError> for PointerError {
+    fn from(value: AddressParseError) -> Self {
         Self::GetError(value.into())
     }
 }

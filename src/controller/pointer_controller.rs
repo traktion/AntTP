@@ -19,7 +19,8 @@ use crate::service::resolver_service::ResolverService;
         content = Pointer
     ),
     responses(
-        (status = CREATED, description = "Pointer created successfully", body = Pointer)
+        (status = CREATED, description = "Pointer created successfully", body = Pointer),
+        (status = BAD_REQUEST, description = "Pointer body was invalid")
     ),
     params(
         ("x-cache-only", Header, description = "Only persist to cache and do not publish (memory|disk|none)",
@@ -56,7 +57,8 @@ pub async fn post_pointer(
         content = Pointer
     ),
     responses(
-        (status = OK, description = "Pointer updated successfully", body = Pointer)
+        (status = OK, description = "Pointer updated successfully", body = Pointer),
+        (status = BAD_REQUEST, description = "Pointer body was invalid")
     ),
 )]
 pub async fn put_pointer(

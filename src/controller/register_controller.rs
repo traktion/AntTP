@@ -19,7 +19,8 @@ use crate::service::resolver_service::ResolverService;
         content = Register
     ),
     responses(
-        (status = CREATED, description = "Register created successfully", body = Register)
+        (status = CREATED, description = "Register created successfully", body = Register),
+        (status = BAD_REQUEST, description = "Register body was invalid")
     ),
     params(
         ("x-cache-only", Header, description = "Only persist to cache and do not publish (memory|disk|none)",
@@ -57,7 +58,8 @@ pub async fn post_register(
         content = Register
     ),
     responses(
-        (status = OK, description = "Register updated successfully", body = Register)
+        (status = OK, description = "Register updated successfully", body = Register),
+        (status = BAD_REQUEST, description = "Register body was invalid")
     ),
 )]
 pub async fn put_register(

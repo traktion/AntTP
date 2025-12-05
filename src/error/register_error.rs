@@ -4,6 +4,7 @@ use actix_http::StatusCode;
 use actix_web::HttpResponse;
 use actix_web::http::header::ContentType;
 use autonomi::client::ConnectError;
+use hex::FromHexError;
 use crate::error::{CreateError, GetError, UpdateError};
 
 #[derive(Error, Debug, Serialize)]
@@ -51,6 +52,19 @@ impl From<ConnectError> for RegisterError {
         Self::GetError(value.into())
     }
 }
+
+impl From<FromHexError> for RegisterError {
+    fn from(value: FromHexError) -> Self {
+        Self::GetError(value.into())
+    }
+}
+
+impl From<autonomi::register::RegisterError> for RegisterError {
+    fn from(value: autonomi::register::RegisterError) -> Self {
+        Self::GetError(value.into())
+    }
+}
+
 
 impl actix_web::ResponseError for RegisterError {
     fn status_code(&self) -> StatusCode {

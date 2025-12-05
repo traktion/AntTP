@@ -3,7 +3,9 @@ use serde::Serialize;
 use actix_http::StatusCode;
 use actix_web::HttpResponse;
 use actix_web::http::header::ContentType;
+use autonomi::AddressParseError;
 use autonomi::client::ConnectError;
+use hex::FromHexError;
 use crate::error::{CreateError, GetError};
 
 #[derive(Error, Debug, Serialize)]
@@ -42,6 +44,18 @@ impl From<rmp_serde::decode::Error> for GraphError {
 
 impl From<ConnectError> for GraphError {
     fn from(value: ConnectError) -> Self {
+        Self::GetError(value.into())
+    }
+}
+
+impl From<FromHexError> for GraphError {
+    fn from(value: FromHexError) -> Self {
+        Self::GetError(value.into())
+    }
+}
+
+impl From<AddressParseError> for GraphError {
+    fn from(value: AddressParseError) -> Self {
         Self::GetError(value.into())
     }
 }

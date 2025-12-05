@@ -54,7 +54,7 @@ mod tests {
             "allow": allow,
             "deny": deny
         });
-        serde_json::from_value(json).unwrap()
+        serde_json::from_value(json).unwrap_or(AccessList::default())
     }
 
     #[test]

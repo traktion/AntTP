@@ -15,7 +15,8 @@ use crate::service::graph_service::{GraphEntry, GraphService};
         content = GraphEntry
     ),
     responses(
-        (status = CREATED, description = "Graph entry created successfully", body = GraphEntry)
+        (status = CREATED, description = "Graph entry created successfully", body = GraphEntry),
+        (status = BAD_REQUEST, description = "Graph entry body was invalid")
     ),
     params(
         ("x-cache-only", Header, description = "Only persist to cache and do not publish (memory|disk|none)",

@@ -104,7 +104,7 @@ impl FileService {
         } else {
             // file is standalone (so, need to calculate the size)
             let total_size = chunk_streamer.get_stream_size().await;
-            u64::try_from(total_size).unwrap()
+            u64::try_from(total_size).unwrap_or(0)
         }
     }
 

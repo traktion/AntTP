@@ -6,14 +6,14 @@ use actix_web::http::header::ContentType;
 use autonomi::AddressParseError;
 use autonomi::client::ConnectError;
 use hex::FromHexError;
-use crate::error::{CreateError, GetError};
+use crate::error::{CreateError, GetError, UpdateError};
 
 #[derive(Error, Debug, Serialize)]
 pub enum GraphError {
     #[error("create error: {0}")]
     CreateError(CreateError),
     #[error("update error: {0}")]
-    UpdateError(String),
+    UpdateError(UpdateError),
     #[error("get error: {0}")]
     GetError(GetError),
 }
@@ -64,7 +64,8 @@ impl actix_web::ResponseError for GraphError {
     fn status_code(&self) -> StatusCode {
         match self {
             GraphError::GetError(v) => v.status_code(),
-            _ => StatusCode::INTERNAL_SERVER_ERROR,
+            GraphError::CreateError(v) => v.status_code(),
+            GraphError::UpdateError(v) => v.status_code(),
         }
     }
 

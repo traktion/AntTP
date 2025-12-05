@@ -103,7 +103,7 @@ impl PublicArchiveService {
     }
 
     pub async fn update_public_archive(&self, address: String, public_archive_form: MultipartForm<PublicArchiveForm>, evm_wallet: Wallet, cache_only: Option<CacheType>) -> Result<Upload, PublicArchiveError> {
-        let public_archive = &mut self.caching_client.archive_get_public(ArchiveAddress::from_hex(address.as_str()).unwrap()).await?;
+        let public_archive = &mut self.caching_client.archive_get_public(ArchiveAddress::from_hex(address.as_str())?).await?;
         info!("Uploading updated public archive to the network [{:?}]", public_archive);
         Ok(self.update_public_archive_common(public_archive_form, evm_wallet, public_archive, cache_only).await?)
     }
@@ -143,7 +143,7 @@ impl PublicArchiveService {
             let data_address = self.caching_client
                 .file_content_upload_public(path.clone(), PaymentOption::Wallet(evm_wallet.clone()), cache_only.clone())
                 .await?;
-            let created_at = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
+            let created_at = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_secs();
             let custom_metadata = Metadata {
                 created: created_at,
                 modified: created_at,

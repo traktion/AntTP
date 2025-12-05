@@ -36,7 +36,7 @@ impl actix_web::ResponseError for PublicDataError {
     fn status_code(&self) -> StatusCode {
         match self {
             PublicDataError::GetError(v) => v.status_code(),
-            _ => StatusCode::INTERNAL_SERVER_ERROR,
+            PublicDataError::CreateError(v) => v.status_code(),
         }
     }
 

@@ -56,34 +56,42 @@ impl GraphService {
                 let app_secret_key = self.ant_tp_config.get_app_private_key()?;
                 let graph_key = Client::register_key_from_name(&app_secret_key, name.as_str());
 
+                let mut data_errors = vec![];
                 let mut graph_parents = vec![];
-                let parents = graph.parents.clone();
-                if parents.is_some() {
-                    parents.unwrap().iter().for_each(|p| {
-                        graph_parents.push(PublicKey::from_hex(p).unwrap());
+                graph.parents.clone().unwrap_or(vec![]).iter()
+                    .for_each(|p| {
+                        match PublicKey::from_hex(p) {
+                            Ok(public_key) => graph_parents.push(public_key),
+                            Err(_) => data_errors.push(format!("parent is not a public key: {}", p))
+                        }
                     });
-                }
 
                 let mut graph_descendants = vec![];
-                let descendants = graph.descendants.clone();
-                if descendants.is_some() {
-                    descendants.unwrap().iter()
-                        .for_each(|d| {
-                            // todo: remove unwraps
-                            let key = PublicKey::from_hex(d.clone().public_key.as_str()).unwrap();
-                            let content = GraphContent::from_hex(d.clone().content.clone()).unwrap();
-                            graph_descendants.push((key, content))
-                        });
-                }
+                graph.descendants.clone().unwrap_or(vec![]).iter()
+                    .for_each(|d| {
+                        match PublicKey::from_hex(d.public_key.as_str()) {
+                            Ok(key) => {
+                                match GraphContent::from_hex(d.content.clone()) {
+                                    Ok(content) => graph_descendants.push((key, content)),
+                                    Err(_) => data_errors.push(format!("content is not a public key: {}", d.content))
+                                }
+                            }
+                            Err(_) => data_errors.push(format!("public_key is not a public key: {}", d.content))
+                        }
+                    });
 
-                let graph_content = GraphContent::from_hex(graph.content.clone())?;
-                let graph_entry = autonomi::GraphEntry::new(&graph_key, graph_parents, graph_content.clone(), graph_descendants);
-                info!("Create graph entry from name [{}] for content [{}]", name, graph.content.clone());
-                let graph_entry_address = self.caching_client
-                    .graph_entry_put(graph_entry, PaymentOption::from(&evm_wallet), cache_only)
-                    .await?;
-                info!("Queued command to create graph entry at [{}]", graph_entry_address.to_hex());
-                Ok(GraphEntry::new(Some(name), graph.content, Some(graph_entry_address.to_hex()), graph.parents, graph.descendants))
+                if data_errors.is_empty() {
+                    let graph_content = GraphContent::from_hex(graph.content.clone())?;
+                    let graph_entry = autonomi::GraphEntry::new(&graph_key, graph_parents, graph_content, graph_descendants);
+                    info!("Create graph entry from name [{}] for content [{}]", name, graph.content.clone());
+                    let graph_entry_address = self.caching_client
+                        .graph_entry_put(graph_entry, PaymentOption::from(&evm_wallet), cache_only)
+                        .await?;
+                    info!("Queued command to create graph entry at [{}]", graph_entry_address.to_hex());
+                    Ok(GraphEntry::new(Some(name), graph.content, Some(graph_entry_address.to_hex()), graph.parents, graph.descendants))
+                } else {
+                    Err(GraphError::CreateError(CreateError::InvalidData(format!("Invalid payload: [{}]", data_errors.join(", ")))))
+                }
             },
             None => Err(GraphError::CreateError(CreateError::InvalidData("Name must be provided".to_string())))
         }

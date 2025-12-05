@@ -65,13 +65,13 @@ impl ResolverService {
     ) -> Option<ResolvedAddress> {
         if self.is_bookmark(archive_directory).await {
             debug!("found bookmark for [{}]", archive_directory);
-            let resolved_bookmark = &self.resolve_bookmark(archive_directory).await.unwrap().to_string();
+            let resolved_bookmark = &self.resolve_bookmark(archive_directory).await.unwrap_or_default();
             let is_allowed = is_allowed || self.is_allowed(archive_directory).await;
             Box::pin(self.resolve_archive_or_file(
                 resolved_bookmark, archive_file_name, archive_file_path, true, is_allowed, headers)).await
         } else if self.is_bookmark(archive_file_name).await {
             debug!("found bookmark for [{}]", archive_file_name);
-            let resolved_bookmark = &self.resolve_bookmark(archive_file_name).await.unwrap().to_string();
+            let resolved_bookmark = &self.resolve_bookmark(archive_file_name).await.unwrap_or_default();
             let is_allowed = is_allowed || self.is_allowed(archive_file_name).await;
             Box::pin(self.resolve_archive_or_file(
                 archive_directory, resolved_bookmark, archive_file_path, true, is_allowed, headers)).await
@@ -87,7 +87,10 @@ impl ResolverService {
             }
         } else if self.is_immutable_address(&archive_directory) {
             debug!("found immutable address for [{}]", archive_directory);
-            let archive_address = ArchiveAddress::from_hex(archive_directory).unwrap();
+            let archive_address = match ArchiveAddress::from_hex(archive_directory) {
+                Ok(archive_address) => archive_address,
+                Err(_) => return None
+            };
             let archive_directory_xor_name = archive_address.xorname().clone();
             let is_modified = self.is_modified(headers, &archive_directory);
             let is_allowed = is_allowed || self.is_allowed(archive_directory).await;
@@ -107,7 +110,11 @@ impl ResolverService {
                 }
             }
         } else if self.is_immutable_address(&archive_file_name) {
-            let archive_file_name_xor_name = ChunkAddress::from_hex(archive_file_name).unwrap().xorname().clone();
+            let archive_address = match ChunkAddress::from_hex(archive_file_name) {
+                Ok(archive_address) => archive_address,
+                Err(_) => return None
+            };
+            let archive_file_name_xor_name = archive_address.xorname().clone();
             let is_modified = self.is_modified(headers, &archive_file_name);
             let is_allowed = is_allowed || self.is_allowed(archive_file_name).await;
             info!("Found XOR address at [{:x}]", archive_file_name_xor_name);
@@ -126,20 +133,23 @@ impl ResolverService {
     async fn analyze_simple(&self, address: &String) -> Option<DataAddress> {
         // todo: analyze other types in a performant way - assume only pointers/registers for now
         // todo: could do both + join, but it may slow get pointer response
-        match self.caching_client.pointer_get(&PointerAddress::from_hex(address).unwrap()).await.ok() {
-            Some(pointer) => {
-                info!("Analyze found pointer at address [{}] with target [{}]", address, pointer.clone().target().to_hex());
-                Some(DataAddress::from_hex(pointer.clone().target().to_hex().as_str()).unwrap())
-            }
-            None => {
-                match self.caching_client.register_get(&RegisterAddress::from_hex(address).unwrap()).await.ok() {
-                    Some(register_value) => {
-                        info!("Analyze found register at address [{}] with value [{}]", address, hex::encode(register_value.clone()));
-                        Some(DataAddress::from_hex(hex::encode(register_value.clone()).as_str()).unwrap())
+        match PointerAddress::from_hex(address) {
+            Ok(pointer_address) => match self.caching_client.pointer_get(&pointer_address).await.ok() {
+                Some(pointer) => {
+                    info!("Analyze found pointer at address [{}] with target [{}]", address, pointer.clone().target().to_hex());
+                    Some(DataAddress::from_hex(pointer.clone().target().to_hex().as_str()).unwrap())
+                }
+                None => {
+                    match self.caching_client.register_get(&RegisterAddress::from_hex(address).unwrap()).await.ok() {
+                        Some(register_value) => {
+                            info!("Analyze found register at address [{}] with value [{}]", address, hex::encode(register_value.clone()));
+                            Some(DataAddress::from_hex(hex::encode(register_value.clone()).as_str()).unwrap())
+                        }
+                        None => None
                     }
-                    None => None
                 }
             }
+            Err(_) => None
         }
     }
 

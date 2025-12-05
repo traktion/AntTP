@@ -70,7 +70,8 @@ impl actix_web::ResponseError for RegisterError {
     fn status_code(&self) -> StatusCode {
         match self {
             RegisterError::GetError(v) => v.status_code(),
-            _ => StatusCode::INTERNAL_SERVER_ERROR,
+            RegisterError::CreateError(v) => v.status_code(),
+            RegisterError::UpdateError(v) => v.status_code(),
         }
     }
 

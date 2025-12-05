@@ -19,7 +19,7 @@ impl HeaderBuilder {
         if !is_resolved_from_mutable {
             CacheControl(vec![CacheDirective::MaxAge(u32::MAX), CacheDirective::Public]) // immutable
         } else {
-            CacheControl(vec![CacheDirective::MaxAge(u32::try_from(self.cached_mutable_ttl).unwrap()), CacheDirective::Public]) // mutable
+            CacheControl(vec![CacheDirective::MaxAge(u32::try_from(self.cached_mutable_ttl).unwrap_or(0)), CacheDirective::Public]) // mutable
         }
     }
 
@@ -64,7 +64,7 @@ impl HeaderBuilder {
     }
     
     pub fn build_content_length_header(&self, content_length: u64) -> ContentLength {
-        ContentLength(usize::try_from(content_length).unwrap())
+        ContentLength(usize::try_from(content_length).unwrap_or(0))
     }
     
     pub fn build_location_header(&self, path: String) -> (HeaderName, String) {

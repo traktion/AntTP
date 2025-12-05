@@ -56,7 +56,8 @@ impl actix_web::ResponseError for ScratchpadError {
     fn status_code(&self) -> StatusCode {
         match self {
             ScratchpadError::GetError(v) => v.status_code(),
-            _ => StatusCode::INTERNAL_SERVER_ERROR,
+            ScratchpadError::CreateError(v) => v.status_code(),
+            ScratchpadError::UpdateError(v) => v.status_code(),
         }
     }
 

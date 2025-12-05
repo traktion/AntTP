@@ -44,7 +44,8 @@ impl actix_web::ResponseError for ChunkError {
     fn status_code(&self) -> StatusCode {
         match self {
             ChunkError::GetError(v) => v.status_code(),
-            _ => StatusCode::INTERNAL_SERVER_ERROR,
+            ChunkError::CreateError(v) => v.status_code(),
+            ChunkError::GetStreamError(v) => v.status_code(),
         }
     }
 

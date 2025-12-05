@@ -71,7 +71,9 @@ impl actix_web::ResponseError for PointerError {
     fn status_code(&self) -> StatusCode {
         match self {
             PointerError::GetError(v) => v.status_code(),
-            _ => StatusCode::INTERNAL_SERVER_ERROR,
+            PointerError::CreateError(v) => v.status_code(),
+            PointerError::UpdateError(v) => v.status_code(),
+            PointerError::CheckError(v) => v.status_code(),
         }
     }
 

@@ -4,6 +4,7 @@ use serde::Serialize;
 use actix_http::StatusCode;
 use actix_web::HttpResponse;
 use actix_web::http::header::ContentType;
+use autonomi::AddressParseError;
 use autonomi::client::ConnectError;
 use crate::error::{CreateError, GetError, UpdateError};
 use crate::error::public_data_error::PublicDataError;
@@ -54,11 +55,18 @@ impl From<io::Error> for PublicArchiveError {
     }
 }
 
+impl From<AddressParseError> for PublicArchiveError {
+    fn from(value: AddressParseError) -> Self {
+        Self::GetError(value.into())
+    }
+}
+
 impl actix_web::ResponseError for PublicArchiveError {
     fn status_code(&self) -> StatusCode {
         match self {
             PublicArchiveError::GetError(v) => v.status_code(),
-            _ => StatusCode::INTERNAL_SERVER_ERROR,
+            PublicArchiveError::CreateError(v) => v.status_code(),
+            PublicArchiveError::UpdateError(v) => v.status_code(),
         }
     }
 

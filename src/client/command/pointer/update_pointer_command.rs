@@ -14,13 +14,14 @@ pub struct UpdatePointerCommand {
     id: u128,
     client_harness: Data<Mutex<ClientHarness>>,
     owner: SecretKey,
-    target: PointerTarget
+    target: PointerTarget,
+    counter: Option<u64>,
 }
 
 impl UpdatePointerCommand {
-    pub fn new(client_harness: Data<Mutex<ClientHarness>>, owner: SecretKey, target: PointerTarget) -> Self {
+    pub fn new(client_harness: Data<Mutex<ClientHarness>>, owner: SecretKey, target: PointerTarget, counter: Option<u64>) -> Self {
         let id = rand::random::<u128>();
-        Self { id, client_harness, owner, target }
+        Self { id, client_harness, owner, target, counter }
     }
 }
 
@@ -32,7 +33,14 @@ impl Command for UpdatePointerCommand {
         let client = self.client_harness.get_ref().lock().await.get_client().await?;
         let pointer_address_hex = PointerAddress::new(self.owner.public_key()).to_hex();
         debug!("updating pointer at [{}] async", pointer_address_hex);
-        client.pointer_update(&self.owner, self.target.clone()).await?;
+        match self.counter {
+            Some(counter) => {
+                // decrement counter, as pointer_update_from will increment
+                let pointer = ant_protocol::storage::Pointer::new(&self.owner, counter - 1, self.target.clone());
+                client.pointer_update_from(&pointer, &self.owner, self.target.clone()).await?;
+            },
+            None => client.pointer_update(&self.owner, self.target.clone()).await?
+        }
         info!("pointer at address [{}] updated successfully", pointer_address_hex);
         Ok(())
     }

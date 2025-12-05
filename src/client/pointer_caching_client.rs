@@ -17,10 +17,11 @@ impl CachingClient {
         &self,
         owner: &SecretKey,
         target: PointerTarget,
+        counter: Option<u64>,
         payment_option: PaymentOption,
         cache_only: Option<CacheType>,
     ) -> Result<PointerAddress, PointerError> {
-        let pointer = self.cache_pointer(owner, &target, cache_only.clone());
+        let pointer = self.cache_pointer(owner, &target, counter, cache_only.clone());
 
         if !cache_only.is_some() {
             let command = Box::new(
@@ -35,21 +36,22 @@ impl CachingClient {
         &self,
         owner: &SecretKey,
         target: PointerTarget,
+        counter: Option<u64>,
         cache_only: Option<CacheType>,
     ) -> Result<(), PointerError> {
-        self.cache_pointer(owner, &target, cache_only.clone());
+        self.cache_pointer(owner, &target, counter, cache_only.clone());
 
         if !cache_only.is_some() {
             let command = Box::new(
-                UpdatePointerCommand::new(self.client_harness.clone(), owner.clone(), target)
+                UpdatePointerCommand::new(self.client_harness.clone(), owner.clone(), target, counter)
             );
             self.send_update_command(command).await?;
         }
         Ok(())
     }
 
-    fn cache_pointer(&self, owner: &SecretKey, target: &PointerTarget, cache_only: Option<CacheType>) -> Pointer {
-        let pointer = Pointer::new(owner, 0, target.clone());
+    fn cache_pointer(&self, owner: &SecretKey, target: &PointerTarget, counter: Option<u64>, cache_only: Option<CacheType>) -> Pointer {
+        let pointer = Pointer::new(owner, counter.unwrap_or(0), target.clone());
         let ttl = if cache_only.is_some() { u64::MAX } else { self.ant_tp_config.cached_mutable_ttl };
         let cache_item = CacheItem::new(Some(pointer.clone()), ttl);
         let serialised_cache_item = rmp_serde::to_vec(&cache_item).expect("Failed to serialize pointer");

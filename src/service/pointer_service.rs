@@ -17,7 +17,6 @@ pub struct Pointer {
     content: String,
     #[schema(read_only)]
     address: Option<String>,
-    #[schema(read_only)]
     counter: Option<u64>,
     #[schema(read_only)]
     cost: Option<String>,
@@ -50,7 +49,7 @@ impl PointerService {
                 let chunk_address = ChunkAddress::from_hex(pointer.content.clone().as_str())?;
                 info!("Create pointer from name [{}] for chunk [{}]", name, chunk_address);
                 let pointer_address = self.caching_client
-                    .pointer_create(&pointer_key, PointerTarget::ChunkAddress(chunk_address), PaymentOption::from(&evm_wallet), cache_only)
+                    .pointer_create(&pointer_key, PointerTarget::ChunkAddress(chunk_address), pointer.counter, PaymentOption::from(&evm_wallet), cache_only)
                     .await?;
                 info!("Queued command to create pointer at [{}]", pointer_address.to_hex());
                 Ok(Pointer::new(Some(name), pointer.content, Some(pointer_address.to_hex()), None, None))
@@ -73,7 +72,7 @@ impl PointerService {
 
                 let chunk_address = ChunkAddress::from_hex(pointer.content.clone().as_str())?;
                 info!("Update pointer with name [{}] for chunk [{}]", name, chunk_address);
-                self.caching_client.pointer_update(&pointer_key, PointerTarget::ChunkAddress(chunk_address), cache_only).await?;
+                self.caching_client.pointer_update(&pointer_key, PointerTarget::ChunkAddress(chunk_address), pointer.counter, cache_only).await?;
                 info!("Updated pointer with name [{}]", name);
                 Ok(Pointer::new(Some(name), pointer.content, Some(resolved_address), None, None))
             },

@@ -16,10 +16,28 @@ pub enum CacheType {
     Memory, Disk
 }
 
-fn cache_only(request: HttpRequest) -> Option<CacheType> {
-    match request.headers().get("x-cache-only")?.to_str().unwrap_or("") {
+fn cache_only(request: &HttpRequest) -> Option<CacheType> {
+    match request.headers().get("x-cache-only")?.to_str().unwrap_or("").to_lowercase().as_str() {
         "memory" => Some(CacheType::Memory),
         "disk" => Some(CacheType::Disk),
         _ => None
+    }
+}
+
+#[derive(Clone,Debug)]
+pub enum DataKey {
+    Personal,
+    Resolver,
+    Custom(String),
+}
+
+fn data_key(request: &HttpRequest) -> DataKey {
+    match request.headers().get("x-data-key") {
+        Some(header_value) => match header_value.to_str().unwrap_or("").to_lowercase().as_str() {
+            "resolver" => DataKey::Resolver,
+            "personal" | "" => DataKey::Personal,
+            custom => DataKey::Custom(custom.to_string())
+        }
+        None => DataKey::Personal,
     }
 }

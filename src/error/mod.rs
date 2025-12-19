@@ -34,8 +34,8 @@ pub enum CreateError {
     TemporaryStorage(String),
     #[error("invalid data: {0}")]
     InvalidData(String),
-    #[error("app key missing: {0}")]
-    AppKeyMissing(String),
+    #[error("data key missing: {0}")]
+    DataKeyMissing(String),
     #[error("network is offline: {0}")]
     NetworkOffline(String),
 }
@@ -54,7 +54,7 @@ impl error::ResponseError for CreateError {
             CreateError::Serialization(_) => StatusCode::INTERNAL_SERVER_ERROR,
             CreateError::TemporaryStorage(_) => StatusCode::INSUFFICIENT_STORAGE,
             CreateError::InvalidData(_) => StatusCode::BAD_REQUEST,
-            CreateError::AppKeyMissing(_) => StatusCode::PRECONDITION_FAILED,
+            CreateError::DataKeyMissing(_) => StatusCode::PRECONDITION_FAILED,
             CreateError::NetworkOffline(_) => StatusCode::BAD_GATEWAY
         }
     }

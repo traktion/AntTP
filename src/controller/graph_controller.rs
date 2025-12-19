@@ -37,7 +37,7 @@ pub async fn post_graph_entry(
 
     debug!("Creating new graph entry");
     Ok(HttpResponse::Created().json(
-        graph_service.create_graph_entry(graph_entry.into_inner(), evm_wallet_data.get_ref().clone(), cache_only(request)).await?
+        graph_service.create_graph_entry(graph_entry.into_inner(), evm_wallet_data.get_ref().clone(), cache_only(&request)).await?
     ))
 }
 

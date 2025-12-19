@@ -9,6 +9,7 @@ use crate::config::anttp_config::AntTpConfig;
 use crate::controller::cache_only;
 use crate::service::access_checker::AccessChecker;
 use crate::service::bookmark_resolver::BookmarkResolver;
+use crate::service::pointer_name_resolver::PointerNameResolver;
 use crate::service::register_service::{Register, RegisterService};
 use crate::service::resolver_service::ResolverService;
 
@@ -32,17 +33,18 @@ pub async fn post_register(
     ant_tp_config_data: Data<AntTpConfig>,
     access_checker: Data<Mutex<AccessChecker>>,
     bookmark_resolver: Data<Mutex<BookmarkResolver>>,
+    pointer_name_resolver: Data<PointerNameResolver>,
     evm_wallet_data: Data<EvmWallet>,
     register: web::Json<Register>,
     request: HttpRequest,
 ) -> Result<HttpResponse, RegisterError> {
     let register_service = create_register_service(
-        caching_client_data, ant_tp_config_data, access_checker, bookmark_resolver);
+        caching_client_data, ant_tp_config_data, access_checker, bookmark_resolver, pointer_name_resolver);
 
     debug!("Creating new register");
     Ok(HttpResponse::Created().json(
         register_service.create_register(
-            register.into_inner(), evm_wallet_data.get_ref().clone(), cache_only(request)).await?
+            register.into_inner(), evm_wallet_data.get_ref().clone(), cache_only(&request)).await?
     ))
 }
 
@@ -67,6 +69,7 @@ pub async fn put_register(
     ant_tp_config_data: Data<AntTpConfig>,
     access_checker: Data<Mutex<AccessChecker>>,
     bookmark_resolver: Data<Mutex<BookmarkResolver>>,
+    pointer_name_resolver: Data<PointerNameResolver>,
     path: web::Path<String>,
     evm_wallet_data: Data<EvmWallet>,
     register: web::Json<Register>,
@@ -75,12 +78,12 @@ pub async fn put_register(
     let address = path.into_inner();
 
     let register_service = create_register_service(
-        caching_client_data, ant_tp_config_data, access_checker, bookmark_resolver);
+        caching_client_data, ant_tp_config_data, access_checker, bookmark_resolver, pointer_name_resolver);
 
     debug!("Updating register");
     Ok(HttpResponse::Ok().json(
         register_service.update_register(
-            address, register.into_inner(), evm_wallet_data.get_ref().clone(), cache_only(request)).await?
+            address, register.into_inner(), evm_wallet_data.get_ref().clone(), cache_only(&request)).await?
     ))
 }
 
@@ -100,12 +103,13 @@ pub async fn get_register(
     ant_tp_config_data: Data<AntTpConfig>,
     access_checker: Data<Mutex<AccessChecker>>,
     bookmark_resolver: Data<Mutex<BookmarkResolver>>,
+    pointer_name_resolver: Data<PointerNameResolver>,
     path: web::Path<String>,
 ) -> Result<HttpResponse, RegisterError> {
     let address = path.into_inner();
 
     let register_service = create_register_service(
-        caching_client_data, ant_tp_config_data, access_checker, bookmark_resolver);
+        caching_client_data, ant_tp_config_data, access_checker, bookmark_resolver, pointer_name_resolver);
 
     debug!("Getting register at [{}]", address);
     Ok(HttpResponse::Ok().json(register_service.get_register(address).await?))
@@ -127,12 +131,13 @@ pub async fn get_register_history(
     ant_tp_config_data: Data<AntTpConfig>,
     access_checker: Data<Mutex<AccessChecker>>,
     bookmark_resolver: Data<Mutex<BookmarkResolver>>,
+    pointer_name_resolver: Data<PointerNameResolver>,
     path: web::Path<String>,
 ) -> Result<HttpResponse, RegisterError> {
     let address = path.into_inner();
 
     let register_service = create_register_service(
-        caching_client_data, ant_tp_config_data, access_checker, bookmark_resolver);
+        caching_client_data, ant_tp_config_data, access_checker, bookmark_resolver, pointer_name_resolver);
 
     debug!("Getting register history at [{}]", address);
     Ok(HttpResponse::Ok().json(register_service.get_register_history(address).await?))
@@ -143,11 +148,12 @@ fn create_register_service(
     ant_tp_config_data: Data<AntTpConfig>,
     access_checker: Data<Mutex<AccessChecker>>,
     bookmark_resolver: Data<Mutex<BookmarkResolver>>,
+    pointer_name_resolver: Data<PointerNameResolver>
 ) -> RegisterService {
     let caching_client = caching_client_data.get_ref().clone();
     let ant_tp_config = ant_tp_config_data.get_ref().clone();
     let resolver_service = ResolverService::new(
-        caching_client.clone(), access_checker, bookmark_resolver);
+        caching_client.clone(), access_checker, bookmark_resolver, pointer_name_resolver);
     let register_service = RegisterService::new(
         caching_client, ant_tp_config, resolver_service);
     register_service

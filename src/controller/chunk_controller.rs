@@ -34,7 +34,7 @@ pub async fn post_chunk(
 
     debug!("Creating new chunk");
     Ok(HttpResponse::Created().json(
-        chunk_service.create_chunk(chunk.into_inner(), evm_wallet_data.get_ref().clone(), cache_only(request)).await?))
+        chunk_service.create_chunk(chunk.into_inner(), evm_wallet_data.get_ref().clone(), cache_only(&request)).await?))
 }
 
 #[utoipa::path(
@@ -64,7 +64,7 @@ pub async fn post_chunk_binary(
     match payload.to_bytes().await {
         Ok(bytes) => {
             Ok(HttpResponse::Created().json(
-                chunk_service.create_chunk_binary(bytes, evm_wallet_data.get_ref().clone(), cache_only(request)).await?))
+                chunk_service.create_chunk_binary(bytes, evm_wallet_data.get_ref().clone(), cache_only(&request)).await?))
         }
         Err(_) => {
             Err(ChunkError::CreateError(CreateError::InvalidData("Failed to retrieve bytes from payload".to_string())))

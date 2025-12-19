@@ -37,7 +37,7 @@ pub async fn post_public_archive(
 
     debug!("Creating new archive from multipart POST");
     Ok(HttpResponse::Created().json(
-        archive_service.create_public_archive(public_archive_form, evm_wallet, cache_only(request)).await?
+        archive_service.create_public_archive(public_archive_form, evm_wallet, cache_only(&request)).await?
     ))
 }
 
@@ -71,9 +71,9 @@ pub async fn put_public_archive(
     );
     let evm_wallet = evm_wallet_data.get_ref().clone();
 
-    debug!("Updating [{}] archive from multipart PUT with cache_only [{:?}]", address, cache_only(request.clone()));
+    debug!("Updating [{}] archive from multipart PUT with cache_only [{:?}]", address, cache_only(&request));
     Ok(HttpResponse::Ok().json(
-        archive_service.update_public_archive(address, public_archive_form, evm_wallet, cache_only(request)).await?
+        archive_service.update_public_archive(address, public_archive_form, evm_wallet, cache_only(&request)).await?
     ))
 }
 

@@ -20,7 +20,7 @@ impl BookmarkResolver {
         self.map.contains_key(name)
     }
 
-    pub fn resolve_bookmark(&self, name: &String) -> Option<String> {
+    pub fn resolve(&self, name: &String) -> Option<String> {
         self.map.get(name).cloned()
     }
 }
@@ -41,7 +41,7 @@ mod tests {
     fn test_new() {
         let resolver = BookmarkResolver::new();
         assert!(!resolver.is_bookmark(&"test".to_string()));
-        assert!(resolver.resolve_bookmark(&"test".to_string()).is_none());
+        assert!(resolver.resolve(&"test".to_string()).is_none());
     }
 
     #[test]
@@ -54,8 +54,8 @@ mod tests {
         let list = create_bookmark_list(bookmarks);
         resolver.update(&list);
 
-        assert_eq!(resolver.resolve_bookmark(&"google".to_string()), Some("https://google.com".to_string()));
-        assert_eq!(resolver.resolve_bookmark(&"local".to_string()), Some("http://localhost:8080".to_string()));
+        assert_eq!(resolver.resolve(&"google".to_string()), Some("https://google.com".to_string()));
+        assert_eq!(resolver.resolve(&"local".to_string()), Some("http://localhost:8080".to_string()));
     }
 
     #[test]
@@ -80,6 +80,6 @@ mod tests {
         let list = create_bookmark_list(bookmarks);
         resolver.update(&list);
 
-        assert!(resolver.resolve_bookmark(&"missing".to_string()).is_none());
+        assert!(resolver.resolve(&"missing".to_string()).is_none());
     }
 }

@@ -324,6 +324,38 @@ tar -rf archive.tar archive.tar.idx
 ant file upload -p archive.tar
 ```
 
+## Pointer Name Resolver (PNR) [EXPERIMENTAL!]
+
+The Pointer Name Resolver is a simple, first come, first server resolver.
+
+To create a name, you set the `x-data-key` header to `resolver` and then create a pointer to your chosen target pointer.
+This will use the shared key chosen for PNR to store the pointer.
+
+Anyone can use this shared key to create or update pointers, so it is important that the `counter` is set to the maximum value
+once confirmation that PNR is working as expected.
+
+`PNR Shared Key Pointer (max counter) ⇒ PNR Current User Key Pointer`
+
+To transfer the name to another, update the target pointer to point to the other user's pointer and set the 'counter' to
+the maximum value. The other user will then have full control, as prior pointers can no longer be changed.
+
+`PNR Shared Key Pointer (max counter) ⇒ PNR Old User Key Pointer (max counter) ⇒ PNR Current User Key Pointer`
+
+The maximum counter value that can be set via the REST API is `18,446,744,073,709,551,614`, which automatically increments
+to the full u64 maximum value on create/update.
+
+Note that each time a new owner is assigned, the chain of pointers increases in size. This will cause the resolution time to
+slow. However, AntTP caches pointers, so the impact will be unnoticeable after the initial retrieval.
+
+Additionally, chains of pointers can be used to manage (or rent) names without transferring them. Consider the following:
+
+`PNR Shared Key Pointer (max counter) ⇒ PNR Manager User Key Pointer ⇒ PNR Consumer User Key Pointer`
+
+Experimental! Additional resolution features may be added in the future, to allow more flexibility/control. For example,
+allowing sub-names to be managed from a lookup table:
+
+`PNR Shared Key Pointer (max counter) ⇒ PNR Current User Key Pointer => Immutable Lookup Table`
+
 ## PubAnt.com - Publish your Website
 
 For more information on how to publish a website on Autonomi Network, [PubAnt.com](https://pubant.com/) is an excellent resource.
@@ -373,6 +405,7 @@ local per-user configuration data (e.g. arbitrary data that only the user needs 
 - [x] Files
   - [x] Enable file downloads from XOR addresses
   - [x] Enable file downloads from archives with friendly names
+  - [x] Download files directly from tarchives
 - [x] Directories (archives)
   - [x] Enable directory listing in HTML (default)
   - [x] Enable directory listing with JSON (using `accept` header)
@@ -410,6 +443,7 @@ local per-user configuration data (e.g. arbitrary data that only the user needs 
       - [ ] Get transaction history
       - [ ] Remote data payments (via gateway)
     - [x] Async command/upload queue
+    - [ ] Tarchive
   - [ ] gRPC API
     - [ ] Pointer
     - [ ] Scratchpad
@@ -451,6 +485,9 @@ local per-user configuration data (e.g. arbitrary data that only the user needs 
 - [ ] AntTP status page
   - [ ] Async command/upload queue (listing)
   - [ ] Async command/upload queue (CRUD)
+- [x] Pointer name resolver
+  - [x] Create/update pointer names
+  - [x] Resolve pointer names
 
 ## Codebase to Tutorial
 

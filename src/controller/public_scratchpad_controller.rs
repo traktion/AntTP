@@ -44,7 +44,7 @@ pub async fn post_public_scratchpad(
             scratchpad.into_inner(),
             evm_wallet_data.get_ref().clone(),
             false,
-            cache_only(request)
+            cache_only(&request)
         ).await?
     ))
 }
@@ -88,7 +88,7 @@ pub async fn put_public_scratchpad(
             scratchpad.into_inner(),
             evm_wallet_data.get_ref().clone(),
             false,
-            cache_only(request)
+            cache_only(&request)
         ).await?
     ))
 }

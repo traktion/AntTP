@@ -12,6 +12,7 @@ use crate::config::anttp_config::AntTpConfig;
 use crate::model::bookmark_list::BookmarkList;
 use crate::service::access_checker::AccessChecker;
 use crate::service::bookmark_resolver::BookmarkResolver;
+use crate::service::pointer_name_resolver::PointerNameResolver;
 use crate::service::file_service::FileService;
 use crate::service::resolver_service::ResolverService;
 
@@ -21,16 +22,18 @@ pub struct UpdateBookmarkResolverCommand {
     ant_tp_config: AntTpConfig,
     access_checker: Data<Mutex<AccessChecker>>,
     bookmark_resolver: Data<Mutex<BookmarkResolver>>,
+    pointer_name_resolver: Data<PointerNameResolver>,
 }
 
 impl UpdateBookmarkResolverCommand {
     pub fn new(caching_client: Data<Mutex<CachingClient>>,
                ant_tp_config: AntTpConfig,
                access_checker: Data<Mutex<AccessChecker>>,
-               bookmark_resolver: Data<Mutex<BookmarkResolver>>
+               bookmark_resolver: Data<Mutex<BookmarkResolver>>,
+               pointer_name_resolver: Data<PointerNameResolver>,
     ) -> Self {
         let id = rand::random::<u128>();
-        Self { id, caching_client, ant_tp_config, access_checker, bookmark_resolver }
+        Self { id, caching_client, ant_tp_config, access_checker, bookmark_resolver, pointer_name_resolver }
     }
 }
 
@@ -41,7 +44,7 @@ impl Command for UpdateBookmarkResolverCommand {
     async fn execute(&self) -> Result<(), CommandError> {
         let caching_client = self.caching_client.get_ref().lock().await.clone();
         let resolver_service = ResolverService::new(
-            caching_client.clone(), self.access_checker.clone(), self.bookmark_resolver.clone());
+            caching_client.clone(), self.access_checker.clone(), self.bookmark_resolver.clone(), self.pointer_name_resolver.clone());
         let file_service = FileService::new(caching_client, 1);
         
         let bookmark_list = match resolver_service.resolve(&self.ant_tp_config.bookmarks_address, &"", &HeaderMap::new()).await {

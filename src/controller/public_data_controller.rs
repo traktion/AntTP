@@ -37,7 +37,7 @@ pub async fn post_public_data(
     match payload.to_bytes().await {
         Ok(bytes) => {
             Ok(HttpResponse::Created().json(
-                public_data_service.create_public_data(bytes, evm_wallet_data.get_ref().clone(), cache_only(request)).await?
+                public_data_service.create_public_data(bytes, evm_wallet_data.get_ref().clone(), cache_only(&request)).await?
             ))
         }
         Err(e) => {

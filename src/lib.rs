@@ -12,7 +12,7 @@ use actix_web::web::Data;
 use actix_web::{middleware, middleware::Logger, web, App, HttpServer};
 use ant_evm::EvmNetwork::{ArbitrumOne, ArbitrumSepoliaTest};
 use ant_evm::EvmWallet;
-use autonomi::{Network, SecretKey};
+use autonomi::Network;
 use config::anttp_config::AntTpConfig;
 use log::info;
 use once_cell::sync::Lazy;
@@ -114,7 +114,6 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> std::io::Result<()> {
 
 
     info!("Starting listener");
-    info!("Random secret key: {}", SecretKey::random().to_hex());
 
     let server_instance = HttpServer::new(move || {
         let logger = Logger::default();

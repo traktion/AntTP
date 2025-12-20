@@ -326,6 +326,8 @@ ant file upload -p archive.tar
 
 ## Pointer Name Resolver (PNR) [EXPERIMENTAL!]
 
+__IMPORTANT: The resolver key will be CHANGED after initial testing! Names will be temporary until after this point.__ 
+
 The Pointer Name Resolver is a simple, first come, first server resolver.
 
 To create a name, you set the `x-data-key` header to `resolver` and then create a pointer to your chosen target pointer.

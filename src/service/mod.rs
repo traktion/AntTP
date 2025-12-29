@@ -13,3 +13,4 @@ pub mod header_builder;
 pub mod access_checker;
 pub mod bookmark_resolver;
 pub mod pointer_name_resolver;
+pub mod antns_resolver;

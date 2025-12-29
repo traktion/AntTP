@@ -11,6 +11,7 @@ use crate::client::command::Command;
 use crate::model::access_list::AccessList;
 use crate::config::anttp_config::AntTpConfig;
 use crate::service::access_checker::AccessChecker;
+use crate::service::antns_resolver::AntNsResolver;
 use crate::service::bookmark_resolver::BookmarkResolver;
 use crate::service::pointer_name_resolver::PointerNameResolver;
 use crate::service::file_service::FileService;
@@ -23,6 +24,7 @@ pub struct UpdateAccessCheckerCommand {
     access_checker: Data<Mutex<AccessChecker>>,
     bookmark_resolver: Data<Mutex<BookmarkResolver>>,
     pointer_name_resolver: Data<PointerNameResolver>,
+    antns_resolver: Data<AntNsResolver>,
 }
 
 impl UpdateAccessCheckerCommand {
@@ -31,9 +33,10 @@ impl UpdateAccessCheckerCommand {
                access_checker: Data<Mutex<AccessChecker>>,
                bookmark_resolver: Data<Mutex<BookmarkResolver>>,
                pointer_name_resolver: Data<PointerNameResolver>,
+               antns_resolver: Data<AntNsResolver>,
     ) -> Self {
         let id = rand::random::<u128>();
-        Self { id, caching_client, ant_tp_config, access_checker, bookmark_resolver, pointer_name_resolver }
+        Self { id, caching_client, ant_tp_config, access_checker, bookmark_resolver, pointer_name_resolver, antns_resolver }
     }
 }
 
@@ -44,7 +47,7 @@ impl Command for UpdateAccessCheckerCommand {
     async fn execute(&self) -> Result<(), CommandError> {
         let caching_client = self.caching_client.get_ref().lock().await.clone();
         let resolver_service = ResolverService::new(
-            caching_client.clone(), self.access_checker.clone(), self.bookmark_resolver.clone(), self.pointer_name_resolver.clone());
+            caching_client.clone(), self.access_checker.clone(), self.bookmark_resolver.clone(), self.pointer_name_resolver.clone(), self.antns_resolver.clone());
         let file_service = FileService::new(caching_client, 1);
         
         let access_list = match resolver_service.resolve(&self.ant_tp_config.access_list_address, &"", &HeaderMap::new()).await {

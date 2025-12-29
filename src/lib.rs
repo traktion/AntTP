@@ -36,6 +36,7 @@ use crate::client::command::command_details::CommandDetails;
 use crate::service::access_checker::AccessChecker;
 use crate::service::bookmark_resolver::BookmarkResolver;
 use crate::service::pointer_name_resolver::PointerNameResolver;
+use crate::service::antns_resolver::AntNsResolver;
 
 static SERVER_HANDLE: Lazy<Mutex<Option<ServerHandle>>> = Lazy::new(|| Mutex::new(None));
 
@@ -104,10 +105,13 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> std::io::Result<()> {
 
     let pointer_name_resolver = PointerNameResolver::new(caching_client.clone(), ant_tp_config.get_resolver_private_key().unwrap());
     let pointer_name_resolver_data = Data::new(pointer_name_resolver);
+    let antns_resolver = AntNsResolver::new(caching_client.clone());
+    let antns_resolver_data = Data::new(antns_resolver);
+
     let bookmark_resolver_data = hydrate_bookmark_resolver(
-        &ant_tp_config, &command_executor, &caching_client, pointer_name_resolver_data.clone()).await;
+        &ant_tp_config, &command_executor, &caching_client, pointer_name_resolver_data.clone(), antns_resolver_data.clone()).await;
     let access_checker_data = hydrate_access_checker(
-        &ant_tp_config, &command_executor, &caching_client, &bookmark_resolver_data, &pointer_name_resolver_data).await;
+        &ant_tp_config, &command_executor, &caching_client, &bookmark_resolver_data, &pointer_name_resolver_data, &antns_resolver_data.clone()).await;
 
     // schedule idle disconnects for client_harness
     Runner::new().add(Box::new(caching_client_data.get_ref().clone())).run().await;
@@ -185,6 +189,7 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> std::io::Result<()> {
             .app_data(access_checker_data.clone())
             .app_data(bookmark_resolver_data.clone())
             .app_data(pointer_name_resolver_data.clone())
+            .app_data(antns_resolver_data.clone())
             .app_data(web::PayloadConfig::new(1024 * 1024 * 10));
 
         if !ant_tp_config.uploads_disabled {
@@ -273,6 +278,7 @@ async fn hydrate_access_checker(ant_tp_config: &AntTpConfig,
                                 caching_client: &CachingClient,
                                 bookmark_resolver_data: &Data<Mutex<BookmarkResolver>>,
                                 pointer_name_resolver_data: &Data<PointerNameResolver>,
+                                antns_resolver: &Data<AntNsResolver>,
 ) -> Data<Mutex<AccessChecker>> {
     let access_checker_data = Data::new(Mutex::new(AccessChecker::new()));
     let update_access_checker_command = Box::new(
@@ -281,7 +287,8 @@ async fn hydrate_access_checker(ant_tp_config: &AntTpConfig,
             ant_tp_config.clone(),
             access_checker_data.clone(),
             bookmark_resolver_data.clone(),
-            pointer_name_resolver_data.clone()
+            pointer_name_resolver_data.clone(),
+            antns_resolver.clone(),
         ),
     );
     command_executor.send(update_access_checker_command).await.expect("failed to send UpdateAccessCheckerCommand");
@@ -292,6 +299,7 @@ async fn hydrate_bookmark_resolver(ant_tp_config: &AntTpConfig,
                                    command_executor: &Sender<Box<dyn Command>>,
                                    caching_client: &CachingClient,
                                    pointer_name_resolver_data: Data<PointerNameResolver>,
+                                   antns_resolver: Data<AntNsResolver>,
 ) -> Data<Mutex<BookmarkResolver>> {
     let access_checker_data = Data::new(Mutex::new(AccessChecker::new()));
     let bookmark_resolver_data = Data::new(Mutex::new(BookmarkResolver::new()));
@@ -302,6 +310,7 @@ async fn hydrate_bookmark_resolver(ant_tp_config: &AntTpConfig,
             access_checker_data.clone(),
             bookmark_resolver_data.clone(),
             pointer_name_resolver_data.clone(),
+            antns_resolver.clone(),
         )
     );
     command_executor.send(update_bookmark_resolver_command).await.expect("failed to send UpdateBookmarkResolverCommand");

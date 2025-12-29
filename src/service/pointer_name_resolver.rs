@@ -23,8 +23,9 @@ impl PointerNameResolver {
         if name.is_empty() {
             None
         } else {
+            debug!("get key from name: {}", name);
             let pointer_key = Client::register_key_from_name(&self.pointer_name_resolver_secret_key, name.as_str());
-            debug!("resolve_name: name={}, pointer_key={}, public_key={}", name, pointer_key.to_hex(), &pointer_key.public_key().to_hex());
+            debug!("found: name={}, pointer_key={}, public_key={}", name, pointer_key.to_hex(), &pointer_key.public_key().to_hex());
             match self.resolve_pointer(&pointer_key.public_key().to_hex(), 0).await.ok() {
                 Some(pointer) => {
                     Some(pointer.target().to_hex())
@@ -35,6 +36,7 @@ impl PointerNameResolver {
     }
 
     async fn resolve_pointer(&self, address: &String, iteration: usize) -> Result<Pointer, PointerError> {
+        debug!("resolve_pointer: address={}, iteration={}", address, iteration);
         if iteration > 10 {
             error!("cyclic reference loop - resolve aborting");
             Err(PointerError::GetError(GetError::RecordNotFound(format!("Too many iterations which resolving: {}", address))))

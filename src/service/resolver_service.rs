@@ -12,6 +12,7 @@ use crate::model::archive::Archive;
 use crate::service::access_checker::AccessChecker;
 use crate::service::pointer_name_resolver::PointerNameResolver;
 use crate::service::bookmark_resolver::BookmarkResolver;
+use crate::service::antns_resolver::AntNsResolver;
 
 pub struct ResolvedAddress {
     pub is_found: bool,
@@ -34,6 +35,7 @@ pub struct ResolverService {
     access_checker: Data<Mutex<AccessChecker>>,
     bookmark_resolver: Data<Mutex<BookmarkResolver>>,
     pointer_name_resolver: Data<PointerNameResolver>,
+    antns_resolver: Data<AntNsResolver>,
 }
 
 impl ResolverService {
@@ -41,8 +43,9 @@ impl ResolverService {
                access_checker: Data<Mutex<AccessChecker>>,
                bookmark_resolver: Data<Mutex<BookmarkResolver>>,
                pointer_name_resolver: Data<PointerNameResolver>,
+               antns_resolver: Data<AntNsResolver>,
     ) -> ResolverService {
-        ResolverService { caching_client, access_checker, bookmark_resolver, pointer_name_resolver }
+        ResolverService { caching_client, access_checker, bookmark_resolver, pointer_name_resolver, antns_resolver }
     }
 
     pub async fn resolve(&self,
@@ -126,18 +129,32 @@ impl ResolverService {
             let is_allowed = is_allowed || self.is_allowed(archive_file_name).await;
             info!("Found XOR address at [{:x}]", archive_file_name_xor_name);
             Some(ResolvedAddress::new(true, None, archive_file_name_xor_name, archive_file_path.clone(), is_resolved_from_mutable, is_modified, is_allowed))
-        } else if self.pointer_name_resolver.is_resolved(archive_directory).await {
+        } else if let Some(resolved_address) = self.pointer_name_resolver.resolve(archive_directory).await {
             debug!("found chunk pointer for [{}]", archive_directory);
-            let resolved_address = self.pointer_name_resolver.resolve(archive_directory).await.unwrap_or_default();
-            let is_allowed = is_allowed || self.is_allowed(archive_directory).await;
-            Box::pin(self.resolve_archive_or_file(
-                &resolved_address, archive_file_name, archive_file_path, true, is_allowed, headers, iteration + 1)).await
-        } else if self.pointer_name_resolver.is_resolved(archive_file_name).await {
+
+            if let Some(antns_address) = self.antns_resolver.resolve(&resolved_address).await {
+                debug!("resolved antns record to address: {}", antns_address);
+                let is_allowed = is_allowed || self.is_allowed(&antns_address).await;
+                Box::pin(self.resolve_archive_or_file(
+                    &antns_address, archive_file_name, archive_file_path, true, is_allowed, headers, iteration + 1)).await
+            } else {
+                let is_allowed = is_allowed || self.is_allowed(archive_file_name).await;
+                Box::pin(self.resolve_archive_or_file(
+                    &resolved_address, archive_file_name, archive_file_path, true, is_allowed, headers, iteration + 1)).await
+            }
+        } else if let Some(resolved_address) = self.pointer_name_resolver.resolve(archive_file_name).await {
             debug!("found chunk_pointer for [{}]", archive_file_name);
-            let resolved_address = self.pointer_name_resolver.resolve(archive_file_name).await.unwrap_or_default();
-            let is_allowed = is_allowed || self.is_allowed(archive_file_name).await;
-            Box::pin(self.resolve_archive_or_file(
-                archive_directory, &resolved_address, archive_file_path, true, is_allowed, headers, iteration + 1)).await
+
+            if let Some(antns_address) = self.antns_resolver.resolve(&resolved_address).await {
+                debug!("resolved antns record to address: {}", antns_address);
+                let is_allowed = is_allowed || self.is_allowed(&antns_address).await;
+                Box::pin(self.resolve_archive_or_file(
+                    archive_directory, &antns_address, archive_file_path, true, is_allowed, headers, iteration + 1)).await
+            } else {
+                let is_allowed = is_allowed || self.is_allowed(archive_file_name).await;
+                Box::pin(self.resolve_archive_or_file(
+                    archive_directory, &resolved_address, archive_file_path, true, is_allowed, headers, iteration + 1)).await
+            }
         } else {
             debug!("Failed to find archive or filename [{:?}]", archive_file_name);
             None
@@ -242,96 +259,12 @@ impl ResolverService {
     }
 
     async fn is_valid_address(&self, address: &String) -> bool {
+        // todo: convert to proxy enabled check?
         self.is_immutable_address(address)
             || self.is_mutable_address(address)
             || self.is_bookmark(address).await
-            //|| self.pointer_name_resolver.is_resolved(address).await // todo: too slow!
+            || self.pointer_name_resolver.is_resolved(address).await
     }
-
-    // todo: improve and test to see if reliable performance gains can be achieved
-    /*async fn analyze_simple(&self, address: &String) -> Option<DataAddress> {
-        let pointer_address = match &PointerAddress::from_hex(address) {
-            Ok(address) => address.clone(),
-            Err(_) => {
-                warn!("Failed to parse pointer address [{}]", address);
-                return None
-            },
-        };
-        let register_address = match &RegisterAddress::from_hex(address) {
-            Ok(address) => address.clone(),
-            Err(_) => {
-                warn!("Failed to parse register address [{}]", address);
-                return None
-            },
-        };
-        let register_head_pointer = register_address.to_underlying_head_pointer().clone();
-
-        let (is_pointer, is_register) = join!(
-            self.caching_client.pointer_check_existence(&pointer_address),
-            self.caching_client.pointer_check_existence(&register_head_pointer),
-        );
-
-        if is_pointer.unwrap_or(false) {
-            match self.caching_client.pointer_get(&pointer_address).await {
-                Ok(pointer) => {
-                    info!("Analyze found pointer at address [{}] with target [{}]", address, pointer.clone().target().to_hex());
-                    match DataAddress::from_hex(pointer.target().to_hex().as_str()) {
-                        Ok(address) => Some(address),
-                        Err(_) => None,
-                    }
-                },
-                Err(_) => None,
-            }
-        } else if is_register.unwrap_or(false) {
-            match self.caching_client.register_get(&register_address).await {
-                Ok(register_value) => {
-                    info!("Analyze found register at address [{}] with value [{}]", address, hex::encode(register_value.clone()));
-                    match DataAddress::from_hex(hex::encode(register_value).as_str()) {
-                        Ok(address) => Some(address),
-                        Err(_) => None,
-                    }
-                },
-                Err(_) => None,
-            }
-        } else {
-            None
-        }
-    }*/
-
-    /*async fn analyze_complex(&self, autonomi_client: Client, address: &String) -> Result<DataAddress, Error> {
-        // note: this is an exhaust test and is rather slow
-        match autonomi_client.analyze_address(&address, true).await {
-            Ok(Analysis::Register { current_value, .. }) => {
-                info!("Analyze found register with current value [{}]", &hex::encode(current_value));
-                Ok(ArchiveAddress::from_hex(&hex::encode(current_value)).unwrap())
-            }
-            Ok(Analysis::Pointer(pointer)) => {
-                info!("Analyze found pointer");
-                Ok(ArchiveAddress::from_hex(pointer.target().to_hex().as_str()).unwrap())
-            }
-            Ok(Analysis::PublicArchive { address, .. }) => {
-                info!("Analyze found public archive");
-                Ok(ArchiveAddress::from_hex(address.unwrap().to_hex().as_str()).unwrap())
-            }
-            Ok(Analysis::Chunk(chunk, ..)) => {
-                info!("Analyze found chunk");
-                Ok(ArchiveAddress::from_hex(chunk.address.to_hex().as_str()).unwrap())
-            }
-            //Ok(Analysis::GraphEntry(_)) => {}
-            //Ok(Analysis::Scratchpad(_)) => {}
-            Ok(Analysis::DataMap { address, .. }) => {
-                Ok(ArchiveAddress::from_hex(address.to_hex().as_str()).unwrap())
-            }
-            //Ok(Analysis::RawDataMap { .. }) => {}
-            //Ok(Analysis::PrivateArchive(_)) => {}
-            Ok(_) => {
-                Err(ErrorNotFound(format!("Unsupported data type [{}]", address)))
-            }
-            Err(err) => {
-                Err(ErrorNotFound(format!("Unknown data type [{}] with error [{}]", address, err)))
-            }
-        }
-    }*/
 }
 
 #[cfg(test)]
@@ -362,8 +295,9 @@ mod tests {
         let access_checker = Data::new(Mutex::new(AccessChecker::new()));
         let bookmark_resolver = Data::new(Mutex::new(BookmarkResolver::new()));
         let pointer_name_resolver = Data::new(PointerNameResolver::new(caching_client.clone(), SecretKey::default()));
+        let antns_resolver = Data::new(AntNsResolver::new(caching_client.clone()));
 
-        ResolverService::new(caching_client, access_checker, bookmark_resolver, pointer_name_resolver)
+        ResolverService::new(caching_client, access_checker, bookmark_resolver, pointer_name_resolver, antns_resolver)
     }
 
     #[actix_web::test]

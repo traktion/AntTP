@@ -9,6 +9,7 @@ use crate::client::command::pointer::get_pointer_command::GetPointerCommand;
 use crate::controller::CacheType;
 use crate::client::command::pointer::create_pointer_command::CreatePointerCommand;
 use crate::client::command::pointer::update_pointer_command::UpdatePointerCommand;
+use crate::error::GetError;
 use crate::error::pointer_error::PointerError;
 
 impl CachingClient {
@@ -76,19 +77,32 @@ impl CachingClient {
                         let cache_item = CacheItem::new(Some(pointer.clone()), local_ant_tp_config.cached_mutable_ttl);
                         Ok(rmp_serde::to_vec(&cache_item).expect("Failed to serialize pointer"))
                     },
-                    Err(_) => Err(foyer::Error::other(format!("Failed to retrieve pointer for [{}] from network", local_address.to_hex())))
+                    Err(e) => {
+                        // store negative cache to avoid repeated lookups
+                        debug!("failed to find pointer for address [{}]: {}", local_address.to_hex(), e);
+                        let cache_item: CacheItem<Pointer> = CacheItem::new(None, local_ant_tp_config.cached_mutable_ttl * 10);
+                        Ok(rmp_serde::to_vec(&cache_item).expect("Failed to serialize pointer"))
+                    }
                 }
             }
         }).await?;
         let cache_item: CacheItem<Pointer> = rmp_serde::from_slice(cache_entry.value()).expect("Failed to deserialize pointer");
-        info!("retrieved pointer for [{}] from hybrid cache", address.to_hex());
-        if cache_item.has_expired() {
-            let command = Box::new(
-                GetPointerCommand::new(self.client_harness.clone(), self.hybrid_cache.clone(), address.clone(), self.ant_tp_config.cached_mutable_ttl)
-            );
-            self.send_get_command(command).await?;
+        match cache_item.item {
+            Some(_) => {
+                info!("retrieved pointer for [{}] from hybrid cache", address.to_hex());
+                if cache_item.has_expired() {
+                    let command = Box::new(
+                        GetPointerCommand::new(self.client_harness.clone(), self.hybrid_cache.clone(), address.clone(), self.ant_tp_config.cached_mutable_ttl)
+                    );
+                    self.send_get_command(command).await?;
+                }
+                Ok(cache_item.item.unwrap())
+            }
+            None => {
+                info!("negative cache for pointer for [{}] from hybrid cache", address.to_hex());
+                Err(PointerError::GetError(GetError::RecordNotFound(format!("Failed to retrieve pointer for [{}] from network", local_address.to_hex()))))
+            }
         }
-        Ok(cache_item.item.unwrap())
     }
 
     pub async fn pointer_check_existence(&self, address: &PointerAddress) -> Result<bool, PointerError> {
@@ -106,18 +120,31 @@ impl CachingClient {
                             Err(e) => Err(foyer::Error::other(format!("Failed to serialize pointer for [{}]: {}", local_address.to_hex(), e.to_string())))
                         }
                     },
-                    Err(e) => Err(foyer::Error::other(format!("Failed to pointer check existence for [{}] from network: {}", local_address.to_hex(), e.to_string())))
+                    Err(e) => {
+                        // store negative cache to avoid repeated lookups
+                        debug!("failed to find pointer exists for address [{}]: {}", local_address.to_hex(), e);
+                        let cache_item: CacheItem<Pointer> = CacheItem::new(None, local_ant_tp_config.cached_mutable_ttl * 10);
+                        Ok(rmp_serde::to_vec(&cache_item).expect("Failed to serialize pointer"))
+                    }
                 }
             }
         }).await?;
         let cache_item: CacheItem<bool> = rmp_serde::from_slice(cache_entry.value())?;
-        info!("retrieved pointer check existence for [{}] from hybrid cache", address.to_hex());
-        if cache_item.has_expired() {
-            let command = Box::new(
-                CheckPointerCommand::new(self.client_harness.clone(), self.hybrid_cache.clone(), address.clone(), self.ant_tp_config.cached_mutable_ttl)
-            );
-            self.send_check_command(command).await?;
+        match cache_item.item {
+            Some(_) => {
+                info!("retrieved pointer check existence for [{}] from hybrid cache", address.to_hex());
+                if cache_item.has_expired() {
+                    let command = Box::new(
+                        CheckPointerCommand::new(self.client_harness.clone(), self.hybrid_cache.clone(), address.clone(), self.ant_tp_config.cached_mutable_ttl)
+                    );
+                    self.send_check_command(command).await?;
+                }
+                Ok(cache_item.item.unwrap())
+            }
+            None => {
+                info!("negative cache for pointer for [{}] from hybrid cache", address.to_hex());
+                Err(PointerError::GetError(GetError::RecordNotFound(format!("Failed to pointer check existence for [{}] from network", local_address.to_hex()))))
+            }
         }
-        Ok(cache_item.item.unwrap())
     }
 }

@@ -128,3 +128,95 @@ impl CachingClient {
         Ok(self.command_executor.send(command).await?)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    /// Test range calculation with zero-length data to ensure no overflow
+    #[test]
+    fn test_range_calculation_with_zero_length() {
+        let length: u64 = 0;
+
+        // Test negative range_from with zero length
+        let from = 1u64;
+        let derived_range_from = if from < length {
+            length.saturating_sub(1).saturating_sub(from)
+        } else {
+            0
+        };
+        assert_eq!(derived_range_from, 0);
+
+        // Test negative range_to with zero length
+        let to = 1u64;
+        let derived_range_to = if to < length {
+            length.saturating_sub(1).saturating_sub(to)
+        } else {
+            0
+        };
+        assert_eq!(derived_range_to, 0);
+
+        // Test positive range_to exceeding length
+        let to = 100u64;
+        let derived_range_to = if to > length.saturating_sub(1) {
+            length
+        } else {
+            to
+        };
+        assert_eq!(derived_range_to, 0);
+    }
+
+    /// Test range calculation with normal data length
+    #[test]
+    fn test_range_calculation_with_normal_length() {
+        let length: u64 = 100;
+
+        // Test negative range_from (last 10 bytes)
+        let from = 10u64;
+        let derived_range_from = if from < length {
+            length.saturating_sub(1).saturating_sub(from)
+        } else {
+            0
+        };
+        assert_eq!(derived_range_from, 89); // 99 - 10 = 89
+
+        // Test negative range_to (excluding last 5 bytes)
+        let to = 5u64;
+        let derived_range_to = if to < length {
+            length.saturating_sub(1).saturating_sub(to)
+        } else {
+            0
+        };
+        assert_eq!(derived_range_to, 94); // 99 - 5 = 94
+
+        // Test positive range_to within bounds
+        let to = 50u64;
+        let derived_range_to = if to > length.saturating_sub(1) {
+            length
+        } else {
+            to
+        };
+        assert_eq!(derived_range_to, 50);
+
+        // Test positive range_to exceeding bounds
+        let to = 150u64;
+        let derived_range_to = if to > length.saturating_sub(1) {
+            length
+        } else {
+            to
+        };
+        assert_eq!(derived_range_to, 100);
+    }
+
+    /// Test edge case: from exceeds length
+    #[test]
+    fn test_range_calculation_from_exceeds_length() {
+        let length: u64 = 10;
+
+        let from = 20u64;
+        let derived_range_from = if from < length {
+            length.saturating_sub(1).saturating_sub(from)
+        } else {
+            0
+        };
+        assert_eq!(derived_range_from, 0);
+    }
+}

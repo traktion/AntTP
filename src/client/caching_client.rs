@@ -64,7 +64,7 @@ impl CachingClient {
                 let derived_range_from = if range_from < 0 {
                     let from = u64::try_from(range_from.abs()).unwrap();
                     if from < length {
-                        (length - 1) - from
+                        length.saturating_sub(1).saturating_sub(from)
                     } else {
                         0
                     }
@@ -74,13 +74,13 @@ impl CachingClient {
                 let derived_range_to: u64 = if range_to <= 0 {
                     let to = u64::try_from(range_to.abs()).unwrap();
                     if to < length {
-                        (length - 1) - to
+                        length.saturating_sub(1).saturating_sub(to)
                     } else {
                         0
                     }
                 } else {
                     let to = u64::try_from(range_to).unwrap();
-                    if to > length - 1 {
+                    if to > length.saturating_sub(1) {
                         length
                     } else {
                         to

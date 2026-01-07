@@ -4,36 +4,26 @@ use actix_web::dev::ConnectionInfo;
 use actix_web::web::Data;
 use log::debug;
 use mime::{Mime, APPLICATION_JSON, TEXT_HTML};
-use tokio::sync::Mutex;
 use crate::config::anttp_config::AntTpConfig;
 use crate::service::public_archive_service::PublicArchiveService;
 use crate::client::CachingClient;
 use crate::error::GetError;
 use crate::error::chunk_error::ChunkError;
-use crate::service::access_checker::AccessChecker;
-use crate::service::pointer_name_resolver::PointerNameResolver;
 use crate::service::archive_helper::{ArchiveAction, ArchiveHelper, ArchiveInfo};
-use crate::service::bookmark_resolver::BookmarkResolver;
 use crate::service::file_service::{FileService, RangeProps};
 use crate::service::header_builder::HeaderBuilder;
-use crate::service::antns_resolver::AntNsResolver;
 use crate::service::resolver_service::{ResolvedAddress, ResolverService};
 
 pub async fn get_public_data(
     request: HttpRequest,
     path: web::Path<String>,
+    resolver_service: Data<ResolverService>,
     caching_client_data: Data<CachingClient>,
     conn: ConnectionInfo,
     ant_tp_config_data: Data<AntTpConfig>,
-    access_checker: Data<Mutex<AccessChecker>>,
-    bookmark_resolver: Data<Mutex<BookmarkResolver>>,
-    pointer_name_resolver: Data<PointerNameResolver>,
-    antns_resolver: Data<AntNsResolver>,
 ) -> Result<HttpResponse, ChunkError> {
     let ant_tp_config = ant_tp_config_data.get_ref().clone();
     let caching_client = caching_client_data.get_ref().clone();
-    let resolver_service = ResolverService::new(
-        caching_client.clone(), access_checker, bookmark_resolver, pointer_name_resolver, antns_resolver);
 
     match resolver_service.resolve(&conn.host(), &path.into_inner(), &request.headers()).await {
         Some(resolved_address) => {

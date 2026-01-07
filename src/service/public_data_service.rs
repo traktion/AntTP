@@ -17,6 +17,7 @@ pub struct PublicData {
     address: Option<String>,
 }
 
+#[derive(Debug, Clone)]
 pub struct PublicDataService {
     caching_client: CachingClient
 }

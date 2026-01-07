@@ -2,9 +2,7 @@ use actix_web::{web, HttpRequest, HttpResponse};
 use actix_web::web::Data;
 use ant_evm::EvmWallet;
 use log::debug;
-use crate::client::CachingClient;
 use crate::error::graph_error::GraphError;
-use crate::config::anttp_config::AntTpConfig;
 use crate::controller::cache_only;
 use crate::service::graph_service::{GraphEntry, GraphService};
 
@@ -24,17 +22,11 @@ use crate::service::graph_service::{GraphEntry, GraphService};
     ),
 )]
 pub async fn post_graph_entry(
-    caching_client_data: Data<CachingClient>,
+    graph_service: Data<GraphService>,
     evm_wallet_data: Data<EvmWallet>,
-    ant_tp_config_data: Data<AntTpConfig>,
     graph_entry: web::Json<GraphEntry>,
     request: HttpRequest,
 ) -> Result<HttpResponse, GraphError> {
-    let graph_service = GraphService::new(
-        caching_client_data.get_ref().clone(),
-        ant_tp_config_data.get_ref().clone()
-    );
-
     debug!("Creating new graph entry");
     Ok(HttpResponse::Created().json(
         graph_service.create_graph_entry(graph_entry.into_inner(), evm_wallet_data.get_ref().clone(), cache_only(&request)).await?
@@ -54,16 +46,9 @@ pub async fn post_graph_entry(
 )]
 pub async fn get_graph_entry(
     path: web::Path<String>,
-    caching_client_data: Data<CachingClient>,
-    ant_tp_config_data: Data<AntTpConfig>,
+    graph_service: Data<GraphService>,
 ) -> Result<HttpResponse, GraphError> {
     let address = path.into_inner();
-    
-    let graph_service = GraphService::new(
-        caching_client_data.get_ref().clone(),
-        ant_tp_config_data.get_ref().clone()
-    );
-
     debug!("Getting graph entry at [{}]", address);
     Ok(HttpResponse::Ok().json(graph_service.get_graph_entry(address).await?))
 }

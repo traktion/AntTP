@@ -5,7 +5,7 @@ use autonomi::client::ConnectError;
 use log::{debug, info};
 use crate::config::anttp_config::AntTpConfig;
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct ClientHarness {
     evm_network: EvmNetwork,
     ant_tp_config: AntTpConfig,

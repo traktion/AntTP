@@ -13,13 +13,13 @@ use crate::service::resolver_service::ResolverService;
 
 #[derive(Serialize, Deserialize, ToSchema)]
 pub struct Pointer {
-    name: Option<String>,
-    content: String,
+    pub name: Option<String>,
+    pub content: String,
     #[schema(read_only)]
-    address: Option<String>,
-    counter: Option<u64>,
+    pub address: Option<String>,
+    pub counter: Option<u64>,
     #[schema(read_only)]
-    cost: Option<String>,
+    pub cost: Option<String>,
 }
 
 impl Pointer {
@@ -28,6 +28,7 @@ impl Pointer {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct PointerService {
     caching_client: CachingClient,
     ant_tp_config: AntTpConfig,

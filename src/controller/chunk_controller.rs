@@ -4,7 +4,6 @@ use actix_web::http::header::{ContentLength, ContentType};
 use actix_web::web::{Data, Payload};
 use ant_evm::EvmWallet;
 use log::debug;
-use crate::client::CachingClient;
 use crate::error::chunk_error::ChunkError;
 use crate::controller::cache_only;
 use crate::error::CreateError;
@@ -25,13 +24,11 @@ use crate::service::chunk_service::{Chunk, ChunkService};
     ),
 )]
 pub async fn post_chunk(
-    caching_client_data: Data<CachingClient>,
+    chunk_service: Data<ChunkService>,
     evm_wallet_data: Data<EvmWallet>,
     chunk: web::Json<Chunk>,
     request: HttpRequest
 ) -> Result<HttpResponse, ChunkError> {
-    let chunk_service = ChunkService::new(caching_client_data.get_ref().clone());
-
     debug!("Creating new chunk");
     Ok(HttpResponse::Created().json(
         chunk_service.create_chunk(chunk.into_inner(), evm_wallet_data.get_ref().clone(), cache_only(&request)).await?))
@@ -53,13 +50,11 @@ pub async fn post_chunk(
     ),
 )]
 pub async fn post_chunk_binary(
-    caching_client_data: Data<CachingClient>,
+    chunk_service: Data<ChunkService>,
     evm_wallet_data: Data<EvmWallet>,
     payload: Payload,
     request: HttpRequest
 ) -> Result<HttpResponse, ChunkError> {
-    let chunk_service = ChunkService::new(caching_client_data.get_ref().clone());
-
     debug!("Creating new chunk");
     match payload.to_bytes().await {
         Ok(bytes) => {
@@ -85,11 +80,9 @@ pub async fn post_chunk_binary(
 )]
 pub async fn get_chunk(
     path: web::Path<String>,
-    caching_client_data: Data<CachingClient>,
+    chunk_service: Data<ChunkService>,
 ) -> Result<HttpResponse, ChunkError> {
     let address = path.into_inner();
-    let chunk_service = ChunkService::new(caching_client_data.get_ref().clone());
-
     debug!("Getting chunk at [{}]", address);
     Ok(HttpResponse::Ok().json(chunk_service.get_chunk(address).await?))
 }
@@ -107,11 +100,9 @@ pub async fn get_chunk(
 )]
 pub async fn get_chunk_binary(
     path: web::Path<String>,
-    caching_client_data: Data<CachingClient>,
+    chunk_service: Data<ChunkService>,
 ) -> Result<HttpResponse, ChunkError> {
     let address = path.into_inner();
-    let chunk_service = ChunkService::new(caching_client_data.get_ref().clone());
-
     debug!("Getting chunk at [{}]", address);
     let chunk = chunk_service.get_chunk_binary(address).await?;
     Ok(HttpResponse::Ok()

@@ -2,9 +2,7 @@ use actix_web::{web, HttpRequest, HttpResponse};
 use actix_web::web::Data;
 use ant_evm::EvmWallet;
 use log::debug;
-use crate::client::CachingClient;
 use crate::error::scratchpad_error::ScratchpadError;
-use crate::config::anttp_config::AntTpConfig;
 use crate::controller::cache_only;
 use crate::service::scratchpad_service::{Scratchpad, ScratchpadService};
 
@@ -25,17 +23,12 @@ use crate::service::scratchpad_service::{Scratchpad, ScratchpadService};
 )]
 pub async fn post_private_scratchpad(
     path: web::Path<String>,
-    caching_client_data: Data<CachingClient>,
+    scratchpad_service: Data<ScratchpadService>,
     evm_wallet_data: Data<EvmWallet>,
-    ant_tp_config_data: Data<AntTpConfig>,
     scratchpad: web::Json<Scratchpad>,
     request: HttpRequest,
 ) -> Result<HttpResponse, ScratchpadError> {
     let name = path.into_inner();
-    let scratchpad_service = ScratchpadService::new(
-        caching_client_data.get_ref().clone(),
-        ant_tp_config_data.get_ref().clone(),
-    );
 
     debug!("Creating new private scratchpad");
     Ok(HttpResponse::Ok().json(
@@ -67,18 +60,12 @@ pub async fn post_private_scratchpad(
 )]
 pub async fn put_private_scratchpad(
     path: web::Path<(String, String)>,
-    caching_client_data: Data<CachingClient>,
+    scratchpad_service: Data<ScratchpadService>,
     evm_wallet_data: Data<EvmWallet>,
-    ant_tp_config_data: Data<AntTpConfig>,
     scratchpad: web::Json<Scratchpad>,
     request: HttpRequest,
 ) -> Result<HttpResponse, ScratchpadError> {
     let (address, name) = path.into_inner();
-
-    let scratchpad_service = ScratchpadService::new(
-        caching_client_data.get_ref().clone(),
-        ant_tp_config_data.get_ref().clone(),
-    );
 
     debug!("Updating private scratchpad");
     Ok(HttpResponse::Ok().json(
@@ -107,15 +94,9 @@ pub async fn put_private_scratchpad(
 )]
 pub async fn get_private_scratchpad(
     path: web::Path<(String, String)>,
-    caching_client_data: Data<CachingClient>,
-    ant_tp_config_data: Data<AntTpConfig>,
+    scratchpad_service: Data<ScratchpadService>,
 ) -> Result<HttpResponse, ScratchpadError> {
     let (address, name) = path.into_inner();
-
-    let scratchpad_service = ScratchpadService::new(
-        caching_client_data.get_ref().clone(),
-        ant_tp_config_data.get_ref().clone(),
-    );
 
     debug!("Getting private scratchpad at [{}] with name [{}]", address, name);
     Ok(HttpResponse::Ok().json(scratchpad_service.get_scratchpad(address, Some(name), true).await?))

@@ -14,9 +14,9 @@ use crate::controller::CacheType;
 
 #[derive(Serialize, Deserialize, ToSchema)]
 pub struct Chunk {
-    content: Option<String>,
+    pub content: Option<String>,
     #[schema(read_only)]
-    address: Option<String>,
+    pub address: Option<String>,
 }
 
 impl Chunk {

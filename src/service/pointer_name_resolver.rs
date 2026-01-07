@@ -5,6 +5,7 @@ use crate::client::CachingClient;
 use crate::error::GetError;
 use crate::error::pointer_error::PointerError;
 
+#[derive(Debug)]
 pub struct PointerNameResolver {
     caching_client: CachingClient,
     pointer_name_resolver_secret_key: SecretKey,

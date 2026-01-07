@@ -3,6 +3,7 @@ use log::{debug, warn};
 use crate::client::CachingClient;
 use crate::model::antns_list::AntNsList;
 
+#[derive(Debug)]
 pub struct AntNsResolver {
     caching_client: CachingClient,
 }

@@ -4,6 +4,7 @@ pub mod controller;
 pub mod service;
 pub mod model;
 pub mod error;
+pub mod tool;
 
 use crate::controller::{chunk_controller, command_controller, connect_controller, file_controller, graph_controller, pointer_controller, private_scratchpad_controller, public_archive_controller, public_data_controller, public_scratchpad_controller, register_controller};
 use actix_files::Files;
@@ -18,10 +19,14 @@ use log::info;
 use once_cell::sync::Lazy;
 use std::{env, io};
 use std::path::Path;
+use std::sync::Arc;
+use std::time::Duration;
 use actix_web::http::Method;
 use async_job::Runner;
 use foyer::{BlockEngineBuilder, Compression, DeviceBuilder, FsDeviceBuilder, HybridCache, HybridCacheBuilder, HybridCachePolicy, IoEngineBuilder, LfuConfig, PsyncIoEngineBuilder, RecoverMode, RuntimeOptions, TokioRuntimeOptions};
 use indexmap::IndexMap;
+use rmcp_actix_web::transport::{StreamableHttpService};
+use rmcp::transport::streamable_http_server::session::local::LocalSessionManager;
 use tokio::sync::mpsc::Sender;
 use tokio::sync::Mutex;
 use utoipa::OpenApi;
@@ -37,6 +42,17 @@ use crate::service::access_checker::AccessChecker;
 use crate::service::bookmark_resolver::BookmarkResolver;
 use crate::service::pointer_name_resolver::PointerNameResolver;
 use crate::service::antns_resolver::AntNsResolver;
+use crate::service::chunk_service::ChunkService;
+use crate::service::command_service::CommandService;
+use crate::service::file_service::FileService;
+use crate::service::graph_service::GraphService;
+use crate::service::pointer_service::PointerService;
+use crate::service::public_archive_service::PublicArchiveService;
+use crate::service::public_data_service::PublicDataService;
+use crate::service::register_service::RegisterService;
+use crate::service::resolver_service::ResolverService;
+use crate::service::scratchpad_service::ScratchpadService;
+use crate::tool::antns_tool::AntNsTool;
 
 static SERVER_HANDLE: Lazy<Mutex<Option<ServerHandle>>> = Lazy::new(|| Mutex::new(None));
 
@@ -86,36 +102,57 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> std::io::Result<()> {
 
     let client_harness_data = Data::new(Mutex::new(ClientHarness::new(evm_network.clone(), ant_tp_config.clone())));
 
-    let evm_wallet = if !wallet_private_key.is_empty() {
-        EvmWallet::new_from_private_key(evm_network, wallet_private_key.as_str())
-            .expect("Failed to instantiate EvmWallet.")
+    let evm_wallet_data = if !wallet_private_key.is_empty() {
+        Data::new(EvmWallet::new_from_private_key(evm_network, wallet_private_key.as_str())
+            .expect("Failed to instantiate EvmWallet."))
     } else {
-        EvmWallet::new_with_random_wallet(evm_network)
+        Data::new(EvmWallet::new_with_random_wallet(evm_network))
     };
+    
+    let hybrid_cache_data: Data<HybridCache<String, Vec<u8>>> = Data::new(build_foyer_cache(&ant_tp_config).await);
 
-    let hybrid_cache: HybridCache<String, Vec<u8>> = build_foyer_cache(&ant_tp_config).await;
-    let hybrid_cache_data = Data::new(hybrid_cache);
-
-    let command_status = Data::new(Mutex::new(IndexMap::<u128, CommandDetails>::with_capacity(ant_tp_config.command_buffer_size * 2)));
-    let command_executor = Executor::start(ant_tp_config.command_buffer_size, command_status.clone()).await;
+    let command_status_data = Data::new(Mutex::new(IndexMap::<u128, CommandDetails>::with_capacity(ant_tp_config.command_buffer_size * 2)));
+    let command_executor = Executor::start(ant_tp_config.command_buffer_size, command_status_data.clone()).await;
     let command_executor_data = Data::new(command_executor.clone());
 
     let caching_client = CachingClient::new(client_harness_data, ant_tp_config.clone(), hybrid_cache_data.clone(), command_executor_data.clone());
     let caching_client_data = Data::new(caching_client.clone());
 
-    let pointer_name_resolver = PointerNameResolver::new(caching_client.clone(), ant_tp_config.get_resolver_private_key().unwrap());
-    let pointer_name_resolver_data = Data::new(pointer_name_resolver);
-    let antns_resolver = AntNsResolver::new(caching_client.clone());
-    let antns_resolver_data = Data::new(antns_resolver);
+    let pointer_name_resolver_data = Data::new(PointerNameResolver::new(caching_client.clone(), ant_tp_config.get_resolver_private_key().unwrap()));
+    let antns_resolver_data = Data::new(AntNsResolver::new(caching_client.clone()));
 
     let bookmark_resolver_data = hydrate_bookmark_resolver(
         &ant_tp_config, &command_executor, &caching_client, pointer_name_resolver_data.clone(), antns_resolver_data.clone()).await;
     let access_checker_data = hydrate_access_checker(
         &ant_tp_config, &command_executor, &caching_client, &bookmark_resolver_data, &pointer_name_resolver_data, &antns_resolver_data.clone()).await;
 
+    let resolver_service_data = Data::new(
+        ResolverService::new(caching_client_data.get_ref().clone(), access_checker_data.clone(), bookmark_resolver_data.clone(), pointer_name_resolver_data.clone(), antns_resolver_data.clone())
+    );
+
     // schedule idle disconnects for client_harness
     Runner::new().add(Box::new(caching_client_data.get_ref().clone())).run().await;
 
+    // define services
+    let public_archive_service_data = Data::new(PublicArchiveService::new(FileService::new(caching_client_data.get_ref().clone(), ant_tp_config.download_threads), caching_client.clone()));
+    let command_service_data = Data::new(CommandService::new(command_status_data.clone()));
+    let chunk_service_data = Data::new(ChunkService::new(caching_client_data.get_ref().clone()));
+    let graph_service_data = Data::new(GraphService::new(caching_client_data.get_ref().clone(), ant_tp_config.clone()));
+    let pointer_service_data = Data::new(PointerService::new(caching_client_data.get_ref().clone(), ant_tp_config.clone(), resolver_service_data.get_ref().clone()));
+    let public_data_service_data = Data::new(PublicDataService::new(caching_client_data.get_ref().clone()));
+    let register_service_data = Data::new(RegisterService::new(caching_client_data.get_ref().clone(), ant_tp_config.clone(), resolver_service_data.get_ref().clone()));
+    let scratchpad_service_data = Data::new(ScratchpadService::new(caching_client_data.get_ref().clone(), ant_tp_config.clone()));
+
+    // MCP
+    let ant_ns_tool = AntNsTool::new(public_data_service_data.clone(), pointer_service_data.clone(), evm_wallet_data.clone());
+    let mcp_service = StreamableHttpService::builder()
+        .service_factory(Arc::new(move || {
+            Ok(ant_ns_tool.clone())
+        }))
+        .session_manager(Arc::new(LocalSessionManager::default())) // Local session management
+        .stateful_mode(true) // Enable stateful session management
+        .sse_keep_alive(Duration::from_secs(30)) // Keep-alive pings every 30 seconds
+        .build();
 
     info!("Starting listener");
 
@@ -128,6 +165,9 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> std::io::Result<()> {
             .service(
                 SwaggerUi::new("/swagger-ui/{_:.*}")
                     .url("/api-docs/openapi.json", ApiDoc::openapi()),
+            )
+            .service(
+                web::scope("/mcp-0/antns").service(mcp_service.clone().scope())
             )
             .route(
                 "",
@@ -183,13 +223,22 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> std::io::Result<()> {
             )
             .app_data(Data::new(ant_tp_config.clone()))
             .app_data(caching_client_data.clone())
-            .app_data(Data::new(evm_wallet.clone()))
+            .app_data(evm_wallet_data.clone())
             .app_data(hybrid_cache_data.clone())
-            .app_data(command_status.clone())
+            .app_data(command_status_data.clone())
             .app_data(access_checker_data.clone())
             .app_data(bookmark_resolver_data.clone())
             .app_data(pointer_name_resolver_data.clone())
             .app_data(antns_resolver_data.clone())
+            .app_data(command_service_data.clone())
+            .app_data(chunk_service_data.clone())
+            .app_data(graph_service_data.clone())
+            .app_data(pointer_service_data.clone())
+            .app_data(public_archive_service_data.clone())
+            .app_data(public_data_service_data.clone())
+            .app_data(register_service_data.clone())
+            .app_data(resolver_service_data.clone())
+            .app_data(scratchpad_service_data.clone())
             .app_data(web::PayloadConfig::new(1024 * 1024 * 10));
 
         if !ant_tp_config.uploads_disabled {

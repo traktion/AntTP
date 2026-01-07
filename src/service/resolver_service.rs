@@ -30,6 +30,7 @@ impl ResolvedAddress {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct ResolverService {
     caching_client: CachingClient,
     access_checker: Data<Mutex<AccessChecker>>,

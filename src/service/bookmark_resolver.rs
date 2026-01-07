@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use crate::model::bookmark_list::BookmarkList;
 
+#[derive(Debug)]
 pub struct BookmarkResolver {
     map: HashMap<String, String>,
 }

@@ -4,7 +4,6 @@ use actix_web::http::header::{ContentLength, ContentType};
 use actix_web::web::{Data, Payload};
 use ant_evm::EvmWallet;
 use log::debug;
-use crate::client::CachingClient;
 use crate::error::public_data_error::PublicDataError;
 use crate::controller::cache_only;
 use crate::error::CreateError;
@@ -26,13 +25,11 @@ use crate::service::public_data_service::{PublicData, PublicDataService};
     ),
 )]
 pub async fn post_public_data(
-    caching_client_data: Data<CachingClient>,
+    public_data_service: Data<PublicDataService>,
     evm_wallet_data: Data<EvmWallet>,
     payload: Payload,
     request: HttpRequest
 ) -> Result<HttpResponse, PublicDataError> {
-    let public_data_service = PublicDataService::new(caching_client_data.get_ref().clone());
-
     debug!("Creating new public data");
     match payload.to_bytes().await {
         Ok(bytes) => {
@@ -59,10 +56,9 @@ pub async fn post_public_data(
 )]
 pub async fn get_public_data(
     path: web::Path<String>,
-    caching_client_data: Data<CachingClient>,
+    public_data_service: Data<PublicDataService>,
 ) -> Result<HttpResponse, PublicDataError> {
     let address = path.into_inner();
-    let public_data_service = PublicDataService::new(caching_client_data.get_ref().clone());
 
     debug!("Getting public data at [{}]", address);
     let bytes = public_data_service.get_public_data_binary(address).await?;

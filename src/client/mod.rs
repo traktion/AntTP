@@ -6,7 +6,7 @@ use crate::client::client_harness::ClientHarness;
 use command::Command;
 use crate::config::anttp_config::AntTpConfig;
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct CachingClient {
     client_harness: Data<Mutex<ClientHarness>>,
     ant_tp_config: AntTpConfig,

@@ -7,6 +7,7 @@ enum AccessType {
     Allow, Deny
 }
 
+#[derive(Debug)]
 pub struct AccessChecker {
     map: HashMap<String, AccessType>,
 }

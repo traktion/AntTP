@@ -44,7 +44,7 @@ impl PnrService {
                 {
                     Ok(personal_pointer_result) => {
                         let resolver_pointer_request = Pointer::new(
-                            Some(pnr_zone.name.clone()), personal_pointer_result.address.unwrap(), None, None, None,
+                            Some(pnr_zone.name.clone()), personal_pointer_result.address.clone().unwrap(), None, None, None,
                         );
                         match self.pointer_service.create_pointer(
                             resolver_pointer_request,
@@ -52,7 +52,14 @@ impl PnrService {
                             cache_only,
                             DataKey::Resolver).await
                         {
-                            Ok(_) => Ok(pnr_zone),
+                            Ok(resolver_pointer_result) => {
+                                Ok(PnrZone::new(
+                                    pnr_zone.name.clone(),
+                                    pnr_zone.records.clone(),
+                                    resolver_pointer_result.address.clone(),
+                                    personal_pointer_result.address.clone(),
+                                ))
+                            },
                             Err(e) => Err(e),
                         }
                     },

@@ -52,7 +52,7 @@ use crate::service::public_data_service::PublicDataService;
 use crate::service::register_service::RegisterService;
 use crate::service::resolver_service::ResolverService;
 use crate::service::scratchpad_service::ScratchpadService;
-use crate::tool::antns_tool::PnrTool;
+use crate::tool::pnr_tool::PnrTool;
 
 static SERVER_HANDLE: Lazy<Mutex<Option<ServerHandle>>> = Lazy::new(|| Mutex::new(None));
 
@@ -167,9 +167,6 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> std::io::Result<()> {
                 SwaggerUi::new("/swagger-ui/{_:.*}")
                     .url("/api-docs/openapi.json", ApiDoc::openapi()),
             )
-            .service(
-                web::scope("/mcp-0/pnr").service(mcp_service.clone().scope())
-            )
             .route(
                 "",
                 web::method(Method::CONNECT).to(connect_controller::forward)
@@ -244,6 +241,9 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> std::io::Result<()> {
 
         if !ant_tp_config.uploads_disabled {
             app = app
+                .service(
+                    web::scope("/mcp-0/pnr").service(mcp_service.clone().scope())
+                )
                 .route(
                     format!("{}chunk", API_BASE).as_str(),
                     web::post().to(chunk_controller::post_chunk),

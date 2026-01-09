@@ -2,7 +2,6 @@
 
 use actix_web::web::Data;
 use ant_evm::EvmWallet;
-use bytes::Bytes;
 use rmcp::{
     ServerHandler,
     handler::server::{
@@ -14,14 +13,12 @@ use rmcp::{
 };
 use rmcp::schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use crate::controller::{CacheType, DataKey};
+use crate::controller::CacheType;
 use crate::model::pnr::{PnrRecord, PnrZone};
 use crate::service::pnr_service::PnrService;
-use crate::service::pointer_service::{Pointer, PointerService};
-use crate::service::public_data_service::PublicDataService;
 
 #[derive(Debug, Deserialize, JsonSchema)]
-pub struct AntNsRequest {
+struct PnrRequest {
     #[schemars(description = "the name of the PNR record")]
     name: String,
     #[schemars(description = "the target address of the PNR record")]
@@ -29,14 +26,14 @@ pub struct AntNsRequest {
 }
 
 #[derive(Debug, Serialize, JsonSchema)]
-pub struct AntNsResult {
+struct PnrResult {
     #[schemars(description = "the address of the PNR map")]
     address: String,
 }
 
-impl From<String> for AntNsResult {
-    fn from(address: String) -> Self {
-        Self { address }
+impl From<PnrZone> for PnrResult {
+    fn from(pnr_zone: PnrZone) -> Self {
+        Self { address: pnr_zone.records.get(0).unwrap().clone().address }
     }
 }
 
@@ -57,14 +54,14 @@ impl PnrTool {
     #[tool(description = "Register PNR record with default configuration")]
     async fn register(
         &self,
-        Parameters(AntNsRequest { name, address }): Parameters<AntNsRequest>,
-    ) -> Json<AntNsResult> {
+        Parameters(PnrRequest { name, address }): Parameters<PnrRequest>,
+    ) -> Result<Json<PnrResult>, String> {
         let pnr_zone = PnrZone::new(
             name, vec![PnrRecord::new(Some("".to_string()), address.clone(), 60)]
         );
         match self.pnr_service.create_pnr(pnr_zone, self.evm_wallet.get_ref().clone(), Some(CacheType::Memory)).await {
-            Ok(pnr_zone) => Json(AntNsResult::from(pnr_zone.records.get(0).unwrap().address.to_string())),
-            Err(_) => Json(AntNsResult::from(address.to_string())),
+            Ok(pnr_zone) => Ok(Json(PnrResult::from(pnr_zone))),
+            Err(e) => Err(e.to_string()),
         }
     }
 }

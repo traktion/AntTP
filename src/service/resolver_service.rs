@@ -12,7 +12,6 @@ use crate::model::archive::Archive;
 use crate::service::access_checker::AccessChecker;
 use crate::service::pointer_name_resolver::PointerNameResolver;
 use crate::service::bookmark_resolver::BookmarkResolver;
-use crate::service::antns_resolver::AntNsResolver;
 
 pub struct ResolvedAddress {
     pub is_found: bool,
@@ -22,11 +21,12 @@ pub struct ResolvedAddress {
     pub is_resolved_from_mutable: bool,
     pub is_modified: bool,
     pub is_allowed: bool,
+    pub ttl: u64,
 }
 
 impl ResolvedAddress {
-    pub fn new(is_found: bool, archive: Option<Archive>, xor_name: XorName, file_path: String, is_resolved_from_mutable: bool, is_modified: bool, is_allowed: bool) -> Self {
-        ResolvedAddress { is_found, archive, xor_name, file_path, is_resolved_from_mutable, is_modified, is_allowed }
+    pub fn new(is_found: bool, archive: Option<Archive>, xor_name: XorName, file_path: String, is_resolved_from_mutable: bool, is_modified: bool, is_allowed: bool, ttl: u64) -> Self {
+        ResolvedAddress { is_found, archive, xor_name, file_path, is_resolved_from_mutable, is_modified, is_allowed, ttl }
     }
 }
 
@@ -36,7 +36,7 @@ pub struct ResolverService {
     access_checker: Data<Mutex<AccessChecker>>,
     bookmark_resolver: Data<Mutex<BookmarkResolver>>,
     pointer_name_resolver: Data<PointerNameResolver>,
-    antns_resolver: Data<AntNsResolver>,
+    ttl_default: u64,
 }
 
 impl ResolverService {
@@ -44,9 +44,9 @@ impl ResolverService {
                access_checker: Data<Mutex<AccessChecker>>,
                bookmark_resolver: Data<Mutex<BookmarkResolver>>,
                pointer_name_resolver: Data<PointerNameResolver>,
-               antns_resolver: Data<AntNsResolver>,
+               ttl_default: u64,
     ) -> ResolverService {
-        ResolverService { caching_client, access_checker, bookmark_resolver, pointer_name_resolver, antns_resolver }
+        ResolverService { caching_client, access_checker, bookmark_resolver, pointer_name_resolver, ttl_default }
     }
 
     pub async fn resolve(&self,
@@ -58,7 +58,7 @@ impl ResolverService {
         let (archive_addr, archive_file_name, file_path) = self.assign_path_parts(&path_parts);
         let is_allowed_default = self.access_checker.lock().await.is_allowed_default();
         self.resolve_archive_or_file(
-            &archive_addr, &archive_file_name, &file_path, false, is_allowed_default, headers, 0).await
+            &archive_addr, &archive_file_name, &file_path, false, is_allowed_default, headers, 0, self.ttl_default).await
     }
 
     async fn resolve_archive_or_file(
@@ -69,7 +69,8 @@ impl ResolverService {
         is_resolved_from_mutable: bool,
         is_allowed: bool,
         headers: &HeaderMap,
-        iteration: usize
+        iteration: usize,
+        ttl: u64,
     ) -> Option<ResolvedAddress> {
         if iteration > 10 {
             error!("cyclic reference loop - resolve aborting");
@@ -79,20 +80,20 @@ impl ResolverService {
             let resolved_address = &self.resolve_bookmark(archive_directory).await.unwrap_or_default();
             let is_allowed = is_allowed || self.is_allowed(archive_directory).await;
             Box::pin(self.resolve_archive_or_file(
-                resolved_address, archive_file_name, archive_file_path, true, is_allowed, headers, iteration + 1)).await
+                resolved_address, archive_file_name, archive_file_path, true, is_allowed, headers, iteration + 1, ttl)).await
         } else if self.is_bookmark(archive_file_name).await {
             debug!("found bookmark for [{}]", archive_file_name);
             let resolved_address = &self.resolve_bookmark(archive_file_name).await.unwrap_or_default();
             let is_allowed = is_allowed || self.is_allowed(archive_file_name).await;
             Box::pin(self.resolve_archive_or_file(
-                archive_directory, resolved_address, archive_file_path, true, is_allowed, headers, iteration + 1)).await
+                archive_directory, resolved_address, archive_file_path, true, is_allowed, headers, iteration + 1, ttl)).await
         } else if self.is_mutable_address(&archive_directory) {
             debug!("found mutable address for [{}]", archive_directory);
             let is_allowed = is_allowed || self.is_allowed(archive_directory).await;
             match self.analyze_simple(archive_directory).await {
                 Some(data_address) => {
                     Box::pin(self.resolve_archive_or_file(
-                        &data_address.to_hex(), archive_file_name, archive_file_path, true, is_allowed, headers, iteration + 1)).await
+                        &data_address.to_hex(), archive_file_name, archive_file_path, true, is_allowed, headers, iteration + 1, ttl)).await
                 }
                 None => None
             }
@@ -107,16 +108,16 @@ impl ResolverService {
             let is_allowed = is_allowed || self.is_allowed(archive_directory).await;
 
             if !is_modified || !is_allowed {
-                Some(ResolvedAddress::new(true, None, archive_directory_xor_name, archive_file_path.clone(), is_resolved_from_mutable, is_modified, is_allowed))
+                Some(ResolvedAddress::new(true, None, archive_directory_xor_name, archive_file_path.clone(), is_resolved_from_mutable, is_modified, is_allowed, ttl))
             } else {
                 match self.caching_client.archive_get(archive_address).await {
                     Ok(archive) => {
                         debug!("Found archive at [{:x}]", archive_directory_xor_name);
-                        Some(ResolvedAddress::new(true, Some(archive), archive_directory_xor_name, archive_file_path.clone(), is_resolved_from_mutable, is_modified, is_allowed))
+                        Some(ResolvedAddress::new(true, Some(archive), archive_directory_xor_name, archive_file_path.clone(), is_resolved_from_mutable, is_modified, is_allowed, ttl))
                     }
                     Err(_) => {
                         info!("Found XOR address at [{:x}]", archive_directory_xor_name);
-                        Some(ResolvedAddress::new(true, None, archive_directory_xor_name, archive_file_path.clone(), is_resolved_from_mutable, is_modified, is_allowed))
+                        Some(ResolvedAddress::new(true, None, archive_directory_xor_name, archive_file_path.clone(), is_resolved_from_mutable, is_modified, is_allowed, ttl))
                     }
                 }
             }
@@ -129,33 +130,19 @@ impl ResolverService {
             let is_modified = self.is_modified(headers, &archive_file_name);
             let is_allowed = is_allowed || self.is_allowed(archive_file_name).await;
             info!("Found XOR address at [{:x}]", archive_file_name_xor_name);
-            Some(ResolvedAddress::new(true, None, archive_file_name_xor_name, archive_file_path.clone(), is_resolved_from_mutable, is_modified, is_allowed))
+            Some(ResolvedAddress::new(true, None, archive_file_name_xor_name, archive_file_path.clone(), is_resolved_from_mutable, is_modified, is_allowed, ttl))
         } else if let Some(resolved_address) = self.pointer_name_resolver.resolve(archive_directory).await {
-            debug!("found chunk pointer for [{}]", archive_directory);
+            debug!("found PNR record for [{}]", archive_directory);
 
-            if let Some(antns_address) = self.antns_resolver.resolve(&resolved_address).await {
-                debug!("resolved antns record to address: {}", antns_address);
-                let is_allowed = is_allowed || self.is_allowed(&antns_address).await;
-                Box::pin(self.resolve_archive_or_file(
-                    &antns_address, archive_file_name, archive_file_path, true, is_allowed, headers, iteration + 1)).await
-            } else {
-                let is_allowed = is_allowed || self.is_allowed(archive_file_name).await;
-                Box::pin(self.resolve_archive_or_file(
-                    &resolved_address, archive_file_name, archive_file_path, true, is_allowed, headers, iteration + 1)).await
-            }
+            let is_allowed = is_allowed || self.is_allowed(archive_file_name).await;
+            Box::pin(self.resolve_archive_or_file(
+                &resolved_address.address, archive_file_name, archive_file_path, true, is_allowed, headers, iteration + 1, resolved_address.ttl)).await
         } else if let Some(resolved_address) = self.pointer_name_resolver.resolve(archive_file_name).await {
-            debug!("found chunk_pointer for [{}]", archive_file_name);
+            debug!("found PNR record for [{}]", archive_file_name);
 
-            if let Some(antns_address) = self.antns_resolver.resolve(&resolved_address).await {
-                debug!("resolved antns record to address: {}", antns_address);
-                let is_allowed = is_allowed || self.is_allowed(&antns_address).await;
-                Box::pin(self.resolve_archive_or_file(
-                    archive_directory, &antns_address, archive_file_path, true, is_allowed, headers, iteration + 1)).await
-            } else {
-                let is_allowed = is_allowed || self.is_allowed(archive_file_name).await;
-                Box::pin(self.resolve_archive_or_file(
-                    archive_directory, &resolved_address, archive_file_path, true, is_allowed, headers, iteration + 1)).await
-            }
+            let is_allowed = is_allowed || self.is_allowed(archive_file_name).await;
+            Box::pin(self.resolve_archive_or_file(
+                archive_directory, &resolved_address.address, archive_file_path, true, is_allowed, headers, iteration + 1, resolved_address.ttl)).await
         } else {
             debug!("Failed to find archive or filename [{:?}]", archive_file_name);
             None
@@ -220,7 +207,7 @@ impl ResolverService {
         match self.resolve_bookmark(name).await {
             Some(resolved_address) => Some(resolved_address.to_string()),
             None => match self.pointer_name_resolver.resolve(name).await {
-                Some(resolved_address) => Some(resolved_address.to_string()),
+                Some(resolved_address) => Some(resolved_address.address.to_string()),
                 None => None
             }
         }
@@ -295,10 +282,9 @@ mod tests {
         let caching_client = CachingClient::new(client_harness, config, hybrid_cache, command_executor);
         let access_checker = Data::new(Mutex::new(AccessChecker::new()));
         let bookmark_resolver = Data::new(Mutex::new(BookmarkResolver::new()));
-        let pointer_name_resolver = Data::new(PointerNameResolver::new(caching_client.clone(), SecretKey::default()));
-        let antns_resolver = Data::new(AntNsResolver::new(caching_client.clone()));
+        let pointer_name_resolver = Data::new(PointerNameResolver::new(caching_client.clone(), SecretKey::default(), 1));
 
-        ResolverService::new(caching_client, access_checker, bookmark_resolver, pointer_name_resolver, antns_resolver)
+        ResolverService::new(caching_client, access_checker, bookmark_resolver, pointer_name_resolver, 1)
     }
 
     #[actix_web::test]

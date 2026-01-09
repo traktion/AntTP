@@ -10,6 +10,7 @@ pub mod graph_controller;
 pub mod public_data_controller;
 pub mod command_controller;
 pub mod connect_controller;
+pub mod pnr_controller;
 
 #[derive(Clone,Debug)]
 pub enum CacheType {

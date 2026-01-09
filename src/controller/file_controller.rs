@@ -27,7 +27,7 @@ pub async fn get_public_data(
 
     match resolver_service.resolve(&conn.host(), &path.into_inner(), &request.headers()).await {
         Some(resolved_address) => {
-            let header_builder = HeaderBuilder::new(ant_tp_config.cached_mutable_ttl);
+            let header_builder = HeaderBuilder::new(resolved_address.ttl);
             if !resolved_address.is_allowed {
                 Err(GetError::AccessNotAllowed(format!("Access forbidden: {}", resolved_address.xor_name)).into())
             } else if !resolved_address.is_modified {

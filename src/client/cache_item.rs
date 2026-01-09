@@ -12,7 +12,7 @@ impl<T> CacheItem<T> {
     pub fn new(item: Option<T>, ttl: u64) -> Self {
         CacheItem { item, ttl, timestamp: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs() }
     }
-    
+
     pub fn has_expired(&self) -> bool {
         SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs() - self.timestamp > self.ttl
     }

@@ -1,7 +1,7 @@
 use autonomi::client::payment::PaymentOption;
 use autonomi::pointer::PointerTarget;
 use autonomi::{Pointer, PointerAddress, SecretKey};
-use log::{debug, info};
+use log::{debug, info, warn};
 use crate::client::cache_item::CacheItem;
 use crate::client::{CachingClient, POINTER_CACHE_KEY, POINTER_CHECK_CACHE_KEY};
 use crate::client::command::pointer::check_pointer_command::CheckPointerCommand;
@@ -66,10 +66,55 @@ impl CachingClient {
     }
 
     pub async fn pointer_get(&self, address: &PointerAddress) -> Result<Pointer, PointerError> {
+        let cache_item = self.get_cache_item(address).await?;
+        match cache_item.item {
+            Some(_) => {
+                info!("retrieved pointer for [{}] from hybrid cache", address.to_hex());
+                if cache_item.has_expired() {
+                    let command = Box::new(
+                        GetPointerCommand::new(self.client_harness.clone(), self.hybrid_cache.clone(), address.clone(), self.ant_tp_config.cached_mutable_ttl)
+                    );
+                    self.send_get_command(command).await?;
+                }
+                Ok(cache_item.item.unwrap())
+            }
+            None => {
+                info!("negative cache for pointer for [{}] from hybrid cache", address.to_hex());
+                Err(PointerError::GetError(GetError::RecordNotFound(format!("Failed to retrieve pointer for [{}] from network", address.to_hex()))))
+            }
+        }
+    }
+
+    pub async fn pointer_update_ttl(&self,  address: &PointerAddress, ttl_override: u64) -> Result<Pointer, PointerError> {
+        let cache_item = self.get_cache_item(address).await?;
+        match cache_item.item {
+            Some(_) => {
+                let updated_cache_item = CacheItem::new(Some(cache_item.item.clone().unwrap()), ttl_override);
+                match rmp_serde::to_vec(&updated_cache_item) {
+                    Ok(serialized_cache_item) => {
+                        self.hybrid_cache.insert(
+                            format!("{}{}", POINTER_CACHE_KEY,  address.to_hex()),
+                            serialized_cache_item
+                        );
+                    },
+                    Err(e) => {
+                        warn!("Failed to update TTL for pointer [{}] in hybrid cache: {}", address.to_hex(), e.to_string());
+                    },
+                }
+                Ok(cache_item.item.unwrap())
+            }
+            None => {
+                info!("negative cache for pointer for [{}] from hybrid cache", address.to_hex());
+                Err(PointerError::GetError(GetError::RecordNotFound(format!("Failed to retrieve pointer for [{}] from network", address.to_hex()))))
+            }
+        }
+    }
+
+    async fn get_cache_item(&self, address: &PointerAddress) -> Result<CacheItem<Pointer>, PointerError> {
         let local_address = address.clone();
         let local_ant_tp_config = self.ant_tp_config.clone();
         let cache_entry = self.hybrid_cache.get_ref().fetch(format!("{}{}", POINTER_CACHE_KEY, local_address.to_hex()), {
-            let client = self.client_harness.get_ref().lock().await.get_client().await?;            
+            let client = self.client_harness.get_ref().lock().await.get_client().await?;
             || async move {
                 match client.pointer_get(&local_address).await {
                     Ok(pointer) => {
@@ -86,23 +131,7 @@ impl CachingClient {
                 }
             }
         }).await?;
-        let cache_item: CacheItem<Pointer> = rmp_serde::from_slice(cache_entry.value()).expect("Failed to deserialize pointer");
-        match cache_item.item {
-            Some(_) => {
-                info!("retrieved pointer for [{}] from hybrid cache", address.to_hex());
-                if cache_item.has_expired() {
-                    let command = Box::new(
-                        GetPointerCommand::new(self.client_harness.clone(), self.hybrid_cache.clone(), address.clone(), self.ant_tp_config.cached_mutable_ttl)
-                    );
-                    self.send_get_command(command).await?;
-                }
-                Ok(cache_item.item.unwrap())
-            }
-            None => {
-                info!("negative cache for pointer for [{}] from hybrid cache", address.to_hex());
-                Err(PointerError::GetError(GetError::RecordNotFound(format!("Failed to retrieve pointer for [{}] from network", local_address.to_hex()))))
-            }
-        }
+        Ok(rmp_serde::from_slice(cache_entry.value()).expect("Failed to deserialize pointer"))
     }
 
     pub async fn pointer_check_existence(&self, address: &PointerAddress) -> Result<bool, PointerError> {

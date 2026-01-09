@@ -6,7 +6,7 @@ pub mod model;
 pub mod error;
 pub mod tool;
 
-use crate::controller::{chunk_controller, command_controller, connect_controller, file_controller, graph_controller, pointer_controller, private_scratchpad_controller, public_archive_controller, public_data_controller, public_scratchpad_controller, register_controller};
+use crate::controller::{pnr_controller, chunk_controller, command_controller, connect_controller, file_controller, graph_controller, pointer_controller, private_scratchpad_controller, public_archive_controller, public_data_controller, public_scratchpad_controller, register_controller};
 use actix_files::Files;
 use actix_web::dev::ServerHandle;
 use actix_web::web::Data;
@@ -41,7 +41,7 @@ use crate::client::command::command_details::CommandDetails;
 use crate::service::access_checker::AccessChecker;
 use crate::service::bookmark_resolver::BookmarkResolver;
 use crate::service::pointer_name_resolver::PointerNameResolver;
-use crate::service::antns_resolver::AntNsResolver;
+use crate::service::pnr_service::PnrService;
 use crate::service::chunk_service::ChunkService;
 use crate::service::command_service::CommandService;
 use crate::service::file_service::FileService;
@@ -52,7 +52,7 @@ use crate::service::public_data_service::PublicDataService;
 use crate::service::register_service::RegisterService;
 use crate::service::resolver_service::ResolverService;
 use crate::service::scratchpad_service::ScratchpadService;
-use crate::tool::antns_tool::AntNsTool;
+use crate::tool::antns_tool::PnrTool;
 
 static SERVER_HANDLE: Lazy<Mutex<Option<ServerHandle>>> = Lazy::new(|| Mutex::new(None));
 
@@ -86,6 +86,7 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> std::io::Result<()> {
         public_data_controller::get_public_data,
         public_data_controller::post_public_data,
         command_controller::get_commands,
+        pnr_controller::post_pnr
     ))]
     struct ApiDoc;
 
@@ -118,16 +119,15 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> std::io::Result<()> {
     let caching_client = CachingClient::new(client_harness_data, ant_tp_config.clone(), hybrid_cache_data.clone(), command_executor_data.clone());
     let caching_client_data = Data::new(caching_client.clone());
 
-    let pointer_name_resolver_data = Data::new(PointerNameResolver::new(caching_client.clone(), ant_tp_config.get_resolver_private_key().unwrap()));
-    let antns_resolver_data = Data::new(AntNsResolver::new(caching_client.clone()));
+    let pointer_name_resolver_data = Data::new(PointerNameResolver::new(caching_client.clone(), ant_tp_config.get_resolver_private_key().unwrap(), ant_tp_config.cached_mutable_ttl));
 
     let bookmark_resolver_data = hydrate_bookmark_resolver(
-        &ant_tp_config, &command_executor, &caching_client, pointer_name_resolver_data.clone(), antns_resolver_data.clone()).await;
+        &ant_tp_config, &command_executor, &caching_client, pointer_name_resolver_data.clone()).await;
     let access_checker_data = hydrate_access_checker(
-        &ant_tp_config, &command_executor, &caching_client, &bookmark_resolver_data, &pointer_name_resolver_data, &antns_resolver_data.clone()).await;
+        &ant_tp_config, &command_executor, &caching_client, &bookmark_resolver_data, &pointer_name_resolver_data).await;
 
     let resolver_service_data = Data::new(
-        ResolverService::new(caching_client_data.get_ref().clone(), access_checker_data.clone(), bookmark_resolver_data.clone(), pointer_name_resolver_data.clone(), antns_resolver_data.clone())
+        ResolverService::new(caching_client_data.get_ref().clone(), access_checker_data.clone(), bookmark_resolver_data.clone(), pointer_name_resolver_data.clone(), ant_tp_config.cached_mutable_ttl)
     );
 
     // schedule idle disconnects for client_harness
@@ -142,12 +142,13 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> std::io::Result<()> {
     let public_data_service_data = Data::new(PublicDataService::new(caching_client_data.get_ref().clone()));
     let register_service_data = Data::new(RegisterService::new(caching_client_data.get_ref().clone(), ant_tp_config.clone(), resolver_service_data.get_ref().clone()));
     let scratchpad_service_data = Data::new(ScratchpadService::new(caching_client_data.get_ref().clone(), ant_tp_config.clone()));
+    let pnr_service_data = Data::new(PnrService::new(caching_client_data.get_ref().clone(), pointer_service_data.clone()));
 
     // MCP
-    let ant_ns_tool = AntNsTool::new(public_data_service_data.clone(), pointer_service_data.clone(), evm_wallet_data.clone());
+    let pnr_tool = PnrTool::new(pnr_service_data.clone(), evm_wallet_data.clone());
     let mcp_service = StreamableHttpService::builder()
         .service_factory(Arc::new(move || {
-            Ok(ant_ns_tool.clone())
+            Ok(pnr_tool.clone())
         }))
         .session_manager(Arc::new(LocalSessionManager::default())) // Local session management
         .stateful_mode(true) // Enable stateful session management
@@ -167,7 +168,7 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> std::io::Result<()> {
                     .url("/api-docs/openapi.json", ApiDoc::openapi()),
             )
             .service(
-                web::scope("/mcp-0/antns").service(mcp_service.clone().scope())
+                web::scope("/mcp-0/pnr").service(mcp_service.clone().scope())
             )
             .route(
                 "",
@@ -229,7 +230,6 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> std::io::Result<()> {
             .app_data(access_checker_data.clone())
             .app_data(bookmark_resolver_data.clone())
             .app_data(pointer_name_resolver_data.clone())
-            .app_data(antns_resolver_data.clone())
             .app_data(command_service_data.clone())
             .app_data(chunk_service_data.clone())
             .app_data(graph_service_data.clone())
@@ -239,6 +239,7 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> std::io::Result<()> {
             .app_data(register_service_data.clone())
             .app_data(resolver_service_data.clone())
             .app_data(scratchpad_service_data.clone())
+            .app_data(pnr_service_data.clone())
             .app_data(web::PayloadConfig::new(1024 * 1024 * 10));
 
         if !ant_tp_config.uploads_disabled {
@@ -299,6 +300,10 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> std::io::Result<()> {
                     format!("{}binary/public_data", API_BASE).as_str(),
                     web::post().to(public_data_controller::post_public_data)
                 )
+                .route(
+                    format!("{}pnr", API_BASE).as_str(),
+                    web::post().to(pnr_controller::post_pnr)
+                )
         };
 
         if ant_tp_config.static_file_directory != "" {
@@ -327,7 +332,6 @@ async fn hydrate_access_checker(ant_tp_config: &AntTpConfig,
                                 caching_client: &CachingClient,
                                 bookmark_resolver_data: &Data<Mutex<BookmarkResolver>>,
                                 pointer_name_resolver_data: &Data<PointerNameResolver>,
-                                antns_resolver: &Data<AntNsResolver>,
 ) -> Data<Mutex<AccessChecker>> {
     let access_checker_data = Data::new(Mutex::new(AccessChecker::new()));
     let update_access_checker_command = Box::new(
@@ -337,7 +341,6 @@ async fn hydrate_access_checker(ant_tp_config: &AntTpConfig,
             access_checker_data.clone(),
             bookmark_resolver_data.clone(),
             pointer_name_resolver_data.clone(),
-            antns_resolver.clone(),
         ),
     );
     command_executor.send(update_access_checker_command).await.expect("failed to send UpdateAccessCheckerCommand");
@@ -348,7 +351,6 @@ async fn hydrate_bookmark_resolver(ant_tp_config: &AntTpConfig,
                                    command_executor: &Sender<Box<dyn Command>>,
                                    caching_client: &CachingClient,
                                    pointer_name_resolver_data: Data<PointerNameResolver>,
-                                   antns_resolver: Data<AntNsResolver>,
 ) -> Data<Mutex<BookmarkResolver>> {
     let access_checker_data = Data::new(Mutex::new(AccessChecker::new()));
     let bookmark_resolver_data = Data::new(Mutex::new(BookmarkResolver::new()));
@@ -359,7 +361,6 @@ async fn hydrate_bookmark_resolver(ant_tp_config: &AntTpConfig,
             access_checker_data.clone(),
             bookmark_resolver_data.clone(),
             pointer_name_resolver_data.clone(),
-            antns_resolver.clone(),
         )
     );
     command_executor.send(update_bookmark_resolver_command).await.expect("failed to send UpdateBookmarkResolverCommand");

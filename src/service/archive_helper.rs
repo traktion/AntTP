@@ -246,7 +246,8 @@ mod tests {
             file_path.to_string(),
             false,
             false,
-            true
+            true,
+            5
         )
     }
 

@@ -27,30 +27,6 @@ struct GetChunkRequest {
     address: String,
 }
 
-impl Into<CallToolResult> for Chunk {
-    fn into(self) -> CallToolResult {
-        // This is a default implementation. 
-        // For specific tool outputs, manually constructing CallToolResult might be better 
-        // if the output format varies significantly (e.g. content vs address).
-        let address = self.address.unwrap_or_default();
-        let content = self.content.unwrap_or_default();
-        
-        let mut text = String::new();
-        if !address.is_empty() {
-             text.push_str(&format!("Chunk Address: {}\n", address));
-        }
-        if !content.is_empty() {
-            text.push_str(&format!("Chunk Content (Base64): {}", content));
-        }
-        
-        if text.is_empty() {
-            text = "Operation successful.".to_string();
-        }
-
-        CallToolResult::success(vec![Content::text(text)])
-    }
-}
-
 impl From<ChunkError> for ErrorData {
     fn from(chunk_error: ChunkError) -> Self {
         ErrorData::new(ErrorCode::INTERNAL_ERROR, chunk_error.to_string(), None)
@@ -113,22 +89,6 @@ impl ServerHandler for ChunkTool {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn test_chunk_tool_info() {
-        // We can test get_info without needing the service dependencies
-        // because get_info doesn't use self.chunk_service.
-        // However, we can't construct ChunkTool without Data<ChunkService>.
-        // We can construct Data<ChunkService> if we can construct ChunkService.
-        // ChunkService::new(CachingClient).
-        // If we can't construct CachingClient, we can't construct ChunkTool.
-
-        // This confirms we need to improve the testability of the codebase
-        // or find a way to mock CachingClient.
-        // For now, I'll include a placeholder test that would work if we could simple-mock.
-        // Since I can't easily mock, I will comment out the instantiation part
-        // and just test what I can (struct definitions).
-    }
     
     #[test]
     fn test_create_chunk_request_deserialization() {

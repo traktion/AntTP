@@ -25,6 +25,7 @@ impl Chunk {
     }
 }
 
+#[derive(Debug)]
 pub struct ChunkService {
     caching_client: CachingClient
 }

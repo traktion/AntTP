@@ -52,6 +52,7 @@ use crate::service::public_data_service::PublicDataService;
 use crate::service::register_service::RegisterService;
 use crate::service::resolver_service::ResolverService;
 use crate::service::scratchpad_service::ScratchpadService;
+use crate::tool::chunk_tool::ChunkTool;
 use crate::tool::pnr_tool::PnrTool;
 
 static SERVER_HANDLE: Lazy<Mutex<Option<ServerHandle>>> = Lazy::new(|| Mutex::new(None));
@@ -146,9 +147,20 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> std::io::Result<()> {
 
     // MCP
     let pnr_tool = PnrTool::new(pnr_service_data.clone(), evm_wallet_data.clone());
-    let mcp_service = StreamableHttpService::builder()
+    let pnr_tool_service = StreamableHttpService::builder()
         .service_factory(Arc::new(move || {
             Ok(pnr_tool.clone())
+        }))
+        .session_manager(Arc::new(LocalSessionManager::default())) // Local session management
+        .stateful_mode(true) // Enable stateful session management
+        .sse_keep_alive(Duration::from_secs(30)) // Keep-alive pings every 30 seconds
+        .build();
+
+    // todo: combine with the above to create a common service/toolbox?
+    let chunk_tool = ChunkTool::new(chunk_service_data.clone(), evm_wallet_data.clone());
+    let chunk_tool_service = StreamableHttpService::builder()
+        .service_factory(Arc::new(move || {
+            Ok(chunk_tool.clone())
         }))
         .session_manager(Arc::new(LocalSessionManager::default())) // Local session management
         .stateful_mode(true) // Enable stateful session management
@@ -242,7 +254,10 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> std::io::Result<()> {
         if !ant_tp_config.uploads_disabled {
             app = app
                 .service(
-                    web::scope("/mcp-0/pnr").service(mcp_service.clone().scope())
+                    web::scope("/mcp-0/pnr").service(pnr_tool_service.clone().scope())
+                )
+                .service(
+                    web::scope("/mcp-0/chunk").service(chunk_tool_service.clone().scope())
                 )
                 .route(
                     format!("{}chunk", API_BASE).as_str(),

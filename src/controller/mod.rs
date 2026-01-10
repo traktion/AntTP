@@ -14,38 +14,39 @@ pub mod connect_controller;
 pub mod pnr_controller;
 
 #[derive(Clone,Debug)]
-pub enum CacheType {
+pub enum StoreType {
     Memory,
     Disk,
     Network
 }
 
-impl PartialEq for CacheType {
+impl PartialEq for StoreType {
     fn eq(&self, other: &Self) -> bool {
         match other {
-            CacheType::Memory => matches!(self, CacheType::Memory),
-            CacheType::Disk => matches!(self, CacheType::Disk),
-            CacheType::Network => matches!(self, CacheType::Network),
+            StoreType::Memory => matches!(self, StoreType::Memory),
+            StoreType::Disk => matches!(self, StoreType::Disk),
+            StoreType::Network => matches!(self, StoreType::Network),
         }
     }
 }
 
-impl From<String> for CacheType {
+impl From<String> for StoreType {
     fn from(s: String) -> Self {
         match s.to_lowercase().as_str() {
-            "memory" => CacheType::Memory,
-            "disk" => CacheType::Disk,
-            _ => CacheType::Network
+            "memory" => StoreType::Memory,
+            "disk" => StoreType::Disk,
+            _ => StoreType::Network
         }
     }
 }
 
-fn cache_only(request: &HttpRequest) -> Option<CacheType> {
-    match request.headers().get("x-cache-only")?.to_str().unwrap_or("").to_lowercase().as_str() {
-        "memory" => Some(CacheType::Memory),
-        "disk" => Some(CacheType::Disk),
-        _ => None
-    }
+fn get_store_type(request: &HttpRequest) -> StoreType {
+    StoreType::from(
+        match request.headers().get("x-cache-only") {
+            Some(x_cache_only) => x_cache_only.to_str().unwrap_or("").to_string(),
+            None => "".to_string()
+        }
+    )
 }
 
 #[derive(Clone,Debug)]
@@ -72,25 +73,25 @@ mod tests {
 
     #[test]
     fn test_cache_type_eq() {
-        assert_eq!(CacheType::Memory == CacheType::Memory, true);
-        assert_eq!(CacheType::Memory == CacheType::Disk, false);
-        assert_eq!(CacheType::Memory == CacheType::Network, false);
+        assert_eq!(StoreType::Memory == StoreType::Memory, true);
+        assert_eq!(StoreType::Memory == StoreType::Disk, false);
+        assert_eq!(StoreType::Memory == StoreType::Network, false);
 
-        assert_eq!(CacheType::Disk == CacheType::Disk, true);
-        assert_eq!(CacheType::Disk == CacheType::Memory, false);
-        assert_eq!(CacheType::Disk == CacheType::Network, false);
+        assert_eq!(StoreType::Disk == StoreType::Disk, true);
+        assert_eq!(StoreType::Disk == StoreType::Memory, false);
+        assert_eq!(StoreType::Disk == StoreType::Network, false);
 
-        assert_eq!(CacheType::Network == CacheType::Network, true);
-        assert_eq!(CacheType::Network == CacheType::Memory, false);
-        assert_eq!(CacheType::Network == CacheType::Disk, false);
+        assert_eq!(StoreType::Network == StoreType::Network, true);
+        assert_eq!(StoreType::Network == StoreType::Memory, false);
+        assert_eq!(StoreType::Network == StoreType::Disk, false);
     }
 
     #[test]
     fn test_cache_type_from_string() {
-        assert_eq!(CacheType::from("memory".to_string()), CacheType::Memory);
-        assert_eq!(CacheType::from("disk".to_string()), CacheType::Disk);
-        assert_eq!(CacheType::from("network".to_string()), CacheType::Network);
-        assert_eq!(CacheType::from("other".to_string()), CacheType::Network);
-        assert_eq!(CacheType::from("".to_string()), CacheType::Network);
+        assert_eq!(StoreType::from("memory".to_string()), StoreType::Memory);
+        assert_eq!(StoreType::from("disk".to_string()), StoreType::Disk);
+        assert_eq!(StoreType::from("network".to_string()), StoreType::Network);
+        assert_eq!(StoreType::from("other".to_string()), StoreType::Network);
+        assert_eq!(StoreType::from("".to_string()), StoreType::Network);
     }
 }

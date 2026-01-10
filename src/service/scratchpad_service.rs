@@ -9,7 +9,7 @@ use utoipa::ToSchema;
 use crate::client::CachingClient;
 use crate::error::{GetError, UpdateError};
 use crate::config::anttp_config::AntTpConfig;
-use crate::controller::CacheType;
+use crate::controller::StoreType;
 use crate::error::scratchpad_error::ScratchpadError;
 
 #[derive(Serialize, Deserialize, ToSchema)]
@@ -43,7 +43,7 @@ impl ScratchpadService {
         ScratchpadService { caching_client, ant_tp_config }
     }
 
-    pub async fn create_scratchpad(&self, name: String, scratchpad: Scratchpad, evm_wallet: Wallet, is_encrypted: bool, cache_only: Option<CacheType>) -> Result<Scratchpad, ScratchpadError> {
+    pub async fn create_scratchpad(&self, name: String, scratchpad: Scratchpad, evm_wallet: Wallet, is_encrypted: bool, store_type: StoreType) -> Result<Scratchpad, ScratchpadError> {
         let app_secret_key = self.ant_tp_config.get_app_private_key()?;
         let scratchpad_key = Client::register_key_from_name(&app_secret_key, name.as_str());
         let content = scratchpad.content.clone().unwrap_or_else(|| "".to_ascii_lowercase());
@@ -52,12 +52,12 @@ impl ScratchpadService {
         let scratchpad_address = if is_encrypted {
             self.caching_client
                 .scratchpad_create(
-                    &scratchpad_key, 1, &decoded_content, PaymentOption::from(&evm_wallet), cache_only)
+                    &scratchpad_key, 1, &decoded_content, PaymentOption::from(&evm_wallet), store_type)
                 .await?
         } else {
             self.caching_client
                 .scratchpad_create_public(
-                    &scratchpad_key, 1, &decoded_content, PaymentOption::from(&evm_wallet), cache_only)
+                    &scratchpad_key, 1, &decoded_content, PaymentOption::from(&evm_wallet), store_type)
                 .await?
         };
         info!("Queued command to create{}scratchpad at [{}]", if !is_encrypted { "public " } else { "" }, scratchpad_address.to_hex());
@@ -65,7 +65,7 @@ impl ScratchpadService {
             Some(name), Some(scratchpad_address.to_hex()), None, None, scratchpad.content, None))
     }
 
-    pub async fn update_scratchpad(&self, address: String, name: String, scratchpad: Scratchpad, evm_wallet: Wallet, is_encrypted: bool, cache_only: Option<CacheType>) -> Result<Scratchpad, ScratchpadError> {
+    pub async fn update_scratchpad(&self, address: String, name: String, scratchpad: Scratchpad, evm_wallet: Wallet, is_encrypted: bool, store_type: StoreType) -> Result<Scratchpad, ScratchpadError> {
         let app_secret_key = self.ant_tp_config.get_app_private_key()?;
         let scratchpad_key = Client::register_key_from_name(&app_secret_key, name.as_str());
         if address.clone() != scratchpad_key.public_key().to_hex() {
@@ -79,12 +79,12 @@ impl ScratchpadService {
         if is_encrypted {
             self.caching_client
                 .scratchpad_update(
-                    &scratchpad_key, 1, &Bytes::from(decoded_content.clone()), cache_only)
+                    &scratchpad_key, 1, &Bytes::from(decoded_content.clone()), store_type)
                 .await?
         } else {
             self.caching_client
                 .scratchpad_update_public(
-                    &scratchpad_key, 1, &Bytes::from(decoded_content.clone()), PaymentOption::from(&evm_wallet), cache_only)
+                    &scratchpad_key, 1, &Bytes::from(decoded_content.clone()), PaymentOption::from(&evm_wallet), store_type)
                 .await?
         };
         info!("Updated {}scratchpad with name [{}]", if !is_encrypted { "public " } else { "" }, name);

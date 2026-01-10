@@ -8,7 +8,7 @@ use utoipa::ToSchema;
 use crate::client::CachingClient;
 use crate::error::graph_error::GraphError;
 use crate::config::anttp_config::AntTpConfig;
-use crate::controller::CacheType;
+use crate::controller::StoreType;
 use crate::error::CreateError;
 
 #[derive(Serialize, Deserialize, ToSchema)]
@@ -50,7 +50,7 @@ impl GraphService {
         GraphService { caching_client, ant_tp_config }
     }
 
-    pub async fn create_graph_entry(&self, graph: GraphEntry, evm_wallet: Wallet, cache_only: Option<CacheType>) -> Result<GraphEntry, GraphError> {
+    pub async fn create_graph_entry(&self, graph: GraphEntry, evm_wallet: Wallet, store_type: StoreType) -> Result<GraphEntry, GraphError> {
         match graph.name {
             Some(name) => {
                 let app_secret_key = self.ant_tp_config.get_app_private_key()?;
@@ -85,7 +85,7 @@ impl GraphService {
                     let graph_entry = autonomi::GraphEntry::new(&graph_key, graph_parents, graph_content, graph_descendants);
                     info!("Create graph entry from name [{}] for content [{}]", name, graph.content.clone());
                     let graph_entry_address = self.caching_client
-                        .graph_entry_put(graph_entry, PaymentOption::from(&evm_wallet), cache_only)
+                        .graph_entry_put(graph_entry, PaymentOption::from(&evm_wallet), store_type)
                         .await?;
                     info!("Queued command to create graph entry at [{}]", graph_entry_address.to_hex());
                     Ok(GraphEntry::new(Some(name), graph.content, Some(graph_entry_address.to_hex()), graph.parents, graph.descendants))

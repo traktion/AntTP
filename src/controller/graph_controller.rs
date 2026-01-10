@@ -3,7 +3,7 @@ use actix_web::web::Data;
 use ant_evm::EvmWallet;
 use log::debug;
 use crate::error::graph_error::GraphError;
-use crate::controller::cache_only;
+use crate::controller::get_store_type;
 use crate::service::graph_service::{GraphEntry, GraphService};
 
 #[utoipa::path(
@@ -29,7 +29,7 @@ pub async fn post_graph_entry(
 ) -> Result<HttpResponse, GraphError> {
     debug!("Creating new graph entry");
     Ok(HttpResponse::Created().json(
-        graph_service.create_graph_entry(graph_entry.into_inner(), evm_wallet_data.get_ref().clone(), cache_only(&request)).await?
+        graph_service.create_graph_entry(graph_entry.into_inner(), evm_wallet_data.get_ref().clone(), get_store_type(&request)).await?
     ))
 }
 

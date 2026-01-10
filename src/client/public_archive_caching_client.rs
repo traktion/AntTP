@@ -6,14 +6,14 @@ use autonomi::files::PublicArchive;
 use bytes::Bytes;
 use log::info;
 use crate::error::CreateError;
-use crate::controller::CacheType;
+use crate::controller::StoreType;
 use crate::error::public_archive_error::PublicArchiveError;
 
 impl CachingClient {
 
-    pub async fn archive_put_public(&self, archive: &PublicArchive, payment_option: PaymentOption, cache_only: Option<CacheType>) -> Result<ArchiveAddress, PublicArchiveError> {
+    pub async fn archive_put_public(&self, archive: &PublicArchive, payment_option: PaymentOption, store_type: StoreType) -> Result<ArchiveAddress, PublicArchiveError> {
         match archive.to_bytes() {
-            Ok(bytes) => Ok(self.data_put_public(bytes, payment_option, cache_only).await?),
+            Ok(bytes) => Ok(self.data_put_public(bytes, payment_option, store_type).await?),
             Err(e) => Err(CreateError::Serialization(format!("Failed to serialize archive: {}", e.to_string())).into()),
         }
     }

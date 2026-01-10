@@ -24,7 +24,7 @@ use xor_name::XorName;
 use crate::error::public_archive_error::PublicArchiveError;
 use crate::error::chunk_error::ChunkError;
 use crate::config::app_config::AppConfig;
-use crate::controller::CacheType;
+use crate::controller::StoreType;
 use crate::error::UpdateError;
 use crate::model::archive::Archive;
 
@@ -97,30 +97,30 @@ impl PublicArchiveService {
         }
     }
 
-    pub async fn create_public_archive(&self, public_archive_form: MultipartForm<PublicArchiveForm>, evm_wallet: Wallet, cache_only: Option<CacheType>) -> Result<Upload, PublicArchiveError> {
+    pub async fn create_public_archive(&self, public_archive_form: MultipartForm<PublicArchiveForm>, evm_wallet: Wallet, store_type: StoreType) -> Result<Upload, PublicArchiveError> {
         info!("Uploading new public archive to the network");
-        Ok(self.update_public_archive_common(public_archive_form, evm_wallet, &mut PublicArchive::new(), cache_only).await?)
+        Ok(self.update_public_archive_common(public_archive_form, evm_wallet, &mut PublicArchive::new(), store_type).await?)
     }
 
-    pub async fn update_public_archive(&self, address: String, public_archive_form: MultipartForm<PublicArchiveForm>, evm_wallet: Wallet, cache_only: Option<CacheType>) -> Result<Upload, PublicArchiveError> {
+    pub async fn update_public_archive(&self, address: String, public_archive_form: MultipartForm<PublicArchiveForm>, evm_wallet: Wallet, store_type: StoreType) -> Result<Upload, PublicArchiveError> {
         let public_archive = &mut self.caching_client.archive_get_public(ArchiveAddress::from_hex(address.as_str())?).await?;
         info!("Uploading updated public archive to the network [{:?}]", public_archive);
-        Ok(self.update_public_archive_common(public_archive_form, evm_wallet, public_archive, cache_only).await?)
+        Ok(self.update_public_archive_common(public_archive_form, evm_wallet, public_archive, store_type).await?)
     }
 
-    pub async fn update_public_archive_common(&self, public_archive_form: MultipartForm<PublicArchiveForm>, evm_wallet: Wallet, public_archive: &mut PublicArchive, cache_only: Option<CacheType>) -> Result<Upload, PublicArchiveError> {
+    pub async fn update_public_archive_common(&self, public_archive_form: MultipartForm<PublicArchiveForm>, evm_wallet: Wallet, public_archive: &mut PublicArchive, store_type: StoreType) -> Result<Upload, PublicArchiveError> {
         let tmp_dir = Self::create_tmp_dir()?;
         if let Some(e) = Self::move_files_to_tmp_dir(public_archive_form, tmp_dir.clone()).err() {
             Self::purge_tmp_dir(&tmp_dir);
             return Err(e);
         }
-        if let Some(e) = self.update_archive(public_archive, tmp_dir.clone(), evm_wallet.clone(), cache_only.clone()).await.err() {
+        if let Some(e) = self.update_archive(public_archive, tmp_dir.clone(), evm_wallet.clone(), store_type.clone()).await.err() {
             Self::purge_tmp_dir(&tmp_dir);
             return Err(e);
         }
 
         info!("Uploading public archive [{:?}]", public_archive);
-        match self.caching_client.archive_put_public(&public_archive, PaymentOption::Wallet(evm_wallet), cache_only).await {
+        match self.caching_client.archive_put_public(&public_archive, PaymentOption::Wallet(evm_wallet), store_type).await {
             Ok(archive_address) => {
                 info!("Queued command to upload public archive at [{:?}]", archive_address);
                 Self::purge_tmp_dir(&tmp_dir);
@@ -134,14 +134,14 @@ impl PublicArchiveService {
         }
     }
 
-    async fn update_archive(&self, public_archive: &mut PublicArchive, tmp_dir: PathBuf, evm_wallet: Wallet, cache_only: Option<CacheType>) -> Result<(), PublicArchiveError> {
+    async fn update_archive(&self, public_archive: &mut PublicArchive, tmp_dir: PathBuf, evm_wallet: Wallet, store_type: StoreType) -> Result<(), PublicArchiveError> {
         info!("Reading directory: {:?}", &tmp_dir);
         for entry in fs::read_dir(tmp_dir.clone())? {
             let path = entry?.path();
             info!("Reading directory path: {:?}", path);
 
             let data_address = self.caching_client
-                .file_content_upload_public(path.clone(), PaymentOption::Wallet(evm_wallet.clone()), cache_only.clone())
+                .file_content_upload_public(path.clone(), PaymentOption::Wallet(evm_wallet.clone()), store_type.clone())
                 .await?;
             let created_at = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_secs();
             let custom_metadata = Metadata {

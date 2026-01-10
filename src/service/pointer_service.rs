@@ -7,7 +7,7 @@ use utoipa::ToSchema;
 use crate::client::CachingClient;
 use crate::error::{CreateError, UpdateError};
 use crate::config::anttp_config::AntTpConfig;
-use crate::controller::{CacheType, DataKey};
+use crate::controller::{StoreType, DataKey};
 use crate::error::pointer_error::PointerError;
 use crate::service::resolver_service::ResolverService;
 
@@ -41,7 +41,7 @@ impl PointerService {
         PointerService { caching_client, ant_tp_config, resolver_service }
     }
 
-    pub async fn create_pointer(&self, pointer: Pointer, evm_wallet: Wallet, cache_only: Option<CacheType>, data_key: DataKey) -> Result<Pointer, PointerError> {
+    pub async fn create_pointer(&self, pointer: Pointer, evm_wallet: Wallet, store_type: StoreType, data_key: DataKey) -> Result<Pointer, PointerError> {
         match pointer.name {
             Some(name) => {
                 let secret_key = self.get_data_key(data_key)?;
@@ -50,7 +50,7 @@ impl PointerService {
                 let pointer_target = self.get_pointer_target(&pointer.content)?;
                 info!("Create pointer from name [{}] for chunk [{}]", name, &pointer.content);
                 let pointer_address = self.caching_client
-                    .pointer_create(&pointer_key, pointer_target, pointer.counter, PaymentOption::from(&evm_wallet), cache_only)
+                    .pointer_create(&pointer_key, pointer_target, pointer.counter, PaymentOption::from(&evm_wallet), store_type)
                     .await?;
                 info!("Queued command to create pointer at [{}]", pointer_address.to_hex());
                 Ok(Pointer::new(Some(name), pointer.content, Some(pointer_address.to_hex()), None, None))
@@ -59,7 +59,7 @@ impl PointerService {
         }
     }
 
-    pub async fn update_pointer(&self, address: String, pointer: Pointer, cache_only: Option<CacheType>, data_key: DataKey) -> Result<Pointer, PointerError> {
+    pub async fn update_pointer(&self, address: String, pointer: Pointer, store_type: StoreType, data_key: DataKey) -> Result<Pointer, PointerError> {
         match pointer.name {
             Some(name) => {
                 let resolved_address = self.resolver_service.resolve_name(&address).await.unwrap_or(address);
@@ -73,7 +73,7 @@ impl PointerService {
 
                 let pointer_target = self.get_pointer_target(&pointer.content)?;
                 info!("Update pointer with name [{}] for chunk [{}]", name, &pointer.content);
-                self.caching_client.pointer_update(&pointer_key, pointer_target, pointer.counter, cache_only).await?;
+                self.caching_client.pointer_update(&pointer_key, pointer_target, pointer.counter, store_type).await?;
                 info!("Updated pointer with name [{}]", name);
                 Ok(Pointer::new(Some(name), pointer.content, Some(resolved_address), None, None))
             },

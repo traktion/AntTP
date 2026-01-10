@@ -10,7 +10,7 @@ use utoipa::ToSchema;
 use crate::client::CachingClient;
 use crate::error::{CreateError, GetError};
 use crate::error::chunk_error::ChunkError;
-use crate::controller::CacheType;
+use crate::controller::StoreType;
 
 #[derive(Serialize, Deserialize, ToSchema)]
 pub struct Chunk {
@@ -35,12 +35,12 @@ impl ChunkService {
         ChunkService { caching_client }
     }
 
-    pub async fn create_chunk_binary(&self, bytes: Bytes, evm_wallet: Wallet, cache_only: Option<CacheType>) -> Result<Chunk, ChunkError> {
+    pub async fn create_chunk_binary(&self, bytes: Bytes, evm_wallet: Wallet, store_type: StoreType) -> Result<Chunk, ChunkError> {
         let chunk_data =  autonomi_chunk::Chunk::new(bytes);
-        self.create_chunk_raw(chunk_data, evm_wallet, cache_only).await
+        self.create_chunk_raw(chunk_data, evm_wallet, store_type).await
     }
 
-    pub async fn create_chunk(&self, chunk: Chunk, evm_wallet: Wallet, cache_only: Option<CacheType>) -> Result<Chunk, ChunkError> {
+    pub async fn create_chunk(&self, chunk: Chunk, evm_wallet: Wallet, store_type: StoreType) -> Result<Chunk, ChunkError> {
         let content = match chunk.content.clone() {
             Some(content) => content,
             None => return Err(ChunkError::CreateError(CreateError::InvalidData("Empty chunk payload".to_string())))
@@ -48,12 +48,12 @@ impl ChunkService {
         let decoded_content = BASE64_STANDARD.decode(content).unwrap_or_else(|_| Vec::new());
         let chunk_data =  autonomi_chunk::Chunk::new(Bytes::from(decoded_content.clone()));
 
-        self.create_chunk_raw(chunk_data, evm_wallet, cache_only).await
+        self.create_chunk_raw(chunk_data, evm_wallet, store_type).await
     }
 
-    pub async fn create_chunk_raw(&self, chunk: autonomi_chunk::Chunk, evm_wallet: Wallet, cache_only: Option<CacheType>) -> Result<Chunk, ChunkError> {
+    pub async fn create_chunk_raw(&self, chunk: autonomi_chunk::Chunk, evm_wallet: Wallet, store_type: StoreType) -> Result<Chunk, ChunkError> {
         info!("Create chunk at address [{}]", chunk.address.to_hex());
-        let chunk_address = self.caching_client.chunk_put(&chunk, PaymentOption::from(&evm_wallet), cache_only).await?;
+        let chunk_address = self.caching_client.chunk_put(&chunk, PaymentOption::from(&evm_wallet), store_type).await?;
         info!("Queued command to create chunk at [{}]", chunk_address.to_hex());
         Ok(Chunk::new(None, Some(chunk_address.to_hex())))
     }

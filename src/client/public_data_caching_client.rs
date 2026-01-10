@@ -7,7 +7,7 @@ use log::info;
 use crate::client::CachingClient;
 use crate::client::command::public_data::create_public_data_command::CreatePublicDataCommand;
 use crate::error::{CreateError, GetError};
-use crate::controller::CacheType;
+use crate::controller::StoreType;
 use crate::error::public_data_error::PublicDataError;
 
 impl CachingClient {
@@ -16,11 +16,11 @@ impl CachingClient {
         &self,
         data: Bytes,
         payment_option: PaymentOption,
-        cache_only: Option<CacheType>,
+        store_type: StoreType,
     ) -> Result<DataAddress, PublicDataError> {
         // todo: can we avoid double encrypting on upload?
-        let data_address = self.cache_public_data(data.clone(), cache_only.clone()).await?;
-        if !cache_only.is_some() {
+        let data_address = self.cache_public_data(data.clone(), store_type.clone()).await?;
+        if store_type == StoreType::Network {
             let command = Box::new(
                 CreatePublicDataCommand::new(self.client_harness.clone(), data, payment_option)
             );
@@ -29,7 +29,7 @@ impl CachingClient {
         Ok(data_address)
     }
 
-    async fn cache_public_data(&self, data: Bytes, cache_only: Option<CacheType>) -> Result<DataAddress, PublicDataError> {
+    async fn cache_public_data(&self, data: Bytes, store_type: StoreType) -> Result<DataAddress, PublicDataError> {
         let chunk_encrypter = ChunkEncrypter::new();
         match chunk_encrypter.encrypt(true, data.clone()).await {
             Ok((chunks, data_map_chunk)) => {
@@ -38,7 +38,7 @@ impl CachingClient {
                 let data_address = DataAddress::new(*data_map_addr.xorname());
 
                 for chunk in chunks {
-                    if cache_only.clone().is_some_and(|v| matches!(v, CacheType::Disk)) {
+                    if store_type == StoreType::Disk {
                         info!("updating disk cache with chunk at address [{}]", chunk.address.to_hex());
                         self.hybrid_cache.insert(format!("{}", chunk.address.to_hex()), chunk.value.to_vec());
                     } else {
@@ -63,11 +63,11 @@ impl CachingClient {
         }
     }
 
-    pub async fn file_content_upload_public(&self, path: PathBuf, payment_option: PaymentOption, cache_only: Option<CacheType>) -> Result<DataAddress, PublicDataError> {
+    pub async fn file_content_upload_public(&self, path: PathBuf, payment_option: PaymentOption, store_type: StoreType) -> Result<DataAddress, PublicDataError> {
         match tokio::fs::read(path.clone()).await {
             Ok(vec_data) => {
                 let data = Bytes::from(vec_data);
-                let addr = self.data_put_public(data, payment_option.clone(), cache_only).await?;
+                let addr = self.data_put_public(data, payment_option.clone(), store_type).await?;
                 Ok(addr)
             },
             Err(e) => Err(CreateError::TemporaryStorage(e.to_string()).into())

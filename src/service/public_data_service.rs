@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 use crate::client::CachingClient;
 use crate::error::GetError;
-use crate::controller::CacheType;
+use crate::controller::StoreType;
 use crate::error::public_data_error::PublicDataError;
 use crate::service::chunk_service::Chunk;
 
@@ -27,8 +27,8 @@ impl PublicDataService {
         Self { caching_client }
     }
 
-    pub async fn create_public_data(&self, bytes: Bytes, evm_wallet: Wallet, cache_only: Option<CacheType>) -> Result<Chunk, PublicDataError> {
-        let data_address = self.caching_client.data_put_public(bytes, PaymentOption::from(&evm_wallet), cache_only).await?;
+    pub async fn create_public_data(&self, bytes: Bytes, evm_wallet: Wallet, store_type: StoreType) -> Result<Chunk, PublicDataError> {
+        let data_address = self.caching_client.data_put_public(bytes, PaymentOption::from(&evm_wallet), store_type).await?;
         info!("Queued command to create public data at [{}]", data_address.to_hex());
         Ok(Chunk::new(None, Some(data_address.to_hex())))
     }

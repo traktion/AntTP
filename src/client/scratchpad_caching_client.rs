@@ -9,7 +9,7 @@ use crate::client::command::scratchpad::create_public_scratchpad_command::Create
 use crate::client::command::scratchpad::get_scratchpad_command::GetScratchpadCommand;
 use crate::client::command::scratchpad::update_private_scratchpad_command::UpdatePrivateScratchpadCommand;
 use crate::client::command::scratchpad::update_public_scratchpad_command::UpdatePublicScratchpadCommand;
-use crate::controller::CacheType;
+use crate::controller::StoreType;
 use crate::error::scratchpad_error::ScratchpadError;
 
 impl CachingClient {
@@ -20,11 +20,11 @@ impl CachingClient {
         content_type: u64,
         data: &Bytes,
         payment_option: PaymentOption,
-        cache_only: Option<CacheType>,
+        store_type: StoreType,
     ) -> Result<ScratchpadAddress, ScratchpadError> {
-        let scratchpad_address = self.cache_scratchpad(owner, content_type, data, true, cache_only.clone());
+        let scratchpad_address = self.cache_scratchpad(owner, content_type, data, true, store_type.clone());
 
-        if !cache_only.is_some() {
+        if store_type == StoreType::Network {
             let command = Box::new(
                 CreatePrivateScratchpadCommand::new(self.client_harness.clone(), owner.clone(), content_type, data.clone(), payment_option)
             );
@@ -38,11 +38,11 @@ impl CachingClient {
         owner: &SecretKey,
         content_type: u64,
         data: &Bytes,
-        cache_only: Option<CacheType>,
+        store_type: StoreType,
     ) -> Result<(), ScratchpadError> {
-        self.cache_scratchpad(owner, content_type, data, true, cache_only.clone());
+        self.cache_scratchpad(owner, content_type, data, true, store_type.clone());
 
-        if !cache_only.is_some() {
+        if store_type == StoreType::Network {
             let command = Box::new(
                 UpdatePrivateScratchpadCommand::new(self.client_harness.clone(), owner.clone(), content_type, data.clone())
             );
@@ -57,11 +57,11 @@ impl CachingClient {
         content_type: u64,
         data: &Bytes,
         payment_option: PaymentOption,
-        cache_only: Option<CacheType>,
+        store_type: StoreType,
     ) -> Result<ScratchpadAddress, ScratchpadError> {
-        let scratchpad_address = self.cache_scratchpad(owner, content_type, data, false, cache_only.clone());
+        let scratchpad_address = self.cache_scratchpad(owner, content_type, data, false, store_type.clone());
 
-        if !cache_only.is_some() {
+        if store_type == StoreType::Network {
             let command = Box::new(
                 CreatePublicScratchpadCommand::new(self.client_harness.clone(), owner.clone(), content_type, data.clone(), payment_option)
             );
@@ -76,11 +76,11 @@ impl CachingClient {
         content_type: u64,
         data: &Bytes,
         payment_option: PaymentOption,
-        cache_only: Option<CacheType>,
+        store_type: StoreType,
     ) -> Result<(), ScratchpadError> {
-        self.cache_scratchpad(owner, content_type, data, false, cache_only.clone());
+        self.cache_scratchpad(owner, content_type, data, false, store_type.clone());
 
-        if !cache_only.is_some() {
+        if store_type == StoreType::Network {
             let command = Box::new(
                 UpdatePublicScratchpadCommand::new(self.client_harness.clone(), owner.clone(), content_type, data.clone(), payment_option)
             );
@@ -89,7 +89,7 @@ impl CachingClient {
         Ok(())
     }
 
-    fn cache_scratchpad(&self, owner: &SecretKey, content_type: u64, data: &Bytes, is_encrypted: bool, cache_only: Option<CacheType>) -> ScratchpadAddress {
+    fn cache_scratchpad(&self, owner: &SecretKey, content_type: u64, data: &Bytes, is_encrypted: bool, store_type: StoreType) -> ScratchpadAddress {
         let scratchpad_address = ScratchpadAddress::new(owner.public_key());
 
         let scratchpad = if is_encrypted {
@@ -104,11 +104,11 @@ impl CachingClient {
             Scratchpad::new_with_signature(owner.public_key(), content_type, data.clone(), 0, signature)
         };
 
-        let ttl = if cache_only.is_some() { u64::MAX } else { self.ant_tp_config.cached_mutable_ttl };
+        let ttl = if store_type != StoreType::Network { u64::MAX } else { self.ant_tp_config.cached_mutable_ttl };
         let cache_item = CacheItem::new(Some(scratchpad.clone()), ttl);
         let serialised_cache_item = rmp_serde::to_vec(&cache_item).expect("Failed to serialize register");
         info!("updating cache with register at address {}[{}] to value [{:?}] and TTL [{}]", SCRATCHPAD_CACHE_KEY, scratchpad_address.to_hex(), scratchpad, ttl);
-        if cache_only.is_some_and(|v| matches!(v, CacheType::Disk)) {
+        if store_type == StoreType::Disk {
             self.hybrid_cache.insert(format!("{}{}", SCRATCHPAD_CACHE_KEY, scratchpad_address.to_hex()), serialised_cache_item);
         } else {
             self.hybrid_cache.memory().insert(format!("{}{}", SCRATCHPAD_CACHE_KEY, scratchpad_address.to_hex()), serialised_cache_item);

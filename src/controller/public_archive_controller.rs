@@ -5,7 +5,7 @@ use ant_evm::EvmWallet;
 use log::debug;
 use crate::service::public_archive_service::{PublicArchiveForm, PublicArchiveService, Upload};
 use crate::error::public_archive_error::PublicArchiveError;
-use crate::controller::cache_only;
+use crate::controller::get_store_type;
 
 #[utoipa::path(
     post,
@@ -32,7 +32,7 @@ pub async fn post_public_archive(
 
     debug!("Creating new archive from multipart POST");
     Ok(HttpResponse::Created().json(
-        public_archive_service.create_public_archive(public_archive_form, evm_wallet, cache_only(&request)).await?
+        public_archive_service.create_public_archive(public_archive_form, evm_wallet, get_store_type(&request)).await?
     ))
 }
 
@@ -61,9 +61,9 @@ pub async fn put_public_archive(
     let address = path.into_inner();
     let evm_wallet = evm_wallet_data.get_ref().clone();
 
-    debug!("Updating [{}] archive from multipart PUT with cache_only [{:?}]", address, cache_only(&request));
+    debug!("Updating [{}] archive from multipart PUT with store type [{:?}]", address, get_store_type(&request));
     Ok(HttpResponse::Ok().json(
-        public_archive_service.update_public_archive(address, public_archive_form, evm_wallet, cache_only(&request)).await?
+        public_archive_service.update_public_archive(address, public_archive_form, evm_wallet, get_store_type(&request)).await?
     ))
 }
 

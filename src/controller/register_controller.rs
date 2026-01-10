@@ -3,7 +3,7 @@ use actix_web::web::Data;
 use ant_evm::EvmWallet;
 use log::debug;
 use crate::error::register_error::RegisterError;
-use crate::controller::cache_only;
+use crate::controller::get_store_type;
 use crate::service::register_service::{Register, RegisterService};
 
 #[utoipa::path(
@@ -30,7 +30,7 @@ pub async fn post_register(
     debug!("Creating new register");
     Ok(HttpResponse::Created().json(
         register_service.create_register(
-            register.into_inner(), evm_wallet_data.get_ref().clone(), cache_only(&request)).await?
+            register.into_inner(), evm_wallet_data.get_ref().clone(), get_store_type(&request)).await?
     ))
 }
 
@@ -61,7 +61,7 @@ pub async fn put_register(
     debug!("Updating register");
     Ok(HttpResponse::Ok().json(
         register_service.update_register(
-            address, register.into_inner(), evm_wallet_data.get_ref().clone(), cache_only(&request)).await?
+            address, register.into_inner(), evm_wallet_data.get_ref().clone(), get_store_type(&request)).await?
     ))
 }
 

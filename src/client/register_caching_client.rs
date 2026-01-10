@@ -7,7 +7,7 @@ use crate::client::{CachingClient, REGISTER_CACHE_KEY};
 use crate::client::command::register::create_register_command::CreateRegisterCommand;
 use crate::client::command::register::get_register_command::GetRegisterCommand;
 use crate::client::command::register::update_register_command::UpdateRegisterCommand;
-use crate::controller::CacheType;
+use crate::controller::StoreType;
 use crate::error::register_error::RegisterError;
 
 impl CachingClient {
@@ -17,11 +17,11 @@ impl CachingClient {
         owner: &SecretKey,
         register_value: RegisterValue,
         payment_option: PaymentOption,
-        cache_only: Option<CacheType>,
+        store_type: StoreType,
     ) -> Result<RegisterAddress, RegisterError> {
-        let register_address = self.cache_register(owner, &register_value, cache_only.clone());
+        let register_address = self.cache_register(owner, &register_value, store_type.clone());
 
-        if !cache_only.is_some() {
+        if store_type == StoreType::Network {
             let command = Box::new(
                 CreateRegisterCommand::new(self.client_harness.clone(), owner.clone(), register_value, payment_option)
             );
@@ -35,11 +35,11 @@ impl CachingClient {
         owner: &SecretKey,
         register_value: RegisterValue,
         payment_option: PaymentOption,
-        cache_only: Option<CacheType>,
+        store_type: StoreType,
     ) -> Result<(), RegisterError> {
-        self.cache_register(owner, &register_value, cache_only.clone());
+        self.cache_register(owner, &register_value, store_type.clone());
 
-        if !cache_only.is_some() {
+        if store_type == StoreType::Network {
             let command = Box::new(
                 UpdateRegisterCommand::new(self.client_harness.clone(), owner.clone(), register_value, payment_option)
             );
@@ -48,13 +48,13 @@ impl CachingClient {
         Ok(())
     }
 
-    fn cache_register(&self, owner: &SecretKey, register_value: &RegisterValue, cache_only: Option<CacheType>) -> RegisterAddress {
+    fn cache_register(&self, owner: &SecretKey, register_value: &RegisterValue, store_type: StoreType) -> RegisterAddress {
         let register_address = RegisterAddress::new(owner.public_key());
-        let ttl = if cache_only.is_some() { u64::MAX } else { self.ant_tp_config.cached_mutable_ttl };
+        let ttl = if store_type != StoreType::Network { u64::MAX } else { self.ant_tp_config.cached_mutable_ttl };
         let cache_item = CacheItem::new(Some(register_value.clone()), ttl);
         let serialised_cache_item = rmp_serde::to_vec(&cache_item).expect("Failed to serialize register");
         info!("updating cache with register at address {}[{}] to value [{:?}] and TTL [{}]", REGISTER_CACHE_KEY, register_address.to_hex(), register_value, ttl);
-        if cache_only.is_some_and(|v| matches!(v, CacheType::Disk)) {
+        if store_type == StoreType::Disk {
             self.hybrid_cache.insert(format!("{}{}", REGISTER_CACHE_KEY, register_address.to_hex()), serialised_cache_item);
         } else {
             self.hybrid_cache.memory().insert(format!("{}{}", REGISTER_CACHE_KEY, register_address.to_hex()), serialised_cache_item);

@@ -1,5 +1,5 @@
 use crate::client::CachingClient;
-use crate::controller::{CacheType, DataKey};
+use crate::controller::{StoreType, DataKey};
 use crate::error::pointer_error::PointerError;
 use crate::error::CreateError;
 use crate::model::pnr::PnrZone;
@@ -21,7 +21,7 @@ impl PnrService {
         Self { caching_client, pointer_service }
     }
 
-    pub async fn create_pnr(&self, pnr_zone: PnrZone, evm_wallet: Wallet, cache_only: Option<CacheType>) -> Result<PnrZone, PointerError> {
+    pub async fn create_pnr(&self, pnr_zone: PnrZone, evm_wallet: Wallet, store_type: StoreType) -> Result<PnrZone, PointerError> {
         /*
         1. Create chunk containing PNR zone (container for records)
         2. Create mutable personal pointer to above chunk
@@ -30,7 +30,7 @@ impl PnrService {
         match self.caching_client.chunk_put(
             &Chunk::new(Bytes::from(serde_json::to_vec(&pnr_zone).unwrap())),
             PaymentOption::from(&evm_wallet),
-            cache_only.clone()
+            store_type.clone()
         ).await {
             Ok(chunk) => {
                 let personal_pointer_request = Pointer::new(
@@ -39,7 +39,7 @@ impl PnrService {
                 match self.pointer_service.create_pointer(
                     personal_pointer_request,
                     evm_wallet.clone(),
-                    cache_only.clone(),
+                    store_type.clone(),
                     DataKey::Personal).await
                 {
                     Ok(personal_pointer_result) => {
@@ -49,7 +49,7 @@ impl PnrService {
                         match self.pointer_service.create_pointer(
                             resolver_pointer_request,
                             evm_wallet,
-                            cache_only,
+                            store_type,
                             DataKey::Resolver).await
                         {
                             Ok(resolver_pointer_result) => {

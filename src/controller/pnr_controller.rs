@@ -2,7 +2,7 @@ use actix_web::{web, HttpRequest, HttpResponse};
 use actix_web::web::Data;
 use ant_evm::EvmWallet;
 use log::debug;
-use crate::controller::cache_only;
+use crate::controller::get_store_type;
 use crate::error::pointer_error::PointerError;
 use crate::model::pnr::PnrZone;
 use crate::service::pnr_service::PnrService;
@@ -30,6 +30,6 @@ pub async fn post_pnr(
 ) -> Result<HttpResponse, PointerError> {
     debug!("Creating new PNR zone");
     Ok(HttpResponse::Created().json(
-        pnr_service.create_pnr(pnr_zone.into_inner(), evm_wallet_data.get_ref().clone(), cache_only(&request)).await?
+        pnr_service.create_pnr(pnr_zone.into_inner(), evm_wallet_data.get_ref().clone(), get_store_type(&request)).await?
     ))
 }

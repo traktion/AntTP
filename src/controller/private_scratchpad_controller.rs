@@ -3,7 +3,7 @@ use actix_web::web::Data;
 use ant_evm::EvmWallet;
 use log::debug;
 use crate::error::scratchpad_error::ScratchpadError;
-use crate::controller::cache_only;
+use crate::controller::get_store_type;
 use crate::service::scratchpad_service::{Scratchpad, ScratchpadService};
 
 #[utoipa::path(
@@ -37,7 +37,7 @@ pub async fn post_private_scratchpad(
             scratchpad.into_inner(),
             evm_wallet_data.get_ref().clone(),
             true,
-            cache_only(&request)
+            get_store_type(&request)
         ).await?
     ))
 }
@@ -75,7 +75,7 @@ pub async fn put_private_scratchpad(
             scratchpad.into_inner(),
             evm_wallet_data.get_ref().clone(),
             true,
-            cache_only(&request)
+            get_store_type(&request)
         ).await?
     ))
 }

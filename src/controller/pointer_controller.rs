@@ -3,7 +3,7 @@ use actix_web::web::Data;
 use ant_evm::EvmWallet;
 use log::debug;
 use crate::error::pointer_error::PointerError;
-use crate::controller::{cache_only, data_key};
+use crate::controller::{get_store_type, data_key};
 use crate::service::pointer_service::{Pointer, PointerService};
 
 #[utoipa::path(
@@ -31,7 +31,7 @@ pub async fn post_pointer(
 ) -> Result<HttpResponse, PointerError> {
     debug!("Creating new pointer");
     Ok(HttpResponse::Created().json(
-        pointer_service.create_pointer(pointer.into_inner(), evm_wallet_data.get_ref().clone(), cache_only(&request), data_key(&request)).await?
+        pointer_service.create_pointer(pointer.into_inner(), evm_wallet_data.get_ref().clone(), get_store_type(&request), data_key(&request)).await?
     ))
 }
 
@@ -63,7 +63,7 @@ pub async fn put_pointer(
 
     debug!("Updating pointer");
     Ok(HttpResponse::Ok().json(
-        pointer_service.update_pointer(address, pointer.into_inner(), cache_only(&request), data_key(&request)).await?
+        pointer_service.update_pointer(address, pointer.into_inner(), get_store_type(&request), data_key(&request)).await?
     ))
 }
 

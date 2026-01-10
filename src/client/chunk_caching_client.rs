@@ -7,7 +7,7 @@ use log::{debug, error, info};
 use crate::client::CachingClient;
 use crate::client::command::chunk::create_chunk_command::CreateChunkCommand;
 use crate::error::chunk_error::ChunkError;
-use crate::controller::CacheType;
+use crate::controller::StoreType;
 
 #[async_trait]
 impl ChunkGetter for CachingClient {
@@ -24,11 +24,11 @@ impl CachingClient {
         &self,
         chunk: &Chunk,
         payment_option: PaymentOption,
-        cache_only: Option<CacheType>
+        store_type: StoreType
     ) -> Result<ChunkAddress, ChunkError> {
         self.hybrid_cache.insert(chunk.address.to_hex(), Vec::from(chunk.value.clone()));
         debug!("creating chunk with address [{}] in cache", chunk.address.to_hex());
-        if !cache_only.is_some() {
+        if store_type == StoreType::Network {
             let command = Box::new(
                 CreateChunkCommand::new(self.client_harness.clone(), chunk.clone(), payment_option)
             );

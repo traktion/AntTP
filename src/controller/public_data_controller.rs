@@ -5,7 +5,7 @@ use actix_web::web::{Data, Payload};
 use ant_evm::EvmWallet;
 use log::debug;
 use crate::error::public_data_error::PublicDataError;
-use crate::controller::cache_only;
+use crate::controller::get_store_type;
 use crate::error::CreateError;
 use crate::service::public_data_service::{PublicData, PublicDataService};
 
@@ -34,7 +34,7 @@ pub async fn post_public_data(
     match payload.to_bytes().await {
         Ok(bytes) => {
             Ok(HttpResponse::Created().json(
-                public_data_service.create_public_data(bytes, evm_wallet_data.get_ref().clone(), cache_only(&request)).await?
+                public_data_service.create_public_data(bytes, evm_wallet_data.get_ref().clone(), get_store_type(&request)).await?
             ))
         }
         Err(e) => {

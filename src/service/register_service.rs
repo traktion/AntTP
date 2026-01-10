@@ -7,7 +7,7 @@ use utoipa::ToSchema;
 use crate::client::CachingClient;
 use crate::error::{CreateError, GetError, UpdateError};
 use crate::config::anttp_config::AntTpConfig;
-use crate::controller::CacheType;
+use crate::controller::StoreType;
 use crate::error::register_error::RegisterError;
 use crate::service::resolver_service::ResolverService;
 
@@ -37,7 +37,7 @@ impl RegisterService {
         RegisterService { caching_client, ant_tp_config, resolver_service }
     }
 
-    pub async fn create_register(&self, register: Register, evm_wallet: Wallet, cache_only: Option<CacheType>) -> Result<Register, RegisterError> {
+    pub async fn create_register(&self, register: Register, evm_wallet: Wallet, store_type: StoreType) -> Result<Register, RegisterError> {
         match register.name {
             Some(name) => {
                 let app_secret_key = self.ant_tp_config.get_app_private_key()?;
@@ -46,7 +46,7 @@ impl RegisterService {
                 info!("Create register from name [{}] and content [{}]", name, register.content);
                 let content = Client::register_value_from_bytes(hex::decode(register.content.clone())?.as_slice())?;
                 let register_address = self.caching_client
-                    .register_create(&register_key, content, PaymentOption::from(&evm_wallet), cache_only)
+                    .register_create(&register_key, content, PaymentOption::from(&evm_wallet), store_type)
                     .await?;
                 info!("Queued command to create register at [{}]", register_address.to_hex());
                 Ok(Register::new(Some(name), register.content, Some(register_address.to_hex())))
@@ -55,7 +55,7 @@ impl RegisterService {
         }
     }
 
-    pub async fn update_register(&self, address: String, register: Register, evm_wallet: Wallet, cache_only: Option<CacheType>) -> Result<Register, RegisterError> {
+    pub async fn update_register(&self, address: String, register: Register, evm_wallet: Wallet, store_type: StoreType) -> Result<Register, RegisterError> {
         match register.name {
             Some(name) => {
                 let app_secret_key = self.ant_tp_config.get_app_private_key()?;
@@ -70,7 +70,7 @@ impl RegisterService {
                 info!("Update register with name [{}] and content [{}]", name, register.content);
                 let content = Client::register_value_from_bytes(hex::decode(register.content.clone())?.as_slice())?;
                 self.caching_client
-                    .register_update(&register_key, content, PaymentOption::from(&evm_wallet), cache_only)
+                    .register_update(&register_key, content, PaymentOption::from(&evm_wallet), store_type)
                     .await?;
                 info!("Queued command to update register with name [{}]", name);
                 Ok(Register::new(Some(name), register.content, Some(resolved_address)))

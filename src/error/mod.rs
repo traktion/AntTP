@@ -1,16 +1,16 @@
-use std::fmt::Debug;
-use std::io;
+use crate::client::command::Command;
 use actix_http::StatusCode;
-use actix_web::{error, HttpResponse};
 use actix_web::http::header::ContentType;
-use autonomi::AddressParseError;
+use actix_web::{error, HttpResponse};
 use autonomi::client::ConnectError;
 use autonomi::register::RegisterError;
+use autonomi::AddressParseError;
 use hex::FromHexError;
 use serde::Serialize;
+use std::fmt::Debug;
+use std::io;
 use thiserror::Error;
 use tokio::sync::mpsc::error::SendError;
-use crate::client::command::Command;
 
 pub mod chunk_error;
 pub mod graph_error;

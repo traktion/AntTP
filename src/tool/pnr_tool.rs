@@ -2,18 +2,16 @@
 
 use actix_web::web::Data;
 use ant_evm::EvmWallet;
-use rmcp::{
-    ServerHandler,
-    handler::server::{
-        router::tool::ToolRouter,
-        wrapper::{Json, Parameters},
-    },
-    model::{ServerCapabilities, ServerInfo},
-    schemars, tool, tool_handler, tool_router,
-};
+use rmcp::{ServerHandler, handler::server::{
+    router::tool::ToolRouter,
+    wrapper::Parameters,
+}, model::{ServerCapabilities, ServerInfo}, schemars, tool, tool_handler, tool_router, ErrorData};
+use rmcp::model::{CallToolResult, Content, ErrorCode};
 use rmcp::schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize};
+use serde_json::json;
 use crate::controller::CacheType;
+use crate::error::pointer_error::PointerError;
 use crate::model::pnr::{PnrRecord, PnrZone};
 use crate::service::pnr_service::PnrService;
 
@@ -27,26 +25,15 @@ struct PnrRequest {
     cache_only: Option<String>,
 }
 
-#[derive(Debug, Serialize, JsonSchema)]
-struct PnrResult {
-    #[schemars(description = "name of the PNR record")]
-    name: String,
-    #[schemars(description = "address of the PNR map")]
-    address: String,
-    #[schemars(description = "resolver pointer address of the PNR record")]
-    resolver_address: String,
-    #[schemars(description = "personal pointer address of the PNR record")]
-    personal_address: String,
+impl Into<CallToolResult> for PnrZone {
+    fn into(self) -> CallToolResult {
+        CallToolResult::success(vec![Content::text(json!(self).to_string())])
+    }
 }
 
-impl From<PnrZone> for PnrResult {
-    fn from(pnr_zone: PnrZone) -> Self {
-        Self {
-            name: pnr_zone.name.clone(),
-            address: pnr_zone.records.get(0).unwrap().clone().address,
-            resolver_address: pnr_zone.resolver_address.unwrap_or("".to_string()),
-            personal_address: pnr_zone.personal_address.unwrap_or("".to_string()),
-        }
+impl From<PointerError> for ErrorData {
+    fn from(pointer_error: PointerError) -> Self {
+        ErrorData::new(ErrorCode::INTERNAL_ERROR, pointer_error.to_string(), None)
     }
 }
 
@@ -68,15 +55,13 @@ impl PnrTool {
     async fn register(
         &self,
         Parameters(PnrRequest { name, address, cache_only }): Parameters<PnrRequest>,
-    ) -> Result<Json<PnrResult>, String> {
+    ) -> Result<CallToolResult, ErrorData> {
         let pnr_zone = PnrZone::new(
             name, vec![PnrRecord::new(Some("".to_string()), address.clone(), 60)], None, None
         );
-        let maybe_cache_only = if cache_only.is_some() { Some(CacheType::Memory) } else { None };
-        match self.pnr_service.create_pnr(pnr_zone, self.evm_wallet.get_ref().clone(), maybe_cache_only).await {
-            Ok(pnr_zone) => Ok(Json(PnrResult::from(pnr_zone))),
-            Err(e) => Err(e.to_string()),
-        }
+        let cache_type = CacheType::from(cache_only.unwrap_or("".to_string()));
+        let maybe_cache_only = if cache_type != CacheType::Network { Some(cache_type) } else { None };
+        Ok(self.pnr_service.create_pnr(pnr_zone, self.evm_wallet.get_ref().clone(), maybe_cache_only).await?.into())
     }
 }
 

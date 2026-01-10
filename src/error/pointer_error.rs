@@ -1,11 +1,11 @@
-use actix_http::StatusCode;
-use actix_web::HttpResponse;
-use actix_web::http::header::ContentType;
-use autonomi::AddressParseError;
-use autonomi::client::ConnectError;
-use thiserror::Error;
-use serde::Serialize;
 use crate::error::{CheckError, CreateError, GetError, UpdateError};
+use actix_http::StatusCode;
+use actix_web::http::header::ContentType;
+use actix_web::HttpResponse;
+use autonomi::client::ConnectError;
+use autonomi::AddressParseError;
+use serde::Serialize;
+use thiserror::Error;
 
 #[derive(Error, Debug, Serialize)]
 pub enum PointerError {

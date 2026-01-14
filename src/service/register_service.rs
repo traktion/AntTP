@@ -25,6 +25,7 @@ impl Register {
     }
 }
 
+#[derive(Debug)]
 pub struct RegisterService {
     caching_client: CachingClient,
     ant_tp_config: AntTpConfig,

@@ -3,6 +3,7 @@ use crate::service::chunk_service::ChunkService;
 use crate::service::public_data_service::PublicDataService;
 use crate::service::pnr_service::PnrService;
 use crate::service::pointer_service::PointerService;
+use crate::service::register_service::RegisterService;
 use actix_web::web::Data;
 use ant_evm::EvmWallet;
 use rmcp::handler::server::tool::ToolRouter;
@@ -15,6 +16,7 @@ use rmcp::{tool_handler, ServerHandler};
     pub mod command_tool;
     pub mod public_data_tool;
     pub mod pointer_tool;
+    pub mod register_tool;
 
     #[derive(Debug, Clone)]
     pub struct McpTool {
@@ -23,6 +25,7 @@ use rmcp::{tool_handler, ServerHandler};
         pnr_service: Data<PnrService>,
         public_data_service: Data<PublicDataService>,
         pointer_service: Data<PointerService>,
+        register_service: Data<RegisterService>,
         evm_wallet: Data<EvmWallet>,
         tool_router: ToolRouter<Self>,
     }
@@ -34,6 +37,7 @@ use rmcp::{tool_handler, ServerHandler};
             pnr_service: Data<PnrService>,
             public_data_service: Data<PublicDataService>,
             pointer_service: Data<PointerService>,
+            register_service: Data<RegisterService>,
             evm_wallet: Data<EvmWallet>
         ) -> Self {
             Self {
@@ -42,12 +46,14 @@ use rmcp::{tool_handler, ServerHandler};
                 pnr_service,
                 public_data_service,
                 pointer_service,
+                register_service,
                 evm_wallet,
                 tool_router: Self::chunk_tool_router()
                     + Self::pnr_tool_router()
                     + Self::command_tool_router()
                     + Self::public_data_tool_router()
                     + Self::pointer_tool_router()
+                    + Self::register_tool_router()
             }
         }
     }

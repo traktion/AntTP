@@ -14,9 +14,9 @@ use crate::tool::McpTool;
 
 #[derive(Debug, Deserialize, JsonSchema)]
 struct CreatePointerRequest {
-    #[schemars(description = "Name of the Pointer")]
+    #[schemars(description = "Name of the pointer")]
     name: String,
-    #[schemars(description = "Content target of the Pointer")]
+    #[schemars(description = "Content target of the pointer")]
     content: String,
     #[schemars(description = "Store pointer on memory, disk or network")]
     store_type: String,
@@ -28,9 +28,9 @@ struct CreatePointerRequest {
 struct UpdatePointerRequest {
     #[schemars(description = "Address of the pointer")]
     address: String,
-    #[schemars(description = "Name of the Pointer")]
+    #[schemars(description = "Name of the pointer")]
     name: String,
-    #[schemars(description = "Content target of the Pointer")]
+    #[schemars(description = "Content target of the pointer")]
     content: String,
     #[schemars(description = "Store pointer on memory, disk or network")]
     store_type: String,

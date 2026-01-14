@@ -358,6 +358,37 @@ allowing sub-names to be managed from a lookup table:
 
 `PNR Shared Key Pointer (max counter) ⇒ PNR Current User Key Pointer => Immutable Lookup Table`
 
+## MCP Tools API [EXPERIMENTAL!]
+
+LLMs (AI) can now interface with AntTP via MCP tools. This allows agents to interact with Autonomi Network
+to create mutable and immutable data, similar to the REST API.
+
+The MCP tools access the same underlying code, including the caching layer to optimise performance.
+
+To learn more about MCP, see here: https://modelcontextprotocol.io/docs/getting-started/intro
+
+To configure your agent (Antigravity, Claude Code, etc) to use AntTP as an MCP server, specify the following URL
+(when running AntTP locally with the default port): http://localhost:18888/mcp-0
+
+Antigravity example:
+
+```json
+{
+  "mcpServers": {
+    "local-anttp": {
+      "serverUrl": "http://localhost:18888/mcp-0",
+      "headers": {
+        "Authorization": "Bearer unknown",
+        "Content-Type": "application/json"
+      },
+      "disabled": false
+    }
+  }
+}
+```
+
+![antigravity-mcp-servers.png](resources/antigravity-mcp-servers.png)
+
 ## PubAnt.com - Publish your Website
 
 For more information on how to publish a website on Autonomi Network, [PubAnt.com](https://pubant.com/) is an excellent resource.
@@ -440,12 +471,9 @@ local per-user configuration data (e.g. arbitrary data that only the user needs 
     - [ ] Vault support (CRUD, cost)
     - [ ] Data upload cost
     - [ ] Wallet support
-      - [ ] Get balance
-      - [ ] Send tokens
-      - [ ] Get transaction history
-      - [ ] Remote data payments (via gateway)
     - [x] Async command/upload queue
     - [ ] Tarchive
+    - [x] Pointer name resolver
   - [ ] gRPC API
     - [ ] Pointer
     - [ ] Scratchpad
@@ -461,10 +489,24 @@ local per-user configuration data (e.g. arbitrary data that only the user needs 
     - [ ] Vault support (CRUD, cost)
     - [ ] Data upload cost
     - [ ] Wallet support
-      - [ ] get balance
-      - [ ] send tokens
-      - [ ] get transaction history
-      - [ ] Remote data payments (via gateway)
+  - [ ] MCP API
+    - [x] Pointer
+    - [ ] Scratchpad
+    - [ ] Graph
+    - [x] Register
+    - [x] Chunk
+    - [ ] Public Archive
+    - [x] Public Data
+    - [ ] BLS support
+      - [ ] Create, sign, verify
+      - [ ] Derived keys
+    - [ ] Analyze address support
+    - [ ] Vault support (CRUD, cost)
+    - [ ] Data upload cost
+    - [ ] Wallet support
+    - [x] Async command/upload queue
+    - [ ] Tarchive
+    - [x] Pointer name resolver
   - [ ] Websockets
     - [ ] Stream immutable data types
     - [ ] Stream changes to mutable data types

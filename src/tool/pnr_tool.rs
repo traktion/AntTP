@@ -2,17 +2,19 @@
 
 use actix_web::web::Data;
 use ant_evm::EvmWallet;
-use rmcp::{ServerHandler, handler::server::{
+use rmcp::{handler::server::{
     router::tool::ToolRouter,
     wrapper::Parameters,
-}, model::{ServerCapabilities, ServerInfo}, schemars, tool, tool_handler, tool_router, ErrorData};
-use rmcp::model::{CallToolResult, Content, ErrorCode};
+}, schemars, tool, tool_router, ErrorData};
+use rmcp::model::{CallToolResult, ErrorCode};
 use rmcp::schemars::JsonSchema;
-use serde::{Deserialize};
+use serde::{Deserialize, Serialize};
+use serde_json::json;
 use crate::controller::StoreType;
 use crate::error::pointer_error::PointerError;
-use crate::model::pnr::{PnrRecord, PnrZone};
+use crate::model::pnr::{PnrRecord, PnrRecordType, PnrZone};
 use crate::service::pnr_service::PnrService;
+use crate::tool::McpTool;
 
 #[derive(Debug, Deserialize, JsonSchema)]
 struct PnrRequest {
@@ -26,17 +28,23 @@ struct PnrRequest {
     store_type: String,
 }
 
-impl Into<CallToolResult> for PnrZone {
-    fn into(self) -> CallToolResult {
-        let default_record = self.records.get(0).expect("failed to get default PNR record");
-        CallToolResult::success(vec![Content::text(format!(
-            "Created a PNR zone with the name '{}' for the address '{}' with a TTL of '{}', a resolver pointer of '{}', and a personal pointer of '{}'.",
-            self.name,
-            default_record.address,
-            default_record.ttl,
-            self.resolver_address.expect("missing resolver address"),
-            self.personal_address.expect("missing personal address")
-        ))])
+#[derive(Debug, Serialize, JsonSchema)]
+struct PnrResponse {
+    #[schemars(description = "Name of the PNR zone")]
+    name: String,
+    #[schemars(description = "Target address of the default PNR record")]
+    address: String,
+    #[schemars(description = "Time To Live (TTL) for the default PNR record (default: 60)")]
+    ttl: u64,
+    #[schemars(description = "Resolver pointer address")]
+    resolver_address: String,
+    #[schemars(description = "Personal pointer address")]
+    personal_address: String,
+}
+
+impl From<PnrZone> for CallToolResult {
+    fn from(pnr_zone: PnrZone) -> CallToolResult {
+        CallToolResult::structured(json!(pnr_zone))
     }
 }
 
@@ -54,11 +62,8 @@ pub struct PnrTool {
     tool_router: ToolRouter<Self>,
 }
 
-#[tool_router]
-impl PnrTool {
-    pub fn new(pnr_service: Data<PnrService>, evm_wallet: Data<EvmWallet>) -> Self {
-        Self { pnr_service, evm_wallet, tool_router: Self::tool_router(), }
-    }
+#[tool_router(router = pnr_tool_router, vis = "pub")]
+impl McpTool {
 
     #[tool(description = "Register PNR zone with default PNR record")]
     async fn register(
@@ -67,20 +72,13 @@ impl PnrTool {
     ) -> Result<CallToolResult, ErrorData> {
         let ttl_or_default = if ttl == 0 { 60 } else { ttl };
         let pnr_zone = PnrZone::new(
-            name, vec![PnrRecord::new(Some("".to_string()), address.clone(), ttl_or_default)], None, None
+            name,
+            vec![PnrRecord::new(Some("".to_string()), address.clone(), PnrRecordType::X, ttl_or_default)],
+            None,
+            None
         );
-        Ok(self.pnr_service.create_pnr(pnr_zone, self.evm_wallet.get_ref().clone(), StoreType::from(store_type)).await?.into())
+        Ok(self.pnr_service.create_pnr(
+            pnr_zone, self.evm_wallet.get_ref().clone(), StoreType::from(store_type)
+        ).await?.into())
     }
 }
-
-#[tool_handler]
-impl ServerHandler for PnrTool {
-    fn get_info(&self) -> ServerInfo {
-        ServerInfo {
-            instructions: Some("Pointer Name Resolver (PNR) tool for managing names resolving to addresses".into()),
-            capabilities: ServerCapabilities::builder().enable_tools().build(),
-            ..Default::default()
-        }
-    }
-}
-

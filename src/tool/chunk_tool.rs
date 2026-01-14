@@ -2,16 +2,18 @@
 
 use actix_web::web::Data;
 use ant_evm::EvmWallet;
-use rmcp::{ServerHandler, handler::server::{
+use rmcp::{handler::server::{
     router::tool::ToolRouter,
     wrapper::Parameters,
-}, model::{ServerCapabilities, ServerInfo}, schemars, tool, tool_handler, tool_router, ErrorData};
-use rmcp::model::{CallToolResult, Content, ErrorCode};
+}, schemars, tool, tool_router, ErrorData};
+use rmcp::model::{CallToolResult, ErrorCode};
 use rmcp::schemars::JsonSchema;
 use serde::{Deserialize};
+use serde_json::json;
 use crate::controller::StoreType;
 use crate::error::chunk_error::ChunkError;
 use crate::service::chunk_service::{Chunk, ChunkService};
+use crate::tool::McpTool;
 
 #[derive(Debug, Deserialize, JsonSchema)]
 struct CreateChunkRequest {
@@ -25,6 +27,12 @@ struct CreateChunkRequest {
 struct GetChunkRequest {
     #[schemars(description = "Address of the chunk")]
     address: String,
+}
+
+impl From<Chunk> for CallToolResult {
+    fn from(chunk: Chunk) -> CallToolResult {
+        CallToolResult::structured(json!(chunk))
+    }
 }
 
 impl From<ChunkError> for ErrorData {
@@ -41,11 +49,8 @@ pub struct ChunkTool {
     tool_router: ToolRouter<Self>,
 }
 
-#[tool_router]
-impl ChunkTool {
-    pub fn new(chunk_service: Data<ChunkService>, evm_wallet: Data<EvmWallet>) -> Self {
-        Self { chunk_service, evm_wallet, tool_router: Self::tool_router() }
-    }
+#[tool_router(router = chunk_tool_router, vis = "pub")]
+impl McpTool {
 
     #[tool(description = "Create a new chunk with base64 encoded content")]
     async fn create_chunk(
@@ -53,13 +58,9 @@ impl ChunkTool {
         Parameters(CreateChunkRequest { content, store_type }): Parameters<CreateChunkRequest>,
     ) -> Result<CallToolResult, ErrorData> {
         let chunk = Chunk::new(Some(content), None);
-        let result_chunk = self.chunk_service.create_chunk(chunk, self.evm_wallet.get_ref().clone(), StoreType::from(store_type)).await?;
-        
-        // Return structured text
-        let address = result_chunk.address.clone().unwrap_or_default();
-        Ok(CallToolResult::success(vec![Content::text(format!(
-            "Created chunk at address '{}'", address
-        ))]))
+        Ok(self.chunk_service.create_chunk(
+            chunk, self.evm_wallet.get_ref().clone(), StoreType::from(store_type)
+        ).await?.into())
     }
 
     #[tool(description = "Get a chunk by its address")]
@@ -67,41 +68,6 @@ impl ChunkTool {
         &self,
         Parameters(GetChunkRequest { address }): Parameters<GetChunkRequest>,
     ) -> Result<CallToolResult, ErrorData> {
-        let chunk = self.chunk_service.get_chunk(address).await?;
-        let content = chunk.content.clone().unwrap_or_default();
-         Ok(CallToolResult::success(vec![Content::text(format!(
-            "Chunk Content (Base64): {}", content
-        ))]))
-    }
-}
-
-#[tool_handler]
-impl ServerHandler for ChunkTool {
-    fn get_info(&self) -> ServerInfo {
-        ServerInfo {
-            instructions: Some("Chunk tool for creating and retrieving chunks".into()),
-            capabilities: ServerCapabilities::builder().enable_tools().build(),
-            ..Default::default()
-        }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    
-    #[test]
-    fn test_create_chunk_request_deserialization() {
-        let json = r#"{"content": "SGVsbG8=", "store_type": "memory"}"#;
-        let request: CreateChunkRequest = serde_json::from_str(json).unwrap();
-        assert_eq!(request.content, "SGVsbG8=");
-        assert_eq!(request.store_type, "memory");
-    }
-
-    #[test]
-    fn test_get_chunk_request_deserialization() {
-        let json = r#"{"address": "1234abcd"}"#;
-        let request: GetChunkRequest = serde_json::from_str(json).unwrap();
-        assert_eq!(request.address, "1234abcd");
+        Ok(self.chunk_service.get_chunk(address).await?.into())
     }
 }

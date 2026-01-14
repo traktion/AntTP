@@ -46,8 +46,8 @@ impl From<PnrZone> for CallToolResult {
 #[tool_router(router = pnr_tool_router, vis = "pub")]
 impl McpTool {
 
-    #[tool(description = "Register PNR zone with default PNR record")]
-    async fn register(
+    #[tool(description = "Create PNR zone with default PNR record")]
+    async fn create_pnr_zone(
         &self,
         Parameters(PnrRequest { name, address, ttl, store_type }): Parameters<PnrRequest>,
     ) -> Result<CallToolResult, ErrorData> {

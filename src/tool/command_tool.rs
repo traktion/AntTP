@@ -1,24 +1,15 @@
 #![allow(dead_code)]
 
-use actix_web::web::Data;
-use rmcp::{handler::server::{
-    router::tool::ToolRouter,
-}, tool, tool_router, ErrorData};
-use rmcp::model::{CallToolResult, ErrorCode};
-use serde_json::json;
-use crate::service::command_service::{CommandList, CommandService};
+use crate::service::command_service::CommandList;
 use crate::tool::McpTool;
+use rmcp::model::{CallToolResult, ErrorCode};
+use rmcp::{tool, tool_router, ErrorData};
+use serde_json::json;
 
 impl From<CommandList> for CallToolResult {
     fn from(command_list: CommandList) -> CallToolResult {
         CallToolResult::structured(json!(command_list))
     }
-}
-
-#[derive(Debug, Clone)]
-pub struct CommandTool {
-    command_service: Data<CommandService>,
-    tool_router: ToolRouter<Self>,
 }
 
 #[tool_router(router = command_tool_router, vis = "pub")]

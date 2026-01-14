@@ -1,19 +1,14 @@
 #![allow(dead_code)]
 
-use actix_web::web::Data;
-use ant_evm::EvmWallet;
 use rmcp::{handler::server::{
-    router::tool::ToolRouter,
     wrapper::Parameters,
 }, schemars, tool, tool_router, ErrorData};
-use rmcp::model::{CallToolResult, ErrorCode};
+use rmcp::model::{CallToolResult};
 use rmcp::schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use crate::controller::StoreType;
-use crate::error::pointer_error::PointerError;
 use crate::model::pnr::{PnrRecord, PnrRecordType, PnrZone};
-use crate::service::pnr_service::PnrService;
 use crate::tool::McpTool;
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -46,20 +41,6 @@ impl From<PnrZone> for CallToolResult {
     fn from(pnr_zone: PnrZone) -> CallToolResult {
         CallToolResult::structured(json!(pnr_zone))
     }
-}
-
-impl From<PointerError> for ErrorData {
-    fn from(pointer_error: PointerError) -> Self {
-        ErrorData::new(ErrorCode::INTERNAL_ERROR, pointer_error.to_string(), None)
-    }
-}
-
-
-#[derive(Debug, Clone)]
-pub struct PnrTool {
-    pnr_service: Data<PnrService>,
-    evm_wallet: Data<EvmWallet>,
-    tool_router: ToolRouter<Self>,
 }
 
 #[tool_router(router = pnr_tool_router, vis = "pub")]

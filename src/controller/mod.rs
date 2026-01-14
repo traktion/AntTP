@@ -56,14 +56,20 @@ pub enum DataKey {
     Custom(String),
 }
 
-fn data_key(request: &HttpRequest) -> DataKey {
-    match request.headers().get("x-data-key") {
-        Some(header_value) => match header_value.to_str().unwrap_or("").to_lowercase().as_str() {
+impl From<String> for DataKey {
+    fn from(s: String) -> Self {
+        match s.to_lowercase().as_str() {
             "resolver" => DataKey::Resolver,
             "personal" | "" => DataKey::Personal,
             custom => DataKey::Custom(custom.to_string())
         }
-        None => DataKey::Personal,
+    }
+}
+
+fn data_key(request: &HttpRequest) -> DataKey {
+    match request.headers().get("x-data-key") {
+        Some(header_value) => DataKey::from(header_value.to_str().unwrap_or("").to_string()),
+        None => DataKey::Personal
     }
 }
 

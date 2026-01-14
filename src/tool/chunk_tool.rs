@@ -1,9 +1,6 @@
 #![allow(dead_code)]
 
-use actix_web::web::Data;
-use ant_evm::EvmWallet;
 use rmcp::{handler::server::{
-    router::tool::ToolRouter,
     wrapper::Parameters,
 }, schemars, tool, tool_router, ErrorData};
 use rmcp::model::{CallToolResult, ErrorCode};
@@ -12,7 +9,7 @@ use serde::{Deserialize};
 use serde_json::json;
 use crate::controller::StoreType;
 use crate::error::chunk_error::ChunkError;
-use crate::service::chunk_service::{Chunk, ChunkService};
+use crate::service::chunk_service::Chunk;
 use crate::tool::McpTool;
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -39,14 +36,6 @@ impl From<ChunkError> for ErrorData {
     fn from(chunk_error: ChunkError) -> Self {
         ErrorData::new(ErrorCode::INTERNAL_ERROR, chunk_error.to_string(), None)
     }
-}
-
-
-#[derive(Debug, Clone)]
-pub struct ChunkTool {
-    chunk_service: Data<ChunkService>,
-    evm_wallet: Data<EvmWallet>,
-    tool_router: ToolRouter<Self>,
 }
 
 #[tool_router(router = chunk_tool_router, vis = "pub")]

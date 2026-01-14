@@ -39,6 +39,7 @@ impl Property {
 #[derive(utoipa::ToResponse, Serialize, Deserialize, Debug, Clone)]
 pub struct CommandList(Vec<Command>);
 
+#[derive(Debug)]
 pub struct CommandService {
     commands_map: Data<Mutex<IndexMap<u128, CommandDetails>>>,
 }

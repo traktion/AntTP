@@ -146,6 +146,7 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> io::Result<()> {
 
     // MCP
     let mcp_tool = McpTool::new(
+        command_service_data.clone(),
         chunk_service_data.clone(),
         pnr_service_data.clone(),
         evm_wallet_data.clone()

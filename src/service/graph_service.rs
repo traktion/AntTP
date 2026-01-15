@@ -39,6 +39,7 @@ impl GraphDescendants {
     }
 }
 
+#[derive(Debug)]
 pub struct GraphService {
     caching_client: CachingClient,
     ant_tp_config: AntTpConfig,

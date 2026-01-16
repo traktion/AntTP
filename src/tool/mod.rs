@@ -21,6 +21,7 @@ use rmcp::{tool_handler, ServerHandler};
     pub mod register_tool;
     pub mod graph_tool;
     pub mod public_scratchpad_tool;
+    pub mod private_scratchpad_tool;
 
     #[derive(Debug, Clone)]
     pub struct McpTool {
@@ -66,6 +67,7 @@ use rmcp::{tool_handler, ServerHandler};
                     + Self::register_tool_router()
                     + Self::graph_tool_router()
                     + Self::public_scratchpad_tool_router()
+                    + Self::private_scratchpad_tool_router()
             }
         }
     }

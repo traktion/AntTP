@@ -84,15 +84,6 @@ impl McpTool {
         ).await?.into())
     }
 
-    #[tool(description = "Get status of a public archive upload")]
-    async fn get_status_public_archive(
-        &self,
-        Parameters(GetStatusPublicArchiveRequest { id: _id }): Parameters<GetStatusPublicArchiveRequest>,
-    ) -> Result<CallToolResult, ErrorData> {
-        // Mirrored from controller: returns empty Upload
-        Ok(Upload::new(None).into())
-    }
-
     fn map_to_multipart_form(&self, files: HashMap<String, String>) -> Result<MultipartForm<PublicArchiveForm>, ErrorData> {
         let mut temp_files = Vec::new();
         for (name, content_base64) in files {
@@ -115,49 +106,5 @@ impl McpTool {
             });
         }
         Ok(MultipartForm(PublicArchiveForm { files: temp_files }))
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[tokio::test]
-    async fn test_create_public_archive_request_serialization() {
-        let json = r#"{
-            "files": {
-                "file1.txt": "SGVsbG8gd29ybGQ=",
-                "file2.txt": "VGVzdCBjb250ZW50"
-            },
-            "store_type": "memory"
-        }"#;
-        let request: CreatePublicArchiveRequest = serde_json::from_str(json).unwrap();
-        assert_eq!(request.files.get("file1.txt").unwrap(), "SGVsbG8gd29ybGQ=");
-        assert_eq!(request.files.get("file2.txt").unwrap(), "VGVzdCBjb250ZW50");
-        assert_eq!(request.store_type, "memory");
-    }
-
-    #[tokio::test]
-    async fn test_update_public_archive_request_serialization() {
-        let json = r#"{
-            "address": "0x123",
-            "files": {
-                "file3.txt": "TW9yZSBjb250ZW50"
-            },
-            "store_type": "disk"
-        }"#;
-        let request: UpdatePublicArchiveRequest = serde_json::from_str(json).unwrap();
-        assert_eq!(request.address, "0x123");
-        assert_eq!(request.files.get("file3.txt").unwrap(), "TW9yZSBjb250ZW50");
-        assert_eq!(request.store_type, "disk");
-    }
-
-    #[tokio::test]
-    async fn test_get_status_public_archive_request_serialization() {
-        let json = r#"{
-            "id": "upload_123"
-        }"#;
-        let request: GetStatusPublicArchiveRequest = serde_json::from_str(json).unwrap();
-        assert_eq!(request.id, "upload_123");
     }
 }

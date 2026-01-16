@@ -68,7 +68,6 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> io::Result<()> {
         pointer_controller::get_pointer,
         pointer_controller::post_pointer,
         pointer_controller::put_pointer,
-        public_archive_controller::get_status_public_archive,
         public_archive_controller::post_public_archive,
         public_archive_controller::put_public_archive,
         public_scratchpad_controller::get_public_scratchpad,
@@ -191,10 +190,6 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> io::Result<()> {
             .route(
                 format!("{}pointer/{{address}}", API_BASE).as_str(),
                 web::get().to(pointer_controller::get_pointer),
-            )
-            .route(
-                format!("{}public_archive/status/{{id}}", API_BASE).as_str(),
-                web::get().to(public_archive_controller::get_status_public_archive),
             )
             .route(
                 format!("{}public_scratchpad/{{address}}", API_BASE).as_str(),

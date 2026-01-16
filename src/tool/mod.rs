@@ -20,6 +20,7 @@ use rmcp::{tool_handler, ServerHandler};
     pub mod public_data_tool;
     pub mod pointer_tool;
     pub mod register_tool;
+    pub mod graph_tool;
     pub mod public_archive_tool;
     pub mod public_scratchpad_tool;
 
@@ -68,6 +69,7 @@ use rmcp::{tool_handler, ServerHandler};
                     + Self::public_data_tool_router()
                     + Self::pointer_tool_router()
                     + Self::register_tool_router()
+                    + Self::graph_tool_router()
                     + Self::public_archive_tool_router()
                     + Self::public_scratchpad_tool_router()
             }

@@ -48,6 +48,7 @@ sha2 = "0.10"
 indexmap = "2.11"
 rand = "0.9"
 thiserror = "2.0"
+tempfile = "3"
 async-stream = "0.3.6"
 rustls = { version = "0.23.35", default-features = false }
 rustls-pemfile = "2.2.0"

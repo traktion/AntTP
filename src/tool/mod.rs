@@ -5,6 +5,7 @@ use crate::service::pnr_service::PnrService;
 use crate::service::pointer_service::PointerService;
 use crate::service::register_service::RegisterService;
 use crate::service::graph_service::GraphService;
+use crate::service::public_archive_service::PublicArchiveService;
 use crate::service::scratchpad_service::ScratchpadService;
 use actix_web::web::Data;
 use ant_evm::EvmWallet;
@@ -20,6 +21,7 @@ use rmcp::{tool_handler, ServerHandler};
     pub mod pointer_tool;
     pub mod register_tool;
     pub mod graph_tool;
+    pub mod public_archive_tool;
     pub mod public_scratchpad_tool;
     pub mod private_scratchpad_tool;
 
@@ -32,6 +34,7 @@ use rmcp::{tool_handler, ServerHandler};
         pointer_service: Data<PointerService>,
         register_service: Data<RegisterService>,
         graph_service: Data<GraphService>,
+        public_archive_service: Data<PublicArchiveService>,
         scratchpad_service: Data<ScratchpadService>,
         evm_wallet: Data<EvmWallet>,
         tool_router: ToolRouter<Self>,
@@ -46,6 +49,7 @@ use rmcp::{tool_handler, ServerHandler};
             pointer_service: Data<PointerService>,
             register_service: Data<RegisterService>,
             graph_service: Data<GraphService>,
+            public_archive_service: Data<PublicArchiveService>,
             scratchpad_service: Data<ScratchpadService>,
             evm_wallet: Data<EvmWallet>
         ) -> Self {
@@ -57,6 +61,7 @@ use rmcp::{tool_handler, ServerHandler};
                 pointer_service,
                 register_service,
                 graph_service,
+                public_archive_service,
                 scratchpad_service,
                 evm_wallet,
                 tool_router: Self::chunk_tool_router()
@@ -66,6 +71,7 @@ use rmcp::{tool_handler, ServerHandler};
                     + Self::pointer_tool_router()
                     + Self::register_tool_router()
                     + Self::graph_tool_router()
+                    + Self::public_archive_tool_router()
                     + Self::public_scratchpad_tool_router()
                     + Self::private_scratchpad_tool_router()
             }

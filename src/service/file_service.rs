@@ -52,6 +52,7 @@ pub struct Range {
     pub end: u64,
 }
 
+#[derive(Debug)]
 pub struct FileService {
     caching_client: CachingClient,
     download_threads: usize,

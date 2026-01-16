@@ -38,7 +38,7 @@ pub struct Upload {
 pub struct PublicArchiveForm {
     #[multipart(limit = "1GB")]
     #[schema(value_type = Vec<String>, format = Binary, content_media_type = "application/octet-stream")]
-    files: Vec<TempFile>,
+    pub files: Vec<TempFile>,
 }
 
 impl Upload {
@@ -47,6 +47,7 @@ impl Upload {
     }
 }
 
+#[derive(Debug)]
 pub struct PublicArchiveService {
     file_client: FileService,
     caching_client: CachingClient,

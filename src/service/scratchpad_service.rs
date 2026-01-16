@@ -33,6 +33,7 @@ impl Scratchpad {
     }
 }
 
+#[derive(Debug)]
 pub struct ScratchpadService {
     caching_client: CachingClient,
     ant_tp_config: AntTpConfig,

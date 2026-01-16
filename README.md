@@ -491,11 +491,11 @@ local per-user configuration data (e.g. arbitrary data that only the user needs 
     - [ ] Wallet support
   - [ ] MCP API
     - [x] Pointer
-    - [ ] Scratchpad
-    - [ ] Graph
+    - [x] Scratchpad
+    - [x] Graph
     - [x] Register
     - [x] Chunk
-    - [ ] Public Archive
+    - [x] Public Archive
     - [x] Public Data
     - [ ] BLS support
       - [ ] Create, sign, verify

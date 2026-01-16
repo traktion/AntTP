@@ -3,10 +3,9 @@
 use rmcp::{handler::server::{
     wrapper::Parameters,
 }, schemars, tool, tool_router, ErrorData};
-use rmcp::model::{CallToolResult, ErrorCode};
+use rmcp::model::CallToolResult;
 use rmcp::schemars::JsonSchema;
 use serde::Deserialize;
-use serde_json::json;
 use crate::controller::StoreType;
 use crate::service::scratchpad_service::Scratchpad;
 use crate::tool::McpTool;
@@ -50,15 +49,13 @@ impl McpTool {
         Parameters(CreatePrivateScratchpadRequest { name, content, store_type }): Parameters<CreatePrivateScratchpadRequest>,
     ) -> Result<CallToolResult, ErrorData> {
         let scratchpad = Scratchpad::new(None, None, None, None, Some(content), None);
-        self.scratchpad_service.create_scratchpad(
+        Ok(self.scratchpad_service.create_scratchpad(
             name,
             scratchpad,
             self.evm_wallet.get_ref().clone(),
             true,
             StoreType::from(store_type)
-        ).await
-            .map(|s| CallToolResult::structured(json!(s)))
-            .map_err(|e| ErrorData::new(ErrorCode::INTERNAL_ERROR, e.to_string(), None))
+        ).await?.into())
     }
 
     #[tool(description = "Update an existing private scratchpad")]
@@ -67,16 +64,14 @@ impl McpTool {
         Parameters(UpdatePrivateScratchpadRequest { address, name, content, store_type }): Parameters<UpdatePrivateScratchpadRequest>,
     ) -> Result<CallToolResult, ErrorData> {
         let scratchpad = Scratchpad::new(None, None, None, None, Some(content), None);
-        self.scratchpad_service.update_scratchpad(
+        Ok(self.scratchpad_service.update_scratchpad(
             address,
             name,
             scratchpad,
             self.evm_wallet.get_ref().clone(),
             true,
             StoreType::from(store_type)
-        ).await
-            .map(|s| CallToolResult::structured(json!(s)))
-            .map_err(|e| ErrorData::new(ErrorCode::INTERNAL_ERROR, e.to_string(), None))
+        ).await?.into())
     }
 
     #[tool(description = "Get a private scratchpad by its address and name")]
@@ -84,9 +79,7 @@ impl McpTool {
         &self,
         Parameters(GetPrivateScratchpadRequest { address, name }): Parameters<GetPrivateScratchpadRequest>,
     ) -> Result<CallToolResult, ErrorData> {
-        self.scratchpad_service.get_scratchpad(address, Some(name), true).await
-            .map(|s| CallToolResult::structured(json!(s)))
-            .map_err(|e| ErrorData::new(ErrorCode::INTERNAL_ERROR, e.to_string(), None))
+        Ok(self.scratchpad_service.get_scratchpad(address, Some(name), true).await?.into())
     }
 }
 

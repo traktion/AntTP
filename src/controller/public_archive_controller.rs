@@ -66,23 +66,3 @@ pub async fn put_public_archive(
         public_archive_service.update_public_archive(address, public_archive_form, evm_wallet, get_store_type(&request)).await?
     ))
 }
-
-#[utoipa::path(
-    get,
-    path = "/anttp-0/public_archive/status/{id}",
-    responses(
-        (status = OK, description = "Id found successfully", body = Upload),
-        (status = NOT_FOUND, description = "Id was not found")
-    ),
-    params(
-        ("id" = String, Path, description = "Id of upload"),
-    )
-)]
-pub async fn get_status_public_archive(
-    path: web::Path<String>,
-) -> Result<HttpResponse, PublicArchiveError> {
-    let id = path.into_inner();
-    debug!("Checking upload status for [{}]", id);
-    // todo: deprecate
-    Ok(HttpResponse::Ok().json(Upload::new(None)))
-}

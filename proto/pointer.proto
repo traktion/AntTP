@@ -1,0 +1,38 @@
+syntax = "proto3";
+
+package pointer;
+
+service PointerService {
+  rpc PostPointer(PostPointerRequest) returns (PointerResponse);
+  rpc PutPointer(PutPointerRequest) returns (PointerResponse);
+  rpc GetPointer(GetPointerRequest) returns (PointerResponse);
+}
+
+message Pointer {
+  optional string name = 1;
+  string content = 2;
+  optional string address = 3;
+  optional uint64 counter = 4;
+  optional string cost = 5;
+}
+
+message PostPointerRequest {
+  Pointer pointer = 1;
+  optional string cache_only = 2;
+  optional string data_key = 3;
+}
+
+message PutPointerRequest {
+  string address = 1;
+  Pointer pointer = 2;
+  optional string cache_only = 3;
+  optional string data_key = 4;
+}
+
+message GetPointerRequest {
+  string address = 1;
+}
+
+message PointerResponse {
+  Pointer pointer = 1;
+}

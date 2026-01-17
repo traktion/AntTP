@@ -53,6 +53,9 @@ use crate::service::register_service::RegisterService;
 use crate::service::resolver_service::ResolverService;
 use crate::service::scratchpad_service::ScratchpadService;
 use crate::tool::McpTool;
+use crate::grpc::pointer_handler::{PointerHandler, PointerServiceServer};
+use crate::grpc::TonicService;
+pub mod grpc;
 
 static SERVER_HANDLE: Lazy<Mutex<Option<ServerHandle>>> = Lazy::new(|| Mutex::new(None));
 
@@ -143,6 +146,9 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> io::Result<()> {
     let scratchpad_service_data = Data::new(ScratchpadService::new(caching_client_data.get_ref().clone(), ant_tp_config.clone()));
     let pnr_service_data = Data::new(PnrService::new(caching_client_data.get_ref().clone(), pointer_service_data.clone()));
 
+    let pointer_handler = PointerHandler::new(pointer_service_data.clone(), evm_wallet_data.clone());
+    let pointer_grpc_service = TonicService::new(PointerServiceServer::new(pointer_handler));
+
     // MCP
     let mcp_tool = McpTool::new(
         command_service_data.clone(),
@@ -167,6 +173,7 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> io::Result<()> {
 
     let server_instance = HttpServer::new(move || {
         let logger = Logger::default();
+        let pointer_grpc_service = pointer_grpc_service.clone();
 
         let mut app = App::new()
             .wrap(logger)
@@ -241,7 +248,8 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> io::Result<()> {
             .app_data(resolver_service_data.clone())
             .app_data(scratchpad_service_data.clone())
             .app_data(pnr_service_data.clone())
-            .app_data(web::PayloadConfig::new(1024 * 1024 * 10));
+            .app_data(web::PayloadConfig::new(1024 * 1024 * 10))
+            .service(pointer_grpc_service);
 
         if !ant_tp_config.uploads_disabled {
             app = app

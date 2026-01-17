@@ -15,6 +15,9 @@ pub struct AntTpConfig {
     #[arg(long, default_value = "0.0.0.0:18889")]
     pub https_listen_address: SocketAddr,
 
+    #[arg(long, default_value = "0.0.0.0:18887")]
+    pub grpc_listen_address: SocketAddr,
+
     #[arg(short, long, default_value = "")]
     pub static_file_directory: String,
 

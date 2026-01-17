@@ -5,6 +5,7 @@ pub mod service;
 pub mod model;
 pub mod error;
 pub mod tool;
+pub mod grpc;
 
 use crate::controller::{pnr_controller, chunk_controller, command_controller, connect_controller, file_controller, graph_controller, pointer_controller, private_scratchpad_controller, public_archive_controller, public_data_controller, public_scratchpad_controller, register_controller};
 use actix_files::Files;
@@ -29,6 +30,7 @@ use rmcp_actix_web::transport::{StreamableHttpService};
 use rmcp::transport::streamable_http_server::session::local::LocalSessionManager;
 use tokio::sync::mpsc::Sender;
 use tokio::sync::Mutex;
+use tonic::transport::Server;
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
 use crate::client::CachingClient;
@@ -54,10 +56,9 @@ use crate::service::resolver_service::ResolverService;
 use crate::service::scratchpad_service::ScratchpadService;
 use crate::tool::McpTool;
 use crate::grpc::pointer_handler::{PointerHandler, PointerServiceServer};
-use crate::grpc::TonicService;
-pub mod grpc;
 
-static SERVER_HANDLE: Lazy<Mutex<Option<ServerHandle>>> = Lazy::new(|| Mutex::new(None));
+static ACTIX_SERVER_HANDLE: Lazy<Mutex<Option<ServerHandle>>> = Lazy::new(|| Mutex::new(None));
+static TONIC_SERVER_HANDLE: Lazy<Mutex<Option<String>>> = Lazy::new(|| Mutex::new(None));
 
 const API_BASE: &'static str = "/anttp-0/";
 
@@ -94,6 +95,7 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> io::Result<()> {
 
     let listen_address = ant_tp_config.listen_address.clone();
     let https_listen_address = ant_tp_config.https_listen_address.clone();
+    let grpc_listen_address = ant_tp_config.grpc_listen_address.clone();
     let wallet_private_key = ant_tp_config.wallet_private_key.clone();
 
     // initialise safe network connection
@@ -146,9 +148,6 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> io::Result<()> {
     let scratchpad_service_data = Data::new(ScratchpadService::new(caching_client_data.get_ref().clone(), ant_tp_config.clone()));
     let pnr_service_data = Data::new(PnrService::new(caching_client_data.get_ref().clone(), pointer_service_data.clone()));
 
-    let pointer_handler = PointerHandler::new(pointer_service_data.clone(), evm_wallet_data.clone());
-    let pointer_grpc_service = TonicService::new(PointerServiceServer::new(pointer_handler));
-
     // MCP
     let mcp_tool = McpTool::new(
         command_service_data.clone(),
@@ -169,9 +168,17 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> io::Result<()> {
         .sse_keep_alive(Duration::from_secs(30)) // Keep-alive pings every 30 seconds
         .build();
 
-    info!("Starting listener");
+    // GRPC
+    let pointer_handler = PointerHandler::new(pointer_service_data.clone(), evm_wallet_data.clone());
+    let tonic_server = async move {
+        tokio::task::spawn(
+            Server::builder()
+                .add_service(PointerServiceServer::new(pointer_handler))
+                .serve(grpc_listen_address),
+        )
+    };
 
-    let server_instance = HttpServer::new(move || {
+    let actix_server = HttpServer::new(move || {
         let logger = Logger::default();
 
         let mut app = App::new()
@@ -255,11 +262,6 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> io::Result<()> {
                     web::scope("/mcp-0")
                         .service(mcp_tool_service.clone().scope())
                 )
-                //.service(pointer_grpc_service.clone())
-                .service(
-                    web::scope("/grpc-0")
-                        .service(pointer_grpc_service.clone())
-                )
                 .route(
                     format!("{}chunk", API_BASE).as_str(),
                     web::post().to(chunk_controller::post_chunk),
@@ -335,12 +337,16 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> io::Result<()> {
         .bind_rustls_0_23(https_listen_address, rustls_config())?
         .run();
 
-    {
-        let mut guard = SERVER_HANDLE.lock().await;
-        *guard = Some(server_instance.handle());
-    }
+    let mut guard = TONIC_SERVER_HANDLE.lock().await;
+    *guard = Some("tonic_server".to_string());
+    info!("Starting Tonic (gRPC) listener on port {}", grpc_listen_address);
+    tonic_server.await;
 
-    server_instance.await
+    let mut guard = ACTIX_SERVER_HANDLE.lock().await;
+    *guard = Some(actix_server.handle());
+
+    info!("Starting Actix (HTTP) listener");
+    actix_server.await
 }
 
 async fn hydrate_access_checker(ant_tp_config: &AntTpConfig,
@@ -429,7 +435,7 @@ async fn build_foyer_cache(app_config: &AntTpConfig) -> HybridCache<String, Vec<
 
 pub async fn stop_server() -> Result<(), String> {
     let handle_opt = {
-        let mut guard = SERVER_HANDLE.lock().await;
+        let mut guard = ACTIX_SERVER_HANDLE.lock().await;
         guard.take()
     };
 

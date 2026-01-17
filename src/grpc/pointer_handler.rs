@@ -24,6 +24,36 @@ impl PointerHandler {
     }
 }
 
+impl From<Pointer> for ServicePointer {
+    fn from(p: Pointer) -> Self {
+        ServicePointer {
+            name: p.name,
+            content: p.content,
+            address: p.address,
+            counter: p.counter,
+            cost: p.cost,
+        }
+    }
+}
+
+impl From<ServicePointer> for Pointer {
+    fn from(p: ServicePointer) -> Self {
+        Pointer {
+            name: p.name,
+            content: p.content,
+            address: p.address,
+            counter: p.counter,
+            cost: p.cost,
+        }
+    }
+}
+
+impl From<PointerError> for Status {
+    fn from(pointer_error: PointerError) -> Self {
+        Status::internal(pointer_error.to_string())
+    }
+}
+
 #[tonic::async_trait]
 impl PointerServiceTrait for PointerHandler {
     async fn create_pointer(
@@ -74,35 +104,5 @@ impl PointerServiceTrait for PointerHandler {
         Ok(Response::new(PointerResponse {
             pointer: Some(Pointer::from(result)),
         }))
-    }
-}
-
-impl From<Pointer> for ServicePointer {
-    fn from(p: Pointer) -> Self {
-        ServicePointer {
-            name: p.name,
-            content: p.content,
-            address: p.address,
-            counter: p.counter,
-            cost: p.cost,
-        }
-    }
-}
-
-impl From<ServicePointer> for Pointer {
-    fn from(p: ServicePointer) -> Self {
-        Pointer {
-            name: p.name,
-            content: p.content,
-            address: p.address,
-            counter: p.counter,
-            cost: p.cost,
-        }
-    }
-}
-
-impl From<PointerError> for Status {
-    fn from(pointer_error: PointerError) -> Self {
-        Status::internal(pointer_error.to_string())
     }
 }

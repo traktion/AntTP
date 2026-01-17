@@ -1,6 +1,6 @@
 [package]
 name = "anttp"
-version = "0.22.4"
+version = "0.23.0"
 edition = "2024"
 authors = ["Paul Green"]
 description = "AntTP is an HTTP server for the Autonomi Network"
@@ -26,6 +26,7 @@ serde_json = "1.0"
 autonomi = "=0.9.0"
 ant-evm = "=0.1.19"
 xor_name = "5.0.0"
+ant-protocol = "1.0.11"
 hex = "0.4"
 globset = "0.4"
 mime = "0.3"
@@ -50,11 +51,15 @@ rand = "0.9"
 thiserror = "2.0"
 tempfile = "3"
 async-stream = "0.3.6"
-rustls = { version = "0.23.35", default-features = false }
+tonic = { version = "0.12", features = ["router"] }
+prost = "0.13"
+rustls = { version = "0.23.35", default-features = false, features = ["ring"] }
 rustls-pemfile = "2.2.0"
 rcgen = "0.14.5"
 futures-core = "0.3.31"
-ant-protocol = "1.0.9"
 rmcp = "0.12.0"
 rmcp-actix-web = "0.9.1"
 schemars = "0.9.0"
+
+[build-dependencies]
+tonic-build = "0.12"

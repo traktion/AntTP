@@ -173,7 +173,6 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> io::Result<()> {
 
     let server_instance = HttpServer::new(move || {
         let logger = Logger::default();
-        let pointer_grpc_service = pointer_grpc_service.clone();
 
         let mut app = App::new()
             .wrap(logger)
@@ -248,14 +247,18 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> io::Result<()> {
             .app_data(resolver_service_data.clone())
             .app_data(scratchpad_service_data.clone())
             .app_data(pnr_service_data.clone())
-            .app_data(web::PayloadConfig::new(1024 * 1024 * 10))
-            .service(pointer_grpc_service);
+            .app_data(web::PayloadConfig::new(1024 * 1024 * 10));
 
         if !ant_tp_config.uploads_disabled {
             app = app
                 .service(
                     web::scope("/mcp-0")
                         .service(mcp_tool_service.clone().scope())
+                )
+                //.service(pointer_grpc_service.clone())
+                .service(
+                    web::scope("/grpc-0")
+                        .service(pointer_grpc_service.clone())
                 )
                 .route(
                     format!("{}chunk", API_BASE).as_str(),

@@ -10,7 +10,8 @@ pub mod pointer_proto {
 
 use pointer_proto::pointer_service_server::PointerService as PointerServiceTrait;
 pub use pointer_proto::pointer_service_server::PointerServiceServer;
-use pointer_proto::{Pointer, PointerResponse, PostPointerRequest, PutPointerRequest, GetPointerRequest};
+use pointer_proto::{Pointer, PointerResponse, CreatePointerRequest, UpdatePointerRequest, GetPointerRequest};
+use crate::error::pointer_error::PointerError;
 
 pub struct PointerHandler {
     pointer_service: Data<PointerService>,
@@ -19,51 +20,44 @@ pub struct PointerHandler {
 
 impl PointerHandler {
     pub fn new(pointer_service: Data<PointerService>, evm_wallet: Data<EvmWallet>) -> Self {
-        Self {
-            pointer_service,
-            evm_wallet,
-        }
+        Self { pointer_service, evm_wallet }
     }
 }
 
 #[tonic::async_trait]
 impl PointerServiceTrait for PointerHandler {
-    async fn post_pointer(
+    async fn create_pointer(
         &self,
-        request: Request<PostPointerRequest>,
+        request: Request<CreatePointerRequest>,
     ) -> Result<Response<PointerResponse>, Status> {
         let req = request.into_inner();
         let pointer = req.pointer.ok_or_else(|| Status::invalid_argument("Pointer is required"))?;
-        let store_type = StoreType::from(req.cache_only.unwrap_or_default());
-        let data_key = DataKey::from(req.data_key.unwrap_or_default());
 
         let result = self.pointer_service.create_pointer(
             ServicePointer::from(pointer),
             self.evm_wallet.get_ref().clone(),
-            store_type,
-            data_key,
-        ).await.map_err(|e| Status::internal(e.to_string()))?;
+            StoreType::from(req.cache_only.unwrap_or_default()),
+            DataKey::from(req.data_key.unwrap_or_default()),
+        ).await?;
 
         Ok(Response::new(PointerResponse {
             pointer: Some(Pointer::from(result)),
         }))
     }
 
-    async fn put_pointer(
+    async fn update_pointer(
         &self,
-        request: Request<PutPointerRequest>,
+        request: Request<UpdatePointerRequest>,
     ) -> Result<Response<PointerResponse>, Status> {
         let req = request.into_inner();
         let pointer = req.pointer.ok_or_else(|| Status::invalid_argument("Pointer is required"))?;
-        let store_type = StoreType::from(req.cache_only.unwrap_or_default());
-        let data_key = DataKey::from(req.data_key.unwrap_or_default());
 
         let result = self.pointer_service.update_pointer(
             req.address,
             ServicePointer::from(pointer),
-            store_type,
-            data_key,
-        ).await.map_err(|e| Status::internal(e.to_string()))?;
+            StoreType::from(req.cache_only.unwrap_or_default()),
+            DataKey::from(req.data_key.unwrap_or_default()),
+        ).await?;
 
         Ok(Response::new(PointerResponse {
             pointer: Some(Pointer::from(result)),
@@ -75,8 +69,7 @@ impl PointerServiceTrait for PointerHandler {
         request: Request<GetPointerRequest>,
     ) -> Result<Response<PointerResponse>, Status> {
         let req = request.into_inner();
-        let result = self.pointer_service.get_pointer(req.address).await
-            .map_err(|e| Status::internal(e.to_string()))?;
+        let result = self.pointer_service.get_pointer(req.address).await?;
 
         Ok(Response::new(PointerResponse {
             pointer: Some(Pointer::from(result)),
@@ -105,5 +98,11 @@ impl From<ServicePointer> for Pointer {
             counter: p.counter,
             cost: p.cost,
         }
+    }
+}
+
+impl From<PointerError> for Status {
+    fn from(pointer_error: PointerError) -> Self {
+        Status::internal(pointer_error.to_string())
     }
 }

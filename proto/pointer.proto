@@ -3,8 +3,8 @@ syntax = "proto3";
 package pointer;
 
 service PointerService {
-  rpc PostPointer(PostPointerRequest) returns (PointerResponse);
-  rpc PutPointer(PutPointerRequest) returns (PointerResponse);
+  rpc CreatePointer(CreatePointerRequest) returns (PointerResponse);
+  rpc UpdatePointer(UpdatePointerRequest) returns (PointerResponse);
   rpc GetPointer(GetPointerRequest) returns (PointerResponse);
 }
 
@@ -16,13 +16,13 @@ message Pointer {
   optional string cost = 5;
 }
 
-message PostPointerRequest {
+message CreatePointerRequest {
   Pointer pointer = 1;
   optional string cache_only = 2;
   optional string data_key = 3;
 }
 
-message PutPointerRequest {
+message UpdatePointerRequest {
   string address = 1;
   Pointer pointer = 2;
   optional string cache_only = 3;

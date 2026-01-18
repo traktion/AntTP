@@ -31,6 +31,30 @@ impl Scratchpad {
     pub fn new(name: Option<String>, address: Option<String>, data_encoding: Option<u64>, signature: Option<String>, content: Option<String>, counter: Option<u64>) -> Self {
         Scratchpad { name, address, data_encoding, signature, content, counter }
     }
+
+    pub fn name(&self) -> Option<String> {
+        self.name.clone()
+    }
+
+    pub fn address(&self) -> Option<String> {
+        self.address.clone()
+    }
+
+    pub fn data_encoding(&self) -> Option<u64> {
+        self.data_encoding
+    }
+
+    pub fn signature(&self) -> Option<String> {
+        self.signature.clone()
+    }
+
+    pub fn content(&self) -> Option<String> {
+        self.content.clone()
+    }
+
+    pub fn counter(&self) -> Option<u64> {
+        self.counter
+    }
 }
 
 #[derive(Debug)]

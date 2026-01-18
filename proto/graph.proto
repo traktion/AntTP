@@ -1,0 +1,34 @@
+syntax = "proto3";
+
+package graph;
+
+service GraphService {
+  rpc CreateGraphEntry(CreateGraphEntryRequest) returns (GraphResponse);
+  rpc GetGraphEntry(GetGraphEntryRequest) returns (GraphResponse);
+}
+
+message GraphDescendants {
+  string public_key = 1;
+  string content = 2;
+}
+
+message GraphEntry {
+  optional string name = 1;
+  string content = 2;
+  optional string address = 3;
+  repeated string parents = 4;
+  repeated GraphDescendants descendants = 5;
+}
+
+message CreateGraphEntryRequest {
+  GraphEntry graph_entry = 1;
+  optional string cache_only = 2;
+}
+
+message GetGraphEntryRequest {
+  string address = 1;
+}
+
+message GraphResponse {
+  GraphEntry graph_entry = 1;
+}

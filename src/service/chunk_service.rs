@@ -12,7 +12,7 @@ use crate::error::{CreateError, GetError};
 use crate::error::chunk_error::ChunkError;
 use crate::controller::StoreType;
 
-#[derive(Serialize, Deserialize, ToSchema)]
+#[derive(Serialize, Deserialize, ToSchema, Clone)]
 pub struct Chunk {
     pub content: Option<String>,
     #[schema(read_only)]

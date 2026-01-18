@@ -1,0 +1,37 @@
+syntax = "proto3";
+
+package chunk;
+
+service ChunkService {
+  rpc CreateChunk(CreateChunkRequest) returns (ChunkResponse);
+  rpc CreateChunkBinary(CreateChunkBinaryRequest) returns (ChunkResponse);
+  rpc GetChunk(GetChunkRequest) returns (ChunkResponse);
+  rpc GetChunkBinary(GetChunkRequest) returns (GetChunkBinaryResponse);
+}
+
+message Chunk {
+  optional string content = 1;
+  optional string address = 2;
+}
+
+message CreateChunkRequest {
+  Chunk chunk = 1;
+  optional string cache_only = 2;
+}
+
+message CreateChunkBinaryRequest {
+  bytes data = 1;
+  optional string cache_only = 2;
+}
+
+message GetChunkRequest {
+  string address = 1;
+}
+
+message ChunkResponse {
+  Chunk chunk = 1;
+}
+
+message GetChunkBinaryResponse {
+  bytes data = 1;
+}

@@ -56,6 +56,8 @@ use crate::service::resolver_service::ResolverService;
 use crate::service::scratchpad_service::ScratchpadService;
 use crate::tool::McpTool;
 use crate::grpc::pointer_handler::{PointerHandler, PointerServiceServer};
+use crate::grpc::register_handler::{RegisterHandler, RegisterServiceServer};
+use crate::grpc::chunk_handler::{ChunkHandler, ChunkServiceServer};
 use crate::grpc::graph_handler::{GraphHandler, GraphServiceServer};
 
 static ACTIX_SERVER_HANDLE: Lazy<Mutex<Option<ServerHandle>>> = Lazy::new(|| Mutex::new(None));
@@ -171,11 +173,15 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> io::Result<()> {
 
     // GRPC
     let pointer_handler = PointerHandler::new(pointer_service_data.clone(), evm_wallet_data.clone());
+    let register_handler = RegisterHandler::new(register_service_data.clone(), evm_wallet_data.clone());
+    let chunk_handler = ChunkHandler::new(chunk_service_data.clone(), evm_wallet_data.clone());
     let graph_handler = GraphHandler::new(graph_service_data.clone(), evm_wallet_data.clone());
     let tonic_server = async move {
         tokio::task::spawn(
             Server::builder()
                 .add_service(PointerServiceServer::new(pointer_handler))
+                .add_service(RegisterServiceServer::new(register_handler))
+                .add_service(ChunkServiceServer::new(chunk_handler))
                 .add_service(GraphServiceServer::new(graph_handler))
                 .serve(grpc_listen_address),
         )

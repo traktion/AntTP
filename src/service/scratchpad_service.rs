@@ -12,19 +12,19 @@ use crate::config::anttp_config::AntTpConfig;
 use crate::controller::StoreType;
 use crate::error::scratchpad_error::ScratchpadError;
 
-#[derive(Serialize, Deserialize, ToSchema)]
+#[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
 pub struct Scratchpad {
     #[schema(read_only)]
-    name: Option<String>,
+    pub name: Option<String>,
     #[schema(read_only)]
-    address: Option<String>,
+    pub address: Option<String>,
     #[schema(read_only)]
-    data_encoding: Option<u64>,
+    pub data_encoding: Option<u64>,
     #[schema(read_only)]
-    signature: Option<String>,
-    content: Option<String>,
+    pub signature: Option<String>,
+    pub content: Option<String>,
     #[schema(read_only)]
-    counter: Option<u64>,
+    pub counter: Option<u64>,
 }
 
 impl Scratchpad {

@@ -11,12 +11,12 @@ use crate::controller::StoreType;
 use crate::error::register_error::RegisterError;
 use crate::service::resolver_service::ResolverService;
 
-#[derive(Serialize, Deserialize, ToSchema)]
+#[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
 pub struct Register {
-    name: Option<String>,
-    content: String,
+    pub name: Option<String>,
+    pub content: String,
     #[schema(read_only)]
-    address: Option<String>,
+    pub address: Option<String>,
 }
 
 impl Register {

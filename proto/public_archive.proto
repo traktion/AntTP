@@ -1,0 +1,28 @@
+syntax = "proto3";
+
+package public_archive;
+
+service PublicArchiveService {
+  rpc CreatePublicArchive(CreatePublicArchiveRequest) returns (PublicArchiveResponse);
+  rpc UpdatePublicArchive(UpdatePublicArchiveRequest) returns (PublicArchiveResponse);
+}
+
+message File {
+  string name = 1;
+  bytes content = 2;
+}
+
+message CreatePublicArchiveRequest {
+  repeated File files = 1;
+  optional string cache_only = 2;
+}
+
+message UpdatePublicArchiveRequest {
+  string address = 1;
+  repeated File files = 2;
+  optional string cache_only = 3;
+}
+
+message PublicArchiveResponse {
+  optional string address = 1;
+}

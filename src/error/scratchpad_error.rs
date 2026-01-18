@@ -5,6 +5,7 @@ use autonomi::client::ConnectError;
 use thiserror::Error;
 use serde::Serialize;
 use crate::error::{CreateError, GetError, UpdateError};
+use tonic::Status;
 
 #[derive(Error, Debug, Serialize)]
 pub enum ScratchpadError {
@@ -65,5 +66,11 @@ impl actix_web::ResponseError for ScratchpadError {
         HttpResponse::build(self.status_code())
             .insert_header(ContentType::json())
             .json(self)
+    }
+}
+
+impl From<ScratchpadError> for Status {
+    fn from(error: ScratchpadError) -> Self {
+        Status::internal(error.to_string())
     }
 }

@@ -64,6 +64,7 @@ use crate::grpc::pnr_handler::{PnrHandler, PnrServiceServer};
 use crate::grpc::public_data_handler::{PublicDataHandler, PublicServiceServer};
 use crate::grpc::public_archive_handler::{PublicArchiveHandler, PublicArchiveServiceServer};
 use crate::grpc::private_scratchpad_handler::{PrivateScratchpadHandler, PrivateScratchpadServiceServer};
+use crate::grpc::public_scratchpad_handler::{PublicScratchpadHandler, PublicScratchpadServiceServer};
 
 static ACTIX_SERVER_HANDLE: Lazy<Mutex<Option<ServerHandle>>> = Lazy::new(|| Mutex::new(None));
 static TONIC_SERVER_HANDLE: Lazy<Mutex<Option<String>>> = Lazy::new(|| Mutex::new(None));
@@ -186,6 +187,7 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> io::Result<()> {
     let public_data_handler = PublicDataHandler::new(public_data_service_data.clone(), evm_wallet_data.clone());
     let public_archive_handler = PublicArchiveHandler::new(public_archive_service_data.clone(), evm_wallet_data.clone());
     let private_scratchpad_handler = PrivateScratchpadHandler::new(scratchpad_service_data.clone(), evm_wallet_data.clone());
+    let public_scratchpad_handler = PublicScratchpadHandler::new(scratchpad_service_data.clone(), evm_wallet_data.clone());
     let tonic_server = async move {
         tokio::task::spawn(
             Server::builder()
@@ -198,6 +200,7 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> io::Result<()> {
                 .add_service(PublicServiceServer::new(public_data_handler))
                 .add_service(PublicArchiveServiceServer::new(public_archive_handler))
                 .add_service(PrivateScratchpadServiceServer::new(private_scratchpad_handler))
+                .add_service(PublicScratchpadServiceServer::new(public_scratchpad_handler))
                 .serve(grpc_listen_address),
         )
     };

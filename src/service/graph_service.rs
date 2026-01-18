@@ -11,20 +11,20 @@ use crate::config::anttp_config::AntTpConfig;
 use crate::controller::StoreType;
 use crate::error::CreateError;
 
-#[derive(Serialize, Deserialize, ToSchema)]
+#[derive(Serialize, Deserialize, ToSchema, Debug, PartialEq)]
 pub struct GraphEntry {
-    name: Option<String>,
-    content: String,
+    pub name: Option<String>,
+    pub content: String,
     #[schema(read_only)]
-    address: Option<String>,
-    parents: Option<Vec<String>>,
-    descendants: Option<Vec<GraphDescendants>>,
+    pub address: Option<String>,
+    pub parents: Option<Vec<String>>,
+    pub descendants: Option<Vec<GraphDescendants>>,
 }
 
-#[derive(Serialize, Deserialize, ToSchema, Clone)]
+#[derive(Serialize, Deserialize, ToSchema, Clone, Debug, PartialEq)]
 pub struct GraphDescendants {
-    public_key: String,
-    content: String,
+    pub public_key: String,
+    pub content: String,
 }
 
 impl GraphEntry {

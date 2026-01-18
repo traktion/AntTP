@@ -45,6 +45,10 @@ impl Upload {
     pub fn new(address: Option<String>) -> Self {
         Upload { address }
     }
+
+    pub fn get_address(&self) -> &Option<String> {
+        &self.address
+    }
 }
 
 #[derive(Debug)]
@@ -57,6 +61,28 @@ impl PublicArchiveService {
     
     pub fn new(file_client: FileService, caching_client: CachingClient) -> Self {
         PublicArchiveService { file_client, caching_client }
+    }
+
+    pub fn get_caching_client(&self) -> &CachingClient {
+        &self.caching_client
+    }
+
+    pub async fn update_public_archive_from_dir(&self, public_archive: &mut PublicArchive, tmp_dir: PathBuf, evm_wallet: Wallet, store_type: StoreType) -> Result<Upload, PublicArchiveError> {
+        if let Some(e) = self.update_archive(public_archive, tmp_dir.clone(), evm_wallet.clone(), store_type.clone()).await.err() {
+            return Err(e);
+        }
+
+        info!("Uploading public archive [{:?}]", public_archive);
+        match self.caching_client.archive_put_public(&public_archive, PaymentOption::Wallet(evm_wallet), store_type).await {
+            Ok(archive_address) => {
+                info!("Queued command to upload public archive at [{:?}]", archive_address);
+                Ok(Upload::new(Some(archive_address.to_hex())))
+            }
+            Err(e) => {
+                warn!("Failed to upload public archive: [{:?}]", e);
+                Err(e)
+            }
+        }
     }
 
     pub async fn get_archive_info(&self, resolved_address: &ResolvedAddress, request: &HttpRequest) -> ArchiveInfo {

@@ -1,0 +1,29 @@
+syntax = "proto3";
+
+package public_data;
+
+service PublicService {
+  rpc CreatePublicData(CreatePublicDataRequest) returns (PublicDataResponse);
+  rpc GetPublicData(GetPublicDataRequest) returns (GetPublicDataResponse);
+}
+
+message PublicData {
+  optional string address = 1;
+}
+
+message CreatePublicDataRequest {
+  bytes data = 1;
+  optional string cache_only = 2;
+}
+
+message PublicDataResponse {
+  string address = 1;
+}
+
+message GetPublicDataRequest {
+  string address = 1;
+}
+
+message GetPublicDataResponse {
+  bytes data = 1;
+}

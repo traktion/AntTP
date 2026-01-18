@@ -61,6 +61,7 @@ use crate::grpc::chunk_handler::{ChunkHandler, ChunkServiceServer};
 use crate::grpc::graph_handler::{GraphHandler, GraphServiceServer};
 use crate::grpc::command_handler::{CommandHandler, CommandServiceServer};
 use crate::grpc::pnr_handler::{PnrHandler, PnrServiceServer};
+use crate::grpc::public_data_handler::{PublicDataHandler, PublicServiceServer};
 
 static ACTIX_SERVER_HANDLE: Lazy<Mutex<Option<ServerHandle>>> = Lazy::new(|| Mutex::new(None));
 static TONIC_SERVER_HANDLE: Lazy<Mutex<Option<String>>> = Lazy::new(|| Mutex::new(None));
@@ -180,6 +181,7 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> io::Result<()> {
     let graph_handler = GraphHandler::new(graph_service_data.clone(), evm_wallet_data.clone());
     let command_handler = CommandHandler::new(command_service_data.clone());
     let pnr_handler = PnrHandler::new(pnr_service_data.clone(), evm_wallet_data.clone());
+    let public_data_handler = PublicDataHandler::new(public_data_service_data.clone(), evm_wallet_data.clone());
     let tonic_server = async move {
         tokio::task::spawn(
             Server::builder()
@@ -189,6 +191,7 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> io::Result<()> {
                 .add_service(GraphServiceServer::new(graph_handler))
                 .add_service(CommandServiceServer::new(command_handler))
                 .add_service(PnrServiceServer::new(pnr_handler))
+                .add_service(PublicServiceServer::new(public_data_handler))
                 .serve(grpc_listen_address),
         )
     };

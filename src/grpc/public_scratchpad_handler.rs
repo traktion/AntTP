@@ -8,21 +8,21 @@ pub mod scratchpad_proto {
     tonic::include_proto!("scratchpad_proto");
 }
 
-pub mod private_scratchpad_proto {
-    tonic::include_proto!("private_scratchpad");
+pub mod public_scratchpad_proto {
+    tonic::include_proto!("public_scratchpad");
 }
 
-use private_scratchpad_proto::private_scratchpad_service_server::PrivateScratchpadService as PrivateScratchpadServiceTrait;
-pub use private_scratchpad_proto::private_scratchpad_service_server::PrivateScratchpadServiceServer;
-use private_scratchpad_proto::{PrivateScratchpadResponse, CreatePrivateScratchpadRequest, UpdatePrivateScratchpadRequest, GetPrivateScratchpadRequest};
+use public_scratchpad_proto::public_scratchpad_service_server::PublicScratchpadService as PublicScratchpadServiceTrait;
+pub use public_scratchpad_proto::public_scratchpad_service_server::PublicScratchpadServiceServer;
+use public_scratchpad_proto::{PublicScratchpadResponse, CreatePublicScratchpadRequest, UpdatePublicScratchpadRequest, GetPublicScratchpadRequest};
 use scratchpad_proto::Scratchpad;
 
-pub struct PrivateScratchpadHandler {
+pub struct PublicScratchpadHandler {
     scratchpad_service: Data<ScratchpadService>,
     evm_wallet: Data<EvmWallet>,
 }
 
-impl PrivateScratchpadHandler {
+impl PublicScratchpadHandler {
     pub fn new(scratchpad_service: Data<ScratchpadService>, evm_wallet: Data<EvmWallet>) -> Self {
         Self { scratchpad_service, evm_wallet }
     }
@@ -55,11 +55,11 @@ impl From<ServiceScratchpad> for Scratchpad {
 }
 
 #[tonic::async_trait]
-impl PrivateScratchpadServiceTrait for PrivateScratchpadHandler {
-    async fn create_private_scratchpad(
+impl PublicScratchpadServiceTrait for PublicScratchpadHandler {
+    async fn create_public_scratchpad(
         &self,
-        request: Request<CreatePrivateScratchpadRequest>,
-    ) -> Result<Response<PrivateScratchpadResponse>, Status> {
+        request: Request<CreatePublicScratchpadRequest>,
+    ) -> Result<Response<PublicScratchpadResponse>, Status> {
         let req = request.into_inner();
         let scratchpad = req.scratchpad.ok_or_else(|| Status::invalid_argument("Scratchpad is required"))?;
 
@@ -67,19 +67,19 @@ impl PrivateScratchpadServiceTrait for PrivateScratchpadHandler {
             req.name,
             ServiceScratchpad::from(scratchpad),
             self.evm_wallet.get_ref().clone(),
-            true,
+            false,
             StoreType::from(req.cache_only.unwrap_or_default()),
         ).await?;
 
-        Ok(Response::new(PrivateScratchpadResponse {
+        Ok(Response::new(PublicScratchpadResponse {
             scratchpad: Some(Scratchpad::from(result)),
         }))
     }
 
-    async fn update_private_scratchpad(
+    async fn update_public_scratchpad(
         &self,
-        request: Request<UpdatePrivateScratchpadRequest>,
-    ) -> Result<Response<PrivateScratchpadResponse>, Status> {
+        request: Request<UpdatePublicScratchpadRequest>,
+    ) -> Result<Response<PublicScratchpadResponse>, Status> {
         let req = request.into_inner();
         let scratchpad = req.scratchpad.ok_or_else(|| Status::invalid_argument("Scratchpad is required"))?;
 
@@ -88,27 +88,27 @@ impl PrivateScratchpadServiceTrait for PrivateScratchpadHandler {
             req.name,
             ServiceScratchpad::from(scratchpad),
             self.evm_wallet.get_ref().clone(),
-            true,
+            false,
             StoreType::from(req.cache_only.unwrap_or_default()),
         ).await?;
 
-        Ok(Response::new(PrivateScratchpadResponse {
+        Ok(Response::new(PublicScratchpadResponse {
             scratchpad: Some(Scratchpad::from(result)),
         }))
     }
 
-    async fn get_private_scratchpad(
+    async fn get_public_scratchpad(
         &self,
-        request: Request<GetPrivateScratchpadRequest>,
-    ) -> Result<Response<PrivateScratchpadResponse>, Status> {
+        request: Request<GetPublicScratchpadRequest>,
+    ) -> Result<Response<PublicScratchpadResponse>, Status> {
         let req = request.into_inner();
         let result = self.scratchpad_service.get_scratchpad(
             req.address,
-            Some(req.name),
-            true,
+            None,
+            false,
         ).await?;
 
-        Ok(Response::new(PrivateScratchpadResponse {
+        Ok(Response::new(PublicScratchpadResponse {
             scratchpad: Some(Scratchpad::from(result)),
         }))
     }

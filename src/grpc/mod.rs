@@ -7,3 +7,4 @@ pub mod pnr_handler;
 pub mod public_data_handler;
 pub mod public_archive_handler;
 pub mod private_scratchpad_handler;
+pub mod public_scratchpad_handler;

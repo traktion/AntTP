@@ -7,5 +7,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     tonic_build::compile_protos("proto/pnr.proto")?;
     tonic_build::compile_protos("proto/public_data.proto")?;
     tonic_build::compile_protos("proto/public_archive.proto")?;
+    tonic_build::compile_protos("proto/private_scratchpad.proto")?;
     Ok(())
 }

@@ -1,0 +1,40 @@
+syntax = "proto3";
+
+package private_scratchpad;
+
+service PrivateScratchpadService {
+  rpc CreatePrivateScratchpad(CreatePrivateScratchpadRequest) returns (PrivateScratchpadResponse);
+  rpc UpdatePrivateScratchpad(UpdatePrivateScratchpadRequest) returns (PrivateScratchpadResponse);
+  rpc GetPrivateScratchpad(GetPrivateScratchpadRequest) returns (PrivateScratchpadResponse);
+}
+
+message PrivateScratchpad {
+  optional string name = 1;
+  optional string address = 2;
+  optional uint64 data_encoding = 3;
+  optional string signature = 4;
+  optional string content = 5;
+  optional uint64 counter = 6;
+}
+
+message CreatePrivateScratchpadRequest {
+  string name = 1;
+  PrivateScratchpad scratchpad = 2;
+  optional string cache_only = 3;
+}
+
+message UpdatePrivateScratchpadRequest {
+  string address = 1;
+  string name = 2;
+  PrivateScratchpad scratchpad = 3;
+  optional string cache_only = 4;
+}
+
+message GetPrivateScratchpadRequest {
+  string address = 1;
+  string name = 2;
+}
+
+message PrivateScratchpadResponse {
+  PrivateScratchpad scratchpad = 1;
+}

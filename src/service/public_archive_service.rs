@@ -31,7 +31,7 @@ use crate::model::archive::Archive;
 #[derive(Serialize, Deserialize, Clone, ToSchema)]
 pub struct Upload {
     #[schema(read_only)]
-    address: Option<String>,
+    pub address: Option<String>,
 }
 
 #[derive(Debug, MultipartForm, ToSchema)]

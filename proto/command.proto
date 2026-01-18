@@ -1,0 +1,28 @@
+syntax = "proto3";
+
+package command;
+
+service CommandService {
+  rpc GetCommands(GetCommandsRequest) returns (CommandList);
+}
+
+message GetCommandsRequest {}
+
+message Command {
+  string id = 1;
+  string name = 2;
+  repeated Property properties = 3;
+  string state = 4;
+  uint64 waiting_at = 5;
+  optional uint64 running_at = 6;
+  optional uint64 terminated_at = 7;
+}
+
+message Property {
+  string name = 1;
+  string value = 2;
+}
+
+message CommandList {
+  repeated Command commands = 1;
+}

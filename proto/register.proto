@@ -1,0 +1,43 @@
+syntax = "proto3";
+
+package register;
+
+service RegisterService {
+  rpc CreateRegister(CreateRegisterRequest) returns (RegisterResponse);
+  rpc UpdateRegister(UpdateRegisterRequest) returns (RegisterResponse);
+  rpc GetRegister(GetRegisterRequest) returns (RegisterResponse);
+  rpc GetRegisterHistory(GetRegisterHistoryRequest) returns (RegisterHistoryResponse);
+}
+
+message Register {
+  optional string name = 1;
+  string content = 2;
+  optional string address = 3;
+}
+
+message CreateRegisterRequest {
+  Register register = 1;
+  optional string cache_only = 2;
+}
+
+message UpdateRegisterRequest {
+  string address = 1;
+  Register register = 2;
+  optional string cache_only = 3;
+}
+
+message GetRegisterRequest {
+  string address = 1;
+}
+
+message GetRegisterHistoryRequest {
+  string address = 1;
+}
+
+message RegisterResponse {
+  Register register = 1;
+}
+
+message RegisterHistoryResponse {
+  repeated Register registers = 1;
+}

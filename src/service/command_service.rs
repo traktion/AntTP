@@ -8,13 +8,13 @@ use crate::client::command::command_details::CommandDetails;
 
 #[derive(ToSchema, Serialize, Deserialize, Debug, Clone)]
 pub struct Command {
-    id: String,
-    name: String,
-    properties: Vec<Property>,
-    state: String,
-    waiting_at: u128,
-    running_at: Option<u128>,
-    terminated_at: Option<u128>,
+    pub id: String,
+    pub name: String,
+    pub properties: Vec<Property>,
+    pub state: String,
+    pub waiting_at: u128,
+    pub running_at: Option<u128>,
+    pub terminated_at: Option<u128>,
 }
 
 impl Command {
@@ -26,8 +26,8 @@ impl Command {
 
 #[derive(ToSchema, Serialize, Deserialize, Debug, Clone)]
 pub struct Property {
-    name: String,
-    value: String,
+    pub name: String,
+    pub value: String,
 }
 
 impl Property {
@@ -37,7 +37,7 @@ impl Property {
 }
 
 #[derive(utoipa::ToResponse, Serialize, Deserialize, Debug, Clone)]
-pub struct CommandList(Vec<Command>);
+pub struct CommandList(pub Vec<Command>);
 
 #[derive(Debug)]
 pub struct CommandService {

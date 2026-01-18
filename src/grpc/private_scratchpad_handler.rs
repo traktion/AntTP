@@ -11,7 +11,7 @@ pub mod private_scratchpad_proto {
 
 use private_scratchpad_proto::private_scratchpad_service_server::PrivateScratchpadService as PrivateScratchpadServiceTrait;
 pub use private_scratchpad_proto::private_scratchpad_service_server::PrivateScratchpadServiceServer;
-use private_scratchpad_proto::{PrivateScratchpad, PrivateScratchpadResponse, CreatePrivateScratchpadRequest, UpdatePrivateScratchpadRequest, GetPrivateScratchpadRequest};
+use private_scratchpad_proto::{Scratchpad, PrivateScratchpadResponse, CreatePrivateScratchpadRequest, UpdatePrivateScratchpadRequest, GetPrivateScratchpadRequest};
 
 pub struct PrivateScratchpadHandler {
     scratchpad_service: Data<ScratchpadService>,
@@ -24,8 +24,8 @@ impl PrivateScratchpadHandler {
     }
 }
 
-impl From<PrivateScratchpad> for ServiceScratchpad {
-    fn from(p: PrivateScratchpad) -> Self {
+impl From<Scratchpad> for ServiceScratchpad {
+    fn from(p: Scratchpad) -> Self {
         ServiceScratchpad::new(
             p.name,
             p.address,
@@ -37,9 +37,9 @@ impl From<PrivateScratchpad> for ServiceScratchpad {
     }
 }
 
-impl From<ServiceScratchpad> for PrivateScratchpad {
+impl From<ServiceScratchpad> for Scratchpad {
     fn from(p: ServiceScratchpad) -> Self {
-        PrivateScratchpad {
+        Scratchpad {
             name: p.name,
             address: p.address,
             data_encoding: p.data_encoding,
@@ -74,7 +74,7 @@ impl PrivateScratchpadServiceTrait for PrivateScratchpadHandler {
         ).await?;
 
         Ok(Response::new(PrivateScratchpadResponse {
-            scratchpad: Some(PrivateScratchpad::from(result)),
+            scratchpad: Some(Scratchpad::from(result)),
         }))
     }
 
@@ -95,7 +95,7 @@ impl PrivateScratchpadServiceTrait for PrivateScratchpadHandler {
         ).await?;
 
         Ok(Response::new(PrivateScratchpadResponse {
-            scratchpad: Some(PrivateScratchpad::from(result)),
+            scratchpad: Some(Scratchpad::from(result)),
         }))
     }
 
@@ -111,7 +111,7 @@ impl PrivateScratchpadServiceTrait for PrivateScratchpadHandler {
         ).await?;
 
         Ok(Response::new(PrivateScratchpadResponse {
-            scratchpad: Some(PrivateScratchpad::from(result)),
+            scratchpad: Some(Scratchpad::from(result)),
         }))
     }
 }
@@ -122,7 +122,7 @@ mod tests {
 
     #[test]
     fn test_from_proto_to_service() {
-        let proto = PrivateScratchpad {
+        let proto = Scratchpad {
             name: Some("test".to_string()),
             address: Some("0x123".to_string()),
             data_encoding: Some(1),
@@ -149,7 +149,7 @@ mod tests {
             Some("content".to_string()),
             Some(10),
         );
-        let proto = PrivateScratchpad::from(service.clone());
+        let proto = Scratchpad::from(service.clone());
         assert_eq!(proto.name, service.name);
         assert_eq!(proto.address, service.address);
         assert_eq!(proto.data_encoding, service.data_encoding);

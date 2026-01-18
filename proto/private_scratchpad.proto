@@ -8,7 +8,7 @@ service PrivateScratchpadService {
   rpc GetPrivateScratchpad(GetPrivateScratchpadRequest) returns (PrivateScratchpadResponse);
 }
 
-message PrivateScratchpad {
+message Scratchpad {
   optional string name = 1;
   optional string address = 2;
   optional uint64 data_encoding = 3;
@@ -19,14 +19,14 @@ message PrivateScratchpad {
 
 message CreatePrivateScratchpadRequest {
   string name = 1;
-  PrivateScratchpad scratchpad = 2;
+  Scratchpad scratchpad = 2;
   optional string cache_only = 3;
 }
 
 message UpdatePrivateScratchpadRequest {
   string address = 1;
   string name = 2;
-  PrivateScratchpad scratchpad = 3;
+  Scratchpad scratchpad = 3;
   optional string cache_only = 4;
 }
 
@@ -36,5 +36,5 @@ message GetPrivateScratchpadRequest {
 }
 
 message PrivateScratchpadResponse {
-  PrivateScratchpad scratchpad = 1;
+  Scratchpad scratchpad = 1;
 }

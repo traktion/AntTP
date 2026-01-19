@@ -17,6 +17,7 @@ pub mod graph_error;
 pub mod pointer_error;
 pub mod public_archive_error;
 pub mod public_data_error;
+pub mod tarchive_error;
 pub mod register_error;
 pub mod scratchpad_error;
 pub mod archive_error;

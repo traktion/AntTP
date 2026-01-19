@@ -9,6 +9,7 @@ pub mod public_scratchpad_controller;
 pub mod chunk_controller;
 pub mod graph_controller;
 pub mod public_data_controller;
+pub mod tarchive_controller;
 pub mod command_controller;
 pub mod connect_controller;
 pub mod pnr_controller;

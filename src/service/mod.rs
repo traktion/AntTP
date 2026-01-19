@@ -8,6 +8,7 @@ pub mod scratchpad_service;
 pub mod chunk_service;
 pub mod graph_service;
 pub mod public_data_service;
+pub mod tarchive_service;
 pub mod command_service;
 pub mod header_builder;
 pub mod access_checker;

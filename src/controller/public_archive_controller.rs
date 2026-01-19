@@ -47,6 +47,7 @@ pub async fn post_public_archive(
         (status = OK, description = "Public archive updated successfully", body = Upload)
     ),
     params(
+        ("address" = String, Path, description = "Public data address"),
         ("x-cache-only", Header, description = "Only persist to cache and do not publish (memory|disk|none)",
         example = "memory"),
     ),

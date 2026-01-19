@@ -47,6 +47,7 @@ pub async fn post_tarchive(
         (status = OK, description = "Tarchive updated successfully", body = TarchiveUpload)
     ),
     params(
+        ("address" = String, Path, description = "Tarchive data address"),
         ("x-cache-only", Header, description = "Only persist to cache and do not publish (memory|disk|none)",
         example = "memory"),
     ),

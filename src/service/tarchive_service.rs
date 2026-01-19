@@ -8,7 +8,6 @@ use sanitize_filename::sanitize;
 use serde::{Deserialize, Serialize};
 use tar::{Builder, Header};
 use utoipa::ToSchema;
-use crate::client::caching_client::ARCHIVE_TAR_IDX_BYTES;
 use crate::controller::StoreType;
 use crate::error::tarchive_error::TarchiveError;
 use crate::service::public_data_service::PublicDataService;
@@ -54,10 +53,14 @@ impl TarchiveService {
         info!("Updating tarchive at [{}]", address);
         let mut existing_tar_bytes = self.public_data_service.get_public_data_binary(address).await?.to_vec();
         
-        // Find the index marker and truncate if found to "update" (append to) the tar
-        if let Some(idx) = self.find_subsequence(&existing_tar_bytes, ARCHIVE_TAR_IDX_BYTES) {
-            debug!("Found existing index at [{}], truncating for update", idx);
-            existing_tar_bytes.truncate(idx);
+        // Find the index file and truncate if found to "update" (append to) the tar
+        // archive.tar.idx header will have "archive.tar.idx" in the first 100 bytes
+        // We look for the filename in the tar header to find where the index starts.
+        // A tar header is 512 bytes, and the filename is at the beginning.
+        if let Some(idx) = self.find_subsequence(&existing_tar_bytes, b"archive.tar.idx") {
+             let header_start = idx;
+             debug!("Found existing index at [{}], truncating for update", header_start);
+             existing_tar_bytes.truncate(header_start);
         }
 
         let updated_tar_bytes = self.append_to_tar(existing_tar_bytes, tarchive_form.into_inner())?;
@@ -77,26 +80,29 @@ impl TarchiveService {
             let mut file = temp_file.file.reopen()?;
             let mut content = Vec::new();
             file.read_to_end(&mut content)?;
-            let size = content.len() as u64;
 
             let mut header = Header::new_gnu();
-            header.set_size(size);
+            header.set_size(content.len() as u64);
             header.set_mode(0o644);
 
             builder.append_data(&mut header, &file_name, content.as_slice())?;
         }
 
-        builder.finish()?;
-        let mut tar_bytes = builder.into_inner()?;
+        let tar_bytes = builder.into_inner()?;
 
         // Generate index from the final tar content
         let index = Tarchive::index(Cursor::new(&tar_bytes))?;
 
-        // Append index
-        tar_bytes.extend_from_slice(ARCHIVE_TAR_IDX_BYTES);
-        tar_bytes.extend_from_slice(index.as_bytes());
+        // Append index as a file in the tar
+        let mut builder = Builder::new(tar_bytes);
+        let mut header = Header::new_gnu();
+        header.set_size(index.len() as u64);
+        header.set_mode(0o644);
+        builder.append_data(&mut header, "archive.tar.idx", index.as_bytes())?;
+        builder.finish()?;
+        let final_tar_bytes = builder.into_inner()?;
 
-        Ok(Bytes::from(tar_bytes))
+        Ok(Bytes::from(final_tar_bytes))
     }
 
     fn find_subsequence(&self, haystack: &[u8], needle: &[u8]) -> Option<usize> {
@@ -109,7 +115,8 @@ mod tests {
     use super::*;
     use std::io::Write;
     use tempfile::NamedTempFile;
-    use crate::client::caching_client::ARCHIVE_TAR_IDX_BYTES;
+    use crate::config::anttp_config::AntTpConfig;
+    use clap::Parser;
 
     #[tokio::test]
     async fn test_append_to_tar_creates_index() {
@@ -130,7 +137,7 @@ mod tests {
             ],
         };
 
-        let config = crate::config::anttp_config::AntTpConfig::read_args();
+        let config = AntTpConfig::parse_from(vec!["anttp"]);
         let client_harness = Data::new(tokio::sync::Mutex::new(crate::client::client_harness::ClientHarness::new(ant_evm::EvmNetwork::ArbitrumOne, config.clone())));
         let (command_executor, _) = tokio::sync::mpsc::channel(1);
         let command_executor = Data::new(command_executor);
@@ -149,20 +156,23 @@ mod tests {
         let result = service.append_to_tar(Vec::new(), form).unwrap();
         let tar_bytes = result.to_vec();
 
-        // Check if ARCHIVE_TAR_IDX_BYTES is present
-        let idx_marker_pos = tar_bytes.windows(ARCHIVE_TAR_IDX_BYTES.len())
-            .position(|window| window == ARCHIVE_TAR_IDX_BYTES)
-            .expect("Index marker not found");
+        // Check if archive.tar.idx is present in the tar
+        let idx_pos = tar_bytes.windows(b"archive.tar.idx".len())
+            .position(|window| window == b"archive.tar.idx")
+            .expect("Index file not found in tar");
 
-        // Check index content
-        let index_content = String::from_utf8_lossy(&tar_bytes[idx_marker_pos + ARCHIVE_TAR_IDX_BYTES.len()..]);
+        // The index content is in the data block after the 512-byte header
+        // For a small index, it will be at idx_pos - (offset of name in header) + 512
+        // Since name is at offset 0, it's idx_pos + 512
+        let index_content_start = idx_pos + 512;
+        let index_content = String::from_utf8_lossy(&tar_bytes[index_content_start..]);
         assert!(index_content.contains("file1.txt 512 15\n"));
     }
 
     #[tokio::test]
     async fn test_find_subsequence() {
         use actix_web::web::Data;
-        let config = crate::config::anttp_config::AntTpConfig::read_args();
+        let config = AntTpConfig::parse_from(vec!["anttp"]);
         let client_harness = Data::new(tokio::sync::Mutex::new(crate::client::client_harness::ClientHarness::new(ant_evm::EvmNetwork::ArbitrumOne, config.clone())));
         let (command_executor, _) = tokio::sync::mpsc::channel(1);
         let command_executor = Data::new(command_executor);

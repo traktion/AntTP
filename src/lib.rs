@@ -64,6 +64,7 @@ use crate::grpc::command_handler::{CommandHandler, CommandServiceServer};
 use crate::grpc::pnr_handler::{PnrHandler, PnrServiceServer};
 use crate::grpc::public_data_handler::{PublicDataHandler, PublicServiceServer};
 use crate::grpc::public_archive_handler::{PublicArchiveHandler, PublicArchiveServiceServer};
+use crate::grpc::tarchive_handler::{TarchiveHandler, TarchiveServiceServer};
 use crate::grpc::private_scratchpad_handler::{PrivateScratchpadHandler, PrivateScratchpadServiceServer};
 use crate::grpc::public_scratchpad_handler::{PublicScratchpadHandler, PublicScratchpadServiceServer};
 
@@ -190,6 +191,7 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> io::Result<()> {
     let pnr_handler = PnrHandler::new(pnr_service_data.clone(), evm_wallet_data.clone());
     let public_data_handler = PublicDataHandler::new(public_data_service_data.clone(), evm_wallet_data.clone());
     let public_archive_handler = PublicArchiveHandler::new(public_archive_service_data.clone(), evm_wallet_data.clone());
+    let tarchive_handler = TarchiveHandler::new(tarchive_service_data.clone(), evm_wallet_data.clone());
     let private_scratchpad_handler = PrivateScratchpadHandler::new(scratchpad_service_data.clone(), evm_wallet_data.clone());
     let public_scratchpad_handler = PublicScratchpadHandler::new(scratchpad_service_data.clone(), evm_wallet_data.clone());
     let tonic_server = async move {
@@ -203,6 +205,7 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> io::Result<()> {
                 .add_service(PnrServiceServer::new(pnr_handler))
                 .add_service(PublicServiceServer::new(public_data_handler))
                 .add_service(PublicArchiveServiceServer::new(public_archive_handler))
+                .add_service(TarchiveServiceServer::new(tarchive_handler))
                 .add_service(PrivateScratchpadServiceServer::new(private_scratchpad_handler))
                 .add_service(PublicScratchpadServiceServer::new(public_scratchpad_handler))
                 .serve(grpc_listen_address),

@@ -173,6 +173,7 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> io::Result<()> {
         graph_service_data.clone(),
         public_archive_service_data.clone(),
         scratchpad_service_data.clone(),
+        tarchive_service_data.clone(),
         evm_wallet_data.clone()
     );
     let mcp_tool_service = StreamableHttpService::builder()

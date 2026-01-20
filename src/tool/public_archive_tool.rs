@@ -84,7 +84,7 @@ impl McpTool {
         ).await?.into())
     }
 
-    fn map_to_multipart_form(&self, files: HashMap<String, String>) -> Result<MultipartForm<PublicArchiveForm>, ErrorData> {
+    pub(crate) fn map_to_multipart_form(&self, files: HashMap<String, String>) -> Result<MultipartForm<PublicArchiveForm>, ErrorData> {
         let mut temp_files = Vec::new();
         for (name, content_base64) in files {
             let content = BASE64_STANDARD.decode(content_base64).map_err(|e| 

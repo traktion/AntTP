@@ -1,3 +1,4 @@
+use std::cmp::min;
 use autonomi::data::DataAddress;
 use bytes::Bytes;
 use log::{debug, info};
@@ -18,7 +19,7 @@ impl CachingClient {
                         Some(idx) => {
                             debug!("archive.tar.idx was found in archive.tar");
                             let archive_idx_range_start = idx + 512 + 1;
-                            let archive_idx_range_to = 20480;
+                            let archive_idx_range_to = min(20480, trailer_bytes.len());
                             info!("retrieved tarchive for [{}] with range_from [{}] and range_to [{}] from network - storing in hybrid cache", local_address.to_hex(), archive_idx_range_start, archive_idx_range_to);
                             Ok(Vec::from(&trailer_bytes[archive_idx_range_start..archive_idx_range_to]))
                         },

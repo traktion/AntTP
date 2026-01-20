@@ -7,7 +7,7 @@ pub mod error;
 pub mod tool;
 pub mod grpc;
 
-use crate::controller::{pnr_controller, chunk_controller, command_controller, connect_controller, file_controller, graph_controller, pointer_controller, private_scratchpad_controller, public_archive_controller, public_data_controller, public_scratchpad_controller, register_controller};
+use crate::controller::{pnr_controller, chunk_controller, command_controller, connect_controller, file_controller, graph_controller, pointer_controller, private_scratchpad_controller, public_archive_controller, tarchive_controller, public_data_controller, public_scratchpad_controller, register_controller};
 use actix_files::Files;
 use actix_web::dev::ServerHandle;
 use actix_web::web::Data;
@@ -50,6 +50,7 @@ use crate::service::file_service::FileService;
 use crate::service::graph_service::GraphService;
 use crate::service::pointer_service::PointerService;
 use crate::service::public_archive_service::PublicArchiveService;
+use crate::service::tarchive_service::TarchiveService;
 use crate::service::public_data_service::PublicDataService;
 use crate::service::register_service::RegisterService;
 use crate::service::resolver_service::ResolverService;
@@ -83,6 +84,8 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> io::Result<()> {
         pointer_controller::put_pointer,
         public_archive_controller::post_public_archive,
         public_archive_controller::put_public_archive,
+        tarchive_controller::post_tarchive,
+        tarchive_controller::put_tarchive,
         public_scratchpad_controller::get_public_scratchpad,
         public_scratchpad_controller::post_public_scratchpad,
         public_scratchpad_controller::put_public_scratchpad,
@@ -148,6 +151,7 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> io::Result<()> {
 
     // define services
     let public_archive_service_data = Data::new(PublicArchiveService::new(FileService::new(caching_client_data.get_ref().clone(), ant_tp_config.download_threads), caching_client.clone()));
+    let tarchive_service_data = Data::new(TarchiveService::new(PublicDataService::new(caching_client_data.get_ref().clone())));
     let command_service_data = Data::new(CommandService::new(command_status_data.clone()));
     let chunk_service_data = Data::new(ChunkService::new(caching_client_data.get_ref().clone()));
     let graph_service_data = Data::new(GraphService::new(caching_client_data.get_ref().clone(), ant_tp_config.clone()));
@@ -276,6 +280,7 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> io::Result<()> {
             .app_data(graph_service_data.clone())
             .app_data(pointer_service_data.clone())
             .app_data(public_archive_service_data.clone())
+            .app_data(tarchive_service_data.clone())
             .app_data(public_data_service_data.clone())
             .app_data(register_service_data.clone())
             .app_data(resolver_service_data.clone())
@@ -312,6 +317,14 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> io::Result<()> {
                 .route(
                     format!("{}multipart/public_archive/{{address}}", API_BASE).as_str(),
                     web::put().to(public_archive_controller::put_public_archive),
+                )
+                .route(
+                    format!("{}multipart/tarchive", API_BASE).as_str(),
+                    web::post().to(tarchive_controller::post_tarchive),
+                )
+                .route(
+                    format!("{}multipart/tarchive/{{address}}", API_BASE).as_str(),
+                    web::put().to(tarchive_controller::put_tarchive),
                 )
                 .route(
                     format!("{}public_scratchpad/{{name}}", API_BASE).as_str(),

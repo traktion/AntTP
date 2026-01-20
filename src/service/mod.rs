@@ -1,4 +1,5 @@
 pub mod public_archive_service;
+pub mod tarchive_service;
 pub mod file_service;
 pub mod register_service;
 pub mod pointer_service;

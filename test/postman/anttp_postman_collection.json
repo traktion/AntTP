@@ -879,8 +879,8 @@
 									}
 								},
 								"url": {
-									"raw": "{{base_url}}",
-									"host": ["{{base_url}}"]
+									"raw": "localhost:18887",
+									"host": ["localhost"], "port": "18887"
 								}
 							}
 						},
@@ -896,8 +896,8 @@
 									}
 								},
 								"url": {
-									"raw": "{{base_url}}",
-									"host": ["{{base_url}}"]
+									"raw": "localhost:18887",
+									"host": ["localhost"], "port": "18887"
 								}
 							}
 						}
@@ -918,8 +918,8 @@
 									}
 								},
 								"url": {
-									"raw": "{{base_url}}",
-									"host": ["{{base_url}}"]
+									"raw": "localhost:18887",
+									"host": ["localhost"], "port": "18887"
 								}
 							}
 						}
@@ -940,8 +940,8 @@
 									}
 								},
 								"url": {
-									"raw": "{{base_url}}",
-									"host": ["{{base_url}}"]
+									"raw": "localhost:18887",
+									"host": ["localhost"], "port": "18887"
 								}
 							}
 						}
@@ -969,9 +969,9 @@
 									}
 								},
 								"url": {
-									"raw": "{{base_url}}/mcp/chunk_tool/create_chunk",
+									"raw": "{{base_url}}/mcp-0/chunk_tool/create_chunk",
 									"host": ["{{base_url}}"],
-									"path": ["mcp", "chunk_tool", "create_chunk"]
+									"path": ["mcp-0", "chunk_tool", "create_chunk"]
 								}
 							}
 						},
@@ -989,9 +989,9 @@
 									}
 								},
 								"url": {
-									"raw": "{{base_url}}/mcp/chunk_tool/get_chunk",
+									"raw": "{{base_url}}/mcp-0/chunk_tool/get_chunk",
 									"host": ["{{base_url}}"],
-									"path": ["mcp", "chunk_tool", "get_chunk"]
+									"path": ["mcp-0", "chunk_tool", "get_chunk"]
 								}
 							}
 						}
@@ -1014,9 +1014,9 @@
 									}
 								},
 								"url": {
-									"raw": "{{base_url}}/mcp/register_tool/create_register",
+									"raw": "{{base_url}}/mcp-0/register_tool/create_register",
 									"host": ["{{base_url}}"],
-									"path": ["mcp", "register_tool", "create_register"]
+									"path": ["mcp-0", "register_tool", "create_register"]
 								}
 							}
 						}
@@ -1039,9 +1039,9 @@
 									}
 								},
 								"url": {
-									"raw": "{{base_url}}/mcp/pointer_tool/create_pointer",
+									"raw": "{{base_url}}/mcp-0/pointer_tool/create_pointer",
 									"host": ["{{base_url}}"],
-									"path": ["mcp", "pointer_tool", "create_pointer"]
+									"path": ["mcp-0", "pointer_tool", "create_pointer"]
 								}
 							}
 						}
@@ -1064,9 +1064,9 @@
 									}
 								},
 								"url": {
-									"raw": "{{base_url}}/mcp/tarchive_tool/create_tarchive",
+									"raw": "{{base_url}}/mcp-0/tarchive_tool/create_tarchive",
 									"host": ["{{base_url}}"],
-									"path": ["mcp", "tarchive_tool", "create_tarchive"]
+									"path": ["mcp-0", "tarchive_tool", "create_tarchive"]
 								}
 							}
 						}

@@ -1,0 +1,872 @@
+{
+	"info": {
+		"_postman_id": "8d8d8d8d-8d8d-8d8d-8d8d-8d8d8d8d8d8d",
+		"name": "anttp_postman_collection",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "REST",
+			"item": [
+				{
+					"name": "Chunk",
+					"item": [
+						{
+							"name": "Create Chunk",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"exec": [
+											"var jsonData = pm.response.json();",
+											"if (jsonData.address) {",
+											"    pm.environment.set(\"chunk_address\", jsonData.address);",
+											"}"
+										],
+										"type": "text/javascript"
+									}
+								}
+							],
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "x-cache-only",
+										"value": "memory",
+										"type": "text"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"content\": \"SGVsbG8gV29ybGQ=\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{base_url}}/anttp-0/chunk",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"anttp-0",
+										"chunk"
+									]
+								}
+							}
+						},
+						{
+							"name": "Create Chunk Binary",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/octet-stream"
+									},
+									{
+										"key": "x-cache-only",
+										"value": "memory",
+										"type": "text"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "Hello Binary World"
+								},
+								"url": {
+									"raw": "{{base_url}}/anttp-0/binary/chunk",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"anttp-0",
+										"binary",
+										"chunk"
+									]
+								}
+							}
+						},
+						{
+							"name": "Get Chunk",
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "x-cache-only",
+										"value": "memory",
+										"type": "text"
+									}
+								],
+								"url": {
+									"raw": "{{base_url}}/anttp-0/chunk/{{chunk_address}}",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"anttp-0",
+										"chunk",
+										"{{chunk_address}}"
+									]
+								}
+							}
+						},
+						{
+							"name": "Get Chunk Binary",
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "x-cache-only",
+										"value": "memory",
+										"type": "text"
+									}
+								],
+								"url": {
+									"raw": "{{base_url}}/anttp-0/binary/chunk/{{chunk_address}}",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"anttp-0",
+										"binary",
+										"chunk",
+										"{{chunk_address}}"
+									]
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "Register",
+					"item": [
+						{
+							"name": "Create Register",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"exec": [
+											"var jsonData = pm.response.json();",
+											"if (jsonData.address) {",
+											"    pm.environment.set(\"register_address\", jsonData.address);",
+											"}"
+										],
+										"type": "text/javascript"
+									}
+								}
+							],
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "x-cache-only",
+										"value": "memory",
+										"type": "text"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"name\": \"test_register\",\n    \"content\": \"68656c6c6f\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{base_url}}/anttp-0/register",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"anttp-0",
+										"register"
+									]
+								}
+							}
+						},
+						{
+							"name": "Update Register",
+							"request": {
+								"method": "PUT",
+								"header": [
+									{
+										"key": "x-cache-only",
+										"value": "memory",
+										"type": "text"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"name\": \"test_register\",\n    \"content\": \"776f726c64\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{base_url}}/anttp-0/register/{{register_address}}",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"anttp-0",
+										"register",
+										"{{register_address}}"
+									]
+								}
+							}
+						},
+						{
+							"name": "Get Register",
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "x-cache-only",
+										"value": "memory",
+										"type": "text"
+									}
+								],
+								"url": {
+									"raw": "{{base_url}}/anttp-0/register/{{register_address}}",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"anttp-0",
+										"register",
+										"{{register_address}}"
+									]
+								}
+							}
+						},
+						{
+							"name": "Get Register History",
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "x-cache-only",
+										"value": "memory",
+										"type": "text"
+									}
+								],
+								"url": {
+									"raw": "{{base_url}}/anttp-0/register_history/{{register_address}}",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"anttp-0",
+										"register_history",
+										"{{register_address}}"
+									]
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "Pointer",
+					"item": [
+						{
+							"name": "Create Pointer",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"exec": [
+											"var jsonData = pm.response.json();",
+											"if (jsonData.address) {",
+											"    pm.environment.set(\"pointer_address\", jsonData.address);",
+											"}"
+										],
+										"type": "text/javascript"
+									}
+								}
+							],
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "x-cache-only",
+										"value": "memory",
+										"type": "text"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"name\": \"test_pointer\",\n    \"content\": \"{{chunk_address}}\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{base_url}}/anttp-0/pointer",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"anttp-0",
+										"pointer"
+									]
+								}
+							}
+						},
+						{
+							"name": "Update Pointer",
+							"request": {
+								"method": "PUT",
+								"header": [
+									{
+										"key": "x-cache-only",
+										"value": "memory",
+										"type": "text"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"name\": \"test_pointer\",\n    \"content\": \"{{chunk_address}}\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{base_url}}/anttp-0/pointer/{{pointer_address}}",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"anttp-0",
+										"pointer",
+										"{{pointer_address}}"
+									]
+								}
+							}
+						},
+						{
+							"name": "Get Pointer",
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "x-cache-only",
+										"value": "memory",
+										"type": "text"
+									}
+								],
+								"url": {
+									"raw": "{{base_url}}/anttp-0/pointer/{{pointer_address}}",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"anttp-0",
+										"pointer",
+										"{{pointer_address}}"
+									]
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "Private Scratchpad",
+					"item": [
+						{
+							"name": "Create Private Scratchpad",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"exec": [
+											"var jsonData = pm.response.json();",
+											"if (jsonData.address) {",
+											"    pm.environment.set(\"private_scratchpad_address\", jsonData.address);",
+											"}"
+										],
+										"type": "text/javascript"
+									}
+								}
+							],
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "x-cache-only",
+										"value": "memory",
+										"type": "text"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"content\": \"SGVsbG8gU2NyYXRjaHBhZA==\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{base_url}}/anttp-0/private_scratchpad/test_scratchpad",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"anttp-0",
+										"private_scratchpad",
+										"test_scratchpad"
+									]
+								}
+							}
+						},
+						{
+							"name": "Update Private Scratchpad",
+							"request": {
+								"method": "PUT",
+								"header": [
+									{
+										"key": "x-cache-only",
+										"value": "memory",
+										"type": "text"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"content\": \"V29ybGQgU2NyYXRjaHBhZA==\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{base_url}}/anttp-0/private_scratchpad/{{private_scratchpad_address}}/test_scratchpad",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"anttp-0",
+										"private_scratchpad",
+										"{{private_scratchpad_address}}",
+										"test_scratchpad"
+									]
+								}
+							}
+						},
+						{
+							"name": "Get Private Scratchpad",
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "x-cache-only",
+										"value": "memory",
+										"type": "text"
+									}
+								],
+								"url": {
+									"raw": "{{base_url}}/anttp-0/private_scratchpad/{{private_scratchpad_address}}/test_scratchpad",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"anttp-0",
+										"private_scratchpad",
+										"{{private_scratchpad_address}}",
+										"test_scratchpad"
+									]
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "Public Scratchpad",
+					"item": [
+						{
+							"name": "Create Public Scratchpad",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"exec": [
+											"var jsonData = pm.response.json();",
+											"if (jsonData.address) {",
+											"    pm.environment.set(\"public_scratchpad_address\", jsonData.address);",
+											"}"
+										],
+										"type": "text/javascript"
+									}
+								}
+							],
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "x-cache-only",
+										"value": "memory",
+										"type": "text"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"content\": \"UHVibGljIFNjcmF0Y2hwYWQ=\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{base_url}}/anttp-0/public_scratchpad/test_public_scratchpad",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"anttp-0",
+										"public_scratchpad",
+										"test_public_scratchpad"
+									]
+								}
+							}
+						},
+						{
+							"name": "Update Public Scratchpad",
+							"request": {
+								"method": "PUT",
+								"header": [
+									{
+										"key": "x-cache-only",
+										"value": "memory",
+										"type": "text"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"content\": \"VXBkYXRlZCBQdWJsaWMgU2NyYXRjaHBhZA==\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{base_url}}/anttp-0/public_scratchpad/{{public_scratchpad_address}}/test_public_scratchpad",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"anttp-0",
+										"public_scratchpad",
+										"{{public_scratchpad_address}}",
+										"test_public_scratchpad"
+									]
+								}
+							}
+						},
+						{
+							"name": "Get Public Scratchpad",
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "x-cache-only",
+										"value": "memory",
+										"type": "text"
+									}
+								],
+								"url": {
+									"raw": "{{base_url}}/anttp-0/public_scratchpad/{{public_scratchpad_address}}",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"anttp-0",
+										"public_scratchpad",
+										"{{public_scratchpad_address}}"
+									]
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "Graph",
+					"item": [
+						{
+							"name": "Create Graph Entry",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "x-cache-only",
+										"value": "memory",
+										"type": "text"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"name\": \"test_graph\",\n    \"content\": \"68656c6c6f\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{base_url}}/anttp-0/graph",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"anttp-0",
+										"graph"
+									]
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "Public Archive",
+					"item": [
+						{
+							"name": "Create Public Archive",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "x-cache-only",
+										"value": "memory",
+										"type": "text"
+									}
+								],
+								"body": {
+									"mode": "formdata",
+									"formdata": [
+										{
+											"key": "files",
+											"type": "text",
+											"value": "test content",
+											"contentType": "text/plain"
+										}
+									]
+								},
+								"url": {
+									"raw": "{{base_url}}/anttp-0/multipart/public_archive",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"anttp-0",
+										"multipart",
+										"public_archive"
+									]
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "Public Data",
+					"item": [
+						{
+							"name": "Create Public Data",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"exec": [
+											"var jsonData = pm.response.json();",
+											"if (jsonData.address) {",
+											"    pm.environment.set(\"public_data_address\", jsonData.address);",
+											"}"
+										],
+										"type": "text/javascript"
+									}
+								}
+							],
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/octet-stream"
+									},
+									{
+										"key": "x-cache-only",
+										"value": "memory",
+										"type": "text"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "Public Data Content"
+								},
+								"url": {
+									"raw": "{{base_url}}/anttp-0/binary/public_data",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"anttp-0",
+										"binary",
+										"public_data"
+									]
+								}
+							}
+						},
+						{
+							"name": "Get Public Data",
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "x-cache-only",
+										"value": "memory",
+										"type": "text"
+									}
+								],
+								"url": {
+									"raw": "{{base_url}}/anttp-0/binary/public_data/{{public_data_address}}",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"anttp-0",
+										"binary",
+										"public_data",
+										"{{public_data_address}}"
+									]
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "Tarchive",
+					"item": [
+						{
+							"name": "Create Tarchive",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "x-cache-only",
+										"value": "memory",
+										"type": "text"
+									}
+								],
+								"body": {
+									"mode": "formdata",
+									"formdata": [
+										{
+											"key": "files",
+											"type": "text",
+											"value": "tarchive content",
+											"contentType": "text/plain"
+										}
+									]
+								},
+								"url": {
+									"raw": "{{base_url}}/anttp-0/multipart/tarchive",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"anttp-0",
+										"multipart",
+										"tarchive"
+									]
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "Command",
+					"item": [
+						{
+							"name": "Get Commands",
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "x-cache-only",
+										"value": "memory",
+										"type": "text"
+									}
+								],
+								"url": {
+									"raw": "{{base_url}}/anttp-0/command",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"anttp-0",
+										"command"
+									]
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "PNR",
+					"item": [
+						{
+							"name": "Create PNR",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "x-cache-only",
+										"value": "memory",
+										"type": "text"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"name\": \"test_pnr\",\n    \"records\": []\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{base_url}}/anttp-0/pnr",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"anttp-0",
+										"pnr"
+									]
+								}
+							}
+						}
+					]
+				}
+			]
+		}
+	],
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://localhost:18888",
+			"type": "string"
+		}
+	]
+}

@@ -472,16 +472,16 @@ local per-user configuration data (e.g. arbitrary data that only the user needs 
     - [ ] Data upload cost
     - [ ] Wallet support
     - [x] Async command/upload queue
-    - [ ] Tarchive
+    - [x] Tarchive
     - [x] Pointer name resolver
   - [ ] gRPC API
-    - [ ] Pointer
-    - [ ] Scratchpad
-    - [ ] Graph
-    - [ ] Register
-    - [ ] Chunk
-    - [ ] Public Archive
-    - [ ] Public Data
+    - [x] Pointer
+    - [x] Scratchpad
+    - [x] Graph
+    - [x] Register
+    - [x] Chunk
+    - [x] Public Archive
+    - [x] Public Data
     - [ ] BLS support
       - [ ] Create, sign, verify
       - [ ] Derived keys
@@ -489,6 +489,8 @@ local per-user configuration data (e.g. arbitrary data that only the user needs 
     - [ ] Vault support (CRUD, cost)
     - [ ] Data upload cost
     - [ ] Wallet support
+    - [x] Tarchive
+    - [x] Pointer name resolver
   - [ ] MCP API
     - [x] Pointer
     - [x] Scratchpad
@@ -505,7 +507,7 @@ local per-user configuration data (e.g. arbitrary data that only the user needs 
     - [ ] Data upload cost
     - [ ] Wallet support
     - [x] Async command/upload queue
-    - [ ] Tarchive
+    - [x] Tarchive
     - [x] Pointer name resolver
   - [ ] Websockets
     - [ ] Stream immutable data types
@@ -518,6 +520,7 @@ local per-user configuration data (e.g. arbitrary data that only the user needs 
   - [ ] Full unit test coverage
   - [x] Immutable performance testing
   - [ ] Mutable performance testing
+  - [x] Newman based integration testing
 - [x] Improve CLI arguments
 - [x] Offline mode (requests without connected client library dependency)
   - [x] Offline downloaded data

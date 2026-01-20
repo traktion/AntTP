@@ -6,12 +6,10 @@ use rmcp::{handler::server::{
 }, schemars, tool, tool_router, ErrorData};
 use rmcp::model::{CallToolResult, ErrorCode};
 use rmcp::schemars::JsonSchema;
-use serde::Deserialize;
-use crate::controller::StoreType;
-use crate::error::tarchive_error::TarchiveError;
+use serde::{Deserialize, Serialize};
 use crate::tool::McpTool;
 
-#[derive(Debug, Deserialize, JsonSchema)]
+#[derive(Debug, Deserialize, JsonSchema, Serialize)]
 struct CreateTarchiveRequest {
     #[schemars(description = "Base64 encoded content of the files to archive (map of filename to base64 content)")]
     files: HashMap<String, String>,
@@ -19,7 +17,7 @@ struct CreateTarchiveRequest {
     store_type: String,
 }
 
-#[derive(Debug, Deserialize, JsonSchema)]
+#[derive(Debug, Deserialize, JsonSchema, Serialize)]
 struct UpdateTarchiveRequest {
     #[schemars(description = "Address of the tarchive")]
     address: String,
@@ -63,5 +61,40 @@ impl McpTool {
             self.evm_wallet.get_ref().clone(),
             StoreType::from(store_type)
         ).await?.into())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_create_tarchive_request_serialization() {
+        let mut files = HashMap::new();
+        files.insert("test.txt".to_string(), "SGVsbG8gd29ybGQ=".to_string());
+        let request = CreateTarchiveRequest {
+            files,
+            store_type: "memory".to_string(),
+        };
+        let json = serde_json::to_string(&request).unwrap();
+        let deserialized: CreateTarchiveRequest = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.store_type, "memory");
+        assert_eq!(deserialized.files.get("test.txt").unwrap(), "SGVsbG8gd29ybGQ=");
+    }
+
+    #[tokio::test]
+    async fn test_update_tarchive_request_serialization() {
+        let mut files = HashMap::new();
+        files.insert("test2.txt".to_string(), "VXBkYXRlZA==".to_string());
+        let request = UpdateTarchiveRequest {
+            address: "0x123".to_string(),
+            files,
+            store_type: "disk".to_string(),
+        };
+        let json = serde_json::to_string(&request).unwrap();
+        let deserialized: UpdateTarchiveRequest = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.address, "0x123");
+        assert_eq!(deserialized.store_type, "disk");
+        assert_eq!(deserialized.files.get("test2.txt").unwrap(), "VXBkYXRlZA==");
     }
 }

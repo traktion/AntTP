@@ -81,6 +81,11 @@ impl PointerService {
         }
     }
 
+    pub fn get_resolver_address(&self, name: &String) -> Result<String, CreateError> {
+        let secret_key = self.get_data_key(DataKey::Resolver)?;
+        Ok(Client::register_key_from_name(&secret_key, name.as_str()).public_key().to_hex())
+    }
+
     fn get_data_key(&self, data_key: DataKey) -> Result<SecretKey, CreateError> {
         match data_key {
             DataKey::Resolver => self.ant_tp_config.get_resolver_private_key(),

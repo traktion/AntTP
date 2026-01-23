@@ -5,7 +5,7 @@ So that anttp can be customized for specific use cases
 Given anttp_config.rs is responsible for managing configuration options
 When adding mcp_tools_disabled option
 Then add a boolean option similar to uploads_disabled
-And use similar annotations, but with short argument only
+And use similar annotations, but with long argument only
 And default to false
 And log the argument value like uploads_disabled
 

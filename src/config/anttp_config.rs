@@ -39,7 +39,7 @@ pub struct AntTpConfig {
     #[arg(short, long, default_value_t = false)]
     pub uploads_disabled: bool,
 
-    #[arg(short = 'M', default_value_t = false)]
+    #[arg(long, default_value_t = false)]
     pub mcp_tools_disabled: bool,
 
     #[arg(short, long, default_value_t = 5)]

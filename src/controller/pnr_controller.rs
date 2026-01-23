@@ -64,3 +64,26 @@ pub async fn put_pnr(
         pnr_service.update_pnr(name, pnr_zone.into_inner(), evm_wallet_data.get_ref().clone(), get_store_type(&request)).await?
     ))
 }
+
+#[utoipa::path(
+    get,
+    path = "/anttp-0/pnr/{name}",
+    params(
+        ("name", description = "PNR name"),
+    ),
+    responses(
+        (status = OK, description = "PNR zone retrieved successfully", body = PnrZone),
+        (status = NOT_FOUND, description = "PNR zone not found")
+    ),
+)]
+pub async fn get_pnr(
+    path: web::Path<String>,
+    pnr_service: Data<PnrService>,
+) -> Result<HttpResponse, PointerError> {
+    let name = path.into_inner();
+
+    debug!("Getting PNR zone");
+    Ok(HttpResponse::Ok().json(
+        pnr_service.get_pnr(name).await?
+    ))
+}

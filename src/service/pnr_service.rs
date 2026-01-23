@@ -72,11 +72,7 @@ impl PnrService {
     }
 
     pub async fn update_pnr(&self, name: String, pnr_zone: PnrZone, evm_wallet: Wallet, store_type: StoreType) -> Result<PnrZone, PointerError> {
-        let resolver_address = self.pointer_service.get_resolver_address(&name)?;
-        let personal_pointer_address = match self.pointer_service.get_pointer(resolver_address.clone()).await {
-            Ok(pointer) => pointer.content,
-            Err(e) => return Err(e),
-        };
+        let (resolver_address, personal_pointer_address) = self.resolve_personal_address(&name).await?;
 
         match self.caching_client.chunk_put(
             &Chunk::new(Bytes::from(serde_json::to_vec(&pnr_zone).unwrap())),
@@ -106,5 +102,35 @@ impl PnrService {
             },
             Err(e) => Err(PointerError::UpdateError(UpdateError::InvalidData(e.to_string())))
         }
+    }
+
+    pub async fn get_pnr(&self, name: String) -> Result<PnrZone, PointerError> {
+        let (resolver_address, personal_pointer_address) = self.resolve_personal_address(&name).await?;
+
+        let personal_pointer = self.pointer_service.get_pointer(personal_pointer_address.clone()).await?;
+        let pnr_zone_address = personal_pointer.content;
+
+        match self.caching_client.chunk_get_internal(&ant_protocol::storage::ChunkAddress::from_hex(&pnr_zone_address)?).await {
+            Ok(chunk) => {
+                let pnr_zone: PnrZone = serde_json::from_slice(chunk.value.as_ref())
+                    .map_err(|e| PointerError::UpdateError(UpdateError::InvalidData(e.to_string())))?;
+                Ok(PnrZone::new(
+                    name,
+                    pnr_zone.records,
+                    Some(resolver_address),
+                    Some(personal_pointer_address),
+                ))
+            },
+            Err(e) => Err(PointerError::UpdateError(UpdateError::InvalidData(e.to_string())))
+        }
+    }
+
+    async fn resolve_personal_address(&self, name: &String) -> Result<(String, String), PointerError> {
+        let resolver_address = self.pointer_service.get_resolver_address(name)?;
+        let personal_pointer_address = match self.pointer_service.get_pointer(resolver_address.clone()).await {
+            Ok(pointer) => pointer.content,
+            Err(e) => return Err(e),
+        };
+        Ok((resolver_address, personal_pointer_address))
     }
 }

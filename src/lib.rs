@@ -102,6 +102,7 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> io::Result<()> {
         public_data_controller::get_public_data,
         public_data_controller::post_public_data,
         command_controller::get_commands,
+        pnr_controller::get_pnr,
         pnr_controller::post_pnr,
         pnr_controller::put_pnr
     ))]
@@ -260,6 +261,10 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> io::Result<()> {
             .route(
                 format!("{}graph_entry/{{address}}", API_BASE).as_str(),
                 web::get().to(graph_controller::get_graph_entry)
+            )
+            .route(
+                format!("{}pnr/{{name}}", API_BASE).as_str(),
+                web::get().to(pnr_controller::get_pnr)
             )
             .route(
                 format!("{}binary/public_data/{{address}}", API_BASE).as_str(),

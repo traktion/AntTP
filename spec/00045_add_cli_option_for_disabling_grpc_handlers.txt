@@ -1,0 +1,23 @@
+As a software engineer
+I want an option to disable gRPC handlers
+So that anttp can be customized for specific use cases
+
+Given anttp_config.rs is responsible for managing configuration options
+When adding grpc_disabled option
+Then add a boolean option similar to uploads_disabled
+And use similar annotations, but with long argument only
+And default to false
+And log the argument value like uploads_disabled
+
+Given /src/lib.rs is responsible for enabling/disabling gRPC handlers
+When adding grpc_disabled option
+Then add use this anttp_config value to control whether gRPC handlers are enabled or disabled
+And combine with a checking if uploads disabled is fals, as there are currently write operations
+
+Provide unit tests where applicable for new code.
+
+Implementation Notes
+
+- Place any unit tests at the bottom of the same file as the associated production code
+- Increment patch version of anttp package in Cargo.toml
+- Create a copy of this issue description and save to /spec using the name of this issue as the filename (with lower underscore case, starting with the 5 char padded issue number, e.g. 00001_issue_title.txt)

@@ -1,0 +1,21 @@
+As an MCP tool API consumer
+I want to be able to get PNRs
+So that I can view the current state of the PNR zones
+
+Given pnr_tool.rs handles MCP tool request for PNRs
+When adding GET PNR support
+Then update pnr_tool.rs to include a get_pnr_zone function
+And use pointer_tool.rs as a reference
+And apply #[tool] annotation to get_pnr_zone
+
+Given pnr_service.rs implements get_pnr
+When adding GET PNR support
+Then call get_pnr in a similar way to pnr_controller.rs
+
+Provide unit tests where applicable for new code.
+
+Implementation Notes
+
+- Place any unit tests at the bottom of the same file as the associated production code
+- Increment patch version of anttp package in Cargo.toml
+- Create a copy of this issue description and save to /spec using the name of this issue as the filename (with lower underscore case, starting with the 5 char padded issue number, e.g. 00060_issue_title.txt)

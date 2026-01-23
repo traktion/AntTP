@@ -1,6 +1,6 @@
 [package]
 name = "anttp"
-version = "0.23.18"
+version = "0.23.19"
 edition = "2024"
 authors = ["Paul Green"]
 description = "AntTP is an HTTP server for the Autonomi Network"

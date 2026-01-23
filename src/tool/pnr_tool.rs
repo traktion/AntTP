@@ -24,6 +24,18 @@ struct PnrRequest {
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
+struct UpdatePnrRequest {
+    #[schemars(description = "Existing name of the PNR zone to update")]
+    name: String,
+    #[schemars(description = "Target address of the default PNR record")]
+    address: String,
+    #[schemars(description = "Time To Live (TTL) for the default PNR record (default: 60)")]
+    ttl: u64,
+    #[schemars(description = "Store PNR zone on memory, disk or network")]
+    store_type: String,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
 struct GetPnrRequest {
     #[schemars(description = "Name of the PNR zone")]
     name: String,
@@ -69,6 +81,23 @@ impl McpTool {
         ).await?.into())
     }
 
+    #[tool(description = "Update PNR zone with default PNR record")]
+    async fn update_pnr_zone(
+        &self,
+        Parameters(UpdatePnrRequest { name, address, ttl, store_type }): Parameters<UpdatePnrRequest>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let ttl_or_default = if ttl == 0 { 60 } else { ttl };
+        let pnr_zone = PnrZone::new(
+            name.clone(),
+            vec![PnrRecord::new(Some("".to_string()), address.clone(), PnrRecordType::X, ttl_or_default)],
+            None,
+            None
+        );
+        Ok(self.pnr_service.update_pnr(
+            name, pnr_zone, self.evm_wallet.get_ref().clone(), StoreType::from(store_type)
+        ).await?.into())
+    }
+
     #[tool(description = "Get PNR zone by name")]
     async fn get_pnr_zone(
         &self,
@@ -100,6 +129,21 @@ mod tests {
             "store_type": "memory"
         }"#;
         let request: PnrRequest = serde_json::from_str(json).unwrap();
+        assert_eq!(request.name, "test_pnr");
+        assert_eq!(request.address, "0x123");
+        assert_eq!(request.ttl, 60);
+        assert_eq!(request.store_type, "memory");
+    }
+
+    #[tokio::test]
+    async fn test_update_pnr_request_serialization() {
+        let json = r#"{
+            "name": "test_pnr",
+            "address": "0x123",
+            "ttl": 60,
+            "store_type": "memory"
+        }"#;
+        let request: UpdatePnrRequest = serde_json::from_str(json).unwrap();
         assert_eq!(request.name, "test_pnr");
         assert_eq!(request.address, "0x123");
         assert_eq!(request.ttl, 60);

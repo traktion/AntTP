@@ -4,6 +4,7 @@ use crate::error::pointer_error::PointerError;
 use crate::error::CreateError;
 use crate::model::pnr::PnrZone;
 use crate::service::pointer_service::{Pointer, PointerService};
+use crate::error::UpdateError;
 use actix_web::web::Data;
 use ant_protocol::storage::Chunk;
 use autonomi::client::payment::PaymentOption;
@@ -67,6 +68,43 @@ impl PnrService {
                 }
             },
             Err(e) => Err(PointerError::CreateError(CreateError::InvalidData(e.to_string())))
+        }
+    }
+
+    pub async fn update_pnr(&self, name: String, pnr_zone: PnrZone, evm_wallet: Wallet, store_type: StoreType) -> Result<PnrZone, PointerError> {
+        let resolver_address = self.pointer_service.get_resolver_address(&name)?;
+        let personal_pointer_address = match self.pointer_service.get_pointer(resolver_address.clone()).await {
+            Ok(pointer) => pointer.content,
+            Err(e) => return Err(e),
+        };
+
+        match self.caching_client.chunk_put(
+            &Chunk::new(Bytes::from(serde_json::to_vec(&pnr_zone).unwrap())),
+            PaymentOption::from(&evm_wallet),
+            store_type.clone()
+        ).await {
+            Ok(chunk) => {
+                let personal_pointer_request = Pointer::new(
+                    Some(name.clone()), chunk.to_hex(), None, None, None,
+                );
+                match self.pointer_service.update_pointer(
+                    personal_pointer_address.clone(),
+                    personal_pointer_request,
+                    store_type,
+                    DataKey::Personal).await
+                {
+                    Ok(_) => {
+                        Ok(PnrZone::new(
+                            name,
+                            pnr_zone.records,
+                            Some(resolver_address),
+                            Some(personal_pointer_address),
+                        ))
+                    },
+                    Err(e) => Err(e),
+                }
+            },
+            Err(e) => Err(PointerError::UpdateError(UpdateError::InvalidData(e.to_string())))
         }
     }
 }

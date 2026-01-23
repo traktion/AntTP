@@ -370,6 +370,10 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> io::Result<()> {
                     format!("{}pnr", API_BASE).as_str(),
                     web::post().to(pnr_controller::post_pnr)
                 )
+                .route(
+                    format!("{}pnr/{{name}}", API_BASE).as_str(),
+                    web::put().to(pnr_controller::put_pnr)
+                )
         };
 
         if actix_config.static_file_directory != "" {

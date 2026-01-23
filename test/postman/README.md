@@ -16,7 +16,7 @@ The collection `anttp_postman_collection.json` provides a comprehensive set of R
 - **Public Data**: Create and retrieve public data (binary).
 - **Tarchive**: Create and update tarchives (TAR-based archives).
 - **Command**: Retrieve the list of background commands.
-- **PNR**: Create PNR (Pointer Name Record) zones.
+- **PNR**: Create and update PNR (Pointer Name Record) zones.
 
 ## Prerequisites
 

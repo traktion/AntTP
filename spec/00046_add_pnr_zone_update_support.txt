@@ -1,0 +1,49 @@
+As an API consumer
+I want to be able to update PNRs
+So the default target address can be changed
+And additional sub names can be added or changed
+And TTLs can be changed
+And record types can be changed
+
+Given pnr_service.rs is responsible for managing PNRs
+When editing a PNR
+Then use update_pointer in pointer_service.rs as an example
+And ignore resolver_address, personal_address and name in the PnrZone payload
+And derive the resolver_address from the name in the path
+And derive the personal_address from looking up the target of the resolver_address pointer (get_pointer_target)
+And return Pointer::Update error if there are issues
+
+Given PNR zones are made up of multiple records and address
+When editing a PNR zone
+Then update or add PnrRecords depending on the operation
+And persist the derived resolver_address and personal_address 
+
+Given the updated PNR zone will be saved to a new chunk at a new address
+When a new PNR zone chunk has been uploaded
+Then the personal_pointer must also be updated to point to the new chunk
+
+Given pnr_controller.rs handles REST request for PNRs
+When updating pnr_service.rs
+Then also update pnr_controller.rs to reflect the new update operation
+And use put_pointer in pointer_controller.rs as an example
+And use URL format PUT /anttp-0/pnr/{name} where name is the PNR name used to define the resolver address
+
+Given /lib.rs is responsible for integrating REST controllers
+When updating pnr_controller.rs
+Then also update /lib.rs to reflect the new update operation
+And place the new put_pnr function within the section where uploads_disabled is false
+
+Given the postman collection reflects the REST endpoints
+When updating pnr_controller.rs
+Then also update the postman collection to reflect the new update operation
+And ensure it is added directly after the create/put operation
+And update the associated /test/postman/README.md
+And use newman to confirm both the collection and the new put_pnr endpoint work as expected
+
+Provide unit tests where applicable for new code.
+
+Implementation Notes
+
+- Place any unit tests at the bottom of the same file as the associated production code
+- Increment patch version of anttp package in Cargo.toml
+- Create a copy of this issue description and save to /spec using the name of this issue as the filename (with lower underscore case, starting with the 5 char padded issue number, e.g. 00046_add_pnr_zone_update_support.txt)

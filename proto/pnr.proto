@@ -4,6 +4,7 @@ package pnr;
 
 service PnrService {
   rpc CreatePnr(CreatePnrRequest) returns (PnrResponse);
+  rpc GetPnr(GetPnrRequest) returns (PnrResponse);
 }
 
 message PnrZone {
@@ -28,6 +29,10 @@ enum PnrRecordType {
 message CreatePnrRequest {
   PnrZone pnr_zone = 1;
   optional string cache_only = 2;
+}
+
+message GetPnrRequest {
+  string name = 1;
 }
 
 message PnrResponse {

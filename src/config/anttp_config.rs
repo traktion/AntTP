@@ -39,8 +39,11 @@ pub struct AntTpConfig {
     #[arg(short, long, default_value_t = false)]
     pub uploads_disabled: bool,
 
-    #[arg(long, default_value_t = false)]
+    #[arg(short = 'M', long, default_value_t = false)]
     pub mcp_tools_disabled: bool,
+
+    #[arg(long, default_value_t = false)]
+    pub grpc_disabled: bool,
 
     #[arg(short, long, default_value_t = 5)]
     pub cached_mutable_ttl: u64,
@@ -80,6 +83,7 @@ impl AntTpConfig {
         info!("Download threads: [{}]", ant_tp_config.download_threads);
         info!("Uploads disabled: [{}]", ant_tp_config.uploads_disabled);
         info!("MCP tools disabled: [{}]", ant_tp_config.mcp_tools_disabled);
+        info!("gRPC disabled: [{}]", ant_tp_config.grpc_disabled);
         if ant_tp_config.app_private_key.is_empty() {
             info!("No app/personal private key provided. Try this one: [{:?}]", SecretKey::random().to_hex());
         } else {
@@ -140,5 +144,17 @@ mod tests {
     fn test_anttp_config_mcp_tools_disabled_short_arg() {
         let config = AntTpConfig::try_parse_from(&["anttp", "-M"]).unwrap();
         assert!(config.mcp_tools_disabled);
+    }
+
+    #[test]
+    fn test_anttp_config_grpc_disabled_default() {
+        let config = AntTpConfig::try_parse_from(&["anttp"]).unwrap();
+        assert!(!config.grpc_disabled);
+    }
+
+    #[test]
+    fn test_anttp_config_grpc_disabled_long_arg() {
+        let config = AntTpConfig::try_parse_from(&["anttp", "--grpc-disabled"]).unwrap();
+        assert!(config.grpc_disabled);
     }
 }

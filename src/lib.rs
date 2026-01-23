@@ -213,6 +213,7 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> io::Result<()> {
         )
     };
 
+    let actix_config = ant_tp_config.clone();
     let actix_server = HttpServer::new(move || {
         let logger = Logger::default();
 
@@ -271,7 +272,7 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> io::Result<()> {
                 "/{path:.*}",
                 web::get().to(file_controller::get_public_data),
             )
-            .app_data(Data::new(ant_tp_config.clone()))
+            .app_data(Data::new(actix_config.clone()))
             .app_data(caching_client_data.clone())
             .app_data(evm_wallet_data.clone())
             .app_data(hybrid_cache_data.clone())
@@ -292,8 +293,8 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> io::Result<()> {
             .app_data(pnr_service_data.clone())
             .app_data(web::PayloadConfig::new(1024 * 1024 * 10));
 
-        if !ant_tp_config.uploads_disabled {
-            if !ant_tp_config.mcp_tools_disabled {
+        if !actix_config.uploads_disabled {
+            if !actix_config.mcp_tools_disabled {
                 app = app
                     .service(
                         web::scope("/mcp-0")
@@ -371,10 +372,10 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> io::Result<()> {
                 )
         };
 
-        if ant_tp_config.static_file_directory != "" {
+        if actix_config.static_file_directory != "" {
             app.service(Files::new(
                 "/static",
-                ant_tp_config.static_file_directory.clone(),
+                actix_config.static_file_directory.clone(),
             ))
         } else {
             app
@@ -385,9 +386,13 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> io::Result<()> {
         .run();
 
     let mut guard = TONIC_SERVER_HANDLE.lock().await;
-    *guard = Some("tonic_server".to_string());
-    info!("Starting Tonic (gRPC) listener on port {}", grpc_listen_address);
-    tonic_server.await;
+    if !ant_tp_config.grpc_disabled && !ant_tp_config.uploads_disabled {
+        *guard = Some("tonic_server".to_string());
+        info!("Starting Tonic (gRPC) listener on port {}", grpc_listen_address);
+        tonic_server.await;
+    } else {
+        info!("Tonic (gRPC) listener disabled");
+    }
 
     let mut guard = ACTIX_SERVER_HANDLE.lock().await;
     *guard = Some(actix_server.handle());

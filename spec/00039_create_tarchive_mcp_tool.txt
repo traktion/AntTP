@@ -1,0 +1,22 @@
+As a software engineer
+I want to add an MCP tool for tarchive
+So that tarchive can be created using third party MCP clients
+
+Given tarchive_controller.rs and tarchive_service.rs exist
+When adding tarchive_handler.rs
+Then it should reflect tarchive_controller.rs
+And be added to a new &#39;tool&#39; module under the root as /src/tool/tarchive_tool.rs
+
+Given /src/tool/public_archive_tool.rs already exists
+When adding the tarchive_tool.rs
+Then use public_archive_tool.rs as an example
+
+Provide unit tests where applicable to /src/tool/tarchive_tool.rs and related new code.
+
+Implementation Notes
+
+- Assume other MCP tools will be added in the future, following the same pattern, in /src/tool directory/module
+- Define From traits to perform mapping between structs, including errors (use ?)
+- Use Actix Data instead of Arc
+- Place any unit tests at the bottom of the same file as the associated production code
+- Increment patch version of anttp package in Cargo.toml

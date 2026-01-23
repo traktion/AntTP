@@ -1,0 +1,42 @@
+As a software engineer
+I want to add a tarchive support to the REST endpoint
+So that tarchives can be created and updated when a client provides a list of files
+
+Given public archives are supported and are similar in terms of desired client interface
+When adding tarchive_controller.rs
+Then it should reflect the shape of public_archive_controller.rs
+
+Given public archives are supported and are similar in terms of desired client interface
+When adding tarchive_service.rs
+Then should reflect the shape of public_archive_service.rs
+And should include the logic to create or update the tar file prior to uploading it as public data
+
+Given tarchives are a specialism of public data
+When creating or updating tarchives
+Then include PublicDataService as a dependency
+And use its functions to create/update tarchive data
+
+Given tarchives are append only tar files with the final file being archive.tar.idx
+When updating a tarchive
+Then the existing tar file must not be truncated (much like writing to a tape)
+And any updated files must be appended to the end of the tar file (before the archive.tar.idx)
+And the new archive.tar.idx must be added as the last file entry in the tar file
+And the archive.tar.idx string location will therefore be within the last 20kb of the tar file
+
+Given tarchives must have an archive.tar.idx
+When creating or updating a tarchive
+Then an archive.tar.idx file must be created
+And it must follow the logic defined in https://github.com/devsnd/tarindexer/blob/master/tarindexer.py
+And this logic should defined in a new Tarchive struct in /src/model/tarchive.rs
+And should accept an existing tar file and return an archive.tar.idx string to be included in the target tar
+
+Provide unit tests where applicable to grpc/public_scratchpad_handler.rs and related new code.
+
+Implementation Notes
+
+- View Tarchive Support section in README.md to understand what tarchives are and how they can be created
+- Use tar crate as described here: https://crates.io/crates/tar
+- Define From traits to perform mapping between structs, including errors (use ?)
+- Use Actix Data instead of Arc
+- Place any unit tests at the bottom of the same file as the associated production code
+- Increment patch version of anttp package in Cargo.toml

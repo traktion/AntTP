@@ -1,0 +1,30 @@
+As a software engineer
+I want to add a gRPC endpoint for public scratchpads
+So that public scratchpad scan be created using third party gRPC clients
+
+Given public_scratchpad_controller.rs and scratchpad_service.rs exist
+When adding public_scratchpad_handler.rs
+Then it should reflect public_scratchpad_controller.rs
+And be added to a new &#39;grpc&#39; module under the root as grpc/public_scratchpad_handler.rs
+
+Given gRPC requires protobuffer definitions
+When adding public scratchpad gRPC endpoints
+Then create gRPC service definition for public scratchpad request/response messages in /proto/public_scratchpad.proto and share Scratchpad type between /proto/private_scratchpad.proto  and /proto/public_scratchpad.proto 
+
+Given gRPC needs to be integrated with Tonic server
+When adding public scratchpad gRPC endpoins
+Then update lib.rs to integrate the gRPC public_scratchpad_handler.rs
+
+Given /grpc/private_scratchpad_handler.rs already exists
+When adding the public_scratchpad_handler.rs
+Then use private_scratchpad_handler.rs as an example
+
+Provide unit tests where applicable to grpc/public_scratchpad_handler.rs and related new code.
+
+Implementation Notes
+
+- Assume other handlers will be added in the future, following the same pattern, in /grpc directory/module
+- Define From traits to perform mapping between structs, including errors (use ?)
+- Use Actix Data instead of Arc
+- Place any unit tests at the bottom of the same file as the associated production code
+- Increment patch version of anttp package in Cargo.toml

@@ -1,0 +1,31 @@
+As a software engineer
+I want to add a gRPC endpoint for pointers 
+So that pointers can be created, updated and retrieved using third party gRPC clients
+
+Given pointer_controller.rs and pointer_service.rs exist
+When adding pointer_handler.rs 
+Then it should reflect pointer_controller.rs
+And be added to a new &#39;grpc&#39; module under the root as grpc/pointer_handler.rs
+
+Given gRPC requires protobuffer definitions
+When adding pointer gRPC endpoints
+Then create gRPC service definition for pointer request/response messages
+
+Given gRPC needs to be integrated with Actix
+When adding pointer gRPC endpoins
+Then update lib.rs to integrate the gRPC pointer handler
+
+Provide unit tests where applicable to grpc/pointer_handler.rs and related new code.
+
+Implementation Notes
+
+- Use Tonic as the gRPC libary and include in cargo.toml
+- Use existing Tokio dependencies for async execution
+- Review https://docs.rs/tonic/latest/tonic/ for Tonic docs for implementing gRPC with Rust
+- Review https://github.com/hyperium/tonic/blob/master/examples/src/grpc-web/server.rs to understand Tonic integration
+- Review https://github.com/Marlos-Rodriguez/rust-dual-grpc-http to understand Actix integration of Tonic endpoints 
+- Create /grpc module in the project root to hold gRCP handlers
+- Create /proto directory in the project root to hold proto definitions files
+- Assume other handlers will be added in the future, following the same pattern, in /grpc directory/module
+- Define From traits to perform mapping between structs, including errors (use ?)
+- Use Actix Data instead of Arc 

@@ -1,0 +1,29 @@
+As a software engineer
+I want to add a Postman Collection for all REST endpoints
+So that it is simple to test all API endpoints
+
+Given the postman collection needs to be stored in a directory
+When adding the postman collection
+Then place all the files in the /test/postman directory
+And call the collection anttp_postman_collection.json
+
+Given postman collections can be split into directories
+When adding the postman collection
+Then place REST in a folder to allow other protocols to be added later
+
+Given most of the files in /src/controller directory are REST controllers
+When adding REST endpoints to the postman collection
+Then ensure all endpoints with utoipa annotations are added
+
+Given postman collections can store responses as environment variables
+When adding requests that return responses that are used by get requests
+Then ensure these response variables are stored in environment variables
+
+Implementation Notes
+
+- Use a {base_url} environtment variable to store the hostname and default to http://localhost:18888 for REST
+- Use the {base_url} for all requests
+- Test the postman collection works by calling the requests with &#39;newman&#39; (command line)
+- Store requests in create, update, get, delete order where applicable, allowing newman to execute in order for basic testing
+- Use &#39;memory&#39; as the store_type 
+- add /test/postman/README.md documenting what the postman collection provides and how to run the collection with newman

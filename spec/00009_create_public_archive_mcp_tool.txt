@@ -1,0 +1,8 @@
+Create PublicArchiveTool using pointer_tool.rs as a template, using public_archive_service.rs instead of
+pointer_service.rs.
+
+Given pointer_tool.rs reflects pointer_controller.rs, ensure PublicArchiveTool reflects public_archive_controller.rs too.
+
+Ensure all public_archive_controller.rs endpoints are recreated as MCP tools (#[tool]).
+
+Provide unit test coverage for the new tool.

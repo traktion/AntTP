@@ -1,0 +1,30 @@
+As a software engineer
+I want to add a gRPC endpoint for PNR
+So that PNR can be created using third party gRPC clients
+
+Given pnr_controller.rs and pnr_service.rs exist
+When adding pnr_handler.rs
+Then it should reflect pnr_controller.rs
+And be added to a new &#39;grpc&#39; module under the root as grpc/pnr_handler.rs
+
+Given gRPC requires protobuffer definitions
+When adding pointer gRPC endpoints
+Then create gRPC service definition for pnr request/response messages in /proto/pnr.proto
+
+Given gRPC needs to be integrated with Tonic server
+When adding pnr gRPC endpoins
+Then update lib.rs to integrate the gRPC pnr handler
+
+Given there is a gRPC handler for pointers in /grpc/pointer_handler.rs
+When adding the pnr_handler.rs
+Then use pnr_handler.rs as an example
+
+Provide unit tests where applicable to grpc/pnr_handler.rs and related new code.
+
+Implementation Notes
+
+- Assume other handlers will be added in the future, following the same pattern, in /grpc directory/module
+- Define From traits to perform mapping between structs, including errors (use ?)
+- Use Actix Data instead of Arc
+- Place any unit tests at the bottom of the same file as the associated production code
+- Increment patch version of anttp package in Cargo.toml

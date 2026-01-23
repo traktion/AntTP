@@ -889,6 +889,24 @@
 									]
 								}
 							}
+						},
+						{
+							"name": "Get PNR",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/anttp-0/pnr/test_pnr",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"anttp-0",
+										"pnr",
+										"test_pnr"
+									]
+								}
+							}
 						}
 					]
 				}

@@ -43,8 +43,8 @@ impl From<String> for StoreType {
 
 fn get_store_type(request: &HttpRequest) -> StoreType {
     StoreType::from(
-        match request.headers().get("x-cache-only") {
-            Some(x_cache_only) => x_cache_only.to_str().unwrap_or("").to_string(),
+        match request.headers().get("x-store-type") {
+            Some(x_store_type) => x_store_type.to_str().unwrap_or("").to_string(),
             None => "".to_string()
         }
     )
@@ -100,5 +100,29 @@ mod tests {
         assert_eq!(StoreType::from("network".to_string()), StoreType::Network);
         assert_eq!(StoreType::from("other".to_string()), StoreType::Network);
         assert_eq!(StoreType::from("".to_string()), StoreType::Network);
+    }
+
+    #[test]
+    fn test_get_store_type() {
+        use actix_web::test::TestRequest;
+
+        let req = TestRequest::default()
+            .insert_header(("x-store-type", "memory"))
+            .to_http_request();
+        assert_eq!(get_store_type(&req), StoreType::Memory);
+
+        let req = TestRequest::default()
+            .insert_header(("x-store-type", "disk"))
+            .to_http_request();
+        assert_eq!(get_store_type(&req), StoreType::Disk);
+
+        let req = TestRequest::default()
+            .insert_header(("x-store-type", "network"))
+            .to_http_request();
+        assert_eq!(get_store_type(&req), StoreType::Network);
+
+        let req = TestRequest::default()
+            .to_http_request();
+        assert_eq!(get_store_type(&req), StoreType::Network);
     }
 }

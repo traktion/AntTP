@@ -17,7 +17,7 @@ use crate::service::scratchpad_service::{Scratchpad, ScratchpadService};
     ),
     params(
         ("name" = String, Path, description = "Public scratchpad name"),
-        ("x-cache-only", Header, description = "Only persist to cache and do not publish (memory|disk|none)",
+        ("x-store-type", Header, description = "Only persist to cache and do not publish (memory|disk|none)",
         example = "memory"),
     ),
 )]
@@ -54,7 +54,7 @@ pub async fn post_public_scratchpad(
     params(
         ("address" = String, Path, description = "Public scratchpad address"),
         ("name" = String, Path, description = "Public scratchpad name"),
-        ("x-cache-only", Header, description = "Only persist to cache and do not publish (memory|disk|none)",
+        ("x-store-type", Header, description = "Only persist to cache and do not publish (memory|disk|none)",
         example = "memory"),
     ),
 )]

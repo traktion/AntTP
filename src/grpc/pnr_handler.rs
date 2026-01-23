@@ -11,7 +11,7 @@ pub mod pnr_proto {
 
 use pnr_proto::pnr_service_server::PnrService as PnrServiceTrait;
 pub use pnr_proto::pnr_service_server::PnrServiceServer;
-use pnr_proto::{PnrZone, PnrRecord, PnrRecordType, PnrResponse, CreatePnrRequest, GetPnrRequest};
+use pnr_proto::{PnrZone, PnrRecord, PnrRecordType, PnrResponse, CreatePnrRequest, UpdatePnrRequest, GetPnrRequest};
 
 pub struct PnrHandler {
     pnr_service: Data<PnrService>,
@@ -109,6 +109,25 @@ impl PnrServiceTrait for PnrHandler {
         }))
     }
 
+    async fn update_pnr(
+        &self,
+        request: Request<UpdatePnrRequest>,
+    ) -> Result<Response<PnrResponse>, Status> {
+        let req = request.into_inner();
+        let pnr_zone = req.pnr_zone.ok_or_else(|| Status::invalid_argument("PnrZone is required"))?;
+
+        let result = self.pnr_service.update_pnr(
+            req.name,
+            ServicePnrZone::from(pnr_zone),
+            self.evm_wallet.get_ref().clone(),
+            StoreType::from(req.cache_only.unwrap_or_default()),
+        ).await?;
+
+        Ok(Response::new(PnrResponse {
+            pnr_zone: Some(PnrZone::from(result)),
+        }))
+    }
+
     async fn get_pnr(
         &self,
         request: Request<GetPnrRequest>,
@@ -158,6 +177,23 @@ mod tests {
         assert_eq!(service_zone.name, proto_zone.name);
         assert_eq!(service_zone.records.len(), 1);
         assert_eq!(service_zone.records[0].address, "address1");
+    }
+
+    #[tokio::test]
+    async fn test_update_pnr_request_mapping() {
+        let req = UpdatePnrRequest {
+            name: "example.com".to_string(),
+            pnr_zone: Some(PnrZone {
+                name: "example.com".to_string(),
+                records: vec![],
+                resolver_address: None,
+                personal_address: None,
+            }),
+            cache_only: Some("memory".to_string()),
+        };
+        assert_eq!(req.name, "example.com");
+        assert_eq!(req.pnr_zone.unwrap().name, "example.com");
+        assert_eq!(req.cache_only.unwrap(), "memory");
     }
 
     #[tokio::test]

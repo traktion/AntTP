@@ -419,11 +419,11 @@ e.g. http://localhost:18888/swagger-ui/ or http://anttp.antsnest.site/swagger-ui
 There are a number of different endpoints for uploading or downloading immutable and mutable data types. To upload data, uploads need to be enabled
 and a valid wallet address must be provided (see 'Run Instructions').
 
-Developers can use the `x-cache-only` header to only upload data to the AntTP instance, instead of uploading to the Autonomi Network. This
+Developers can use the `x-store-type` header to only upload data to the AntTP instance, instead of uploading to the Autonomi Network. This
 provides a number of use cases, from quickly/cheaply testing out new web apps, to local only storage for applications.
 
 Note that when uploading as 'cache only', the files remain on the AntTP instance and there are no charges to upload to the Autonomi Network. If
-the same data is subsequently uploaded without the `x-cache-only` header, it will charge the wallet and upload the data to the network.
+the same data is subsequently uploaded without the `x-store-type` header, it will charge the wallet and upload the data to the network.
 
 Developers should consider how this could easily provide preview modes for uploaded data (e.g. preview a blog before committing to the network),
 local per-user configuration data (e.g. arbitrary data that only the user needs to access), etc.

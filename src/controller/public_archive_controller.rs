@@ -18,7 +18,7 @@ use crate::controller::get_store_type;
         (status = CREATED, description = "Public archive created successfully", body = Upload)
     ),
     params(
-        ("x-cache-only", Header, description = "Only persist to cache and do not publish (memory|disk|none)",
+        ("x-store-type", Header, description = "Only persist to cache and do not publish (memory|disk|none)",
         example = "memory"),
     ),
 )]
@@ -48,7 +48,7 @@ pub async fn post_public_archive(
     ),
     params(
         ("address" = String, Path, description = "Public archive address"),
-        ("x-cache-only", Header, description = "Only persist to cache and do not publish (memory|disk|none)",
+        ("x-store-type", Header, description = "Only persist to cache and do not publish (memory|disk|none)",
         example = "memory"),
     ),
 )]

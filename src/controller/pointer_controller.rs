@@ -17,7 +17,7 @@ use crate::service::pointer_service::{Pointer, PointerService};
         (status = BAD_REQUEST, description = "Pointer body was invalid")
     ),
     params(
-        ("x-cache-only", Header, description = "Only persist to cache and do not publish (memory|disk|none)",
+        ("x-store-type", Header, description = "Only persist to cache and do not publish (memory|disk|none)",
         example = "memory"),
         ("x-data-key", Header, description = "Private key used to create mutable data (personal|resolver|'custom')",
         example = "personal"),
@@ -40,7 +40,7 @@ pub async fn post_pointer(
     path = "/anttp-0/pointer/{address}",
     params(
         ("address", description = "Address of pointer"),
-        ("x-cache-only", Header, description = "Only persist to cache and do not publish (memory|disk|none)",
+        ("x-store-type", Header, description = "Only persist to cache and do not publish (memory|disk|none)",
         example = "memory"),
         ("x-data-key", Header, description = "Private key used to create mutable data (personal|resolver|'custom')",
         example = "personal"),

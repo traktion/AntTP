@@ -19,7 +19,7 @@ use crate::service::chunk_service::{Chunk, ChunkService};
         (status = CREATED, description = "Chunk found successfully", body = Chunk),
     ),
     params(
-        ("x-cache-only", Header, description = "Only persist to cache and do not publish (memory|disk|none)",
+        ("x-store-type", Header, description = "Only persist to cache and do not publish (memory|disk|none)",
         example = "memory"),
     ),
 )]
@@ -45,7 +45,7 @@ pub async fn post_chunk(
         (status = CREATED, description = "Chunk uploaded successfully", body = Chunk),
     ),
     params(
-        ("x-cache-only", Header, description = "Only persist to cache and do not publish (memory|disk|none)",
+        ("x-store-type", Header, description = "Only persist to cache and do not publish (memory|disk|none)",
         example = "memory"),
     ),
 )]

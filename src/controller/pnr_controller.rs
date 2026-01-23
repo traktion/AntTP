@@ -18,7 +18,7 @@ use crate::service::pnr_service::PnrService;
         (status = BAD_REQUEST, description = "PNR zone body was invalid")
     ),
     params(
-        ("x-cache-only", Header, description = "Only persist to cache and do not publish (memory|disk|none)",
+        ("x-store-type", Header, description = "Only persist to cache and do not publish (memory|disk|none)",
         example = "memory"),
     ),
 )]

@@ -60,4 +60,4 @@ Key variables used:
 
 ## Store Type
 
-By default, the requests are configured with `x-cache-only: memory` header and `store_type: memory` in the body (where applicable) to avoid unnecessary persistence during testing.
+By default, the requests are configured with `x-store-type: memory` header and `store_type: memory` in the body (where applicable) to avoid unnecessary persistence during testing.

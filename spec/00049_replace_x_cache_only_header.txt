@@ -1,0 +1,26 @@
+As a REST API consumer
+I want to provide x-store-type header instead of x-cache-only
+So that it is more logical and is consistent with the service layer and other API endpoints
+
+Given x-cache-only header is currently used
+When x-store-type header is used instead
+Then all controller code in /src/controller that uses x-cache-only must be updated to use x-store-type
+And this includes variable names
+And this includes utoipa annotations
+
+Given the postman collection currently uses x-cache-only
+When the header is renamed to x-store-type
+Then the postman collection must be updated to reflect the change in header name
+And newman must be executed to verify the change
+
+Given documentation currently uses x-cache-only
+When the header is renamed to x-store-type
+Then the documentation (in .md files) must be updated to reflect the change in header name
+
+Provide unit tests where applicable for new code.
+
+Implementation Notes
+
+- Place any unit tests at the bottom of the same file as the associated production code
+- Increment patch version of anttp package in Cargo.toml
+- Create a copy of this issue description and save to /spec using the name of this issue as the filename (with lower underscore case, starting with the 5 char padded issue number, e.g. 00001_issue_title.txt)

@@ -1,0 +1,29 @@
+Add get PNR support to gRPC APIs
+As an gRPC API consumer
+I want to be able to get PNRs
+So that I can view the current state of the PNR zones
+
+Given pnr_handler.rs handles gRPC request for PNRs
+When adding GET PNR support
+Then update pnr_handler.rs to include a get_pnr function
+And use pointer_handler.rs as a reference
+
+Given pnr_service.rs implements get_pnr
+When adding GET PNR support
+Then call get_pnr in a similar way to pnr_controller.rs
+
+Given gRPC requires protobuffer definitions
+When adding get PNR support
+Then update gRPC service definition for PNR request/response messages in /proto/pnr.proto
+
+Given gRPC needs to be integrated with Tonic server
+When adding get PNR gRPC endpoint
+Then update build.rs to include pnr.proto changes
+
+Provide unit tests where applicable for new code.
+
+Implementation Notes
+
+- Place any unit tests at the bottom of the same file as the associated production code
+- Increment patch version of anttp package in Cargo.toml
+- Create a copy of this issue description and save to /spec using the name of this issue as the filename (with lower underscore case, starting with the 5 char padded issue number, e.g. 00001_issue_title.txt)

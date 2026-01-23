@@ -11,7 +11,7 @@ pub mod pnr_proto {
 
 use pnr_proto::pnr_service_server::PnrService as PnrServiceTrait;
 pub use pnr_proto::pnr_service_server::PnrServiceServer;
-use pnr_proto::{PnrZone, PnrRecord, PnrRecordType, PnrResponse, CreatePnrRequest};
+use pnr_proto::{PnrZone, PnrRecord, PnrRecordType, PnrResponse, CreatePnrRequest, GetPnrRequest};
 
 pub struct PnrHandler {
     pnr_service: Data<PnrService>,
@@ -108,6 +108,18 @@ impl PnrServiceTrait for PnrHandler {
             pnr_zone: Some(PnrZone::from(result)),
         }))
     }
+
+    async fn get_pnr(
+        &self,
+        request: Request<GetPnrRequest>,
+    ) -> Result<Response<PnrResponse>, Status> {
+        let req = request.into_inner();
+        let result = self.pnr_service.get_pnr(req.name).await?;
+
+        Ok(Response::new(PnrResponse {
+            pnr_zone: Some(PnrZone::from(result)),
+        }))
+    }
 }
 
 #[cfg(test)]
@@ -146,5 +158,13 @@ mod tests {
         assert_eq!(service_zone.name, proto_zone.name);
         assert_eq!(service_zone.records.len(), 1);
         assert_eq!(service_zone.records[0].address, "address1");
+    }
+
+    #[tokio::test]
+    async fn test_get_pnr_request_mapping() {
+        let req = GetPnrRequest {
+            name: "example.com".to_string(),
+        };
+        assert_eq!(req.name, "example.com");
     }
 }

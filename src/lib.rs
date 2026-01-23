@@ -293,11 +293,14 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> io::Result<()> {
             .app_data(web::PayloadConfig::new(1024 * 1024 * 10));
 
         if !ant_tp_config.uploads_disabled {
+            if !ant_tp_config.mcp_tools_disabled {
+                app = app
+                    .service(
+                        web::scope("/mcp-0")
+                            .service(mcp_tool_service.clone().scope())
+                    );
+            }
             app = app
-                .service(
-                    web::scope("/mcp-0")
-                        .service(mcp_tool_service.clone().scope())
-                )
                 .route(
                     format!("{}chunk", API_BASE).as_str(),
                     web::post().to(chunk_controller::post_chunk),

@@ -39,6 +39,9 @@ pub struct AntTpConfig {
     #[arg(short, long, default_value_t = false)]
     pub uploads_disabled: bool,
 
+    #[arg(short = 'M', default_value_t = false)]
+    pub mcp_tools_disabled: bool,
+
     #[arg(short, long, default_value_t = 5)]
     pub cached_mutable_ttl: u64,
 
@@ -76,6 +79,7 @@ impl AntTpConfig {
         info!("Wallet private key: [*****]");
         info!("Download threads: [{}]", ant_tp_config.download_threads);
         info!("Uploads disabled: [{}]", ant_tp_config.uploads_disabled);
+        info!("MCP tools disabled: [{}]", ant_tp_config.mcp_tools_disabled);
         if ant_tp_config.app_private_key.is_empty() {
             info!("No app/personal private key provided. Try this one: [{:?}]", SecretKey::random().to_hex());
         } else {
@@ -115,5 +119,26 @@ impl AntTpConfig {
             Ok(resolver_secret_key) => Ok(resolver_secret_key),
             Err(e) => Err(CreateError::DataKeyMissing(e.to_string()))
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_anttp_config_mcp_tools_disabled_default() {
+        // We can't easily test Parser::parse() without changing args, 
+        // but we can test the structure's default behavior if we had a way to construct it.
+        // Since we are using clap Parser, let's test with try_parse_from
+        
+        let config = AntTpConfig::try_parse_from(&["anttp"]).unwrap();
+        assert!(!config.mcp_tools_disabled);
+    }
+
+    #[test]
+    fn test_anttp_config_mcp_tools_disabled_short_arg() {
+        let config = AntTpConfig::try_parse_from(&["anttp", "-M"]).unwrap();
+        assert!(config.mcp_tools_disabled);
     }
 }

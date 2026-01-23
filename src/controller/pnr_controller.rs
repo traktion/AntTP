@@ -35,6 +35,28 @@ pub async fn post_pnr(
 }
 
 #[utoipa::path(
+    get,
+    path = "/anttp-0/pnr/{name}",
+    params(
+        ("name", description = "PNR name"),
+    ),
+    responses(
+        (status = OK, description = "PNR zone retrieved successfully", body = PnrZone),
+        (status = NOT_FOUND, description = "PNR zone not found")
+    ),
+)]
+pub async fn get_pnr(
+    path: web::Path<String>,
+    pnr_service: Data<PnrService>,
+) -> Result<HttpResponse, PointerError> {
+    let name = path.into_inner();
+    debug!("Getting PNR zone [{}]", name);
+    Ok(HttpResponse::Ok().json(
+        pnr_service.get_pnr(name).await?
+    ))
+}
+
+#[utoipa::path(
     put,
     path = "/anttp-0/pnr/{name}",
     params(

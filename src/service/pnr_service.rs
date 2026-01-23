@@ -6,6 +6,7 @@ use crate::model::pnr::PnrZone;
 use crate::service::pointer_service::{Pointer, PointerService};
 use crate::error::UpdateError;
 use actix_web::web::Data;
+use autonomi::ChunkAddress;
 use ant_protocol::storage::Chunk;
 use autonomi::client::payment::PaymentOption;
 use autonomi::Wallet;
@@ -72,11 +73,7 @@ impl PnrService {
     }
 
     pub async fn update_pnr(&self, name: String, pnr_zone: PnrZone, evm_wallet: Wallet, store_type: StoreType) -> Result<PnrZone, PointerError> {
-        let resolver_address = self.pointer_service.get_resolver_address(&name)?;
-        let personal_pointer_address = match self.pointer_service.get_pointer(resolver_address.clone()).await {
-            Ok(pointer) => pointer.content,
-            Err(e) => return Err(e),
-        };
+        let (resolver_address, personal_pointer_address) = self.resolve_pnr_addresses(&name).await?;
 
         match self.caching_client.chunk_put(
             &Chunk::new(Bytes::from(serde_json::to_vec(&pnr_zone).unwrap())),
@@ -106,5 +103,35 @@ impl PnrService {
             },
             Err(e) => Err(PointerError::UpdateError(UpdateError::InvalidData(e.to_string())))
         }
+    }
+
+    pub async fn get_pnr(&self, name: String) -> Result<PnrZone, PointerError> {
+        let (resolver_address, personal_pointer_address) = self.resolve_pnr_addresses(&name).await?;
+
+        match self.caching_client.chunk_get_internal(&ChunkAddress::from_hex(personal_pointer_address.as_str())?).await {
+            Ok(chunk) => {
+                match serde_json::from_slice::<PnrZone>(&chunk.value) {
+                    Ok(pnr_zone) => {
+                        Ok(PnrZone::new(
+                            name,
+                            pnr_zone.records,
+                            Some(resolver_address),
+                            Some(personal_pointer_address),
+                        ))
+                    },
+                    Err(e) => Err(PointerError::UpdateError(UpdateError::InvalidData(e.to_string())))
+                }
+            },
+            Err(e) => Err(PointerError::UpdateError(UpdateError::InvalidData(e.to_string())))
+        }
+    }
+
+    async fn resolve_pnr_addresses(&self, name: &String) -> Result<(String, String), PointerError> {
+        let resolver_address = self.pointer_service.get_resolver_address(name)?;
+        let personal_pointer_address = match self.pointer_service.get_pointer(resolver_address.clone()).await {
+            Ok(pointer) => pointer.content,
+            Err(e) => return Err(e),
+        };
+        Ok((resolver_address, personal_pointer_address))
     }
 }

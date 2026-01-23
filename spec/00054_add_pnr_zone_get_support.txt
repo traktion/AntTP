@@ -1,0 +1,39 @@
+As an API consumer
+I want to be able to get PNRs
+So that I can view the current state of the PNR zones
+
+Given pnr_service.rs is responsible for managing PNRs
+When getting a PNR
+Then use get_pointer in pointer_service.rs as an example
+And use update_pnr in pnr_service.rs as an example
+And accept a name as a parameter to lookup the resolver_address
+And use the resolve_address target to lookup the PNR zone chunk
+And then return the PNR zone chunk as a PnrZone
+And refactor update_pnr to share the same function to resolve the PNR zone from the name
+
+Given pnr_controller.rs handles REST request for PNRs
+When updating pnr_service.rs
+Then also update pnr_controller.rs to reflect the new GET operation
+And use put_pnr in pnr_controller.rs as an example
+And use URL format GET /anttp-0/pnr/{name} where name is the PNR name used to define the resolver address
+
+Given /lib.rs is responsible for integrating REST controllers
+When updating pnr_controller.rs
+Then also update /lib.rs to reflect the new GET operation
+And place the new get_pnr function within the primary section where uploads_disabled can be true or false
+And update openapi paths to include get_pnr
+
+Given the postman collection reflects the REST endpoints
+When updating pnr_controller.rs
+Then also update the postman collection to reflect the new GET operation
+And ensure it is added directly after the create and put operations
+And update the associated /test/postman/README.md
+And use newman to confirm both the collection and the new put_pnr endpoint work as expected
+
+Provide unit tests where applicable for new code.
+
+Implementation Notes
+
+- Place any unit tests at the bottom of the same file as the associated production code
+- Increment patch version of anttp package in Cargo.toml
+- Create a copy of this issue description and save to /spec using the name of this issue as the filename (with lower underscore case, starting with the 5 char padded issue number, e.g. 00001_issue_title.txt)

@@ -102,6 +102,7 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> io::Result<()> {
         public_data_controller::get_public_data,
         public_data_controller::post_public_data,
         command_controller::get_commands,
+        pnr_controller::get_pnr,
         pnr_controller::post_pnr,
         pnr_controller::put_pnr
     ))]
@@ -268,6 +269,10 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> io::Result<()> {
             .route(
                 format!("{}command", API_BASE).as_str(),
                 web::get().to(command_controller::get_commands)
+            )
+            .route(
+                format!("{}pnr/{{name}}", API_BASE).as_str(),
+                web::get().to(pnr_controller::get_pnr)
             )
             .route(
                 "/{path:.*}",

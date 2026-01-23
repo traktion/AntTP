@@ -102,7 +102,8 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> io::Result<()> {
         public_data_controller::get_public_data,
         public_data_controller::post_public_data,
         command_controller::get_commands,
-        pnr_controller::post_pnr
+        pnr_controller::post_pnr,
+        pnr_controller::put_pnr
     ))]
     struct ApiDoc;
 

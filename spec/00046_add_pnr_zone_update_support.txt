@@ -27,6 +27,7 @@ When updating pnr_service.rs
 Then also update pnr_controller.rs to reflect the new update operation
 And use put_pointer in pointer_controller.rs as an example
 And use URL format PUT /anttp-0/pnr/{name} where name is the PNR name used to define the resolver address
+And update openapi paths to include put_pnr
 
 Given /lib.rs is responsible for integrating REST controllers
 When updating pnr_controller.rs

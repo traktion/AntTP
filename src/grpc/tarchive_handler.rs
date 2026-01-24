@@ -74,7 +74,7 @@ impl TarchiveServiceTrait for TarchiveHandler {
         let result = self.tarchive_service.create_tarchive(
             public_archive_form,
             self.evm_wallet.get_ref().clone(),
-            StoreType::from(req.cache_only.unwrap_or_default())
+            StoreType::from(req.store_type.unwrap_or_default())
         ).await?;
 
         Ok(Response::new(TarchiveResponse::from(result)))
@@ -91,7 +91,7 @@ impl TarchiveServiceTrait for TarchiveHandler {
             req.address,
             public_archive_form,
             self.evm_wallet.get_ref().clone(),
-            StoreType::from(req.cache_only.unwrap_or_default())
+            StoreType::from(req.store_type.unwrap_or_default())
         ).await?;
 
         Ok(Response::new(TarchiveResponse::from(result)))

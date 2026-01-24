@@ -17,13 +17,13 @@ message Register {
 
 message CreateRegisterRequest {
   Register register = 1;
-  optional string cache_only = 2;
+  optional string store_type = 2;
 }
 
 message UpdateRegisterRequest {
   string address = 1;
   Register register = 2;
-  optional string cache_only = 3;
+  optional string store_type = 3;
 }
 
 message GetRegisterRequest {

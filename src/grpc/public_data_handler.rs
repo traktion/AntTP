@@ -41,7 +41,7 @@ impl PublicServiceTrait for PublicDataHandler {
         let result = self.public_data_service.create_public_data(
             req.data.into(),
             self.evm_wallet.get_ref().clone(),
-            StoreType::from(req.cache_only.unwrap_or_default()),
+            StoreType::from(req.store_type.unwrap_or_default()),
         ).await?;
 
         Ok(Response::new(PublicDataResponse {

@@ -81,7 +81,7 @@ impl GraphServiceTrait for GraphHandler {
         let result = self.graph_service.create_graph_entry(
             ServiceGraphEntry::from(graph_entry),
             self.evm_wallet.get_ref().clone(),
-            StoreType::from(req.cache_only.unwrap_or_default()),
+            StoreType::from(req.store_type.unwrap_or_default()),
         ).await?;
 
         Ok(Response::new(GraphResponse {

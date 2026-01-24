@@ -58,7 +58,7 @@ impl RegisterServiceTrait for RegisterHandler {
         let result = self.register_service.create_register(
             ServiceRegister::from(register),
             self.evm_wallet.get_ref().clone(),
-            StoreType::from(req.cache_only.unwrap_or_default()),
+            StoreType::from(req.store_type.unwrap_or_default()),
         ).await?;
 
         Ok(Response::new(RegisterResponse {
@@ -77,7 +77,7 @@ impl RegisterServiceTrait for RegisterHandler {
             req.address,
             ServiceRegister::from(register),
             self.evm_wallet.get_ref().clone(),
-            StoreType::from(req.cache_only.unwrap_or_default()),
+            StoreType::from(req.store_type.unwrap_or_default()),
         ).await?;
 
         Ok(Response::new(RegisterResponse {

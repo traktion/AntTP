@@ -73,7 +73,7 @@ impl PublicArchiveServiceTrait for PublicArchiveHandler {
         let result = self.public_archive_service.create_public_archive(
             public_archive_form,
             self.evm_wallet.get_ref().clone(),
-            StoreType::from(req.cache_only.unwrap_or_default())
+            StoreType::from(req.store_type.unwrap_or_default())
         ).await?;
 
         Ok(Response::new(PublicArchiveResponse::from(result)))
@@ -90,7 +90,7 @@ impl PublicArchiveServiceTrait for PublicArchiveHandler {
             req.address,
             public_archive_form,
             self.evm_wallet.get_ref().clone(),
-            StoreType::from(req.cache_only.unwrap_or_default())
+            StoreType::from(req.store_type.unwrap_or_default())
         ).await?;
 
         Ok(Response::new(PublicArchiveResponse::from(result)))

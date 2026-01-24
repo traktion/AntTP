@@ -61,7 +61,7 @@ impl ChunkServiceTrait for ChunkHandler {
         let result = self.chunk_service.create_chunk(
             ServiceChunk::from(chunk),
             self.evm_wallet.get_ref().clone(),
-            StoreType::from(req.cache_only.unwrap_or_default()),
+            StoreType::from(req.store_type.unwrap_or_default()),
         ).await?;
 
         Ok(Response::new(ChunkResponse {
@@ -78,7 +78,7 @@ impl ChunkServiceTrait for ChunkHandler {
         let result = self.chunk_service.create_chunk_binary(
             Bytes::from(req.data),
             self.evm_wallet.get_ref().clone(),
-            StoreType::from(req.cache_only.unwrap_or_default()),
+            StoreType::from(req.store_type.unwrap_or_default()),
         ).await?;
 
         Ok(Response::new(ChunkResponse {

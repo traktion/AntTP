@@ -14,13 +14,13 @@ message File {
 
 message CreatePublicArchiveRequest {
   repeated File files = 1;
-  optional string cache_only = 2;
+  optional string store_type = 2;
 }
 
 message UpdatePublicArchiveRequest {
   string address = 1;
   repeated File files = 2;
-  optional string cache_only = 3;
+  optional string store_type = 3;
 }
 
 message PublicArchiveResponse {

@@ -22,7 +22,7 @@ message GraphEntry {
 
 message CreateGraphEntryRequest {
   GraphEntry graph_entry = 1;
-  optional string cache_only = 2;
+  optional string store_type = 2;
 }
 
 message GetGraphEntryRequest {

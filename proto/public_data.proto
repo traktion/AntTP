@@ -13,7 +13,7 @@ message PublicData {
 
 message CreatePublicDataRequest {
   bytes data = 1;
-  optional string cache_only = 2;
+  optional string store_type = 2;
 }
 
 message PublicDataResponse {

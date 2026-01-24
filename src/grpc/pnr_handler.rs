@@ -101,7 +101,7 @@ impl PnrServiceTrait for PnrHandler {
         let result = self.pnr_service.create_pnr(
             ServicePnrZone::from(pnr_zone),
             self.evm_wallet.get_ref().clone(),
-            StoreType::from(req.cache_only.unwrap_or_default()),
+            StoreType::from(req.store_type.unwrap_or_default()),
         ).await?;
 
         Ok(Response::new(PnrResponse {
@@ -120,7 +120,7 @@ impl PnrServiceTrait for PnrHandler {
             req.name,
             ServicePnrZone::from(pnr_zone),
             self.evm_wallet.get_ref().clone(),
-            StoreType::from(req.cache_only.unwrap_or_default()),
+            StoreType::from(req.store_type.unwrap_or_default()),
         ).await?;
 
         Ok(Response::new(PnrResponse {
@@ -189,11 +189,11 @@ mod tests {
                 resolver_address: None,
                 personal_address: None,
             }),
-            cache_only: Some("memory".to_string()),
+            store_type: Some("memory".to_string()),
         };
         assert_eq!(req.name, "example.com");
         assert_eq!(req.pnr_zone.unwrap().name, "example.com");
-        assert_eq!(req.cache_only.unwrap(), "memory");
+        assert_eq!(req.store_type.unwrap(), "memory");
     }
 
     #[tokio::test]

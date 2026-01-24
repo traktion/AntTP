@@ -66,7 +66,7 @@ impl PointerServiceTrait for PointerHandler {
         let result = self.pointer_service.create_pointer(
             ServicePointer::from(pointer),
             self.evm_wallet.get_ref().clone(),
-            StoreType::from(req.cache_only.unwrap_or_default()),
+            StoreType::from(req.store_type.unwrap_or_default()),
             DataKey::from(req.data_key.unwrap_or_default()),
         ).await?;
 
@@ -85,7 +85,7 @@ impl PointerServiceTrait for PointerHandler {
         let result = self.pointer_service.update_pointer(
             req.address,
             ServicePointer::from(pointer),
-            StoreType::from(req.cache_only.unwrap_or_default()),
+            StoreType::from(req.store_type.unwrap_or_default()),
             DataKey::from(req.data_key.unwrap_or_default()),
         ).await?;
 

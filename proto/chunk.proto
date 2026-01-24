@@ -16,12 +16,12 @@ message Chunk {
 
 message CreateChunkRequest {
   Chunk chunk = 1;
-  optional string cache_only = 2;
+  optional string store_type = 2;
 }
 
 message CreateChunkBinaryRequest {
   bytes data = 1;
-  optional string cache_only = 2;
+  optional string store_type = 2;
 }
 
 message GetChunkRequest {

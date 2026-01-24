@@ -68,7 +68,7 @@ impl PublicScratchpadServiceTrait for PublicScratchpadHandler {
             ServiceScratchpad::from(scratchpad),
             self.evm_wallet.get_ref().clone(),
             false,
-            StoreType::from(req.cache_only.unwrap_or_default()),
+            StoreType::from(req.store_type.unwrap_or_default()),
         ).await?;
 
         Ok(Response::new(PublicScratchpadResponse {
@@ -89,7 +89,7 @@ impl PublicScratchpadServiceTrait for PublicScratchpadHandler {
             ServiceScratchpad::from(scratchpad),
             self.evm_wallet.get_ref().clone(),
             false,
-            StoreType::from(req.cache_only.unwrap_or_default()),
+            StoreType::from(req.store_type.unwrap_or_default()),
         ).await?;
 
         Ok(Response::new(PublicScratchpadResponse {

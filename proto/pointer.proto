@@ -18,14 +18,14 @@ message Pointer {
 
 message CreatePointerRequest {
   Pointer pointer = 1;
-  optional string cache_only = 2;
+  optional string store_type = 2;
   optional string data_key = 3;
 }
 
 message UpdatePointerRequest {
   string address = 1;
   Pointer pointer = 2;
-  optional string cache_only = 3;
+  optional string store_type = 3;
   optional string data_key = 4;
 }
 

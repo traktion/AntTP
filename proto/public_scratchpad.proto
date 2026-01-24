@@ -13,14 +13,14 @@ service PublicScratchpadService {
 message CreatePublicScratchpadRequest {
   string name = 1;
   scratchpad_proto.Scratchpad scratchpad = 2;
-  optional string cache_only = 3;
+  optional string store_type = 3;
 }
 
 message UpdatePublicScratchpadRequest {
   string address = 1;
   string name = 2;
   scratchpad_proto.Scratchpad scratchpad = 3;
-  optional string cache_only = 4;
+  optional string store_type = 4;
 }
 
 message GetPublicScratchpadRequest {

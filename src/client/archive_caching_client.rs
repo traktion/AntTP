@@ -2,18 +2,31 @@ use autonomi::files::archive_public::ArchiveAddress;
 use autonomi::files::PublicArchive;
 use log::{info};
 use tokio::join;
-use crate::client::{CachingClient, ARCHIVE_CACHE_KEY};
+use crate::client::{CachingClient, ARCHIVE_CACHE_KEY, PublicArchiveCachingClient, TArchiveCachingClient};
 use crate::error::archive_error::ArchiveError;
 use crate::model::archive::Archive;
 
-impl CachingClient {
+#[derive(Debug, Clone)]
+pub struct ArchiveCachingClient {
+    caching_client: CachingClient,
+}
+
+impl ArchiveCachingClient {
+    pub fn new(caching_client: CachingClient) -> Self {
+        Self { caching_client }
+    }
 
     pub async fn archive_get(&self, addr: ArchiveAddress) -> Result<Archive, ArchiveError> {
         // todo: could remove caching of sub-calls, unless called directly elsewhere?
-        let local_caching_client = self.clone();
+        let local_caching_client = self.caching_client.clone();
         let local_address = addr.clone();
-        let cache_entry = self.hybrid_cache.get_ref().fetch(format!("{}{}", ARCHIVE_CACHE_KEY, local_address.to_hex()), || async move {
-            let (public_archive, tarchive) = join!(local_caching_client.archive_get_public_raw(&addr), local_caching_client.get_archive_from_tar(&addr));
+        let cache_entry = self.caching_client.hybrid_cache.get_ref().fetch(format!("{}{}", ARCHIVE_CACHE_KEY, local_address.to_hex()), || async move {
+            let public_archive_caching_client = PublicArchiveCachingClient::new(local_caching_client.clone());
+            let tarchive_caching_client = TArchiveCachingClient::new(local_caching_client.clone());
+            let (public_archive, tarchive) = join!(
+                public_archive_caching_client.archive_get_public_raw(&addr),
+                tarchive_caching_client.get_archive_from_tar(&addr)
+            );
             match public_archive {
                 Ok(bytes) => match PublicArchive::from_bytes(bytes) {
                     Ok(public_archive) => {

@@ -6,7 +6,7 @@ use log::debug;
 use mime::{Mime, APPLICATION_JSON, TEXT_HTML};
 use crate::config::anttp_config::AntTpConfig;
 use crate::service::public_archive_service::PublicArchiveService;
-use crate::client::CachingClient;
+use crate::client::{CachingClient};
 use crate::error::GetError;
 use crate::error::chunk_error::ChunkError;
 use crate::service::archive_helper::{ArchiveAction, ArchiveHelper, ArchiveInfo};
@@ -35,7 +35,7 @@ pub async fn get_public_data(
             } else if resolved_address.archive.is_some() {
                 debug!("Retrieving file from archive [{:x}]", resolved_address.xor_name);
                 let file_service = FileService::new(caching_client.clone(), ant_tp_config.download_threads);
-                let public_archive_service = PublicArchiveService::new(file_service, caching_client);
+                let public_archive_service = PublicArchiveService::new(file_service, caching_client.clone());
                 let archive_info = public_archive_service.get_archive_info(&resolved_address, &request).await;
 
                 match archive_info.action {

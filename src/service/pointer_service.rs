@@ -4,7 +4,7 @@ use autonomi::pointer::PointerTarget;
 use log::{info, warn};
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
-use crate::client::CachingClient;
+use crate::client::{CachingClient, PointerCachingClient};
 use crate::error::{CreateError, UpdateError};
 use crate::config::anttp_config::AntTpConfig;
 use crate::controller::{StoreType, DataKey};
@@ -49,7 +49,7 @@ impl PointerService {
 
                 let pointer_target = self.get_pointer_target(&pointer.content)?;
                 info!("Create pointer from name [{}] for chunk [{}]", name, &pointer.content);
-                let pointer_address = self.caching_client
+                let pointer_address = PointerCachingClient::new(self.caching_client.clone())
                     .pointer_create(&pointer_key, pointer_target, pointer.counter, PaymentOption::from(&evm_wallet), store_type)
                     .await?;
                 info!("Queued command to create pointer at [{}]", pointer_address.to_hex());
@@ -73,7 +73,7 @@ impl PointerService {
 
                 let pointer_target = self.get_pointer_target(&pointer.content)?;
                 info!("Update pointer with name [{}] for chunk [{}]", name, &pointer.content);
-                self.caching_client.pointer_update(&pointer_key, pointer_target, pointer.counter, store_type).await?;
+                PointerCachingClient::new(self.caching_client.clone()).pointer_update(&pointer_key, pointer_target, pointer.counter, store_type).await?;
                 info!("Updated pointer with name [{}]", name);
                 Ok(Pointer::new(Some(name), pointer.content, Some(resolved_address), None, None))
             },
@@ -110,7 +110,7 @@ impl PointerService {
 
         info!("Get pointer with resolved_address [{}]", resolved_address);
         let pointer_address = PointerAddress::from_hex(resolved_address.as_str())?;
-        let pointer = self.caching_client.pointer_get(&pointer_address).await?;
+        let pointer = PointerCachingClient::new(self.caching_client.clone()).pointer_get(&pointer_address).await?;
         info!("Retrieved pointer at address [{}] value [{}]", resolved_address, pointer.target().to_hex());
         Ok(Pointer::new(None, pointer.target().to_hex(), Some(resolved_address), Some(pointer.counter()), None))
     }

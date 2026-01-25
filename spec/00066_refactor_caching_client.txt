@@ -1,0 +1,27 @@
+As a software engineer
+I want to split CachingClient into per data type clients, with only core behaviour remaining in CachingClient 
+So that each data type specific CachingClient is easier to test and mock independently of the others
+
+Given there is already CachingClient impl for each data type
+When breaking CachingClient down
+Then use the split lines provided by the file name convention
+And create a new struct for each data type, e.g. PointerCachingClient for pointer_caching_client.rs
+And create a new() function for each with only the dependencies needed for the per data type CachingClient
+And all CachingClient impls are contained within /src/client, including archive_caching_client.rs, caching_client.rs, chunk_caching_client.rs, graph_entry_caching_client.rs, pointer_caching_client.rs, public_archive_caching_client.rs, public_data_caching_client.rs, register_caching_client.rs, scratchpad_caching_client.rs and tarchive_caching_client.rs
+
+Given there is common functionality already in CachingClient
+When breaking CachingClient down
+Then leave all behaviour contained within caching_client.rs unchanged as CachingClient impl
+And inject this reduced CachingClient struct into the newly created per data type CachingClients, e.g. PointerCachingClient 
+
+Given CachingClient is a dependency for a number other structs
+When breaking CachingClient down
+Then ensure the correct new per data CachingClient (depending on methods used) and include additional per data CachingClients where necessary to provide all the methods needed
+
+Provide unit tests where applicable for new code.
+
+Implementation Notes
+
+- Place any unit tests at the bottom of the same file as the associated production code
+- Increment patch version of anttp package in Cargo.toml
+- Create a copy of this issue description and save to /spec using the name of this issue as the filename (with lower underscore case, starting with the 5 char padded issue number, e.g. 00001_issue_title.txt)

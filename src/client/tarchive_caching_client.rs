@@ -6,16 +6,24 @@ use crate::client::caching_client::ARCHIVE_TAR_IDX_BYTES;
 use crate::client::{CachingClient, TARCHIVE_CACHE_KEY};
 use crate::error::GetError;
 
-impl CachingClient {
+#[derive(Debug, Clone)]
+pub struct TArchiveCachingClient {
+    caching_client: CachingClient,
+}
+
+impl TArchiveCachingClient {
+    pub fn new(caching_client: CachingClient) -> Self {
+        Self { caching_client }
+    }
 
     pub async fn get_archive_from_tar(&self, addr: &DataAddress) -> Result<Bytes, GetError> {
-        let local_caching_client = self.clone();
+        let local_caching_client = self.caching_client.clone();
         let local_address = addr.clone();
-        let cache_entry = self.hybrid_cache.get_ref().fetch(format!("{}{}", TARCHIVE_CACHE_KEY, local_address.to_hex()), || async move {
+        let cache_entry = self.caching_client.hybrid_cache.get_ref().fetch(format!("{}{}", TARCHIVE_CACHE_KEY, local_address.to_hex()), || async move {
             let trailer_bytes = local_caching_client.download_stream(&local_address, -20480, 0).await;
             match trailer_bytes {
                 Ok(trailer_bytes) => {
-                    match CachingClient::find_subsequence(trailer_bytes.iter().as_slice(), ARCHIVE_TAR_IDX_BYTES) {
+                    match TArchiveCachingClient::find_subsequence(trailer_bytes.iter().as_slice(), ARCHIVE_TAR_IDX_BYTES) {
                         Some(idx) => {
                             debug!("archive.tar.idx was found in archive.tar");
                             let archive_idx_range_start = idx + 512 + 1;

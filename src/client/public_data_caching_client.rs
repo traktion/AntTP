@@ -10,7 +10,15 @@ use crate::error::{CreateError, GetError};
 use crate::controller::StoreType;
 use crate::error::public_data_error::PublicDataError;
 
-impl CachingClient {
+#[derive(Debug, Clone)]
+pub struct PublicDataCachingClient {
+    caching_client: CachingClient,
+}
+
+impl PublicDataCachingClient {
+    pub fn new(caching_client: CachingClient) -> Self {
+        Self { caching_client }
+    }
 
     pub async fn data_put_public(
         &self,
@@ -22,9 +30,9 @@ impl CachingClient {
         let data_address = self.cache_public_data(data.clone(), store_type.clone()).await?;
         if store_type == StoreType::Network {
             let command = Box::new(
-                CreatePublicDataCommand::new(self.client_harness.clone(), data, payment_option)
+                CreatePublicDataCommand::new(self.caching_client.client_harness.clone(), data, payment_option)
             );
-            self.send_create_command(command).await?;
+            self.caching_client.send_create_command(command).await?;
         }
         Ok(data_address)
     }
@@ -40,10 +48,10 @@ impl CachingClient {
                 for chunk in chunks {
                     if store_type == StoreType::Disk {
                         info!("updating disk cache with chunk at address [{}]", chunk.address.to_hex());
-                        self.hybrid_cache.insert(format!("{}", chunk.address.to_hex()), chunk.value.to_vec());
+                        self.caching_client.hybrid_cache.insert(format!("{}", chunk.address.to_hex()), chunk.value.to_vec());
                     } else {
                         info!("updating cache with chunk at address [{}]", chunk.address.to_hex());
-                        self.hybrid_cache.memory().insert(format!("{}", chunk.address.to_hex()), chunk.value.to_vec());
+                        self.caching_client.hybrid_cache.memory().insert(format!("{}", chunk.address.to_hex()), chunk.value.to_vec());
                     }
                 }
                 Ok(data_address)
@@ -53,7 +61,7 @@ impl CachingClient {
     }
 
     pub async fn data_get_public(&self, addr: &DataAddress) -> Result<Bytes, PublicDataError> {
-        match self.download_stream(addr, 0, 0).await {
+        match self.caching_client.download_stream(addr, 0, 0).await {
             Ok(bytes) => {
                 info!("retrieved public data for [{}] with size [{}]", addr.to_hex(), bytes.len());
                 Ok(bytes)

@@ -7,7 +7,7 @@ use autonomi::register::{RegisterAddress};
 use log::{debug, error, info};
 use tokio::sync::Mutex;
 use xor_name::XorName;
-use crate::client::CachingClient;
+use crate::client::{ArchiveCachingClient, CachingClient, PointerCachingClient, RegisterCachingClient};
 use crate::model::archive::Archive;
 use crate::service::access_checker::AccessChecker;
 use crate::service::pointer_name_resolver::PointerNameResolver;
@@ -110,7 +110,7 @@ impl ResolverService {
             if !is_modified || !is_allowed {
                 Some(ResolvedAddress::new(true, None, archive_directory_xor_name, archive_file_path.clone(), is_resolved_from_mutable, is_modified, is_allowed, ttl))
             } else {
-                match self.caching_client.archive_get(archive_address).await {
+                match ArchiveCachingClient::new(self.caching_client.clone()).archive_get(archive_address).await {
                     Ok(archive) => {
                         debug!("Found archive at [{:x}]", archive_directory_xor_name);
                         Some(ResolvedAddress::new(true, Some(archive), archive_directory_xor_name, archive_file_path.clone(), is_resolved_from_mutable, is_modified, is_allowed, ttl))
@@ -158,13 +158,13 @@ impl ResolverService {
         // todo: analyze other types in a performant way - assume only pointers/registers for now
         // todo: could do both + join, but it may slow get pointer response
         match PointerAddress::from_hex(address) {
-            Ok(pointer_address) => match self.caching_client.pointer_get(&pointer_address).await.ok() {
+            Ok(pointer_address) => match PointerCachingClient::new(self.caching_client.clone()).pointer_get(&pointer_address).await.ok() {
                 Some(pointer) => {
                     info!("Analyze found pointer at address [{}] with target [{}]", address, pointer.clone().target().to_hex());
                     Some(DataAddress::from_hex(pointer.clone().target().to_hex().as_str()).unwrap())
                 }
                 None => {
-                    match self.caching_client.register_get(&RegisterAddress::from_hex(address).unwrap()).await.ok() {
+                    match RegisterCachingClient::new(self.caching_client.clone()).register_get(&RegisterAddress::from_hex(address).unwrap()).await.ok() {
                         Some(register_value) => {
                             info!("Analyze found register at address [{}] with value [{}]", address, hex::encode(register_value.clone()));
                             Some(DataAddress::from_hex(hex::encode(register_value.clone()).as_str()).unwrap())

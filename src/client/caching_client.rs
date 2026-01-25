@@ -13,10 +13,12 @@ use futures_util::StreamExt;
 use tokio::sync::mpsc::Sender;
 use tokio::sync::Mutex;
 use crate::client::CachingClient;
+use crate::client::chunk_caching_client::ChunkCachingClient;
 use crate::client::client_harness::ClientHarness;
 use crate::client::command::Command;
 use crate::error::{CheckError, CreateError, GetError, GetStreamError, UpdateError};
 use crate::error::chunk_error::ChunkError;
+
 
 pub const ARCHIVE_TAR_IDX_BYTES: &[u8] = "\0archive.tar.idx\0".as_bytes();
 
@@ -26,7 +28,8 @@ impl Job for CachingClient {
         Some("1/10 * * * * *".parse().unwrap())
     }
     async fn handle(&mut self) {
-        self.client_harness.get_ref().lock().await.try_sleep();
+        let mut harness = self.client_harness.get_ref().lock().await;
+        harness.try_sleep();
     }
 }
 
@@ -55,7 +58,7 @@ impl CachingClient {
         range_to: i64,
     ) -> Result<Bytes, ChunkError> {
         // todo: combine with file_service code
-        match self.chunk_get_internal(&ChunkAddress::new(*addr.xorname())).await {
+        match ChunkCachingClient::new(self.clone()).chunk_get_internal(&ChunkAddress::new(*addr.xorname())).await {
             Ok(data_map_chunk) => {
                 let chunk_streamer = ChunkStreamer::new(addr.to_hex(), data_map_chunk.value, self.clone(), self.ant_tp_config.download_threads);
                 // only retrieve the size when it is needed
@@ -87,7 +90,7 @@ impl CachingClient {
                     }
                 };
 
-                let mut chunk_receiver = match chunk_streamer.open(derived_range_from, derived_range_to).await {
+                let mut chunk_receiver: chunk_streamer::chunk_receiver::ChunkReceiver = match chunk_streamer.open(derived_range_from, derived_range_to).await {
                     Ok(chunk_receiver) => chunk_receiver,
                     Err(e) => return Err(ChunkError::GetStreamError(GetStreamError::BadReceiver(format!("failed to open chunk stream: {}", e)))),
                 };

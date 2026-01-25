@@ -9,11 +9,22 @@ use crate::error::CreateError;
 use crate::controller::StoreType;
 use crate::error::public_archive_error::PublicArchiveError;
 
-impl CachingClient {
+#[derive(Debug, Clone)]
+pub struct PublicArchiveCachingClient {
+    caching_client: CachingClient,
+}
+
+impl PublicArchiveCachingClient {
+    pub fn new(caching_client: CachingClient) -> Self {
+        Self { caching_client }
+    }
 
     pub async fn archive_put_public(&self, archive: &PublicArchive, payment_option: PaymentOption, store_type: StoreType) -> Result<ArchiveAddress, PublicArchiveError> {
         match archive.to_bytes() {
-            Ok(bytes) => Ok(self.data_put_public(bytes, payment_option, store_type).await?),
+            Ok(bytes) => {
+                let public_data_caching_client = crate::client::PublicDataCachingClient::new(self.caching_client.clone());
+                Ok(public_data_caching_client.data_put_public(bytes, payment_option, store_type).await?)
+            },
             Err(e) => Err(CreateError::Serialization(format!("Failed to serialize archive: {}", e.to_string())).into()),
         }
     }
@@ -30,9 +41,9 @@ impl CachingClient {
     }
 
     pub async fn archive_get_public_raw(&self, addr: &DataAddress) -> Result<Bytes, PublicArchiveError> {
-        let local_caching_client = self.clone();
+        let local_caching_client = self.caching_client.clone();
         let local_address = addr.clone();
-        match self.hybrid_cache.get_ref().fetch(format!("{}{}", PUBLIC_ARCHIVE_CACHE_KEY, local_address.to_hex()), || async move {
+        match self.caching_client.hybrid_cache.get_ref().fetch(format!("{}{}", PUBLIC_ARCHIVE_CACHE_KEY, local_address.to_hex()), || async move {
             // todo: optimise range_to to first chunk length (to avoid downloading other chunks when not needed)
             let maybe_bytes = local_caching_client.download_stream(&local_address, 0, 524288).await;
             match maybe_bytes {

@@ -6,7 +6,7 @@ use bytes::Bytes;
 use log::{info, warn};
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
-use crate::client::CachingClient;
+use crate::client::{CachingClient, ScratchpadCachingClient};
 use crate::error::{GetError, UpdateError};
 use crate::config::anttp_config::AntTpConfig;
 use crate::controller::StoreType;
@@ -51,12 +51,12 @@ impl ScratchpadService {
         info!("Create scratchpad from name [{}] for data sized [{}]", name, content.len());
         let decoded_content = Bytes::from(BASE64_STANDARD.decode(content).unwrap_or_else(|_| Vec::new()));
         let scratchpad_address = if is_encrypted {
-            self.caching_client
+            ScratchpadCachingClient::new(self.caching_client.clone())
                 .scratchpad_create(
                     &scratchpad_key, 1, &decoded_content, PaymentOption::from(&evm_wallet), store_type)
                 .await?
         } else {
-            self.caching_client
+            ScratchpadCachingClient::new(self.caching_client.clone())
                 .scratchpad_create_public(
                     &scratchpad_key, 1, &decoded_content, PaymentOption::from(&evm_wallet), store_type)
                 .await?
@@ -78,12 +78,12 @@ impl ScratchpadService {
         info!("Update {}scratchpad with name [{}] with data sized [{}]", if !is_encrypted { "public " } else { "" }, name, content.len());
         let decoded_content = BASE64_STANDARD.decode(content.clone()).unwrap_or_else(|_| Vec::new());
         if is_encrypted {
-            self.caching_client
+            ScratchpadCachingClient::new(self.caching_client.clone())
                 .scratchpad_update(
                     &scratchpad_key, 1, &Bytes::from(decoded_content.clone()), store_type)
                 .await?
         } else {
-            self.caching_client
+            ScratchpadCachingClient::new(self.caching_client.clone())
                 .scratchpad_update_public(
                     &scratchpad_key, 1, &Bytes::from(decoded_content.clone()), PaymentOption::from(&evm_wallet), store_type)
                 .await?
@@ -95,7 +95,7 @@ impl ScratchpadService {
     pub async fn get_scratchpad(&self, address: String, name: Option<String>, is_encrypted: bool) -> Result<Scratchpad, ScratchpadError> {
         match ScratchpadAddress::from_hex(address.as_str()) {
             Ok(scratchpad_address) => {
-                let scratchpad = self.caching_client.scratchpad_get(&scratchpad_address).await?;
+                let scratchpad = ScratchpadCachingClient::new(self.caching_client.clone()).scratchpad_get(&scratchpad_address).await?;
                 info!("Retrieved {}scratchpad at address [{}] with data sized [{}]", if !is_encrypted { "public " } else { "" }, address, scratchpad.encrypted_data().len());
                 let content = self.get_scratchpad_content(&address, name, is_encrypted, &scratchpad)?;
                 let signature = BASE64_STANDARD.encode(scratchpad.signature().to_bytes());

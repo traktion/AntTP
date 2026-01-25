@@ -1,4 +1,4 @@
-use crate::client::{CachingClient, ChunkCachingClient};
+use crate::client::ChunkCachingClient;
 use crate::controller::{StoreType, DataKey};
 use crate::error::pointer_error::PointerError;
 use crate::error::CreateError;
@@ -13,13 +13,13 @@ use bytes::Bytes;
 
 #[derive(Debug, Clone)]
 pub struct PnrService {
-    caching_client: CachingClient,
+    chunk_caching_client: ChunkCachingClient,
     pointer_service: Data<PointerService>
 }
 
 impl PnrService {
-    pub fn new(caching_client: CachingClient, pointer_service: Data<PointerService>) -> Self {
-        Self { caching_client, pointer_service }
+    pub fn new(chunk_caching_client: ChunkCachingClient, pointer_service: Data<PointerService>) -> Self {
+        Self { chunk_caching_client, pointer_service }
     }
 
     pub async fn create_pnr(&self, pnr_zone: PnrZone, evm_wallet: Wallet, store_type: StoreType) -> Result<PnrZone, PointerError> {
@@ -28,7 +28,7 @@ impl PnrService {
         2. Create mutable personal pointer to above chunk
         3. Create immutable (TTL=MAX) resolver pointer to personal pointer
          */
-        match ChunkCachingClient::new(self.caching_client.clone()).chunk_put(
+        match self.chunk_caching_client.chunk_put(
             &Chunk::new(Bytes::from(serde_json::to_vec(&pnr_zone).unwrap())),
             PaymentOption::from(&evm_wallet),
             store_type.clone()
@@ -74,7 +74,7 @@ impl PnrService {
     pub async fn update_pnr(&self, name: String, pnr_zone: PnrZone, evm_wallet: Wallet, store_type: StoreType) -> Result<PnrZone, PointerError> {
         let (resolver_address, personal_pointer_address) = self.resolve_personal_address(&name).await?;
 
-        match ChunkCachingClient::new(self.caching_client.clone()).chunk_put(
+        match self.chunk_caching_client.chunk_put(
             &Chunk::new(Bytes::from(serde_json::to_vec(&pnr_zone).unwrap())),
             PaymentOption::from(&evm_wallet),
             store_type.clone()
@@ -110,7 +110,7 @@ impl PnrService {
         let personal_pointer = self.pointer_service.get_pointer(personal_pointer_address.clone()).await?;
         let pnr_zone_address = personal_pointer.content;
 
-        match ChunkCachingClient::new(self.caching_client.clone()).chunk_get_internal(&ant_protocol::storage::ChunkAddress::from_hex(&pnr_zone_address)?).await {
+        match self.chunk_caching_client.chunk_get_internal(&ant_protocol::storage::ChunkAddress::from_hex(&pnr_zone_address)?).await {
             Ok(chunk) => {
                 let pnr_zone: PnrZone = serde_json::from_slice(chunk.value.as_ref())
                     .map_err(|e| PointerError::UpdateError(UpdateError::InvalidData(e.to_string())))?;

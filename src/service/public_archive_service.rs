@@ -13,7 +13,7 @@ use autonomi::files::archive_public::ArchiveAddress;
 use chunk_streamer::chunk_receiver::ChunkReceiver;
 use log::{debug, info, warn};
 use crate::service::archive_helper::{ArchiveHelper, ArchiveInfo};
-use crate::client::{CachingClient, PublicArchiveCachingClient, PublicDataCachingClient};
+use crate::client::{PublicArchiveCachingClient, PublicDataCachingClient};
 use crate::service::file_service::{FileService, RangeProps};
 use crate::service::resolver_service::ResolvedAddress;
 use sanitize_filename::sanitize;
@@ -50,13 +50,14 @@ impl Upload {
 #[derive(Debug)]
 pub struct PublicArchiveService {
     file_client: FileService,
-    caching_client: CachingClient,
+    public_archive_caching_client: PublicArchiveCachingClient,
+    public_data_caching_client: PublicDataCachingClient,
 }
 
 impl PublicArchiveService {
     
-    pub fn new(file_client: FileService, caching_client: CachingClient) -> Self {
-        PublicArchiveService { file_client, caching_client }
+    pub fn new(file_client: FileService, public_archive_caching_client: PublicArchiveCachingClient, public_data_caching_client: PublicDataCachingClient) -> Self {
+        PublicArchiveService { file_client, public_archive_caching_client, public_data_caching_client }
     }
 
     pub async fn get_archive_info(&self, resolved_address: &ResolvedAddress, request: &HttpRequest) -> ArchiveInfo {
@@ -104,7 +105,7 @@ impl PublicArchiveService {
     }
 
     pub async fn update_public_archive(&self, address: String, public_archive_form: MultipartForm<PublicArchiveForm>, evm_wallet: Wallet, store_type: StoreType) -> Result<Upload, PublicArchiveError> {
-        let public_archive = &mut PublicArchiveCachingClient::new(self.caching_client.clone()).archive_get_public(ArchiveAddress::from_hex(address.as_str())?).await?;
+        let public_archive = &mut self.public_archive_caching_client.archive_get_public(ArchiveAddress::from_hex(address.as_str())?).await?;
         info!("Uploading updated public archive to the network [{:?}]", public_archive);
         Ok(self.update_public_archive_common(public_archive_form, evm_wallet, public_archive, store_type).await?)
     }
@@ -121,7 +122,7 @@ impl PublicArchiveService {
         }
 
         info!("Uploading public archive [{:?}]", public_archive);
-        match PublicArchiveCachingClient::new(self.caching_client.clone()).archive_put_public(&public_archive, PaymentOption::Wallet(evm_wallet), store_type).await {
+        match self.public_archive_caching_client.archive_put_public(&public_archive, PaymentOption::Wallet(evm_wallet), store_type).await {
             Ok(archive_address) => {
                 info!("Queued command to upload public archive at [{:?}]", archive_address);
                 Self::purge_tmp_dir(&tmp_dir);
@@ -141,7 +142,7 @@ impl PublicArchiveService {
             let path = entry?.path();
             info!("Reading directory path: {:?}", path);
 
-            let data_address = PublicDataCachingClient::new(self.caching_client.clone())
+            let data_address = self.public_data_caching_client
                 .file_content_upload_public(path.clone(), PaymentOption::Wallet(evm_wallet.clone()), store_type.clone())
                 .await?;
             let created_at = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_secs();

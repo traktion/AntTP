@@ -4,7 +4,7 @@ use autonomi::register::RegisterAddress;
 use log::{info, warn};
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
-use crate::client::{CachingClient, RegisterCachingClient};
+use crate::client::RegisterCachingClient;
 use crate::error::{CreateError, GetError, UpdateError};
 use crate::config::anttp_config::AntTpConfig;
 use crate::controller::StoreType;
@@ -27,15 +27,15 @@ impl Register {
 
 #[derive(Debug)]
 pub struct RegisterService {
-    caching_client: CachingClient,
+    register_caching_client: RegisterCachingClient,
     ant_tp_config: AntTpConfig,
     resolver_service: ResolverService,
 }
 
 impl RegisterService {
 
-    pub fn new(caching_client: CachingClient, ant_tp_config: AntTpConfig, resolver_service: ResolverService) -> Self {
-        RegisterService { caching_client, ant_tp_config, resolver_service }
+    pub fn new(register_caching_client: RegisterCachingClient, ant_tp_config: AntTpConfig, resolver_service: ResolverService) -> Self {
+        RegisterService { register_caching_client, ant_tp_config, resolver_service }
     }
 
     pub async fn create_register(&self, register: Register, evm_wallet: Wallet, store_type: StoreType) -> Result<Register, RegisterError> {
@@ -46,7 +46,7 @@ impl RegisterService {
 
                 info!("Create register from name [{}] and content [{}]", name, register.content);
                 let content = Client::register_value_from_bytes(hex::decode(register.content.clone())?.as_slice())?;
-                let register_address = RegisterCachingClient::new(self.caching_client.clone())
+                let register_address = self.register_caching_client
                     .register_create(&register_key, content, PaymentOption::from(&evm_wallet), store_type)
                     .await?;
                 info!("Queued command to create register at [{}]", register_address.to_hex());
@@ -70,7 +70,7 @@ impl RegisterService {
 
                 info!("Update register with name [{}] and content [{}]", name, register.content);
                 let content = Client::register_value_from_bytes(hex::decode(register.content.clone())?.as_slice())?;
-                RegisterCachingClient::new(self.caching_client.clone())
+                self.register_caching_client
                     .register_update(&register_key, content, PaymentOption::from(&evm_wallet), store_type)
                     .await?;
                 info!("Queued command to update register with name [{}]", name);
@@ -84,7 +84,7 @@ impl RegisterService {
         let resolved_address = self.resolver_service.resolve_bookmark(&address).await.unwrap_or(address);
         match RegisterAddress::from_hex(resolved_address.as_str()) { // todo: create autonomi PR to change to ParseAddressError
             Ok(register_address) => {
-                let content = RegisterCachingClient::new(self.caching_client.clone()).register_get(&register_address).await?;
+                let content = self.register_caching_client.register_get(&register_address).await?;
                 Ok(Register::new(None, hex::encode(content), Some(register_address.to_hex())))
             },
             Err(e) => Err(RegisterError::GetError(GetError::BadAddress(e.to_string()))),
@@ -95,7 +95,7 @@ impl RegisterService {
         let resolved_address = self.resolver_service.resolve_bookmark(&address).await.unwrap_or(address);
         match RegisterAddress::from_hex(resolved_address.as_str()) { // todo: create autonomi PR to change to ParseAddressError
             Ok(register_address) => {
-                let content_vec = RegisterCachingClient::new(self.caching_client.clone()).register_history(&register_address).await?.collect().await?;
+                let content_vec = self.register_caching_client.register_history(&register_address).await?.collect().await?;
                 let content_flattened: String = content_vec.iter().map(|&c| hex::encode(c)).collect();
                 info!("Retrieved register history [{}] at address [{}]", content_flattened, register_address);
                 let mut response_registers = Vec::new();

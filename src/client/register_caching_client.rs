@@ -10,7 +10,15 @@ use crate::client::command::register::update_register_command::UpdateRegisterCom
 use crate::controller::StoreType;
 use crate::error::register_error::RegisterError;
 
-impl CachingClient {
+#[derive(Debug, Clone)]
+pub struct RegisterCachingClient {
+    caching_client: CachingClient,
+}
+
+impl RegisterCachingClient {
+    pub fn new(caching_client: CachingClient) -> Self {
+        Self { caching_client }
+    }
 
     pub async fn register_create(
         &self,
@@ -23,9 +31,9 @@ impl CachingClient {
 
         if store_type == StoreType::Network {
             let command = Box::new(
-                CreateRegisterCommand::new(self.client_harness.clone(), owner.clone(), register_value, payment_option)
+                CreateRegisterCommand::new(self.caching_client.client_harness.clone(), owner.clone(), register_value, payment_option)
             );
-            self.send_create_command(command).await?;
+            self.caching_client.send_create_command(command).await?;
         }
         Ok(register_address)
     }
@@ -41,32 +49,32 @@ impl CachingClient {
 
         if store_type == StoreType::Network {
             let command = Box::new(
-                UpdateRegisterCommand::new(self.client_harness.clone(), owner.clone(), register_value, payment_option)
+                UpdateRegisterCommand::new(self.caching_client.client_harness.clone(), owner.clone(), register_value, payment_option)
             );
-            self.send_update_command(command).await?;
+            self.caching_client.send_update_command(command).await?;
         }
         Ok(())
     }
 
     fn cache_register(&self, owner: &SecretKey, register_value: &RegisterValue, store_type: StoreType) -> RegisterAddress {
         let register_address = RegisterAddress::new(owner.public_key());
-        let ttl = if store_type != StoreType::Network { u64::MAX } else { self.ant_tp_config.cached_mutable_ttl };
+        let ttl = if store_type != StoreType::Network { u64::MAX } else { self.caching_client.ant_tp_config.cached_mutable_ttl };
         let cache_item = CacheItem::new(Some(register_value.clone()), ttl);
         let serialised_cache_item = rmp_serde::to_vec(&cache_item).expect("Failed to serialize register");
         info!("updating cache with register at address {}[{}] to value [{:?}] and TTL [{}]", REGISTER_CACHE_KEY, register_address.to_hex(), register_value, ttl);
         if store_type == StoreType::Disk {
-            self.hybrid_cache.insert(format!("{}{}", REGISTER_CACHE_KEY, register_address.to_hex()), serialised_cache_item);
+            self.caching_client.hybrid_cache.insert(format!("{}{}", REGISTER_CACHE_KEY, register_address.to_hex()), serialised_cache_item);
         } else {
-            self.hybrid_cache.memory().insert(format!("{}{}", REGISTER_CACHE_KEY, register_address.to_hex()), serialised_cache_item);
+            self.caching_client.hybrid_cache.memory().insert(format!("{}{}", REGISTER_CACHE_KEY, register_address.to_hex()), serialised_cache_item);
         }
         register_address
     }
 
     pub async fn register_get(&self, address: &RegisterAddress) -> Result<RegisterValue, RegisterError> {
         let local_address = address.clone();
-        let local_ant_tp_config = self.ant_tp_config.clone();
-        let cache_entry = self.hybrid_cache.get_ref().fetch(format!("{}{}", REGISTER_CACHE_KEY, local_address.to_hex()), {
-            let client = self.client_harness.get_ref().lock().await.get_client().await?;
+        let local_ant_tp_config = self.caching_client.ant_tp_config.clone();
+        let cache_entry = self.caching_client.hybrid_cache.get_ref().fetch(format!("{}{}", REGISTER_CACHE_KEY, local_address.to_hex()), {
+            let client = self.caching_client.client_harness.get_ref().lock().await.get_client().await?;
             || async move {
                 match client.register_get(&local_address).await {
                     Ok(register_value) => {
@@ -85,14 +93,14 @@ impl CachingClient {
         info!("retrieved register for [{}] from hybrid cache", address.to_hex());
         if cache_item.has_expired() {
             let command = Box::new(
-                GetRegisterCommand::new(self.client_harness.clone(), self.hybrid_cache.clone(), address.clone(), self.ant_tp_config.cached_mutable_ttl)
+                GetRegisterCommand::new(self.caching_client.client_harness.clone(), self.caching_client.hybrid_cache.clone(), address.clone(), self.caching_client.ant_tp_config.cached_mutable_ttl)
             );
-            self.send_get_command(command).await?;
+            self.caching_client.send_get_command(command).await?;
         }
         Ok(cache_item.item.unwrap())
     }
 
     pub async fn register_history(&self, addr: &RegisterAddress) -> Result<RegisterHistory, RegisterError> {
-        Ok(self.client_harness.get_ref().lock().await.get_client().await?.register_history(addr))
+        Ok(self.caching_client.client_harness.get_ref().lock().await.get_client().await?.register_history(addr))
     }
 }

@@ -8,7 +8,15 @@ use crate::client::command::graph::get_graph_entry_command::GetGraphEntryCommand
 use crate::error::graph_error::GraphError;
 use crate::controller::StoreType;
 
-impl CachingClient {
+#[derive(Debug, Clone)]
+pub struct GraphEntryCachingClient {
+    caching_client: CachingClient,
+}
+
+impl GraphEntryCachingClient {
+    pub fn new(caching_client: CachingClient) -> Self {
+        Self { caching_client }
+    }
 
     pub async fn graph_entry_put(
         &self,
@@ -19,22 +27,22 @@ impl CachingClient {
         self.cache_graph_entry(graph_entry.clone(), store_type.clone());
         if store_type == StoreType::Network {
             let command = Box::new(
-                CreateGraphEntryCommand::new(self.client_harness.clone(), graph_entry.clone(), payment_option)
+                CreateGraphEntryCommand::new(self.caching_client.client_harness.clone(), graph_entry.clone(), payment_option)
             );
-            self.send_create_command(command).await?;
+            self.caching_client.send_create_command(command).await?;
         }
         Ok(graph_entry.address())
     }
 
     fn cache_graph_entry(&self, graph_entry: GraphEntry, store_type: StoreType) {
-        let ttl = if store_type != StoreType::Network { u64::MAX } else { self.ant_tp_config.cached_mutable_ttl };
+        let ttl = if store_type != StoreType::Network { u64::MAX } else { self.caching_client.ant_tp_config.cached_mutable_ttl };
         let cache_item = CacheItem::new(Some(graph_entry.clone()), ttl);
         let serialised_cache_item = rmp_serde::to_vec(&cache_item).expect("Failed to serialize graph entry");
         info!("updating cache with graph_entry at address {}[{}] and TTL [{}]", GRAPH_ENTRY_CACHE_KEY, graph_entry.address().to_hex(), ttl);
         if store_type == StoreType::Disk {
-            self.hybrid_cache.insert(format!("{}{}", GRAPH_ENTRY_CACHE_KEY, graph_entry.address().to_hex()), serialised_cache_item);
+            self.caching_client.hybrid_cache.insert(format!("{}{}", GRAPH_ENTRY_CACHE_KEY, graph_entry.address().to_hex()), serialised_cache_item);
         } else {
-            self.hybrid_cache.memory().insert(format!("{}{}", GRAPH_ENTRY_CACHE_KEY, graph_entry.address().to_hex()), serialised_cache_item);
+            self.caching_client.hybrid_cache.memory().insert(format!("{}{}", GRAPH_ENTRY_CACHE_KEY, graph_entry.address().to_hex()), serialised_cache_item);
         }
     }
 
@@ -43,9 +51,9 @@ impl CachingClient {
         address: &GraphEntryAddress,
     ) -> Result<GraphEntry, GraphError> {
         let local_address = address.clone();
-        let local_ant_tp_config = self.ant_tp_config.clone();
-        let cache_entry = self.hybrid_cache.get_ref().fetch(format!("{}{}", GRAPH_ENTRY_CACHE_KEY, local_address.to_hex()), {
-            let client = self.client_harness.get_ref().lock().await.get_client().await?;           
+        let local_ant_tp_config = self.caching_client.ant_tp_config.clone();
+        let cache_entry = self.caching_client.hybrid_cache.get_ref().fetch(format!("{}{}", GRAPH_ENTRY_CACHE_KEY, local_address.to_hex()), {
+            let client = self.caching_client.client_harness.get_ref().lock().await.get_client().await?;           
             || async move {
                 match client.graph_entry_get(&local_address).await {
                     Ok(scratchpad) => {
@@ -64,9 +72,9 @@ impl CachingClient {
         info!("retrieved graph entry for [{}] from hybrid cache", address.to_hex());
         if cache_item.has_expired() {
             let command = Box::new(
-                GetGraphEntryCommand::new(self.client_harness.clone(), self.hybrid_cache.clone(), address.clone(), self.ant_tp_config.cached_mutable_ttl)
+                GetGraphEntryCommand::new(self.caching_client.client_harness.clone(), self.caching_client.hybrid_cache.clone(), address.clone(), self.caching_client.ant_tp_config.cached_mutable_ttl)
             );
-            self.send_get_command(command).await?;
+            self.caching_client.send_get_command(command).await?;
         }
         Ok(cache_item.item.unwrap())
     }

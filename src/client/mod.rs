@@ -8,10 +8,10 @@ use crate::config::anttp_config::AntTpConfig;
 
 #[derive(Debug, Clone)]
 pub struct CachingClient {
-    client_harness: Data<Mutex<ClientHarness>>,
-    ant_tp_config: AntTpConfig,
-    hybrid_cache: Data<HybridCache<String, Vec<u8>>>,
-    command_executor: Data<Sender<Box<dyn Command>>>,
+    pub client_harness: Data<Mutex<ClientHarness>>,
+    pub ant_tp_config: AntTpConfig,
+    pub hybrid_cache: Data<HybridCache<String, Vec<u8>>>,
+    pub command_executor: Data<Sender<Box<dyn Command>>>,
 }
 
 const ARCHIVE_CACHE_KEY: &'static str = "ar";
@@ -27,12 +27,23 @@ pub mod caching_client;
 pub mod cache_item;
 pub mod client_harness;
 pub mod chunk_caching_client;
-mod scratchpad_caching_client;
-mod graph_entry_caching_client;
-mod pointer_caching_client;
-mod register_caching_client;
-mod public_archive_caching_client;
-mod tarchive_caching_client;
-mod archive_caching_client;
-mod public_data_caching_client;
+pub mod scratchpad_caching_client;
+pub mod graph_entry_caching_client;
+pub mod pointer_caching_client;
+pub mod register_caching_client;
+pub mod public_archive_caching_client;
+pub mod tarchive_caching_client;
+pub mod archive_caching_client;
+pub mod public_data_caching_client;
 pub mod command;
+
+pub use self::caching_client::*;
+pub use chunk_caching_client::ChunkCachingClient;
+pub use scratchpad_caching_client::ScratchpadCachingClient;
+pub use graph_entry_caching_client::GraphEntryCachingClient;
+pub use pointer_caching_client::PointerCachingClient;
+pub use register_caching_client::RegisterCachingClient;
+pub use public_archive_caching_client::PublicArchiveCachingClient;
+pub use tarchive_caching_client::TArchiveCachingClient;
+pub use archive_caching_client::ArchiveCachingClient;
+pub use public_data_caching_client::PublicDataCachingClient;

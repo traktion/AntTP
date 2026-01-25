@@ -6,7 +6,7 @@ use log::debug;
 use mime::{Mime, APPLICATION_JSON, TEXT_HTML};
 use crate::config::anttp_config::AntTpConfig;
 use crate::service::public_archive_service::PublicArchiveService;
-use crate::client::CachingClient;
+use crate::client::{CachingClient, ChunkCachingClient, PublicArchiveCachingClient, PublicDataCachingClient};
 use crate::error::GetError;
 use crate::error::chunk_error::ChunkError;
 use crate::service::archive_helper::{ArchiveAction, ArchiveHelper, ArchiveInfo};
@@ -34,8 +34,11 @@ pub async fn get_public_data(
                 Ok(build_not_modified_response(&resolved_address, &header_builder))
             } else if resolved_address.archive.is_some() {
                 debug!("Retrieving file from archive [{:x}]", resolved_address.xor_name);
-                let file_service = FileService::new(caching_client.clone(), ant_tp_config.download_threads);
-                let public_archive_service = PublicArchiveService::new(file_service, caching_client);
+                let chunk_caching_client = ChunkCachingClient::new(caching_client.clone());
+                let public_archive_caching_client = PublicArchiveCachingClient::new(caching_client.clone());
+                let public_data_caching_client = PublicDataCachingClient::new(caching_client.clone());
+                let file_service = FileService::new(chunk_caching_client, caching_client.clone(), ant_tp_config.download_threads);
+                let public_archive_service = PublicArchiveService::new(file_service, public_archive_caching_client, public_data_caching_client);
                 let archive_info = public_archive_service.get_archive_info(&resolved_address, &request).await;
 
                 match archive_info.action {
@@ -46,7 +49,8 @@ pub async fn get_public_data(
                 }
             } else {
                 debug!("Retrieving file from XOR [{:x}]", resolved_address.xor_name);
-                let file_service = FileService::new(caching_client.clone(), ant_tp_config.download_threads);
+                let chunk_caching_client = ChunkCachingClient::new(caching_client.clone());
+                let file_service = FileService::new(chunk_caching_client, caching_client.clone(), ant_tp_config.download_threads);
                 get_data_xor(&request, &resolved_address, &header_builder, file_service).await
             }
         },

@@ -5,7 +5,7 @@ use indexmap::IndexMap;
 use log::{debug, info};
 use sha2::Digest;
 use tokio::sync::Mutex;
-use crate::client::CachingClient;
+use crate::client::{ArchiveCachingClient, CachingClient, ChunkCachingClient, PointerCachingClient, RegisterCachingClient};
 use crate::client::command::error::CommandError;
 use crate::client::command::Command;
 use crate::config::anttp_config::AntTpConfig;
@@ -44,8 +44,15 @@ impl Command for UpdateBookmarkResolverCommand {
     async fn execute(&self) -> Result<(), CommandError> {
         let caching_client = self.caching_client.get_ref().lock().await.clone();
         let resolver_service = ResolverService::new(
-            caching_client.clone(), self.access_checker.clone(), self.bookmark_resolver.clone(), self.pointer_name_resolver.clone(), self.ant_tp_config.cached_mutable_ttl);
-        let file_service = FileService::new(caching_client, 1);
+            ArchiveCachingClient::new(caching_client.clone()),
+            PointerCachingClient::new(caching_client.clone()),
+            RegisterCachingClient::new(caching_client.clone()),
+            self.access_checker.clone(),
+            self.bookmark_resolver.clone(),
+            self.pointer_name_resolver.clone(),
+            self.ant_tp_config.cached_mutable_ttl,
+        );
+        let file_service = FileService::new(ChunkCachingClient::new(caching_client.clone()), caching_client, 1);
         
         let bookmark_list = match resolver_service.resolve(&self.ant_tp_config.bookmarks_address, &"", &HeaderMap::new()).await {
             Some(resolved_address) => match file_service.download_data_bytes(resolved_address.xor_name, 0, 0).await {

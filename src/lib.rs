@@ -33,7 +33,7 @@ use tokio::sync::Mutex;
 use tonic::transport::Server;
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
-use crate::client::CachingClient;
+use crate::client::{ArchiveCachingClient, CachingClient, ChunkCachingClient, GraphEntryCachingClient, PointerCachingClient, PublicArchiveCachingClient, PublicDataCachingClient, RegisterCachingClient, ScratchpadCachingClient, TArchiveCachingClient};
 use crate::client::client_harness::ClientHarness;
 use client::command::executor::Executor;
 use crate::client::command::access_checker::update_access_checker_command::UpdateAccessCheckerCommand;
@@ -138,7 +138,17 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> io::Result<()> {
     let caching_client = CachingClient::new(client_harness_data, ant_tp_config.clone(), hybrid_cache_data.clone(), command_executor_data.clone());
     let caching_client_data = Data::new(caching_client.clone());
 
-    let pointer_name_resolver_data = Data::new(PointerNameResolver::new(caching_client.clone(), ant_tp_config.get_resolver_private_key().unwrap(), ant_tp_config.cached_mutable_ttl));
+    let archive_caching_client = ArchiveCachingClient::new(caching_client.clone());
+    let chunk_caching_client = ChunkCachingClient::new(caching_client.clone());
+    let graph_entry_caching_client = GraphEntryCachingClient::new(caching_client.clone());
+    let pointer_caching_client = PointerCachingClient::new(caching_client.clone());
+    let public_archive_caching_client = PublicArchiveCachingClient::new(caching_client.clone());
+    let public_data_caching_client = PublicDataCachingClient::new(caching_client.clone());
+    let register_caching_client = RegisterCachingClient::new(caching_client.clone());
+    let scratchpad_caching_client = ScratchpadCachingClient::new(caching_client.clone());
+    let tarchive_caching_client = TArchiveCachingClient::new(caching_client.clone());
+
+    let pointer_name_resolver_data = Data::new(PointerNameResolver::new(pointer_caching_client.clone(), chunk_caching_client.clone(), ant_tp_config.get_resolver_private_key().unwrap(), ant_tp_config.cached_mutable_ttl));
 
     let bookmark_resolver_data = hydrate_bookmark_resolver(
         &ant_tp_config, &command_executor, &caching_client, pointer_name_resolver_data.clone()).await;
@@ -146,23 +156,23 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> io::Result<()> {
         &ant_tp_config, &command_executor, &caching_client, &bookmark_resolver_data, &pointer_name_resolver_data).await;
 
     let resolver_service_data = Data::new(
-        ResolverService::new(caching_client_data.get_ref().clone(), access_checker_data.clone(), bookmark_resolver_data.clone(), pointer_name_resolver_data.clone(), ant_tp_config.cached_mutable_ttl)
+        ResolverService::new(archive_caching_client.clone(), pointer_caching_client.clone(), register_caching_client.clone(), access_checker_data.clone(), bookmark_resolver_data.clone(), pointer_name_resolver_data.clone(), ant_tp_config.cached_mutable_ttl)
     );
 
     // schedule idle disconnects for client_harness
     Runner::new().add(Box::new(caching_client_data.get_ref().clone())).run().await;
 
     // define services
-    let public_archive_service_data = Data::new(PublicArchiveService::new(FileService::new(caching_client_data.get_ref().clone(), ant_tp_config.download_threads), caching_client.clone()));
-    let tarchive_service_data = Data::new(TarchiveService::new(PublicDataService::new(caching_client_data.get_ref().clone())));
+    let public_archive_service_data = Data::new(PublicArchiveService::new(FileService::new(chunk_caching_client.clone(), caching_client_data.get_ref().clone(), ant_tp_config.download_threads), public_archive_caching_client.clone(), public_data_caching_client.clone()));
+    let tarchive_service_data = Data::new(TarchiveService::new(PublicDataService::new(public_data_caching_client.clone())));
     let command_service_data = Data::new(CommandService::new(command_status_data.clone()));
-    let chunk_service_data = Data::new(ChunkService::new(caching_client_data.get_ref().clone()));
-    let graph_service_data = Data::new(GraphService::new(caching_client_data.get_ref().clone(), ant_tp_config.clone()));
-    let pointer_service_data = Data::new(PointerService::new(caching_client_data.get_ref().clone(), ant_tp_config.clone(), resolver_service_data.get_ref().clone()));
-    let public_data_service_data = Data::new(PublicDataService::new(caching_client_data.get_ref().clone()));
-    let register_service_data = Data::new(RegisterService::new(caching_client_data.get_ref().clone(), ant_tp_config.clone(), resolver_service_data.get_ref().clone()));
-    let scratchpad_service_data = Data::new(ScratchpadService::new(caching_client_data.get_ref().clone(), ant_tp_config.clone()));
-    let pnr_service_data = Data::new(PnrService::new(caching_client_data.get_ref().clone(), pointer_service_data.clone()));
+    let chunk_service_data = Data::new(ChunkService::new(chunk_caching_client.clone()));
+    let graph_service_data = Data::new(GraphService::new(graph_entry_caching_client.clone(), ant_tp_config.clone()));
+    let pointer_service_data = Data::new(PointerService::new(pointer_caching_client.clone(), ant_tp_config.clone(), resolver_service_data.get_ref().clone()));
+    let public_data_service_data = Data::new(PublicDataService::new(public_data_caching_client.clone()));
+    let register_service_data = Data::new(RegisterService::new(register_caching_client.clone(), ant_tp_config.clone(), resolver_service_data.get_ref().clone()));
+    let scratchpad_service_data = Data::new(ScratchpadService::new(scratchpad_caching_client.clone(), ant_tp_config.clone()));
+    let pnr_service_data = Data::new(PnrService::new(chunk_caching_client.clone(), pointer_service_data.clone()));
 
     // MCP
     let mcp_tool = McpTool::new(

@@ -7,7 +7,7 @@ use autonomi::register::{RegisterAddress};
 use log::{debug, error, info};
 use tokio::sync::Mutex;
 use xor_name::XorName;
-use crate::client::CachingClient;
+use crate::client::{ArchiveCachingClient, PointerCachingClient, RegisterCachingClient};
 use crate::model::archive::Archive;
 use crate::service::access_checker::AccessChecker;
 use crate::service::pointer_name_resolver::PointerNameResolver;
@@ -32,7 +32,9 @@ impl ResolvedAddress {
 
 #[derive(Debug, Clone)]
 pub struct ResolverService {
-    caching_client: CachingClient,
+    archive_caching_client: ArchiveCachingClient,
+    pointer_caching_client: PointerCachingClient,
+    register_caching_client: RegisterCachingClient,
     access_checker: Data<Mutex<AccessChecker>>,
     bookmark_resolver: Data<Mutex<BookmarkResolver>>,
     pointer_name_resolver: Data<PointerNameResolver>,
@@ -40,13 +42,15 @@ pub struct ResolverService {
 }
 
 impl ResolverService {
-    pub fn new(caching_client: CachingClient,
+    pub fn new(archive_caching_client: ArchiveCachingClient,
+               pointer_caching_client: PointerCachingClient,
+               register_caching_client: RegisterCachingClient,
                access_checker: Data<Mutex<AccessChecker>>,
                bookmark_resolver: Data<Mutex<BookmarkResolver>>,
                pointer_name_resolver: Data<PointerNameResolver>,
                ttl_default: u64,
     ) -> ResolverService {
-        ResolverService { caching_client, access_checker, bookmark_resolver, pointer_name_resolver, ttl_default }
+        ResolverService { archive_caching_client, pointer_caching_client, register_caching_client, access_checker, bookmark_resolver, pointer_name_resolver, ttl_default }
     }
 
     pub async fn resolve(&self,
@@ -110,7 +114,7 @@ impl ResolverService {
             if !is_modified || !is_allowed {
                 Some(ResolvedAddress::new(true, None, archive_directory_xor_name, archive_file_path.clone(), is_resolved_from_mutable, is_modified, is_allowed, ttl))
             } else {
-                match self.caching_client.archive_get(archive_address).await {
+                match self.archive_caching_client.archive_get(archive_address).await {
                     Ok(archive) => {
                         debug!("Found archive at [{:x}]", archive_directory_xor_name);
                         Some(ResolvedAddress::new(true, Some(archive), archive_directory_xor_name, archive_file_path.clone(), is_resolved_from_mutable, is_modified, is_allowed, ttl))
@@ -158,13 +162,13 @@ impl ResolverService {
         // todo: analyze other types in a performant way - assume only pointers/registers for now
         // todo: could do both + join, but it may slow get pointer response
         match PointerAddress::from_hex(address) {
-            Ok(pointer_address) => match self.caching_client.pointer_get(&pointer_address).await.ok() {
+            Ok(pointer_address) => match self.pointer_caching_client.pointer_get(&pointer_address).await.ok() {
                 Some(pointer) => {
                     info!("Analyze found pointer at address [{}] with target [{}]", address, pointer.clone().target().to_hex());
                     Some(DataAddress::from_hex(pointer.clone().target().to_hex().as_str()).unwrap())
                 }
                 None => {
-                    match self.caching_client.register_get(&RegisterAddress::from_hex(address).unwrap()).await.ok() {
+                    match self.register_caching_client.register_get(&RegisterAddress::from_hex(address).unwrap()).await.ok() {
                         Some(register_value) => {
                             info!("Analyze found register at address [{}] with value [{}]", address, hex::encode(register_value.clone()));
                             Some(DataAddress::from_hex(hex::encode(register_value.clone()).as_str()).unwrap())
@@ -282,9 +286,22 @@ mod tests {
         let caching_client = CachingClient::new(client_harness, config, hybrid_cache, command_executor);
         let access_checker = Data::new(Mutex::new(AccessChecker::new()));
         let bookmark_resolver = Data::new(Mutex::new(BookmarkResolver::new()));
-        let pointer_name_resolver = Data::new(PointerNameResolver::new(caching_client.clone(), SecretKey::default(), 1));
+        let pointer_name_resolver = Data::new(PointerNameResolver::new(
+            crate::client::PointerCachingClient::new(caching_client.clone()),
+            crate::client::ChunkCachingClient::new(caching_client.clone()),
+            SecretKey::default(),
+            1,
+        ));
 
-        ResolverService::new(caching_client, access_checker, bookmark_resolver, pointer_name_resolver, 1)
+        ResolverService::new(
+            crate::client::ArchiveCachingClient::new(caching_client.clone()),
+            crate::client::PointerCachingClient::new(caching_client.clone()),
+            crate::client::RegisterCachingClient::new(caching_client.clone()),
+            access_checker,
+            bookmark_resolver,
+            pointer_name_resolver,
+            1,
+        )
     }
 
     #[actix_web::test]

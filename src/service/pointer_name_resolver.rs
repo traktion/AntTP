@@ -1,7 +1,7 @@
 use ant_protocol::storage::{ChunkAddress, Pointer, PointerAddress, PointerTarget};
 use autonomi::{Client, SecretKey};
 use log::{debug, error, warn};
-use crate::client::CachingClient;
+use crate::client::{ChunkCachingClient, PointerCachingClient};
 use crate::error::GetError;
 use crate::error::pointer_error::PointerError;
 use crate::model::pnr::PnrZone;
@@ -19,14 +19,15 @@ impl ResolvedRecord {
 
 #[derive(Debug)]
 pub struct PointerNameResolver {
-    caching_client: CachingClient,
+    pointer_caching_client: PointerCachingClient,
+    chunk_caching_client: ChunkCachingClient,
     pointer_name_resolver_secret_key: SecretKey,
     ttl_default: u64,
 }
 
 impl PointerNameResolver {
-    pub fn new(caching_client: CachingClient, pointer_name_resolver_secret_key: SecretKey, ttl_default: u64) -> PointerNameResolver {
-        PointerNameResolver { caching_client, pointer_name_resolver_secret_key, ttl_default }
+    pub fn new(pointer_caching_client: PointerCachingClient, chunk_caching_client: ChunkCachingClient, pointer_name_resolver_secret_key: SecretKey, ttl_default: u64) -> PointerNameResolver {
+        PointerNameResolver { pointer_caching_client, chunk_caching_client, pointer_name_resolver_secret_key, ttl_default }
     }
 
     pub async fn is_resolved(&self, name: &String) -> bool {
@@ -61,7 +62,7 @@ impl PointerNameResolver {
             Err(PointerError::GetError(GetError::RecordNotFound(format!("Too many iterations which resolving: {}", address))))
         } else {
             match PointerAddress::from_hex(address) {
-                Ok(pointer_address) => match self.caching_client.pointer_get(&pointer_address).await {
+                Ok(pointer_address) => match self.pointer_caching_client.pointer_get(&pointer_address).await {
                     Ok(pointer) => match pointer.target() {
                         PointerTarget::ChunkAddress(_) => Ok(pointer),
                         _ => Box::pin(self.resolve_pointer(&pointer.target().to_hex(), iteration + 1)).await,
@@ -80,15 +81,17 @@ impl PointerNameResolver {
             Err(PointerError::GetError(GetError::RecordNotFound(format!("Too many iterations which resolving: {}", address))))
         } else {
             match PointerAddress::from_hex(address) {
-                Ok(pointer_address) => match self.caching_client.pointer_get(&pointer_address).await {
-                    Ok(pointer) => {
-                        self.caching_client.pointer_update_ttl(&pointer.address(), ttl_override).await?;
-                        match pointer.target() {
-                            PointerTarget::ChunkAddress(_) => Ok(pointer),
-                            _ => Box::pin(self.update_pointer_ttls(&pointer.target().to_hex(), ttl_override, iteration + 1)).await,
+                Ok(pointer_address) => {
+                    match self.pointer_caching_client.pointer_get(&pointer_address).await {
+                        Ok(pointer) => {
+                            self.pointer_caching_client.pointer_update_ttl(&pointer.address(), ttl_override).await?;
+                            match pointer.target() {
+                                PointerTarget::ChunkAddress(_) => Ok(pointer),
+                                _ => Box::pin(self.update_pointer_ttls(&pointer.target().to_hex(), ttl_override, iteration + 1)).await,
+                            }
                         }
+                        Err(_) => Err(PointerError::GetError(GetError::RecordNotFound(format!("Not found: {}", address))))
                     }
-                    Err(_) => Err(PointerError::GetError(GetError::RecordNotFound(format!("Not found: {}", address))))
                 }
                 Err(_) => Err(PointerError::GetError(GetError::RecordNotFound(format!("Not found: {}", address))))
             }
@@ -97,7 +100,7 @@ impl PointerNameResolver {
 
     pub async fn resolve_map(&self, name: &String) -> Option<ResolvedRecord> {
         match ChunkAddress::from_hex(&name) {
-            Ok(chunk_address) => match self.caching_client.chunk_get_internal(&chunk_address).await {
+            Ok(chunk_address) => match self.chunk_caching_client.chunk_get_internal(&chunk_address).await {
                 Ok(chunk) => {
                     match serde_json::from_slice::<PnrZone>(&chunk.value) {
                         Ok(pnr_zone) => {

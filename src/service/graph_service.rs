@@ -5,7 +5,7 @@ use hex::FromHex;
 use log::{info, warn};
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
-use crate::client::CachingClient;
+use crate::client::GraphEntryCachingClient;
 use crate::error::graph_error::GraphError;
 use crate::config::anttp_config::AntTpConfig;
 use crate::controller::StoreType;
@@ -41,14 +41,14 @@ impl GraphDescendants {
 
 #[derive(Debug)]
 pub struct GraphService {
-    caching_client: CachingClient,
+    graph_entry_caching_client: GraphEntryCachingClient,
     ant_tp_config: AntTpConfig,
 }
 
 impl GraphService {
 
-    pub fn new(caching_client: CachingClient, ant_tp_config: AntTpConfig) -> Self {
-        GraphService { caching_client, ant_tp_config }
+    pub fn new(graph_entry_caching_client: GraphEntryCachingClient, ant_tp_config: AntTpConfig) -> Self {
+        GraphService { graph_entry_caching_client, ant_tp_config }
     }
 
     pub async fn create_graph_entry(&self, graph: GraphEntry, evm_wallet: Wallet, store_type: StoreType) -> Result<GraphEntry, GraphError> {
@@ -85,7 +85,7 @@ impl GraphService {
                     let graph_content = GraphContent::from_hex(graph.content.clone())?;
                     let graph_entry = autonomi::GraphEntry::new(&graph_key, graph_parents, graph_content, graph_descendants);
                     info!("Create graph entry from name [{}] for content [{}]", name, graph.content.clone());
-                    let graph_entry_address = self.caching_client
+                    let graph_entry_address = self.graph_entry_caching_client
                         .graph_entry_put(graph_entry, PaymentOption::from(&evm_wallet), store_type)
                         .await?;
                     info!("Queued command to create graph entry at [{}]", graph_entry_address.to_hex());
@@ -100,7 +100,7 @@ impl GraphService {
 
     pub async fn get_graph_entry(&self, address: String) -> Result<GraphEntry, GraphError> {
         let graph_entry_address = GraphEntryAddress::from_hex(address.as_str())?;
-        match self.caching_client.graph_entry_get(&graph_entry_address).await {
+        match self.graph_entry_caching_client.graph_entry_get(&graph_entry_address).await {
             Ok(graph_entry) => {
                 info!("Retrieved graph entry at address [{}] value [{}]", address, hex::encode(graph_entry.content.clone()));
 

@@ -4,6 +4,7 @@ use autonomi::client::payment::PaymentOption;
 use bytes::Bytes;
 use chunk_streamer::chunk_streamer::ChunkGetter;
 use log::{debug, error, info};
+use mockall::mock;
 use crate::client::CachingClient;
 use crate::client::command::chunk::create_chunk_command::CreateChunkCommand;
 use crate::error::chunk_error::ChunkError;
@@ -12,6 +13,23 @@ use crate::controller::StoreType;
 #[derive(Debug, Clone)]
 pub struct ChunkCachingClient {
     caching_client: CachingClient,
+}
+
+mock! {
+    #[derive(Debug)]
+    pub ChunkCachingClient {
+        pub fn new(caching_client: CachingClient) -> Self;
+        pub async fn chunk_put(
+            &self,
+            chunk: &Chunk,
+            payment_option: PaymentOption,
+            store_type: StoreType
+        ) -> Result<ChunkAddress, ChunkError>;
+        pub async fn chunk_get_internal(&self, address: &ChunkAddress) -> Result<Chunk, ChunkError>;
+    }
+    impl Clone for ChunkCachingClient {
+        fn clone(&self) -> Self;
+    }
 }
 
 impl ChunkCachingClient {

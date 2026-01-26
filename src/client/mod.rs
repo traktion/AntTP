@@ -38,7 +38,7 @@ pub mod public_data_caching_client;
 pub mod command;
 
 pub use self::caching_client::*;
-pub use chunk_caching_client::ChunkCachingClient;
+pub use chunk_caching_client::{ChunkCachingClient, MockChunkCachingClient};
 pub use scratchpad_caching_client::ScratchpadCachingClient;
 pub use graph_entry_caching_client::GraphEntryCachingClient;
 pub use pointer_caching_client::PointerCachingClient;

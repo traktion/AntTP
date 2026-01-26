@@ -28,6 +28,15 @@ jobs:
       run: cargo build --release --target x86_64-unknown-linux-musl
     - name: Run tests
       run: cargo test --verbose
+    - name: Install npm
+      run: sudo apt-get install -y npm
+    - name: Install newman
+      run: sudo npm install -g newman
+    - name: Run Newman tests
+      run: |
+        ./target/x86_64-unknown-linux-musl/release/anttp &
+        sleep 5
+        newman run ./test/postman/anttp_postman_collection.json
     - name: Install mingw-w64
       run: sudo apt-get install mingw-w64
     - name: Install x86_64-pc-windows-gnu target

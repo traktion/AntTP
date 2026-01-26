@@ -1,0 +1,21 @@
+As a software engineer
+I want to have good code coverage of PointerService
+So that I can have confidence that changes won't break existing functionality
+
+Given mockall may not currently a dependency of anttp
+When adding unit tests to PointerService
+Then add mockall as test dependency in cargo.toml
+
+Given mockall can be used to mock struct impl dependencies
+When adding unit tests to PointerService
+Then create mockall mocks to create mock instances of PointerCachingClient and ResolverService
+And use these mocks to test PointerService methods
+And use mock! to define test doubles whose actions can be mocked
+
+Implementation Notes
+
+- Place any unit tests at the bottom of the same file as the associated production code
+- Increment patch version of anttp package in Cargo.toml
+- Create a copy of this issue description and save to /spec using the name of this issue as the filename (with lower underscore case, starting with the 5 char padded issue number, e.g. 00001_issue_title.txt)
+- Review https://docs.rs/mockall/latest/mockall/ for documentation and examples
+- Fix failing unit tests in PointerService and improve coverage

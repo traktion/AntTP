@@ -1,3 +1,4 @@
+use std::fmt::Debug;
 use actix_http::header::{HeaderMap, IF_NONE_MATCH};
 use actix_web::web::Data;
 use autonomi::{ChunkAddress, PointerAddress, PublicKey};
@@ -5,7 +6,7 @@ use autonomi::data::DataAddress;
 use autonomi::files::archive_public::ArchiveAddress;
 use autonomi::register::{RegisterAddress};
 use log::{debug, error, info};
-use tokio::sync::Mutex;
+use mockall::mock;
 use xor_name::XorName;
 use crate::client::{ArchiveCachingClient, PointerCachingClient, RegisterCachingClient};
 use crate::model::archive::Archive;
@@ -35,18 +36,44 @@ pub struct ResolverService {
     archive_caching_client: ArchiveCachingClient,
     pointer_caching_client: PointerCachingClient,
     register_caching_client: RegisterCachingClient,
-    access_checker: Data<Mutex<AccessChecker>>,
-    bookmark_resolver: Data<Mutex<BookmarkResolver>>,
+    access_checker: Data<tokio::sync::Mutex<AccessChecker>>,
+    bookmark_resolver: Data<tokio::sync::Mutex<BookmarkResolver>>,
     pointer_name_resolver: Data<PointerNameResolver>,
     ttl_default: u64,
+}
+
+mock! {
+    #[derive(Debug)]
+    pub ResolverService {
+        pub fn new(archive_caching_client: ArchiveCachingClient,
+                   pointer_caching_client: PointerCachingClient,
+                   register_caching_client: RegisterCachingClient,
+                   access_checker: Data<tokio::sync::Mutex<AccessChecker>>,
+                   bookmark_resolver: Data<tokio::sync::Mutex<BookmarkResolver>>,
+                   pointer_name_resolver: Data<PointerNameResolver>,
+                   ttl_default: u64,
+        ) -> Self;
+        pub async fn resolve(&self,
+                             hostname: &str,
+                             path: &str,
+                             headers: &HeaderMap
+        ) -> Option<ResolvedAddress>;
+        pub fn is_immutable_address(&self, chunk_address: &String) -> bool;
+        pub fn is_mutable_address(&self, hex_address: &String) -> bool;
+        pub async fn resolve_bookmark(&self, name: &String) -> Option<String>;
+        pub async fn resolve_name(&self, name: &String) -> Option<String>;
+    }
+    impl Clone for ResolverService {
+        fn clone(&self) -> Self;
+    }
 }
 
 impl ResolverService {
     pub fn new(archive_caching_client: ArchiveCachingClient,
                pointer_caching_client: PointerCachingClient,
                register_caching_client: RegisterCachingClient,
-               access_checker: Data<Mutex<AccessChecker>>,
-               bookmark_resolver: Data<Mutex<BookmarkResolver>>,
+               access_checker: Data<tokio::sync::Mutex<AccessChecker>>,
+               bookmark_resolver: Data<tokio::sync::Mutex<BookmarkResolver>>,
                pointer_name_resolver: Data<PointerNameResolver>,
                ttl_default: u64,
     ) -> ResolverService {
@@ -278,14 +305,14 @@ mod tests {
     async fn create_test_service() -> ResolverService {
         let config = AntTpConfig::parse_from(vec!["anttp"]);
         let evm_network = EvmNetwork::ArbitrumOne;
-        let client_harness = Data::new(Mutex::new(ClientHarness::new(evm_network, config.clone())));
+        let client_harness = Data::new(tokio::sync::Mutex::new(ClientHarness::new(evm_network, config.clone())));
         let hybrid_cache = Data::new(HybridCacheBuilder::new().memory(10).storage().build().await.unwrap());
         let (tx, _rx) = mpsc::channel::<Box<dyn Command>>(100);
         let command_executor = Data::new(tx);
         
         let caching_client = CachingClient::new(client_harness, config, hybrid_cache, command_executor);
-        let access_checker = Data::new(Mutex::new(AccessChecker::new()));
-        let bookmark_resolver = Data::new(Mutex::new(BookmarkResolver::new()));
+        let access_checker = Data::new(tokio::sync::Mutex::new(AccessChecker::new()));
+        let bookmark_resolver = Data::new(tokio::sync::Mutex::new(BookmarkResolver::new()));
         let pointer_name_resolver = Data::new(PointerNameResolver::new(
             crate::client::PointerCachingClient::new(caching_client.clone()),
             crate::client::ChunkCachingClient::new(caching_client.clone()),

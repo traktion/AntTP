@@ -1,0 +1,17 @@
+As a software engineer
+I want to have good code coverage of RegisterService
+So that I can have confidence that changes won't break existing functionality
+
+Given mockall can be used to mock struct impl dependencies
+When adding unit tests to RegisterService
+Then create mockall mocks to create mock instances of RegisterCachingClient
+And use these mocks to test RegisterService methods
+And use 'mock!' to define test doubles whose actions can be mocked
+And use PointerService in pointer_service.rs and PointerCachingClient in pointer_caching_client.rs as examples
+
+Implementation Notes
+
+- Place any unit tests at the bottom of the same file as the associated production code
+- Increment patch version of anttp package in Cargo.toml
+- Create a copy of this issue description and save to /spec using the name of this issue as the filename (with lower underscore case, starting with the 5 char padded issue number, e.g. 00001_issue_title.txt)
+- Fix failing unit tests in RegisterService and improve coverage

@@ -15,6 +15,7 @@ pub struct RegisterCachingClient {
     caching_client: CachingClient,
 }
 
+#[mockall::automock]
 impl RegisterCachingClient {
     pub fn new(caching_client: CachingClient) -> Self {
         Self { caching_client }

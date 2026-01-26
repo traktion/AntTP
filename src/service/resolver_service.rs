@@ -6,7 +6,6 @@ use autonomi::data::DataAddress;
 use autonomi::files::archive_public::ArchiveAddress;
 use autonomi::register::{RegisterAddress};
 use log::{debug, error, info};
-use mockall::mock;
 use xor_name::XorName;
 use crate::client::{ArchiveCachingClient, PointerCachingClient, RegisterCachingClient};
 use crate::model::archive::Archive;
@@ -42,7 +41,21 @@ pub struct ResolverService {
     ttl_default: u64,
 }
 
-mock! {
+impl ResolverService {
+    pub fn new(archive_caching_client: ArchiveCachingClient,
+               pointer_caching_client: PointerCachingClient,
+               register_caching_client: RegisterCachingClient,
+               access_checker: Data<tokio::sync::Mutex<AccessChecker>>,
+               bookmark_resolver: Data<tokio::sync::Mutex<BookmarkResolver>>,
+               pointer_name_resolver: Data<PointerNameResolver>,
+               ttl_default: u64,
+    ) -> ResolverService {
+        ResolverService { archive_caching_client, pointer_caching_client, register_caching_client, access_checker, bookmark_resolver, pointer_name_resolver, ttl_default }
+    }
+}
+
+#[cfg(test)]
+mockall::mock! {
     #[derive(Debug)]
     pub ResolverService {
         pub fn new(archive_caching_client: ArchiveCachingClient,
@@ -69,17 +82,6 @@ mock! {
 }
 
 impl ResolverService {
-    pub fn new(archive_caching_client: ArchiveCachingClient,
-               pointer_caching_client: PointerCachingClient,
-               register_caching_client: RegisterCachingClient,
-               access_checker: Data<tokio::sync::Mutex<AccessChecker>>,
-               bookmark_resolver: Data<tokio::sync::Mutex<BookmarkResolver>>,
-               pointer_name_resolver: Data<PointerNameResolver>,
-               ttl_default: u64,
-    ) -> ResolverService {
-        ResolverService { archive_caching_client, pointer_caching_client, register_caching_client, access_checker, bookmark_resolver, pointer_name_resolver, ttl_default }
-    }
-
     pub async fn resolve(&self,
                          hostname: &str,
                          path: &str,

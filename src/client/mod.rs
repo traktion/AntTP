@@ -46,7 +46,7 @@ pub use scratchpad_caching_client::ScratchpadCachingClient;
 pub use graph_entry_caching_client::GraphEntryCachingClient;
 #[double]
 pub use pointer_caching_client::PointerCachingClient;
-pub use register_caching_client::RegisterCachingClient;
+pub use register_caching_client::{RegisterCachingClient, MockRegisterCachingClient};
 pub use public_archive_caching_client::PublicArchiveCachingClient;
 pub use tarchive_caching_client::TArchiveCachingClient;
 pub use archive_caching_client::ArchiveCachingClient;

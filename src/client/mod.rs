@@ -37,10 +37,14 @@ pub mod archive_caching_client;
 pub mod public_data_caching_client;
 pub mod command;
 
+use mockall_double::double;
+
 pub use self::caching_client::*;
+#[double]
 pub use chunk_caching_client::ChunkCachingClient;
 pub use scratchpad_caching_client::ScratchpadCachingClient;
 pub use graph_entry_caching_client::GraphEntryCachingClient;
+#[double]
 pub use pointer_caching_client::PointerCachingClient;
 pub use register_caching_client::RegisterCachingClient;
 pub use public_archive_caching_client::PublicArchiveCachingClient;

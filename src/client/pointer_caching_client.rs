@@ -1,7 +1,9 @@
+use std::fmt::Debug;
 use autonomi::client::payment::PaymentOption;
 use autonomi::pointer::PointerTarget;
 use autonomi::{Pointer, PointerAddress, SecretKey};
 use log::{debug, info, warn};
+use mockall::mock;
 use crate::client::cache_item::CacheItem;
 use crate::client::{CachingClient, POINTER_CACHE_KEY, POINTER_CHECK_CACHE_KEY};
 use crate::client::command::pointer::check_pointer_command::CheckPointerCommand;
@@ -15,6 +17,34 @@ use crate::error::pointer_error::PointerError;
 #[derive(Debug, Clone)]
 pub struct PointerCachingClient {
     caching_client: CachingClient,
+}
+
+mock! {
+    #[derive(Debug)]
+    pub PointerCachingClient {
+        pub fn new(caching_client: CachingClient) -> Self;
+        pub async fn pointer_create(
+            &self,
+            owner: &SecretKey,
+            target: PointerTarget,
+            counter: Option<u64>,
+            payment_option: PaymentOption,
+            store_type: StoreType,
+        ) -> Result<PointerAddress, PointerError>;
+        pub async fn pointer_update(
+            &self,
+            owner: &SecretKey,
+            target: PointerTarget,
+            counter: Option<u64>,
+            store_type: StoreType,
+        ) -> Result<(), PointerError>;
+        pub async fn pointer_get(&self, address: &PointerAddress) -> Result<Pointer, PointerError>;
+        pub async fn pointer_update_ttl(&self,  address: &PointerAddress, ttl_override: u64) -> Result<Pointer, PointerError>;
+        pub async fn pointer_check_existence(&self, address: &PointerAddress) -> Result<bool, PointerError>;
+    }
+    impl Clone for PointerCachingClient {
+        fn clone(&self) -> Self;
+    }
 }
 
 impl PointerCachingClient {

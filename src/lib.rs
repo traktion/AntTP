@@ -33,7 +33,7 @@ use tokio::sync::Mutex;
 use tonic::transport::Server;
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
-use crate::client::{ArchiveCachingClient, CachingClient, ChunkCachingClient, GraphEntryCachingClient, PointerCachingClient, PublicArchiveCachingClient, PublicDataCachingClient, RegisterCachingClient, ScratchpadCachingClient, TArchiveCachingClient};
+use crate::client::{ArchiveCachingClient, CachingClient, ChunkCachingClient, GraphEntryCachingClient, PointerCachingClient, PublicArchiveCachingClient, PublicDataCachingClient, RegisterCachingClient, ScratchpadCachingClient};
 use crate::client::client_harness::ClientHarness;
 use client::command::executor::Executor;
 use crate::client::command::access_checker::update_access_checker_command::UpdateAccessCheckerCommand;
@@ -73,6 +73,8 @@ static TONIC_SERVER_HANDLE: Lazy<Mutex<Option<String>>> = Lazy::new(|| Mutex::ne
 
 const API_BASE: &'static str = "/anttp-0/";
 
+// Wiring instances conflicts with mockall - ignore testing for this function
+#[cfg(not(test))]
 pub async fn run_server(ant_tp_config: AntTpConfig) -> io::Result<()> {
     #[derive(OpenApi)]
     #[openapi(paths(
@@ -146,7 +148,6 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> io::Result<()> {
     let public_data_caching_client = PublicDataCachingClient::new(caching_client.clone());
     let register_caching_client = RegisterCachingClient::new(caching_client.clone());
     let scratchpad_caching_client = ScratchpadCachingClient::new(caching_client.clone());
-    let tarchive_caching_client = TArchiveCachingClient::new(caching_client.clone());
 
     let pointer_name_resolver_data = Data::new(PointerNameResolver::new(pointer_caching_client.clone(), chunk_caching_client.clone(), ant_tp_config.get_resolver_private_key().unwrap(), ant_tp_config.cached_mutable_ttl));
 

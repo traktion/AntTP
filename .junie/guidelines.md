@@ -3,31 +3,9 @@ AntTP is an HTTP server for the Autonomi Network, built with Rust and the Actix-
 
 ### Build and Configuration
 
-#### Standard Build
 ```bash
 cargo build
 ```
-
-#### Multi-Target Compilation
-The project is frequently built for multiple targets. Ensure you have the necessary toolchains:
-
-- **Linux (MUSL)**: Recommended for portability.
-  ```bash
-  rustup target add x86_64-unknown-linux-musl
-  cargo build --release --target x86_64-unknown-linux-musl
-  ```
-- **Windows**:
-  ```bash
-  rustup target add x86_64-pc-windows-gnu
-  cargo build --release --target x86_64-pc-windows-gnu
-  ```
-- **ARM (AARCH64)**:
-  ```bash
-  rustup target add aarch64-unknown-linux-musl
-  export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER=aarch64-linux-gnu-gcc
-  export CC=aarch64-linux-gnu-gcc
-  cargo build --release --target aarch64-unknown-linux-musl
-  ```
 
 #### gRPC Support
 The project uses `tonic` for gRPC. Ensure `protoc` is available in your environment as `build.rs` invokes `tonic-build`.

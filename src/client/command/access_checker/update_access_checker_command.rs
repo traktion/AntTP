@@ -5,7 +5,10 @@ use indexmap::IndexMap;
 use log::{debug, info};
 use sha2::Digest;
 use tokio::sync::Mutex;
-use crate::client::{ArchiveCachingClient, CachingClient, ChunkCachingClient, PointerCachingClient, RegisterCachingClient};
+#[double]
+use crate::client::PointerCachingClient;
+use crate::client::{ArchiveCachingClient, CachingClient, ChunkCachingClient, RegisterCachingClient};
+use mockall_double::double;
 use crate::client::command::error::CommandError;
 use crate::client::command::Command;
 use crate::model::access_list::AccessList;

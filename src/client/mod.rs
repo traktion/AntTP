@@ -41,7 +41,7 @@ pub use self::caching_client::*;
 pub use chunk_caching_client::{ChunkCachingClient, MockChunkCachingClient};
 pub use scratchpad_caching_client::ScratchpadCachingClient;
 pub use graph_entry_caching_client::GraphEntryCachingClient;
-pub use pointer_caching_client::PointerCachingClient;
+pub use pointer_caching_client::{PointerCachingClient, MockPointerCachingClient};
 pub use register_caching_client::{RegisterCachingClient, MockRegisterCachingClient};
 pub use public_archive_caching_client::PublicArchiveCachingClient;
 pub use tarchive_caching_client::TArchiveCachingClient;

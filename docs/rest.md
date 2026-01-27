@@ -23,7 +23,8 @@ The REST API supports all primary Autonomi data types:
 ### Custom Storage Header (`x-store-type`)
 Developers can use the `x-store-type` header to control where data is stored:
 *   `Network`: (Default) Data is uploaded to the Autonomi Network.
-*   `Cache`: Data is stored only on the local AntTP instance. This is useful for testing or local-only data without incurring network costs.
+*   `Disk`: Data is stored only on the local AntTP instance on disk. This is useful for testing or local-only data without incurring network costs.
+*   `Memory`: Data is stored only on the local AntTP instance in memory. As above, but resets on restart.
 
 ### Async Operations
 For large uploads or operations that may take time, AntTP provides an async command queue. You can monitor the status of these operations via the API.

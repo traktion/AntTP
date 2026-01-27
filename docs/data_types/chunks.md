@@ -61,4 +61,5 @@ sequenceDiagram
 ## Storage Options (`x-store-type`)
 When uploading chunks, you can use the `x-store-type` header to control persistence:
 *   `Network`: Upload to the Autonomi Network.
-*   `Cache`: Store only in the local AntTP cache.
+*   `Disk`: Store only in the local AntTP disk cache.
+*   `Memory`: Store only in the local AntTP memory cache. As above, but resets on restart.

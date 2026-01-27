@@ -54,7 +54,8 @@ sequenceDiagram
 *   `get_pnr`: Retrieves info for a registered name.
 
 ### gRPC API
-*   `PutPnr`: Register or update a name.
+*   `CreatePnr`: Register or update a name.
+*   `UpdatePnr`: Updates an existing name.
 *   `GetPnr`: Retrieve name registration info.
 
 ## Ownership and Chains

@@ -55,8 +55,8 @@ sequenceDiagram
     *   `PUT /anttp-0/multipart/tarchive/{address}`: Update an existing tarchive.
 
 ### MCP Tools
-*   `upload_archive`: Uploads a directory as an archive.
-*   `get_archive_info`: Retrieves information about an archive.
+*   `create_archive`: Creates an archive of files.
+*   `update_archive`: Updates an existing archive.
 
 ### gRPC API
 *   `PutPublicArchive`: Create or update a public archive.

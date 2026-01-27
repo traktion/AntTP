@@ -53,3 +53,6 @@ sequenceDiagram
 
 ## CRDT Properties
 Because registers are CRDTs, they can be updated by multiple parties simultaneously without central coordination, and all replicas will eventually converge to the same state.
+
+---
+[<< Previous](files.md) | [Up](../../README.md) | [Next >>](pointers.md)

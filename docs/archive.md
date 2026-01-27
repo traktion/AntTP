@@ -64,3 +64,6 @@ Tarchives support appending new files while maintaining their chronological sequ
     ```
 
 AntTP transparently handles the retrieval of individual files from within a Tarchive.
+
+---
+[<< Previous](configuration.md) | [Up](../README.md) | [Next >>](web_app.md)

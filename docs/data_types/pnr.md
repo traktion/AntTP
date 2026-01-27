@@ -60,3 +60,6 @@ sequenceDiagram
 
 ## Ownership and Chains
 PNR names can be transferred between owners. Each transfer adds a link to the pointer chain. AntTP's caching ensures that even long chains resolve quickly after the first lookup.
+
+---
+[<< Previous](archives.md) | [Up](../../README.md)

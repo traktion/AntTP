@@ -36,3 +36,6 @@ To upload data via the REST API, ensure that:
 2.  A valid wallet private key is provided via the `--wallet-private-key` argument.
 
 The API supports various upload formats, including `multipart/form-data` for multiple files.
+
+---
+[<< Previous](pnr.md) | [Up](../README.md) | [Next >>](grpc.md)

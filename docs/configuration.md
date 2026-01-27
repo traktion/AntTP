@@ -48,3 +48,6 @@ Launch with proxy arguments:
 ```bash
 brave --proxy-server="127.0.0.1:18888" http://[XOR_ADDRESS]/
 ```
+
+---
+[<< Previous](build_run.md) | [Up](../README.md) | [Next >>](archive.md)

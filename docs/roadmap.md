@@ -59,3 +59,6 @@ AntTP is actively developed, with many features planned to enhance its capabilit
 - [x] **Access List:** Allow/deny controls for addresses.
 - [ ] **Status Page:** Enhanced UI for monitoring the async command queue.
 - [x] **Offline Mode:** Support for requests and uploads without an active network connection (with async sync).
+
+---
+[<< Previous](mcp.md) | [Up](../README.md)

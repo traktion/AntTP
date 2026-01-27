@@ -74,3 +74,6 @@ Run with default settings:
 - `-p, --peers`: List of multiaddresses for initial network peers.
 
 For more details on configuration options, see [Configuration](configuration.md).
+
+---
+[<< Previous](background.md) | [Up](../README.md) | [Next >>](configuration.md)

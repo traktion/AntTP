@@ -25,3 +25,6 @@ As the owner chain grows, the time to resolve a name would naturally increase. T
 Pointer chains also allow for name "renting" or management without full transfer. A manager can point to a consumer's pointer without setting the maximum counter, retaining the ability to re-point it later.
 
 In the future, PNR may be extended to support more complex features, such as sub-names managed via an immutable lookup table.
+
+---
+[<< Previous](publish_website.md) | [Up](../README.md) | [Next >>](rest.md)

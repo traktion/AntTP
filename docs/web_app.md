@@ -33,3 +33,6 @@ By including an `app-config.json` file in your archive, you can define routing r
 1.  Create your `app-config.json` file in your project's root directory.
 2.  Upload the directory as an archive to Autonomi.
 3.  Access the archive address via AntTP and verify that the routing behaves as expected.
+
+---
+[<< Previous](archive.md) | [Up](../README.md) | [Next >>](publish_website.md)

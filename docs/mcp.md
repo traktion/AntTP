@@ -42,3 +42,6 @@ The MCP server provides tools for interacting with various Autonomi data types:
 *   **PNR:** Resolve human-readable names via the Pointer Name Resolver.
 
 For more information on the Model Context Protocol, visit [modelcontextprotocol.io](https://modelcontextprotocol.io/).
+
+---
+[<< Previous](grpc.md) | [Up](../README.md) | [Next >>](roadmap.md)

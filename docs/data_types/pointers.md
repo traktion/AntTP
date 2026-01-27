@@ -63,3 +63,6 @@ When working with pointers, you must specify which private key to use:
 *   `personal`: Uses the app private key provided at startup.
 *   `resolver`: Uses the PNR shared resolver key.
 *   `[Hex String]`: Uses a custom hex-encoded private key.
+
+---
+[<< Previous](registers.md) | [Up](../../README.md) | [Next >>](archives.md)

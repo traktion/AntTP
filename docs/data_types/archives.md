@@ -65,3 +65,6 @@ sequenceDiagram
 ## Archive Types
 *   **Public Archive:** A collection of independent files and an index. Best for general-purpose file hosting.
 *   **Tarchive:** A tarball with an appended index. Highly efficient for many small files and maintaining chronological order.
+
+---
+[<< Previous](pointers.md) | [Up](../../README.md) | [Next >>](pnr.md)

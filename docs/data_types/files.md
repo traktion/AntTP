@@ -72,3 +72,6 @@ sequenceDiagram
 *   **Streaming:** Large files are streamed to the client to reduce memory usage.
 *   **Range Requests:** Supports standard HTTP `Range` headers for partial downloads (useful for video/audio seeking).
 *   **Content-Type Detection:** Automatically detects and sets the `Content-Type` header based on the file extension or content.
+
+---
+[<< Previous](chunks.md) | [Up](../../README.md) | [Next >>](registers.md)

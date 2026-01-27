@@ -25,3 +25,6 @@ IMIM demonstrates:
 You can view an example blog at:
 `http://62003e683b5a792f425a75c5d7d99d06e80f7047be8de8176b7d295e510b3b4c/blog/705a5fa9b2b2ee9d1ec88f7f6cae45a9e40d4cf8ea202252c9d7e68eb6e17c8b#home`
 *(Note: Requires AntTP proxy configuration)*
+
+---
+[<< Previous](web_app.md) | [Up](../README.md) | [Next >>](pnr.md)

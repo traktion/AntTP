@@ -63,3 +63,6 @@ When uploading chunks, you can use the `x-store-type` header to control persiste
 *   `Network`: Upload to the Autonomi Network.
 *   `Disk`: Store only in the local AntTP disk cache.
 *   `Memory`: Store only in the local AntTP memory cache. As above, but resets on restart.
+
+---
+[Up](../../README.md) | [Next >>](files.md)

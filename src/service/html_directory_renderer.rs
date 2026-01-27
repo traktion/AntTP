@@ -72,6 +72,9 @@ impl HtmlDirectoryRenderer {
         a:hover {
             text-decoration: underline;
         }
+        a:visited {
+            color: #551A8B;
+        }
         .icon {
             margin-right: 10px;
             width: 18px;
@@ -169,5 +172,13 @@ mod tests {
         assert_eq!(format_size(512), "512.0 B");
         assert_eq!(format_size(1024), "1.0 KB");
         assert_eq!(format_size(1024 * 1024), "1.0 MB");
+    }
+
+    #[test]
+    fn test_visited_links_css() {
+        let archive = Archive::new(HashMap::new(), vec![]);
+        let output = HtmlDirectoryRenderer::render(&archive, "".to_string());
+        assert!(output.contains("a:visited {"));
+        assert!(output.contains("color: #551A8B;"));
     }
 }

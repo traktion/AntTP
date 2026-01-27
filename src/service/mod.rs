@@ -5,6 +5,7 @@ pub mod register_service;
 pub mod pointer_service;
 pub mod resolver_service;
 pub mod archive_helper;
+pub mod html_directory_renderer;
 pub mod scratchpad_service;
 pub mod chunk_service;
 pub mod graph_service;

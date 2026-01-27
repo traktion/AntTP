@@ -1,4 +1,4 @@
-use autonomi::{ChunkAddress, Wallet, Network};
+use autonomi::{ChunkAddress, Wallet};
 use autonomi::client::chunk as autonomi_chunk;
 use autonomi::client::payment::PaymentOption;
 use base64::Engine;
@@ -99,6 +99,7 @@ mod tests {
     use super::*;
     use mockall::predicate::*;
     use crate::client::chunk_caching_client::MockChunkCachingClient;
+    use autonomi::Network;
 
     fn create_test_service(mock_client: MockChunkCachingClient) -> ChunkService {
         ChunkService::new(mock_client)

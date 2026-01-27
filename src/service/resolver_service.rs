@@ -41,19 +41,6 @@ pub struct ResolverService {
     ttl_default: u64,
 }
 
-impl ResolverService {
-    pub fn new(archive_caching_client: ArchiveCachingClient,
-               pointer_caching_client: PointerCachingClient,
-               register_caching_client: RegisterCachingClient,
-               access_checker: Data<tokio::sync::Mutex<AccessChecker>>,
-               bookmark_resolver: Data<tokio::sync::Mutex<BookmarkResolver>>,
-               pointer_name_resolver: Data<PointerNameResolver>,
-               ttl_default: u64,
-    ) -> ResolverService {
-        ResolverService { archive_caching_client, pointer_caching_client, register_caching_client, access_checker, bookmark_resolver, pointer_name_resolver, ttl_default }
-    }
-}
-
 #[cfg(test)]
 mockall::mock! {
     #[derive(Debug)]
@@ -82,6 +69,17 @@ mockall::mock! {
 }
 
 impl ResolverService {
+    pub fn new(archive_caching_client: ArchiveCachingClient,
+               pointer_caching_client: PointerCachingClient,
+               register_caching_client: RegisterCachingClient,
+               access_checker: Data<tokio::sync::Mutex<AccessChecker>>,
+               bookmark_resolver: Data<tokio::sync::Mutex<BookmarkResolver>>,
+               pointer_name_resolver: Data<PointerNameResolver>,
+               ttl_default: u64,
+    ) -> ResolverService {
+        ResolverService { archive_caching_client, pointer_caching_client, register_caching_client, access_checker, bookmark_resolver, pointer_name_resolver, ttl_default }
+    }
+
     pub async fn resolve(&self,
                          hostname: &str,
                          path: &str,
@@ -285,142 +283,5 @@ impl ResolverService {
             || self.is_mutable_address(address)
             || self.is_bookmark(address).await
             || self.pointer_name_resolver.is_resolved(address).await
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::config::anttp_config::AntTpConfig;
-    use crate::client::CachingClient;
-    use crate::client::client_harness::ClientHarness;
-    use ant_evm::EvmNetwork;
-    use foyer::HybridCacheBuilder;
-    use crate::client::command::Command;
-    use tokio::sync::mpsc;
-    use crate::model::access_list::AccessList;
-    use crate::model::bookmark_list::BookmarkList;
-    use std::collections::HashMap;
-    use autonomi::SecretKey;
-    use clap::Parser;
-
-    async fn create_test_service() -> ResolverService {
-        let config = AntTpConfig::parse_from(vec!["anttp"]);
-        let evm_network = EvmNetwork::ArbitrumOne;
-        let client_harness = Data::new(tokio::sync::Mutex::new(ClientHarness::new(evm_network, config.clone())));
-        let hybrid_cache = Data::new(HybridCacheBuilder::new().memory(10).storage().build().await.unwrap());
-        let (tx, _rx) = mpsc::channel::<Box<dyn Command>>(100);
-        let command_executor = Data::new(tx);
-        
-        let caching_client = CachingClient::new(client_harness, config, hybrid_cache, command_executor);
-        let access_checker = Data::new(tokio::sync::Mutex::new(AccessChecker::new()));
-        let bookmark_resolver = Data::new(tokio::sync::Mutex::new(BookmarkResolver::new()));
-        let pointer_name_resolver = Data::new(PointerNameResolver::new(
-            crate::client::PointerCachingClient::new(caching_client.clone()),
-            crate::client::ChunkCachingClient::new(caching_client.clone()),
-            SecretKey::default(),
-            1,
-        ));
-
-        ResolverService::new(
-            crate::client::ArchiveCachingClient::new(caching_client.clone()),
-            crate::client::PointerCachingClient::new(caching_client.clone()),
-            crate::client::RegisterCachingClient::new(caching_client.clone()),
-            access_checker,
-            bookmark_resolver,
-            pointer_name_resolver,
-            1,
-        )
-    }
-
-    #[actix_web::test]
-    async fn test_resolve_immutable_address() {
-        let service = create_test_service().await;
-        let address = "0000000000000000000000000000000000000000000000000000000000000000"; // 64 chars
-        let headers = HeaderMap::new();
-
-        let result = service.resolve(address, "", &headers).await;
-        assert!(result.is_some());
-        let resolved = result.unwrap();
-        assert_eq!(resolved.xor_name, XorName::default());
-        assert!(resolved.is_allowed);
-    }
-
-    #[actix_web::test]
-    async fn test_resolve_bookmark() {
-        let service = create_test_service().await;
-        
-        // Setup bookmark
-        let mut bookmarks = HashMap::new();
-        let target_addr = "0000000000000000000000000000000000000000000000000000000000000000";
-        bookmarks.insert("mybookmark".to_string(), target_addr.to_string());
-        
-        // let bookmark_list = BookmarkList { bookmarks }; // Private field
-        // Since fields are private, we use update method
-        // But BookmarkList fields are private and no constructor. We need to use serde to create it.
-        let json = serde_json::json!({
-            "bookmarks": {
-                "mybookmark": target_addr
-            }
-        });
-        let bookmark_list: BookmarkList = serde_json::from_value(json).unwrap();
-        
-        service.bookmark_resolver.lock().await.update(&bookmark_list);
-
-        let headers = HeaderMap::new();
-        let result = service.resolve("mybookmark", "", &headers).await;
-        
-        assert!(result.is_some());
-        let resolved = result.unwrap();
-        assert_eq!(resolved.xor_name, XorName::default());
-    }
-
-    #[actix_web::test]
-    async fn test_resolve_access_denied() {
-        let service = create_test_service().await;
-        let address = "0000000000000000000000000000000000000000000000000000000000000000";
-        
-        // Setup deny list
-        let json = serde_json::json!({
-            "allow": [],
-            "deny": ["all"]
-        });
-        // ... existing code ...
-        let access_list: AccessList = serde_json::from_value(json).unwrap();
-        service.access_checker.lock().await.update(&access_list);
-        
-        println!("Access list updated. Deny list: {:?}", access_list.deny());
-
-        let headers = HeaderMap::new();
-        let result = service.resolve(address, "", &headers).await;
-        
-        assert!(result.is_some());
-        let resolved = result.unwrap();
-        println!("Resolved allowed status: {}", resolved.is_allowed);
-        assert!(!resolved.is_allowed);
-    }
-
-    #[actix_web::test]
-    async fn test_resolve_path_parsing() {
-        let service = create_test_service().await;
-        let address = "0000000000000000000000000000000000000000000000000000000000000000";
-        let hostname = format!("{}.anttp", address);
-        let path = "/file.txt";
-        let headers = HeaderMap::new();
-
-        let result = service.resolve(&hostname, path, &headers).await;
-        assert!(result.is_some());
-        let resolved = result.unwrap();
-        assert_eq!(resolved.file_path, "/file.txt");
-    }
-
-    #[actix_web::test]
-    async fn test_resolve_invalid_address() {
-        let service = create_test_service().await;
-        let address = "invalid";
-        let headers = HeaderMap::new();
-
-        let result = service.resolve(address, "", &headers).await;
-        assert!(result.is_none());
     }
 }

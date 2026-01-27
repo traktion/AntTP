@@ -4,6 +4,7 @@ use chrono::DateTime;
 use log::{debug, info};
 use xor_name::XorName;
 use crate::model::archive::Archive;
+use crate::service::html_directory_renderer::HtmlDirectoryRenderer;
 use crate::service::resolver_service::ResolvedAddress;
 
 #[derive(Clone)]
@@ -51,25 +52,7 @@ impl ArchiveHelper {
     }
 
     fn list_files_html(&self, path: String) -> String {
-        let mut output = "<html><head><style>table { width: 60%; text-align: left; }</style></head><body><center>\n<table>".to_string();
-
-        output.push_str(&format!("<h1>Index of /{}</h1>\n", path));
-        output.push_str("<tr><th>Name</th><th>Last Modified</th><th>Size</th></tr>\n");
-
-        for path_detail in self.archive.list_dir(path) {
-            let mtime_datetime = DateTime::from_timestamp_millis( i64::try_from(path_detail.modified)
-                .unwrap_or(0) * 1000)
-                .unwrap_or(DateTime::default());
-            let mtime_iso = mtime_datetime.format("%+");
-            output.push_str("<tr>");
-            output.push_str(&format!("<td><a href=\"{}\">{}</a></td>\n", path_detail.path, path_detail.display));
-            output.push_str(&format!("<td>{}</td>\n", mtime_iso));
-            output.push_str(&format!("<td>{}</td>\n", path_detail.size));
-            output.push_str("</tr>");
-        }
-        output.push_str("</table></center></body></html>");
-        debug!("list_files_html: {}", output);
-        output
+        HtmlDirectoryRenderer::render(&self.archive, path)
     }
 
     fn list_files_json(&self, path: String) -> String {
@@ -258,7 +241,7 @@ mod tests {
         let header_map = HeaderMap::new();
 
         let output = helper.list_files("".to_string(), &header_map);
-        assert!(output.contains("<html>"));
+        assert!(output.contains("Index of /"));
         assert!(output.contains("index.html"));
         assert!(output.contains("style.css"));
         assert!(output.contains("sub/"));

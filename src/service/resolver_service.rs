@@ -7,11 +7,16 @@ use autonomi::files::archive_public::ArchiveAddress;
 use autonomi::register::{RegisterAddress};
 use log::{debug, error, info};
 use xor_name::XorName;
-use crate::client::{ArchiveCachingClient, PointerCachingClient, RegisterCachingClient};
+#[double]
+use crate::client::PointerCachingClient;
+//#[double]
+//use crate::client::ChunkCachingClient;
+use crate::client::{ArchiveCachingClient, RegisterCachingClient};
 use crate::model::archive::Archive;
 use crate::service::access_checker::AccessChecker;
 use crate::service::pointer_name_resolver::PointerNameResolver;
 use crate::service::bookmark_resolver::BookmarkResolver;
+use mockall_double::double;
 
 pub struct ResolvedAddress {
     pub is_found: bool,
@@ -291,7 +296,12 @@ impl ResolverService {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::client::MockPointerCachingClient;
+    use crate::client::MockChunkCachingClient;
     use crate::config::anttp_config::AntTpConfig;
+    use crate::error::GetError;
+    use crate::error::pointer_error::PointerError;
+    use crate::client::ChunkCachingClient;
     use crate::client::CachingClient;
     use crate::client::client_harness::ClientHarness;
     use ant_evm::EvmNetwork;
@@ -315,16 +325,35 @@ mod tests {
         let caching_client = CachingClient::new(client_harness, config, hybrid_cache, command_executor);
         let access_checker = Data::new(tokio::sync::Mutex::new(AccessChecker::new()));
         let bookmark_resolver = Data::new(tokio::sync::Mutex::new(BookmarkResolver::new()));
+        
+        let mut mock_pointer_caching_client = MockPointerCachingClient::default();
+        mock_pointer_caching_client
+            .expect_clone()
+            .returning(|| {
+                let mut m = MockPointerCachingClient::default();
+                m.expect_pointer_get()
+                    .returning(|_| Err(PointerError::GetError(GetError::RecordNotFound("Not found".to_string()))));
+                m
+            });
+        mock_pointer_caching_client
+            .expect_pointer_get()
+            .returning(|_| Err(PointerError::GetError(GetError::RecordNotFound("Not found".to_string()))));
+
+        let mut mock_chunk_caching_client = MockChunkCachingClient::default();
+        mock_chunk_caching_client
+            .expect_clone()
+            .returning(|| MockChunkCachingClient::default());
+
         let pointer_name_resolver = Data::new(PointerNameResolver::new(
-            crate::client::PointerCachingClient::new(caching_client.clone()),
-            crate::client::ChunkCachingClient::new(caching_client.clone()),
+            mock_pointer_caching_client.clone(),
+            mock_chunk_caching_client,
             SecretKey::default(),
             1,
         ));
 
         ResolverService::new(
             crate::client::ArchiveCachingClient::new(caching_client.clone()),
-            crate::client::PointerCachingClient::new(caching_client.clone()),
+            mock_pointer_caching_client,
             crate::client::RegisterCachingClient::new(caching_client.clone()),
             access_checker,
             bookmark_resolver,

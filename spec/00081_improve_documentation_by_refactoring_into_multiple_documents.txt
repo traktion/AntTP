@@ -23,3 +23,4 @@ And add links /test/* README.md files to allow readers to find them
 Implementation Notes
 
 - Create a copy of this issue description and save to /spec using the name of this issue as the filename (with lower underscore case, starting with the 5 char padded issue number, e.g. 00001_issue_title.txt)
+- Add navigation links at the bottom of each page to go 'up' to the parent and 'next' / 'previous' to step through sibling pages.

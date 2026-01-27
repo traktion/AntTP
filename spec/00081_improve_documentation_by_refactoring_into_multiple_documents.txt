@@ -1,0 +1,25 @@
+As a technical writer
+I want to break the main README.md into multiple, linked, documents with additional detail
+So that it is easier to read about specific AntTP details, while still having a good high level summary
+
+Given the README.md contains a lot of information in one document
+When refactoring the document
+Then break it down into different markdown files, containing different sections of information, linked from the primary document
+And create chapters for background/overview, build/run, proxy/firefox/brave configuration, archive/tarchive, web app customisation/dev, and publish your website, pointer name resolver (PNR), MCP tools API, gRPC API, REST API / swagger UI, Roadmap
+And store linked documents in /docs/*.md
+And update/reword documents to improve flow or readability, but keep the tone professional and written as a third person perspective
+
+Given more information than README.md is detailed within the code
+When adding additional detail
+Then add a sub-directory to /docs for each primary data type (e.g. pointers, chunks, registers, etc - see /src/controller/*.rs)
+And create a sequence diagram for each of these primary data type flows (add, update, edit, delete, etc)
+And refer to each endpoint that touches these data type flows (REST, MCP, gRCP) to show where similarities are
+
+Given some of the existing README.md may be stale
+When updating the documentation
+Then check anttp_config.rs matches runtime options
+And add links /test/* README.md files to allow readers to find them
+
+Implementation Notes
+
+- Create a copy of this issue description and save to /spec using the name of this issue as the filename (with lower underscore case, starting with the 5 char padded issue number, e.g. 00001_issue_title.txt)

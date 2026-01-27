@@ -9,7 +9,7 @@ use mockall_double::double;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 #[double]
-use crate::client::ChunkCachingClient;
+use crate::client::chunk_caching_client::ChunkCachingClient;
 use crate::error::{CreateError, GetError};
 use crate::error::chunk_error::ChunkError;
 use crate::controller::StoreType;
@@ -98,7 +98,7 @@ impl ChunkService {
 mod tests {
     use super::*;
     use mockall::predicate::*;
-    use crate::client::MockChunkCachingClient;
+    use crate::client::chunk_caching_client::MockChunkCachingClient;
 
     fn create_test_service(mock_client: MockChunkCachingClient) -> ChunkService {
         ChunkService::new(mock_client)

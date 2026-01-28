@@ -8,7 +8,7 @@ use crate::service::scratchpad_service::{Scratchpad, ScratchpadService};
 
 #[utoipa::path(
     post,
-    path = "/anttp-0/private_scratchpad/{name}",
+    path = "/anttp-0/private_scratchpad",
     request_body(
         content = Scratchpad
     ),
@@ -16,24 +16,19 @@ use crate::service::scratchpad_service::{Scratchpad, ScratchpadService};
         (status = CREATED, description = "Private scratchpad created successfully", body = Scratchpad)
     ),
     params(
-        ("name" = String, Path, description = "Private scratchpad name"),
         ("x-store-type", Header, description = "Only persist to cache and do not publish (memory|disk|none)",
         example = "memory"),
     ),
 )]
 pub async fn post_private_scratchpad(
-    path: web::Path<String>,
     scratchpad_service: Data<ScratchpadService>,
     evm_wallet_data: Data<EvmWallet>,
     scratchpad: web::Json<Scratchpad>,
     request: HttpRequest,
 ) -> Result<HttpResponse, ScratchpadError> {
-    let name = path.into_inner();
-
     debug!("Creating new private scratchpad");
     Ok(HttpResponse::Ok().json(
         scratchpad_service.create_scratchpad(
-            name,
             scratchpad.into_inner(),
             evm_wallet_data.get_ref().clone(),
             true,

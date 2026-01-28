@@ -352,7 +352,7 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> io::Result<()> {
                     web::put().to(tarchive_controller::put_tarchive),
                 )
                 .route(
-                    format!("{}public_scratchpad/{{name}}", API_BASE).as_str(),
+                    format!("{}public_scratchpad", API_BASE).as_str(),
                     web::post().to(public_scratchpad_controller::post_public_scratchpad),
                 )
                 .route(
@@ -368,7 +368,7 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> io::Result<()> {
                     web::put().to(register_controller::put_register),
                 )
                 .route(
-                    format!("{}private_scratchpad/{{name}}", API_BASE).as_str(),
+                    format!("{}private_scratchpad", API_BASE).as_str(),
                     web::post().to(private_scratchpad_controller::post_private_scratchpad),
                 )
                 .route(

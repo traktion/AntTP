@@ -48,9 +48,8 @@ impl McpTool {
         &self,
         Parameters(CreatePrivateScratchpadRequest { name, content, store_type }): Parameters<CreatePrivateScratchpadRequest>,
     ) -> Result<CallToolResult, ErrorData> {
-        let scratchpad = Scratchpad::new(None, None, None, None, Some(content), None);
+        let scratchpad = Scratchpad::new(Some(name), None, None, None, Some(content), None);
         Ok(self.scratchpad_service.create_scratchpad(
-            name,
             scratchpad,
             self.evm_wallet.get_ref().clone(),
             true,

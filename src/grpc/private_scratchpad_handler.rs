@@ -64,7 +64,6 @@ impl PrivateScratchpadServiceTrait for PrivateScratchpadHandler {
         let scratchpad = req.scratchpad.ok_or_else(|| Status::invalid_argument("Scratchpad is required"))?;
 
         let result = self.scratchpad_service.create_scratchpad(
-            req.name,
             ServiceScratchpad::from(scratchpad),
             self.evm_wallet.get_ref().clone(),
             true,

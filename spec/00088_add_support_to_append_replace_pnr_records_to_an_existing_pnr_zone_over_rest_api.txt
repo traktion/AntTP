@@ -1,0 +1,27 @@
+As a REST API consumer
+I want to be able to easily add PNR records without having to retrieve/update them
+So that adding or replacing records becomes a trivial operation when using APIs
+
+Given that there is already support to create and update PNRs
+When adding support to append or replace PNR records for an existing zone
+Then when append_pnr is called in PnrService, then get_pnr and update_pnr should be used to retrieve/store the changes
+And if the record key already exists, the value should be replaced before the PNR Zone is persisted
+And multiple records can be added or replaced in the same operation
+
+Given that the REST API will need to be updated
+When adding append PNR record support
+Then provide a PATCH endpoint at /anttp-0/pnr/{name}
+And use put_pnr() on pnr_controller.rs as an example
+And update /src/lib.rs with the additional pnr/{name} route, using other routes as a guide
+And the request body should be the same as the put_pnr() operation, using PnrZone
+
+Given the postman collection has tests for PNR create/update
+When adding append PNR record support
+Then the postman collection should be updated
+And newman should be used to validate
+
+Implementation Notes
+
+- Place any unit tests at the bottom of the same file as the associated production code
+- Increment patch version of anttp package in Cargo.toml
+- Create a copy of this issue description and save to /spec using the name of this issue as the filename (with lower underscore case, starting with the 5 char padded issue number, e.g. 00001_issue_title.txt)

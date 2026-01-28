@@ -905,6 +905,39 @@
 									]
 								}
 							}
+						},
+						{
+							"name": "Append PNR",
+							"request": {
+								"method": "PATCH",
+								"header": [
+									{
+										"key": "x-store-type",
+										"value": "memory",
+										"type": "text"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"name\": \"test_pnr\",\n    \"records\": {\n        \"test\": {\n            \"address\": \"0x123\",\n            \"record_type\": \"X\",\n            \"ttl\": 60\n        }\n    }\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{base_url}}/anttp-0/pnr/test_pnr",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"anttp-0",
+										"pnr",
+										"test_pnr"
+									]
+								}
+							}
 						}
 					]
 				}

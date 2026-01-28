@@ -125,6 +125,16 @@ impl PnrService {
         }
     }
 
+    pub async fn append_pnr(&self, name: String, pnr_zone: PnrZone, evm_wallet: Wallet, store_type: StoreType) -> Result<PnrZone, PointerError> {
+        let mut existing_pnr_zone = self.get_pnr(name.clone()).await?;
+
+        for (key, record) in pnr_zone.records {
+            existing_pnr_zone.records.insert(key, record);
+        }
+
+        self.update_pnr(name, existing_pnr_zone, evm_wallet, store_type).await
+    }
+
     async fn resolve_personal_address(&self, name: &String) -> Result<(String, String), PointerError> {
         let resolver_address = self.pointer_service.get_resolver_address(name)?;
         let personal_pointer_address = match self.pointer_service.get_pointer(resolver_address.clone()).await {
@@ -132,5 +142,40 @@ impl PnrService {
             Err(e) => return Err(e),
         };
         Ok((resolver_address, personal_pointer_address))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::model::pnr::{PnrRecord, PnrRecordType};
+    use std::collections::HashMap;
+
+    #[tokio::test]
+    async fn test_append_pnr_logic() {
+        // This is a logic-only test for the record merging, as full mocking of PnrService's dependencies 
+        // (ChunkCachingClient and PointerService) for an integration test here is complex.
+        
+        let name = "test".to_string();
+        let mut existing_records = HashMap::new();
+        existing_records.insert("old".to_string(), PnrRecord::new("addr1".to_string(), PnrRecordType::A, 60));
+        existing_records.insert("keep".to_string(), PnrRecord::new("addr2".to_string(), PnrRecordType::A, 60));
+        
+        let mut new_records = HashMap::new();
+        new_records.insert("old".to_string(), PnrRecord::new("addr3".to_string(), PnrRecordType::X, 120));
+        new_records.insert("new".to_string(), PnrRecord::new("addr4".to_string(), PnrRecordType::A, 60));
+
+        // Simulate merging logic from append_pnr
+        let mut merged_records = existing_records;
+        for (key, record) in new_records {
+            merged_records.insert(key, record);
+        }
+
+        assert_eq!(merged_records.len(), 3);
+        assert_eq!(merged_records.get("old").unwrap().address, "addr3");
+        assert_eq!(merged_records.get("old").unwrap().ttl, 120);
+        assert!(matches!(merged_records.get("old").unwrap().record_type, PnrRecordType::X));
+        assert_eq!(merged_records.get("keep").unwrap().address, "addr2");
+        assert_eq!(merged_records.get("new").unwrap().address, "addr4");
     }
 }

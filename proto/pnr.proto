@@ -10,13 +10,12 @@ service PnrService {
 
 message PnrZone {
   string name = 1;
-  repeated PnrRecord records = 2;
+  map<string, PnrRecord> records = 2;
   optional string resolver_address = 3;
   optional string personal_address = 4;
 }
 
 message PnrRecord {
-  optional string sub_name = 1;
   string address = 2;
   PnrRecordType record_type = 3;
   uint64 ttl = 4;

@@ -836,7 +836,7 @@
 								],
 								"body": {
 									"mode": "raw",
-									"raw": "{\n    \"name\": \"test_pnr\",\n    \"records\": []\n}",
+									"raw": "{\n    \"name\": \"test_pnr\",\n    \"records\": {}\n}",
 									"options": {
 										"raw": {
 											"language": "json"
@@ -868,7 +868,7 @@
 								],
 								"body": {
 									"mode": "raw",
-									"raw": "{\n    \"name\": \"test_pnr\",\n    \"records\": []\n}",
+									"raw": "{\n    \"name\": \"test_pnr\",\n    \"records\": {}\n}",
 									"options": {
 										"raw": {
 											"language": "json"

@@ -45,7 +45,6 @@ impl From<ServicePnrRecordType> for PnrRecordType {
 impl From<PnrRecord> for ServicePnrRecord {
     fn from(r: PnrRecord) -> Self {
         ServicePnrRecord {
-            sub_name: r.sub_name,
             address: r.address,
             record_type: ServicePnrRecordType::from(PnrRecordType::try_from(r.record_type).unwrap_or(PnrRecordType::A)),
             ttl: r.ttl,
@@ -56,7 +55,6 @@ impl From<PnrRecord> for ServicePnrRecord {
 impl From<ServicePnrRecord> for PnrRecord {
     fn from(r: ServicePnrRecord) -> Self {
         PnrRecord {
-            sub_name: r.sub_name,
             address: r.address,
             record_type: PnrRecordType::from(r.record_type) as i32,
             ttl: r.ttl,
@@ -68,7 +66,7 @@ impl From<PnrZone> for ServicePnrZone {
     fn from(z: PnrZone) -> Self {
         ServicePnrZone {
             name: z.name,
-            records: z.records.into_iter().map(ServicePnrRecord::from).collect(),
+            records: z.records.into_iter().map(|(k, v)| (k, ServicePnrRecord::from(v))).collect(),
             resolver_address: z.resolver_address,
             personal_address: z.personal_address,
         }
@@ -79,7 +77,7 @@ impl From<ServicePnrZone> for PnrZone {
     fn from(z: ServicePnrZone) -> Self {
         PnrZone {
             name: z.name,
-            records: z.records.into_iter().map(PnrRecord::from).collect(),
+            records: z.records.into_iter().map(|(k, v)| (k, PnrRecord::from(v))).collect(),
             resolver_address: z.resolver_address,
             personal_address: z.personal_address,
         }
@@ -144,31 +142,25 @@ impl PnrServiceTrait for PnrHandler {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::collections::HashMap;
     use crate::model::pnr::{PnrZone as ServicePnrZone, PnrRecord as ServicePnrRecord, PnrRecordType as ServicePnrRecordType};
 
     #[tokio::test]
     async fn test_create_pnr() {
-        // This is a unit test for the handler. In a real scenario, we might want to mock the PnrService.
-        // However, the issue asks for unit tests where applicable.
-        // Given the complexity of mocking in this codebase without a dedicated mock framework,
-        // we will at least test the mapping logic.
-        
         let proto_record = PnrRecord {
-            sub_name: Some("www".to_string()),
             address: "address1".to_string(),
             record_type: PnrRecordType::A as i32,
             ttl: 3600,
         };
         
         let service_record = ServicePnrRecord::from(proto_record.clone());
-        assert_eq!(service_record.sub_name, proto_record.sub_name);
         assert_eq!(service_record.address, proto_record.address);
         assert!(matches!(service_record.record_type, ServicePnrRecordType::A));
         assert_eq!(service_record.ttl, proto_record.ttl);
         
         let proto_zone = PnrZone {
             name: "example.com".to_string(),
-            records: vec![proto_record],
+            records: HashMap::from([("www".to_string(), proto_record)]),
             resolver_address: None,
             personal_address: None,
         };
@@ -176,7 +168,7 @@ mod tests {
         let service_zone = ServicePnrZone::from(proto_zone.clone());
         assert_eq!(service_zone.name, proto_zone.name);
         assert_eq!(service_zone.records.len(), 1);
-        assert_eq!(service_zone.records[0].address, "address1");
+        assert_eq!(service_zone.records.get("www").unwrap().address, "address1");
     }
 
     #[tokio::test]
@@ -185,7 +177,7 @@ mod tests {
             name: "example.com".to_string(),
             pnr_zone: Some(PnrZone {
                 name: "example.com".to_string(),
-                records: vec![],
+                records: HashMap::new(),
                 resolver_address: None,
                 personal_address: None,
             }),

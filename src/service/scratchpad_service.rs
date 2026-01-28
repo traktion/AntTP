@@ -14,7 +14,6 @@ use crate::error::scratchpad_error::ScratchpadError;
 
 #[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
 pub struct Scratchpad {
-    #[schema(read_only)]
     pub name: Option<String>,
     #[schema(read_only)]
     pub address: Option<String>,
@@ -44,7 +43,8 @@ impl ScratchpadService {
         ScratchpadService { scratchpad_caching_client, ant_tp_config }
     }
 
-    pub async fn create_scratchpad(&self, name: String, scratchpad: Scratchpad, evm_wallet: Wallet, is_encrypted: bool, store_type: StoreType) -> Result<Scratchpad, ScratchpadError> {
+    pub async fn create_scratchpad(&self, scratchpad: Scratchpad, evm_wallet: Wallet, is_encrypted: bool, store_type: StoreType) -> Result<Scratchpad, ScratchpadError> {
+        let name = scratchpad.name.clone().ok_or_else(|| ScratchpadError::GetError(GetError::DerivationNameMissing("Name required to create scratchpad".to_string())))?;
         let app_secret_key = self.ant_tp_config.get_app_private_key()?;
         let scratchpad_key = Client::register_key_from_name(&app_secret_key, name.as_str());
         let content = scratchpad.content.clone().unwrap_or_else(|| "".to_ascii_lowercase());
@@ -63,7 +63,7 @@ impl ScratchpadService {
         };
         info!("Queued command to create{}scratchpad at [{}]", if !is_encrypted { "public " } else { "" }, scratchpad_address.to_hex());
         Ok(Scratchpad::new(
-            Some(name), Some(scratchpad_address.to_hex()), None, None, scratchpad.content, None))
+            Some(name.clone()), Some(scratchpad_address.to_hex()), None, None, scratchpad.content, None))
     }
 
     pub async fn update_scratchpad(&self, address: String, name: String, scratchpad: Scratchpad, evm_wallet: Wallet, is_encrypted: bool, store_type: StoreType) -> Result<Scratchpad, ScratchpadError> {

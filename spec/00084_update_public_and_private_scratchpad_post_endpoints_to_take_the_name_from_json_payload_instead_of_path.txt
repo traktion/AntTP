@@ -1,0 +1,21 @@
+As a software engineer
+I want public and private scratchpad REST endpoints to take the 'name' value from the JSON payload, instead of the path, on creation/POST
+So that there is consistency between REST POST endpoints with how they handle name inputs
+
+Given public and private scratchpad REST POST definitions are defined in /src/controller
+When updating the endpoints to take 'name' from the JSON body
+Then update public_scratchpad_controller.rs and private_scratchpad_controller.rs
+And update the utoipa annotations to remove {name} from the POST path definitions
+And update create_scratchpad function in ScratchpadService to remove 'name' from the function and extract it from the Scratchpad struct instead
+And update Scratchpad to remove the #[schema(read_only)] annotation for 'name'
+
+Given the postman collection in /test/postman has calls to create public and private scratchpads
+When the controller paths and payloads are updated
+Then update the collection to provide 'name' in the payload for public/private scratchpad POSTs
+
+Implementation Notes
+
+- Place any unit tests at the bottom of the same file as the associated production code
+- Increment patch version of anttp package in Cargo.toml
+- Create a copy of this issue description and save to /spec using the name of this issue as the filename (with lower underscore case, starting with the 5 char padded issue number, e.g. 00084_update_public_and_private_scratchpad_post_endpoints_to_take_the_name_from_json_payload_instead_of_path.txt)
+- Run newman with the postman collection to confirm there are no regressions

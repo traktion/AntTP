@@ -106,7 +106,8 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> io::Result<()> {
         command_controller::get_commands,
         pnr_controller::get_pnr,
         pnr_controller::post_pnr,
-        pnr_controller::put_pnr
+        pnr_controller::put_pnr,
+        pnr_controller::patch_pnr
     ))]
     struct ApiDoc;
 
@@ -390,6 +391,10 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> io::Result<()> {
                 .route(
                     format!("{}pnr/{{name}}", API_BASE).as_str(),
                     web::put().to(pnr_controller::put_pnr)
+                )
+                .route(
+                    format!("{}pnr/{{name}}", API_BASE).as_str(),
+                    web::patch().to(pnr_controller::patch_pnr)
                 )
         };
 

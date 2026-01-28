@@ -1,5 +1,6 @@
 #![allow(dead_code)]
 
+use std::collections::HashMap;
 use rmcp::{handler::server::{
     wrapper::Parameters,
 }, schemars, tool, tool_router, ErrorData};
@@ -72,7 +73,7 @@ impl McpTool {
         let ttl_or_default = if ttl == 0 { 60 } else { ttl };
         let pnr_zone = PnrZone::new(
             name,
-            vec![PnrRecord::new(Some("".to_string()), address.clone(), PnrRecordType::X, ttl_or_default)],
+            HashMap::from([("".to_string(), PnrRecord::new(address.clone(), PnrRecordType::X, ttl_or_default))]),
             None,
             None
         );
@@ -89,7 +90,7 @@ impl McpTool {
         let ttl_or_default = if ttl == 0 { 60 } else { ttl };
         let pnr_zone = PnrZone::new(
             name.clone(),
-            vec![PnrRecord::new(Some("".to_string()), address.clone(), PnrRecordType::X, ttl_or_default)],
+            HashMap::from([("".to_string(), PnrRecord::new(address.clone(), PnrRecordType::X, ttl_or_default))]),
             None,
             None
         );

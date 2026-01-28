@@ -109,11 +109,9 @@ impl PointerNameResolver {
                     match serde_json::from_slice::<PnrZone>(&chunk.value) {
                         Ok(pnr_zone) => {
                             debug!("deserialized {} PNR records", pnr_zone.records.len());
-                            for pnr_record in pnr_zone.records {
-                                if pnr_record.sub_name.unwrap_or("".to_string()).is_empty() {
-                                    debug!("found default PNR record");
-                                    return Some(ResolvedRecord::new(pnr_record.address.to_string(), pnr_record.ttl));
-                                }
+                            if let Some(pnr_record) = pnr_zone.records.get("") {
+                                debug!("found default PNR record");
+                                return Some(ResolvedRecord::new(pnr_record.address.to_string(), pnr_record.ttl));
                             }
                             debug!("no default PNR record found");
                             None
@@ -140,6 +138,7 @@ impl PointerNameResolver {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::collections::HashMap;
     use crate::client::MockChunkCachingClient;
     use crate::client::MockPointerCachingClient;
     use crate::model::pnr::{PnrRecord, PnrRecordType};
@@ -225,7 +224,7 @@ mod tests {
         let resolved_address = "b40e045a6fbed33b27039aa8383c9dbf286e19a7265141c2da3085e0c8571527".to_string();
         let pnr_zone = PnrZone::new(
             "test.name".to_string(),
-            vec![PnrRecord::new(None, resolved_address.clone(), PnrRecordType::A, 60)],
+            HashMap::from([("".to_string(), PnrRecord::new(resolved_address.clone(), PnrRecordType::A, 60))]),
             None,
             None
         );

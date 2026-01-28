@@ -20,8 +20,6 @@ use crate::service::key_value_service::KeyValueService;
     params(
         ("x-store-type", Header, description = "Only persist to cache and do not publish (memory|disk|none)",
         example = "memory"),
-        ("x-data-key", Header, description = "Private key used to create mutable data (personal|resolver|'custom')",
-        example = "personal"),
     ),
 )]
 pub async fn post_key_value(

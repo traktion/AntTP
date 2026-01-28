@@ -1,6 +1,6 @@
 As a software engineer
 I want to create a new key/value date type with REST endpoints that support CRUD operations
-So that data can easily be created and retrieved by providing a bucket name, an object name, an x-data-key (which form the key) and content (for the data) 
+So that data can easily be created and retrieved by providing a bucket name, an object name (which form the key) and content (for the data)
 
 Given that PublicDataService and PnrService already exists to create data and to map names to addresses respectively
 When adding key/value data
@@ -21,7 +21,6 @@ And 'content' will hold base64 encoded text during transit to/from AntTP from th
 Given key_value_controller.rs will handle key/value REST requests
 When adding key/value support
 Then use pointer_controller.rs as an example
-And accept x-data-key as a header
 And define REST POST endpoint at /anttp-0/key_value to create data
 And define REST GET endpoint at /anttp-0/key_value/{bucket}/{object} to retrieve data
 And update /src/lib.rs with the new route

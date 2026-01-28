@@ -940,6 +940,62 @@
 							}
 						}
 					]
+				},
+				{
+					"name": "Key/Value",
+					"item": [
+						{
+							"name": "Create Key/Value",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "x-store-type",
+										"value": "memory",
+										"type": "text"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"bucket\": \"test_bucket\",\n    \"object\": \"test_object\",\n    \"content\": \"SGVsbG8gS2V5IFZhbHVl\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{base_url}}/anttp-0/key_value",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"anttp-0",
+										"key_value"
+									]
+								}
+							}
+						},
+						{
+							"name": "Get Key/Value",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/anttp-0/key_value/test_bucket/test_object",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"anttp-0",
+										"key_value",
+										"test_bucket",
+										"test_object"
+									]
+								}
+							}
+						}
+					]
 				}
 			]
 		}

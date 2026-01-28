@@ -16,3 +16,4 @@ pub mod access_checker;
 pub mod bookmark_resolver;
 pub mod pointer_name_resolver;
 pub mod pnr_service;
+pub mod key_value_service;

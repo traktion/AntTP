@@ -7,7 +7,7 @@ pub mod error;
 pub mod tool;
 pub mod grpc;
 
-use crate::controller::{pnr_controller, chunk_controller, command_controller, connect_controller, file_controller, graph_controller, pointer_controller, private_scratchpad_controller, public_archive_controller, tarchive_controller, public_data_controller, public_scratchpad_controller, register_controller};
+use crate::controller::{key_value_controller, pnr_controller, chunk_controller, command_controller, connect_controller, file_controller, graph_controller, pointer_controller, private_scratchpad_controller, public_archive_controller, tarchive_controller, public_data_controller, public_scratchpad_controller, register_controller};
 use actix_files::Files;
 use actix_web::dev::ServerHandle;
 use actix_web::web::Data;
@@ -44,6 +44,7 @@ use crate::service::access_checker::AccessChecker;
 use crate::service::bookmark_resolver::BookmarkResolver;
 use crate::service::pointer_name_resolver::PointerNameResolver;
 use crate::service::pnr_service::PnrService;
+use crate::service::key_value_service::KeyValueService;
 use crate::service::chunk_service::ChunkService;
 use crate::service::command_service::CommandService;
 use crate::service::file_service::FileService;
@@ -107,7 +108,9 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> io::Result<()> {
         pnr_controller::get_pnr,
         pnr_controller::post_pnr,
         pnr_controller::put_pnr,
-        pnr_controller::patch_pnr
+        pnr_controller::patch_pnr,
+        key_value_controller::post_key_value,
+        key_value_controller::get_key_value
     ))]
     struct ApiDoc;
 
@@ -175,6 +178,7 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> io::Result<()> {
     let register_service_data = Data::new(RegisterService::new(register_caching_client.clone(), ant_tp_config.clone(), resolver_service_data.get_ref().clone()));
     let scratchpad_service_data = Data::new(ScratchpadService::new(scratchpad_caching_client.clone(), ant_tp_config.clone()));
     let pnr_service_data = Data::new(PnrService::new(chunk_caching_client.clone(), pointer_service_data.clone()));
+    let key_value_service_data = Data::new(KeyValueService::new(public_data_service_data.clone(), pnr_service_data.clone()));
 
     // MCP
     let mcp_tool = McpTool::new(
@@ -287,6 +291,14 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> io::Result<()> {
                 web::get().to(command_controller::get_commands)
             )
             .route(
+                format!("{}key_value", API_BASE).as_str(),
+                web::post().to(key_value_controller::post_key_value)
+            )
+            .route(
+                format!("{}key_value/{{bucket}}/{{object}}", API_BASE).as_str(),
+                web::get().to(key_value_controller::get_key_value)
+            )
+            .route(
                 "/{path:.*}",
                 web::get().to(file_controller::get_public_data),
             )
@@ -309,6 +321,7 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> io::Result<()> {
             .app_data(resolver_service_data.clone())
             .app_data(scratchpad_service_data.clone())
             .app_data(pnr_service_data.clone())
+            .app_data(key_value_service_data.clone())
             .app_data(web::PayloadConfig::new(1024 * 1024 * 10));
 
         if !actix_config.uploads_disabled {

@@ -1186,7 +1186,7 @@ dependencies = [
 
 [[package]]
 name = "anttp"
-version = "0.23.28"
+version = "0.24.0"
 dependencies = [
  "actix-files",
  "actix-http",

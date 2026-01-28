@@ -623,13 +623,13 @@
 									}
 								},
 								"url": {
-									"raw": "{{base_url}}/anttp-0/graph",
+									"raw": "{{base_url}}/anttp-0/graph_entry",
 									"host": [
 										"{{base_url}}"
 									],
 									"path": [
 										"anttp-0",
-										"graph"
+										"graph_entry"
 									]
 								}
 							}

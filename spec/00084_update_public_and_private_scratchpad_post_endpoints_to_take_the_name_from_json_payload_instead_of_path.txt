@@ -19,3 +19,4 @@ Implementation Notes
 - Increment patch version of anttp package in Cargo.toml
 - Create a copy of this issue description and save to /spec using the name of this issue as the filename (with lower underscore case, starting with the 5 char padded issue number, e.g. 00084_update_public_and_private_scratchpad_post_endpoints_to_take_the_name_from_json_payload_instead_of_path.txt)
 - Run newman with the postman collection to confirm there are no regressions
+- Update public/private scratchpad routes in lib.rs to reflect utoipa paths

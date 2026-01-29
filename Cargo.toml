@@ -1,6 +1,6 @@
 [package]
 name = "anttp"
-version = "0.24.0"
+version = "0.24.1"
 edition = "2024"
 authors = ["Paul Green"]
 description = "AntTP is an HTTP server for the Autonomi Network"
@@ -52,8 +52,8 @@ rand = "0.9"
 thiserror = "2.0"
 tempfile = "3"
 async-stream = "0.3.6"
-tonic = { version = "0.12", features = ["router"] }
-prost = "0.13"
+tonic = { version = "0.12", features = ["router"], optional = true }
+prost = { version = "0.13", optional = true }
 rustls = { version = "0.23.35", default-features = false, features = ["ring"] }
 rustls-pemfile = "2.2.0"
 rcgen = "0.14.5"
@@ -65,4 +65,8 @@ mockall = "0.14"
 mockall_double = "0.3"
 
 [build-dependencies]
-tonic-build = "0.12"
+tonic-build = { version = "0.12", optional = true }
+
+[features]
+default = ["grpc"]
+grpc = ["dep:tonic", "dep:prost", "dep:tonic-build"]

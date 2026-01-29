@@ -1,0 +1,14 @@
+As an application user
+I want cargo build to either create proto structs without having to depend on the external 'proto-compiler' command or disabled gRPC at compile time
+So that the build process has no external system dependencies
+
+Given gRPC support is not critical to core functionality
+When proto files cannot be compiled due to a lack of native or external (protoc) compiler
+Then annotate the code to not build with gRPC support
+And allow the application to build and execute without errors
+
+Implementation Notes
+
+- Place any unit tests at the bottom of the same file as the associated production code
+- Increment patch version of anttp package in Cargo.toml
+- Create a copy of this issue description and save to /spec using the name of this issue as the filename (with lower underscore case, starting with the 5 char padded issue number, e.g. 00001_issue_title.txt)

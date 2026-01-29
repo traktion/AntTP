@@ -30,6 +30,7 @@ use rmcp_actix_web::transport::{StreamableHttpService};
 use rmcp::transport::streamable_http_server::session::local::LocalSessionManager;
 use tokio::sync::mpsc::Sender;
 use tokio::sync::Mutex;
+#[cfg(not(grpc_disabled))]
 use tonic::transport::Server;
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
@@ -57,19 +58,31 @@ use crate::service::register_service::RegisterService;
 use crate::service::resolver_service::ResolverService;
 use crate::service::scratchpad_service::ScratchpadService;
 use crate::tool::McpTool;
+#[cfg(not(grpc_disabled))]
 use crate::grpc::pointer_handler::{PointerHandler, PointerServiceServer};
+#[cfg(not(grpc_disabled))]
 use crate::grpc::register_handler::{RegisterHandler, RegisterServiceServer};
+#[cfg(not(grpc_disabled))]
 use crate::grpc::chunk_handler::{ChunkHandler, ChunkServiceServer};
+#[cfg(not(grpc_disabled))]
 use crate::grpc::graph_handler::{GraphHandler, GraphServiceServer};
+#[cfg(not(grpc_disabled))]
 use crate::grpc::command_handler::{CommandHandler, CommandServiceServer};
+#[cfg(not(grpc_disabled))]
 use crate::grpc::pnr_handler::{PnrHandler, PnrServiceServer};
+#[cfg(not(grpc_disabled))]
 use crate::grpc::public_data_handler::{PublicDataHandler, PublicServiceServer};
+#[cfg(not(grpc_disabled))]
 use crate::grpc::public_archive_handler::{PublicArchiveHandler, PublicArchiveServiceServer};
+#[cfg(not(grpc_disabled))]
 use crate::grpc::tarchive_handler::{TarchiveHandler, TarchiveServiceServer};
+#[cfg(not(grpc_disabled))]
 use crate::grpc::private_scratchpad_handler::{PrivateScratchpadHandler, PrivateScratchpadServiceServer};
+#[cfg(not(grpc_disabled))]
 use crate::grpc::public_scratchpad_handler::{PublicScratchpadHandler, PublicScratchpadServiceServer};
 
 static ACTIX_SERVER_HANDLE: Lazy<Mutex<Option<ServerHandle>>> = Lazy::new(|| Mutex::new(None));
+#[cfg(not(grpc_disabled))]
 static TONIC_SERVER_HANDLE: Lazy<Mutex<Option<String>>> = Lazy::new(|| Mutex::new(None));
 
 const API_BASE: &'static str = "/anttp-0/";
@@ -116,6 +129,7 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> io::Result<()> {
 
     let listen_address = ant_tp_config.listen_address.clone();
     let https_listen_address = ant_tp_config.https_listen_address.clone();
+    #[cfg(not(grpc_disabled))]
     let grpc_listen_address = ant_tp_config.grpc_listen_address.clone();
     let wallet_private_key = ant_tp_config.wallet_private_key.clone();
 
@@ -202,34 +216,52 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> io::Result<()> {
         .build();
 
     // GRPC
-    let pointer_handler = PointerHandler::new(pointer_service_data.clone(), evm_wallet_data.clone());
-    let register_handler = RegisterHandler::new(register_service_data.clone(), evm_wallet_data.clone());
-    let chunk_handler = ChunkHandler::new(chunk_service_data.clone(), evm_wallet_data.clone());
-    let graph_handler = GraphHandler::new(graph_service_data.clone(), evm_wallet_data.clone());
-    let command_handler = CommandHandler::new(command_service_data.clone());
-    let pnr_handler = PnrHandler::new(pnr_service_data.clone(), evm_wallet_data.clone());
-    let public_data_handler = PublicDataHandler::new(public_data_service_data.clone(), evm_wallet_data.clone());
-    let public_archive_handler = PublicArchiveHandler::new(public_archive_service_data.clone(), evm_wallet_data.clone());
-    let tarchive_handler = TarchiveHandler::new(tarchive_service_data.clone(), evm_wallet_data.clone());
-    let private_scratchpad_handler = PrivateScratchpadHandler::new(scratchpad_service_data.clone(), evm_wallet_data.clone());
-    let public_scratchpad_handler = PublicScratchpadHandler::new(scratchpad_service_data.clone(), evm_wallet_data.clone());
-    let tonic_server = async move {
-        tokio::task::spawn(
-            Server::builder()
-                .add_service(PointerServiceServer::new(pointer_handler))
-                .add_service(RegisterServiceServer::new(register_handler))
-                .add_service(ChunkServiceServer::new(chunk_handler))
-                .add_service(GraphServiceServer::new(graph_handler))
-                .add_service(CommandServiceServer::new(command_handler))
-                .add_service(PnrServiceServer::new(pnr_handler))
-                .add_service(PublicServiceServer::new(public_data_handler))
-                .add_service(PublicArchiveServiceServer::new(public_archive_handler))
-                .add_service(TarchiveServiceServer::new(tarchive_handler))
-                .add_service(PrivateScratchpadServiceServer::new(private_scratchpad_handler))
-                .add_service(PublicScratchpadServiceServer::new(public_scratchpad_handler))
-                .serve(grpc_listen_address),
-        )
+    #[cfg(not(grpc_disabled))]
+    let tonic_server = {
+        let pointer_handler = PointerHandler::new(pointer_service_data.clone(), evm_wallet_data.clone());
+        let register_handler = RegisterHandler::new(register_service_data.clone(), evm_wallet_data.clone());
+        let chunk_handler = ChunkHandler::new(chunk_service_data.clone(), evm_wallet_data.clone());
+        let graph_handler = GraphHandler::new(graph_service_data.clone(), evm_wallet_data.clone());
+        let command_handler = CommandHandler::new(command_service_data.clone());
+        let pnr_handler = PnrHandler::new(pnr_service_data.clone(), evm_wallet_data.clone());
+        let public_data_handler = PublicDataHandler::new(public_data_service_data.clone(), evm_wallet_data.clone());
+        let public_archive_handler = PublicArchiveHandler::new(public_archive_service_data.clone(), evm_wallet_data.clone());
+        let tarchive_handler = TarchiveHandler::new(tarchive_service_data.clone(), evm_wallet_data.clone());
+        let private_scratchpad_handler = PrivateScratchpadHandler::new(scratchpad_service_data.clone(), evm_wallet_data.clone());
+        let public_scratchpad_handler = PublicScratchpadHandler::new(scratchpad_service_data.clone(), evm_wallet_data.clone());
+        async move {
+            tokio::task::spawn(
+                Server::builder()
+                    .add_service(PointerServiceServer::new(pointer_handler))
+                    .add_service(RegisterServiceServer::new(register_handler))
+                    .add_service(ChunkServiceServer::new(chunk_handler))
+                    .add_service(GraphServiceServer::new(graph_handler))
+                    .add_service(CommandServiceServer::new(command_handler))
+                    .add_service(PnrServiceServer::new(pnr_handler))
+                    .add_service(PublicServiceServer::new(public_data_handler))
+                    .add_service(PublicArchiveServiceServer::new(public_archive_handler))
+                    .add_service(TarchiveServiceServer::new(tarchive_handler))
+                    .add_service(PrivateScratchpadServiceServer::new(private_scratchpad_handler))
+                    .add_service(PublicScratchpadServiceServer::new(public_scratchpad_handler))
+                    .serve(grpc_listen_address),
+            )
+        }
     };
+    #[cfg(not(grpc_disabled))]
+    {
+        let mut guard = TONIC_SERVER_HANDLE.lock().await;
+        if !ant_tp_config.grpc_disabled && !ant_tp_config.uploads_disabled {
+            *guard = Some("tonic_server".to_string());
+            info!("Starting Tonic (gRPC) listener on port {}", grpc_listen_address);
+            tonic_server.await;
+        } else {
+            info!("Tonic (gRPC) listener disabled");
+        }
+    }
+    #[cfg(grpc_disabled)]
+    {
+        info!("Tonic (gRPC) listener disabled (not built)");
+    }
 
     let actix_config = ant_tp_config.clone();
     let actix_server = HttpServer::new(move || {
@@ -423,15 +455,6 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> io::Result<()> {
         .bind(listen_address)?
         .bind_rustls_0_23(https_listen_address, rustls_config())?
         .run();
-
-    let mut guard = TONIC_SERVER_HANDLE.lock().await;
-    if !ant_tp_config.grpc_disabled && !ant_tp_config.uploads_disabled {
-        *guard = Some("tonic_server".to_string());
-        info!("Starting Tonic (gRPC) listener on port {}", grpc_listen_address);
-        tonic_server.await;
-    } else {
-        info!("Tonic (gRPC) listener disabled");
-    }
 
     let mut guard = ACTIX_SERVER_HANDLE.lock().await;
     *guard = Some(actix_server.handle());

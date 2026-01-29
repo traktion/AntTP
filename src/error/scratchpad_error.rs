@@ -5,6 +5,7 @@ use autonomi::client::ConnectError;
 use thiserror::Error;
 use serde::Serialize;
 use crate::error::{CreateError, GetError, UpdateError};
+#[cfg(not(grpc_disabled))]
 use tonic::Status;
 
 #[derive(Error, Debug, Serialize)]
@@ -69,6 +70,7 @@ impl actix_web::ResponseError for ScratchpadError {
     }
 }
 
+#[cfg(not(grpc_disabled))]
 impl From<ScratchpadError> for Status {
     fn from(error: ScratchpadError) -> Self {
         Status::internal(error.to_string())

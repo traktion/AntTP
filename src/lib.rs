@@ -247,6 +247,21 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> io::Result<()> {
             )
         }
     };
+    #[cfg(not(grpc_disabled))]
+    {
+        let mut guard = TONIC_SERVER_HANDLE.lock().await;
+        if !ant_tp_config.grpc_disabled && !ant_tp_config.uploads_disabled {
+            *guard = Some("tonic_server".to_string());
+            info!("Starting Tonic (gRPC) listener on port {}", grpc_listen_address);
+            tonic_server.await;
+        } else {
+            info!("Tonic (gRPC) listener disabled");
+        }
+    }
+    #[cfg(grpc_disabled)]
+    {
+        info!("Tonic (gRPC) listener disabled (not built)");
+    }
 
     let actix_config = ant_tp_config.clone();
     let actix_server = HttpServer::new(move || {
@@ -440,22 +455,6 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> io::Result<()> {
         .bind(listen_address)?
         .bind_rustls_0_23(https_listen_address, rustls_config())?
         .run();
-
-    #[cfg(not(grpc_disabled))]
-    {
-        let mut guard = TONIC_SERVER_HANDLE.lock().await;
-        if !ant_tp_config.grpc_disabled && !ant_tp_config.uploads_disabled {
-            *guard = Some("tonic_server".to_string());
-            info!("Starting Tonic (gRPC) listener on port {}", grpc_listen_address);
-            tonic_server.await;
-        } else {
-            info!("Tonic (gRPC) listener disabled");
-        }
-    }
-    #[cfg(grpc_disabled)]
-    {
-        info!("Tonic (gRPC) listener disabled (not built)");
-    }
 
     let mut guard = ACTIX_SERVER_HANDLE.lock().await;
     *guard = Some(actix_server.handle());

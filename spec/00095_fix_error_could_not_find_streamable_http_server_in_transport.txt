@@ -1,0 +1,31 @@
+As an application user
+I want to run cargo install anttp without getting "could not find streamable_http_server in transport" during the build process
+So that building from source is simple
+
+Implementation Notes
+
+- Place any unit tests at the bottom of the same file as the associated production code
+- Increment patch version of anttp package in Cargo.toml
+- Create a copy of this issue description and save to /spec using the name of this issue as the filename (with lower underscore case, starting with the 5 char padded issue number, e.g. 00001_issue_title.txt)
+- This issue could not be replicated, but likely relates to features on the rmcp library (e.g. transport-streamable-http-server)
+
+Full error message:
+
+```
+error[E0433]: failed to resolve: could not find streamable_http_server in transport
+   --> /home/willie/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/anttp-0.24.0/src/lib.rs:30:22
+    |
+30  | use rmcp::transport::streamable_http_server::session::local::LocalSessionManager;
+    |                      ^^^^^^^^^^^^^^^^^^^^^^ could not find streamable_http_server in transport
+    |
+note: found an item that was configured out
+   --> /home/willie/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rmcp-0.12.0/src/transport.rs:109:9
+    |
+109 | pub mod streamable_http_server;
+    |         ^^^^^^^^^^^^^^^^^^^^^^
+note: the item is gated behind the transport-streamable-http-server-session feature
+   --> /home/willie/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rmcp-0.12.0/src/transport.rs:107:7
+    |
+107 | #[cfg(feature = "transport-streamable-http-server-session")]
+    |       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+```

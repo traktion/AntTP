@@ -1186,7 +1186,7 @@ dependencies = [
 
 [[package]]
 name = "anttp"
-version = "0.24.3"
+version = "0.24.4"
 dependencies = [
  "actix-files",
  "actix-http",
@@ -2122,7 +2122,9 @@ dependencies = [
 
 [[package]]
 name = "chunk-streamer"
-version = "0.5.3"
+version = "0.5.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cb60d35235cf1fbb260094d61dd8d7c0ca854629676531281aec6d242e8c90cc"
 dependencies = [
  "async-trait",
  "autonomi",

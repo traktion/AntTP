@@ -1,6 +1,6 @@
 [package]
 name = "anttp"
-version = "0.24.3"
+version = "0.24.4"
 edition = "2024"
 authors = ["Paul Green"]
 description = "AntTP is an HTTP server for the Autonomi Network"
@@ -36,7 +36,7 @@ tokio = "1.48"
 rmp-serde = "1.3"
 bytes = "1.11"
 clap = { version = "4.5", features = ["derive", "string"] }
-chunk-streamer = { path = "../chunk-streamer" }
+chunk-streamer = "0.5.4"
 uuid = "1.18"
 base64 = "0.22"
 utoipa = "5"

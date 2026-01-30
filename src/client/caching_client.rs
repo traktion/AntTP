@@ -111,7 +111,7 @@ impl CachingClient {
                 } else {
                     let from = u64::try_from(range_from).unwrap();
                     if from > length.saturating_sub(1) {
-                        length // todo: should return length.saturating_sub(1) to be precise?
+                        length.saturating_sub(1)
                     } else {
                         from
                     }
@@ -121,12 +121,12 @@ impl CachingClient {
                     if to < length {
                         length.saturating_sub(1).saturating_sub(to)
                     } else {
-                        0 // todo: should return length.saturating_sub(1) to be precise?
+                        length.saturating_sub(1)
                     }
                 } else {
                     let to = u64::try_from(range_to).unwrap();
                     if to > length.saturating_sub(1) {
-                        length // todo: should return length.saturating_sub(1) to be precise?
+                        length.saturating_sub(1)
                     } else {
                         to
                     }
@@ -197,14 +197,14 @@ mod tests {
         assert_eq!(client.get_derived_ranges(10, 50, length), (10, 50));
 
         // Positive range_to exceeding length
-        assert_eq!(client.get_derived_ranges(10, 150, length), (10, 100));
+        assert_eq!(client.get_derived_ranges(10, 150, length), (10, 99));
 
         // Positive range_from exceeding length
-        assert_eq!(client.get_derived_ranges(150, 200, length), (100, 100));
+        assert_eq!(client.get_derived_ranges(150, 200, length), (99, 99));
 
         // Negative range_from (from the end)
         // range_from = -10 means last 10 bytes: from 89 to 99 (length 100)
-        assert_eq!(client.get_derived_ranges(-10, 100, length), (89, 100));
+        assert_eq!(client.get_derived_ranges(-10, 100, length), (89, 99));
 
         // Negative range_to (excluding from the end)
         // range_to = -5: length - 1 - 5 = 94.

@@ -1,0 +1,15 @@
+As an application user
+When I request a pointer, I want the command to be executed immediately, rather than being queued
+So blockages on the queue do not slow down requests
+
+Given the pointer caching client already has a pointer_get function which creates a command an adds it to the queue
+When the pointer caching client is asked to get a pointer
+Then execute the command immediately using tokio to spawn the command asynchronously
+And continue to return the cached item where possible
+
+Implementation Notes
+
+- Place any unit tests at the bottom of the same file as the associated production code
+- Increment patch version of anttp package in Cargo.toml
+- Create a copy of this issue description and save to /spec using the name of this issue as the filename (with lower underscore case, starting with the 5 char padded issue number, e.g. 00001_issue_title.txt)
+- use `tokio::spawn(async move {})` to spawn task

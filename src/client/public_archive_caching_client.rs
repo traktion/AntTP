@@ -50,13 +50,10 @@ impl PublicArchiveCachingClient {
                 Ok(bytes) => {
                     let maybe_public_archive = PublicArchive::from_bytes(bytes.clone());
                     match maybe_public_archive {
-                        // confirm that serialization can be successful, before returning the data
-                        Ok(public_archive) => {
+                        // confirm successful serialization, before returning the data
+                        Ok(_) => {
                             info!("retrieved public archive for [{}] from network - storing in hybrid cache", local_address.to_hex());
-                            match public_archive.to_bytes() {
-                                Ok(cache_item) => Ok(Vec::from(cache_item)),
-                                Err(e) => Err(foyer::Error::other(format!("Failed to convert PublicArchive to bytes for [{}]: {}", local_address.to_hex(), e.to_string())))
-                            }
+                            Ok(Vec::from(bytes))
                         },
                         Err(e) => {
                             Err(foyer::Error::other(format!("Failed to retrieve public archive for [{}] from network: {:?}", local_address.to_hex(), e)))

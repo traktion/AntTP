@@ -6,7 +6,7 @@ use autonomi::ChunkAddress;
 use autonomi::data::DataAddress;
 use chunk_streamer::chunk_streamer::ChunkStreamer;
 use foyer::HybridCache;
-use log::error;
+use log::{debug, error};
 use crate::config::anttp_config::AntTpConfig;
 use bytes::{BufMut, Bytes, BytesMut};
 use futures_util::StreamExt;
@@ -61,40 +61,23 @@ impl CachingClient {
         match ChunkCachingClient::new(self.clone()).chunk_get_internal(&ChunkAddress::new(*addr.xorname())).await {
             Ok(data_map_chunk) => {
                 let chunk_streamer = ChunkStreamer::new(addr.to_hex(), data_map_chunk.value, self.clone(), self.ant_tp_config.download_threads);
-                // only retrieve the size when it is needed
-                let length = if range_from < 0 || range_to <= 0 { u64::try_from(chunk_streamer.get_stream_size().await).unwrap() } else { 0 };
 
-                let derived_range_from = if range_from < 0 {
-                    let from = u64::try_from(range_from.abs()).unwrap();
-                    if from < length {
-                        length.saturating_sub(1).saturating_sub(from)
-                    } else {
-                        0
-                    }
+                // only retrieve the size when it is needed
+                let length = if range_from < 0 || range_to <= 0 {
+                    u64::try_from(chunk_streamer.get_stream_size().await).ok()
                 } else {
-                    u64::try_from(range_from).unwrap()
+                    None
                 };
-                let derived_range_to: u64 = if range_to <= 0 {
-                    let to = u64::try_from(range_to.abs()).unwrap();
-                    if to < length {
-                        length.saturating_sub(1).saturating_sub(to)
-                    } else {
-                        0
-                    }
-                } else {
-                    let to = u64::try_from(range_to).unwrap();
-                    if to > length.saturating_sub(1) {
-                        length
-                    } else {
-                        to
-                    }
-                };
+
+                let (derived_range_from, derived_range_to) = self.get_derived_ranges(range_from, range_to, length);
 
                 let mut chunk_receiver: chunk_streamer::chunk_receiver::ChunkReceiver = match chunk_streamer.open(derived_range_from, derived_range_to).await {
                     Ok(chunk_receiver) => chunk_receiver,
                     Err(e) => return Err(ChunkError::GetStreamError(GetStreamError::BadReceiver(format!("failed to open chunk stream: {}", e)))),
                 };
 
+                debug!("streaming from addr [{}], range_from: [{}], range_to: [{}], derived_range_from: [{}], derived_range_to: [{}]",
+                    addr, range_from, range_to, derived_range_from, derived_range_to);
                 let mut buf = BytesMut::with_capacity(usize::try_from(derived_range_to - derived_range_from).expect("Failed to convert range from u64 to usize"));
                 let mut has_data = true;
                 while has_data {
@@ -112,6 +95,49 @@ impl CachingClient {
                 Ok(buf.freeze())
             }
             Err(e) => Err(e)
+        }
+    }
+
+    pub fn get_derived_ranges(&self, range_from: i64, range_to: i64, length: Option<u64>) -> (u64, u64) {
+        match length {
+            Some(length) => {
+                let derived_range_from: u64 = if range_from < 0 {
+                    let from = u64::try_from(range_from.abs()).unwrap();
+                    if from < length {
+                        length.saturating_sub(1).saturating_sub(from)
+                    } else {
+                        0 // start from the beginning
+                    }
+                } else {
+                    let from = u64::try_from(range_from).unwrap();
+                    if from > length.saturating_sub(1) {
+                        length.saturating_sub(1)
+                    } else {
+                        from
+                    }
+                };
+                let derived_range_to: u64 = if range_to <= 0 {
+                    let to = u64::try_from(range_to.abs()).unwrap();
+                    if to < length {
+                        length.saturating_sub(1).saturating_sub(to)
+                    } else {
+                        length.saturating_sub(1)
+                    }
+                } else {
+                    let to = u64::try_from(range_to).unwrap();
+                    if to > length.saturating_sub(1) {
+                        length.saturating_sub(1)
+                    } else {
+                        to
+                    }
+                };
+                (derived_range_from, derived_range_to)
+            },
+            None => {
+                let derived_range_from = u64::try_from(range_from.abs()).unwrap();
+                let derived_range_to = u64::try_from(range_to.abs()).unwrap();
+                (derived_range_from, derived_range_to)
+            }
         }
     }
 
@@ -134,92 +160,150 @@ impl CachingClient {
 
 #[cfg(test)]
 mod tests {
-    /// Test range calculation with zero-length data to ensure no overflow
-    #[test]
-    fn test_range_calculation_with_zero_length() {
-        let length: u64 = 0;
+    use super::*;
+    use ant_evm::EvmNetwork;
+    use foyer::HybridCacheBuilder;
+    use clap::Parser;
+    use tokio::sync::mpsc;
+    use tempfile::tempdir;
 
-        // Test negative range_from with zero length
-        let from = 1u64;
-        let derived_range_from = if from < length {
-            length.saturating_sub(1).saturating_sub(from)
-        } else {
-            0
-        };
-        assert_eq!(derived_range_from, 0);
+    async fn create_mock_caching_client() -> (CachingClient, mpsc::Receiver<Box<dyn Command>>) {
+        let (tx, rx) = mpsc::channel(100);
+        let ant_tp_config = AntTpConfig::parse_from(&[
+            "anttp",
+            "--map-cache-directory",
+            tempdir().unwrap().path().to_str().unwrap()
+        ]);
 
-        // Test negative range_to with zero length
-        let to = 1u64;
-        let derived_range_to = if to < length {
-            length.saturating_sub(1).saturating_sub(to)
-        } else {
-            0
-        };
-        assert_eq!(derived_range_to, 0);
+        let client_harness = ClientHarness::new(EvmNetwork::ArbitrumOne, ant_tp_config.clone());
+        let hybrid_cache = HybridCacheBuilder::new().memory(1024).storage().build().await.unwrap();
 
-        // Test positive range_to exceeding length
-        let to = 100u64;
-        let derived_range_to = if to > length.saturating_sub(1) {
-            length
-        } else {
-            to
-        };
-        assert_eq!(derived_range_to, 0);
+        let client = CachingClient::new(
+            Data::new(Mutex::new(client_harness)),
+            ant_tp_config,
+            Data::new(hybrid_cache),
+            Data::new(tx),
+        );
+
+        (client, rx)
     }
 
-    /// Test range calculation with normal data length
-    #[test]
-    fn test_range_calculation_with_normal_length() {
-        let length: u64 = 100;
+    #[tokio::test]
+    async fn test_get_derived_ranges_with_length() {
+        let (client, _) = create_mock_caching_client().await;
+        let length = Some(100u64);
 
-        // Test negative range_from (last 10 bytes)
-        let from = 10u64;
-        let derived_range_from = if from < length {
-            length.saturating_sub(1).saturating_sub(from)
-        } else {
-            0
-        };
-        assert_eq!(derived_range_from, 89); // 99 - 10 = 89
+        // Positive ranges within bounds
+        assert_eq!(client.get_derived_ranges(10, 50, length), (10, 50));
 
-        // Test negative range_to (excluding last 5 bytes)
-        let to = 5u64;
-        let derived_range_to = if to < length {
-            length.saturating_sub(1).saturating_sub(to)
-        } else {
-            0
-        };
-        assert_eq!(derived_range_to, 94); // 99 - 5 = 94
+        // Positive range_to exceeding length
+        assert_eq!(client.get_derived_ranges(10, 150, length), (10, 99));
 
-        // Test positive range_to within bounds
-        let to = 50u64;
-        let derived_range_to = if to > length.saturating_sub(1) {
-            length
-        } else {
-            to
-        };
-        assert_eq!(derived_range_to, 50);
+        // Positive range_from exceeding length
+        assert_eq!(client.get_derived_ranges(150, 200, length), (99, 99));
 
-        // Test positive range_to exceeding bounds
-        let to = 150u64;
-        let derived_range_to = if to > length.saturating_sub(1) {
-            length
-        } else {
-            to
-        };
-        assert_eq!(derived_range_to, 100);
+        // Negative range_from (from the end)
+        // range_from = -10 means last 10 bytes: from 89 to 99 (length 100)
+        assert_eq!(client.get_derived_ranges(-10, 100, length), (89, 99));
+
+        // Negative range_to (excluding from the end)
+        // range_to = -5: length - 1 - 5 = 94.
+        assert_eq!(client.get_derived_ranges(0, -5, length), (0, 94));
+
+        // Both negative
+        // range_from = -10 (89), range_to = -5 (94)
+        assert_eq!(client.get_derived_ranges(-10, -5, length), (89, 94));
     }
 
-    /// Test edge case: from exceeds length
-    #[test]
-    fn test_range_calculation_from_exceeds_length() {
-        let length: u64 = 10;
+    #[tokio::test]
+    async fn test_get_derived_ranges_without_length() {
+        let (client, _) = create_mock_caching_client().await;
 
-        let from = 20u64;
-        let derived_range_from = if from < length {
-            length.saturating_sub(1).saturating_sub(from)
-        } else {
-            0
-        };
-        assert_eq!(derived_range_from, 0);
+        // Should just return absolute values
+        assert_eq!(client.get_derived_ranges(10, 50, None), (10, 50));
+        assert_eq!(client.get_derived_ranges(-10, -50, None), (10, 50));
+    }
+
+    #[tokio::test]
+    async fn test_get_derived_ranges_zero_length() {
+        let (client, _) = create_mock_caching_client().await;
+        let length = Some(0u64);
+
+        assert_eq!(client.get_derived_ranges(0, 10, length), (0, 0));
+        assert_eq!(client.get_derived_ranges(-1, -1, length), (0, 0));
+    }
+
+    #[tokio::test]
+    async fn test_new_creates_cache_dir() {
+        let temp_dir = tempdir().unwrap();
+        let cache_path = temp_dir.path().join("test_cache");
+        let cache_dir_str = cache_path.to_str().unwrap().to_string();
+
+        let ant_tp_config = AntTpConfig::parse_from(&[
+            "anttp",
+            "--map-cache-directory",
+            &cache_dir_str
+        ]);
+
+        let (tx, _) = mpsc::channel(1);
+        let client_harness = ClientHarness::new(EvmNetwork::ArbitrumOne, ant_tp_config.clone());
+        let hybrid_cache = HybridCacheBuilder::new().memory(1024).storage().build().await.unwrap();
+
+        let _client = CachingClient::new(
+            Data::new(Mutex::new(client_harness)),
+            ant_tp_config,
+            Data::new(hybrid_cache),
+            Data::new(tx),
+        );
+
+        assert!(cache_path.exists());
+    }
+
+    #[tokio::test]
+    async fn test_job_schedule() {
+        let (client, _) = create_mock_caching_client().await;
+        assert!(client.schedule().is_some());
+    }
+
+    #[tokio::test]
+    async fn test_job_handle() {
+        let (mut client, _) = create_mock_caching_client().await;
+        // This should not panic and should at least lock the harness
+        client.handle().await;
+    }
+
+    #[tokio::test]
+    async fn test_send_commands() {
+        let (client, mut rx) = create_mock_caching_client().await;
+
+        struct MockCommand;
+        #[async_trait]
+        impl Command for MockCommand {
+            async fn execute(&self) -> Result<(), crate::client::command::error::CommandError> {
+                Ok(())
+            }
+            fn action_hash(&self) -> Vec<u8> { vec![] }
+            fn id(&self) -> u128 { 0 }
+        }
+
+        // Test send_create_command
+        let res = client.send_create_command(Box::new(MockCommand)).await;
+        assert!(res.is_ok());
+        let _received: Box<dyn Command> = rx.recv().await.unwrap();
+
+        // Test send_update_command
+        let res = client.send_update_command(Box::new(MockCommand)).await;
+        assert!(res.is_ok());
+        let _received: Box<dyn Command> = rx.recv().await.unwrap();
+
+        // Test send_get_command
+        let res = client.send_get_command(Box::new(MockCommand)).await;
+        assert!(res.is_ok());
+        let _received: Box<dyn Command> = rx.recv().await.unwrap();
+
+        // Test send_check_command
+        let res = client.send_check_command(Box::new(MockCommand)).await;
+        assert!(res.is_ok());
+        let _received: Box<dyn Command> = rx.recv().await.unwrap();
     }
 }

@@ -1,0 +1,22 @@
+As an application user
+I want to be able to view directories and files from public archives without seeing corrupted binary responses
+So that public archives can be used again in a similar way to tarchives
+
+Given it is necessary to view public archive directories and files
+When accessing these items
+Then AntTP should not serve raw, unexpected, binary data
+And AntTP should serve the correct directories or files as expected
+And the behaviour should return to functioning like in older autonomi library releases
+
+Given corrupted public archive listings/files occur with both new and old uploads using the ant CLI tool or the POST /anttp-0/multipart/public_archive REST endpoint
+When accessing public archives
+Then the issue seems to be caused by retrieval, rather than upload
+
+Implementation Notes
+
+- Place any unit tests at the bottom of the same file as the associated production code
+- Increment patch version of anttp package in Cargo.toml
+- Create a copy of this issue description and save to /spec using the name of this issue as the filename (with lower underscore case, starting with the 5 char padded issue number, e.g. 00001_issue_title.txt)
+- This error may have been introduced in autonomi 0.8.x library
+- Example public archive at XOR dc790a3a5a1c942d102941ccea3407594eb716cb90d2a86c7079265e2b427bd2 (or via URL http://localhost:18888/dc790a3a5a1c942d102941ccea3407594eb716cb90d2a86c7079265e2b427bd2 or http://anttp.antsnest.site/dc790a3a5a1c942d102941ccea3407594eb716cb90d2a86c7079265e2b427bd2)
+- This is the underlying error, when trying to deserialise PubilArchive data: `autonomi::files::PublicArchive::from_bytes(bytes)`: `InvalidMarkerRead(Error { kind: UnexpectedEof, message: "\\&#34;failed to fill whole buffer\\&#34;" })`

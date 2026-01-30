@@ -81,7 +81,9 @@ impl Archive {
     }
 
     pub fn build_from_public_archive(public_archive: PublicArchive) -> Self {
-        public_archive.iter().for_each(|(path_buf, data_address, _)| debug!("archive entry: [{}] at [{:x}]", path_buf.to_str().unwrap().to_string().replace("\\", "/"), data_address.xorname()));
+        public_archive.iter().for_each(|(path_buf, data_address, _)|
+            debug!("public archive entry: [{}] at [{:x}]",
+                path_buf.to_str().unwrap().to_string().replace("\\", "/"), data_address.xorname()));
 
         // todo: Replace with contains() once keys are a more useful shape
         let mut data_address_offsets_map = HashMap::new();

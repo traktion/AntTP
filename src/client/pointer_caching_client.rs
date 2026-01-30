@@ -6,6 +6,7 @@ use log::{debug, info, warn};
 use mockall::mock;
 use crate::client::cache_item::CacheItem;
 use crate::client::{CachingClient, POINTER_CACHE_KEY, POINTER_CHECK_CACHE_KEY};
+use crate::client::command::Command;
 use crate::client::command::pointer::check_pointer_command::CheckPointerCommand;
 use crate::client::command::pointer::get_pointer_command::GetPointerCommand;
 use crate::controller::StoreType;
@@ -109,10 +110,10 @@ impl PointerCachingClient {
             Some(_) => {
                 info!("retrieved pointer for [{}] from hybrid cache", address.to_hex());
                 if cache_item.has_expired() {
-                    let command = Box::new(
-                        GetPointerCommand::new(self.caching_client.client_harness.clone(), self.caching_client.hybrid_cache.clone(), address.clone(), self.caching_client.ant_tp_config.cached_mutable_ttl)
-                    );
-                    self.caching_client.send_get_command(command).await?;
+                    let command = GetPointerCommand::new(self.caching_client.client_harness.clone(), self.caching_client.hybrid_cache.clone(), address.clone(), self.caching_client.ant_tp_config.cached_mutable_ttl);
+                    tokio::spawn(async move {
+                        let _ = command.execute().await;
+                    });
                 }
                 Ok(cache_item.item.unwrap())
             }
@@ -201,10 +202,10 @@ impl PointerCachingClient {
             Some(_) => {
                 info!("retrieved pointer check existence for [{}] from hybrid cache", address.to_hex());
                 if cache_item.has_expired() {
-                    let command = Box::new(
-                        CheckPointerCommand::new(self.caching_client.client_harness.clone(), self.caching_client.hybrid_cache.clone(), address.clone(), self.caching_client.ant_tp_config.cached_mutable_ttl)
-                    );
-                    self.caching_client.send_check_command(command).await?;
+                    let command = CheckPointerCommand::new(self.caching_client.client_harness.clone(), self.caching_client.hybrid_cache.clone(), address.clone(), self.caching_client.ant_tp_config.cached_mutable_ttl);
+                    tokio::spawn(async move {
+                        let _ = command.execute().await;
+                    });
                 }
                 Ok(cache_item.item.unwrap())
             }

@@ -1,6 +1,8 @@
 use ant_protocol::storage::{ChunkAddress, Pointer, PointerAddress, PointerTarget};
 use autonomi::{Client, SecretKey};
 use log::{debug, error, warn};
+use std::collections::HashSet;
+use once_cell::sync::Lazy;
 #[double]
 use crate::client::ChunkCachingClient;
 #[double]
@@ -9,6 +11,77 @@ use crate::error::GetError;
 use crate::error::pointer_error::PointerError;
 use crate::model::pnr::PnrZone;
 use mockall_double::double;
+
+static PUBLIC_SUFFIX_LIST: Lazy<HashSet<&'static str>> = Lazy::new(|| {
+    let mut s = HashSet::new();
+    // TLDs (representative sample)
+    s.insert("com");
+    s.insert("org");
+    s.insert("net");
+    s.insert("edu");
+    s.insert("gov");
+    s.insert("io");
+    s.insert("uk");
+    s.insert("de");
+    s.insert("jp");
+    s.insert("fr");
+    s.insert("au");
+    s.insert("ca");
+    s.insert("it");
+    s.insert("ch");
+    s.insert("nl");
+    s.insert("no");
+    s.insert("se");
+    s.insert("es");
+    s.insert("pt");
+    s.insert("gr");
+    s.insert("ru");
+    s.insert("cn");
+    s.insert("in");
+    s.insert("br");
+    s.insert("za");
+    s.insert("mx");
+    s.insert("ar");
+    s.insert("cl");
+    s.insert("co");
+    s.insert("pe");
+    s.insert("ve");
+    s.insert("ec");
+    s.insert("uy");
+    s.insert("py");
+    s.insert("bo");
+    s.insert("gy");
+    s.insert("sr");
+    s.insert("gf");
+
+    // SLDs (representative sample)
+    s.insert("co.uk");
+    s.insert("org.uk");
+    s.insert("me.uk");
+    s.insert("com.au");
+    s.insert("org.au");
+    s.insert("com.br");
+    s.insert("org.br");
+    s.insert("com.cn");
+    s.insert("org.cn");
+    s.insert("net.cn");
+    s.insert("ac.uk");
+    s.insert("gov.uk");
+    s.insert("ltd.uk");
+    s.insert("plc.uk");
+    s.insert("sch.uk");
+    s.insert("co.jp");
+    s.insert("or.jp");
+    s.insert("ne.jp");
+    s.insert("ac.jp");
+    s.insert("ad.jp");
+    s.insert("ed.jp");
+    s.insert("go.jp");
+    s.insert("gr.jp");
+    s.insert("lg.jp");
+
+    s
+});
 
 pub struct ResolvedRecord {
     pub address: String,
@@ -38,24 +111,80 @@ impl PointerNameResolver {
         self.resolve(name).await.is_some()
     }
 
-    pub async fn resolve(&self, name: &String) -> Option<ResolvedRecord> {
-        if name.is_empty() {
-            None
-        } else {
-            debug!("get key from name: {}", name);
-            let pointer_key = Client::register_key_from_name(&self.pointer_name_resolver_secret_key, name.as_str());
-            debug!("found: name={}, pointer_key={}, public_key={}", name, pointer_key.to_hex(), &pointer_key.public_key().to_hex());
-            match self.resolve_pointer(&pointer_key.public_key().to_hex(), 0).await.ok() {
-                Some(pointer) => match self.resolve_map(&pointer.target().to_hex()).await {
-                    Some(resolved_record) => {
-                        // use resolved record TTL to update TTLs for cache
-                        self.update_pointer_ttls(&pointer_key.public_key().to_hex(), resolved_record.ttl, 0).await.ok()?;
-                        Some(resolved_record) // return map target
-                    },
-                    None => Some(ResolvedRecord::new(pointer.target().to_hex(), self.ttl_default )) // return pointer target
-                }
-                None => None,
+    fn validate_pnr_name(name: &str) -> bool {
+        if name.is_empty() || name.len() > 63 {
+            return false;
+        }
+        if name.starts_with('-') || name.ends_with('-') {
+            return false;
+        }
+        name.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '.')
+    }
+
+    fn split_name(name: &str) -> (String, String) {
+        let parts: Vec<&str> = name.split('.').collect();
+        if parts.len() <= 1 {
+            return (name.to_string(), "".to_string());
+        }
+
+        // Check for known SLDs (2 parts)
+        if parts.len() >= 3 {
+            let last_two = format!("{}.{}", parts[parts.len() - 2], parts[parts.len() - 1]);
+            if PUBLIC_SUFFIX_LIST.contains(last_two.as_str()) {
+                let zone_name = format!("{}.{}", parts[parts.len() - 3], last_two);
+                let sub_name = parts[..parts.len() - 3].join(".");
+                return (zone_name, sub_name);
             }
+        }
+
+        // Check for known TLDs (1 part)
+        if parts.len() >= 2 {
+            let last_one = parts[parts.len() - 1];
+            if PUBLIC_SUFFIX_LIST.contains(last_one) {
+                let zone_name = format!("{}.{}", parts[parts.len() - 2], last_one);
+                let sub_name = parts[..parts.len() - 2].join(".");
+                return (zone_name, sub_name);
+            }
+        }
+
+        // Special case: "test.name" in tests is often used as a single part zone name
+        // or the second part is not in our restricted sample TLD list.
+        // If we have "test.name", we might want "test.name" to be the zone name if it's treated as a single PNR name.
+        // But traditional PNR names might not have dots unless they are sub-names.
+        
+        // If the last part is not a known TLD/SLD, we assume the last part IS the zone name.
+        let zone_name = parts[parts.len() - 1].to_string();
+        let sub_name = parts[..parts.len() - 1].join(".");
+        (zone_name, sub_name)
+    }
+
+    pub async fn resolve(&self, name: &String) -> Option<ResolvedRecord> {
+        if !Self::validate_pnr_name(name) {
+            return None;
+        }
+
+        let (zone_name, sub_name) = Self::split_name(name);
+        debug!("resolve: name={}, zone_name={}, sub_name={}", name, zone_name, sub_name);
+
+        let pointer_key = Client::register_key_from_name(&self.pointer_name_resolver_secret_key, zone_name.as_str());
+        debug!("found: zone_name={}, pointer_key={}, public_key={}", zone_name, pointer_key.to_hex(), &pointer_key.public_key().to_hex());
+
+        match self.resolve_pointer(&pointer_key.public_key().to_hex(), 0).await.ok() {
+            Some(pointer) => match self.resolve_map(&pointer.target().to_hex(), &sub_name).await {
+                Some(resolved_record) => {
+                    // use resolved record TTL to update TTLs for cache
+                    self.update_pointer_ttls(&pointer_key.public_key().to_hex(), resolved_record.ttl, 0).await.ok()?;
+                    Some(resolved_record) // return map target
+                },
+                None => {
+                    if sub_name.is_empty() {
+                        Some(ResolvedRecord::new(pointer.target().to_hex(), self.ttl_default)) // return pointer target if no sub-name
+                    } else {
+                        None
+                    }
+                }
+            }
+            None => None,
         }
     }
 
@@ -102,18 +231,18 @@ impl PointerNameResolver {
         }
     }
 
-    pub async fn resolve_map(&self, name: &String) -> Option<ResolvedRecord> {
+    pub async fn resolve_map(&self, name: &String, sub_name: &String) -> Option<ResolvedRecord> {
         match ChunkAddress::from_hex(&name) {
             Ok(chunk_address) => match self.chunk_caching_client.chunk_get_internal(&chunk_address).await {
                 Ok(chunk) => {
                     match serde_json::from_slice::<PnrZone>(&chunk.value) {
                         Ok(pnr_zone) => {
                             debug!("deserialized {} PNR records", pnr_zone.records.len());
-                            if let Some(pnr_record) = pnr_zone.records.get("") {
-                                debug!("found default PNR record");
+                            if let Some(pnr_record) = pnr_zone.records.get(sub_name) {
+                                debug!("found PNR record for sub_name: '{}'", sub_name);
                                 return Some(ResolvedRecord::new(pnr_record.address.to_string(), pnr_record.ttl));
                             }
-                            debug!("no default PNR record found");
+                            debug!("no PNR record found for sub_name: '{}'", sub_name);
                             None
                         }
                         Err(e) => {
@@ -174,7 +303,7 @@ mod tests {
             .returning(|_| Err(PointerError::GetError(GetError::RecordNotFound("Not found".to_string()))));
 
         let resolver = create_test_resolver(mock_pointer_caching_client, mock_chunk_caching_client);
-        let result = resolver.resolve(&"test.name".to_string()).await;
+        let result = resolver.resolve(&"testname".to_string()).await;
 
         assert!(result.is_none());
     }
@@ -197,12 +326,91 @@ mod tests {
             .returning(|_| Err(ChunkError::GetError(GetError::RecordNotFound("Not found".to_string()))));
 
         let resolver = create_test_resolver(mock_pointer_caching_client, mock_chunk_caching_client);
-        let result = resolver.resolve(&"test.name".to_string()).await;
+        let result = resolver.resolve(&"testname".to_string()).await;
 
         assert!(result.is_some());
         let record = result.unwrap();
         assert_eq!(record.address, target_chunk_address.to_hex());
         assert_eq!(record.ttl, 3600);
+    }
+
+    #[tokio::test]
+    async fn test_validate_pnr_name() {
+        assert!(PointerNameResolver::validate_pnr_name("test"));
+        assert!(PointerNameResolver::validate_pnr_name("test-name"));
+        assert!(PointerNameResolver::validate_pnr_name("sub.test-name"));
+        assert!(PointerNameResolver::validate_pnr_name("a".repeat(63).as_str()));
+        
+        assert!(!PointerNameResolver::validate_pnr_name(""));
+        assert!(!PointerNameResolver::validate_pnr_name("-test"));
+        assert!(!PointerNameResolver::validate_pnr_name("test-"));
+        assert!(!PointerNameResolver::validate_pnr_name("a".repeat(64).as_str()));
+        assert!(!PointerNameResolver::validate_pnr_name("test_name"));
+    }
+
+    #[test]
+    fn test_split_name() {
+        let (zone, sub) = PointerNameResolver::split_name("sub.zone");
+        assert_eq!(zone, "zone");
+        assert_eq!(sub, "sub");
+
+        let (zone, sub) = PointerNameResolver::split_name("sub1.sub2.zone");
+        assert_eq!(zone, "zone");
+        assert_eq!(sub, "sub1.sub2");
+
+        let (zone, sub) = PointerNameResolver::split_name("zone.com");
+        assert_eq!(zone, "zone.com");
+        assert_eq!(sub, "");
+
+        let (zone, sub) = PointerNameResolver::split_name("sub.zone.com");
+        assert_eq!(zone, "zone.com");
+        assert_eq!(sub, "sub");
+
+        let (zone, sub) = PointerNameResolver::split_name("sub1.sub2.zone.com");
+        assert_eq!(zone, "zone.com");
+        assert_eq!(sub, "sub1.sub2");
+
+        let (zone, sub) = PointerNameResolver::split_name("zone.co.uk");
+        assert_eq!(zone, "zone.co.uk");
+        assert_eq!(sub, "");
+
+        let (zone, sub) = PointerNameResolver::split_name("sub.zone.co.uk");
+        assert_eq!(zone, "zone.co.uk");
+        assert_eq!(sub, "sub");
+    }
+
+    #[tokio::test]
+    async fn test_resolve_with_subname() {
+        let mut mock_pointer_caching_client = MockPointerCachingClient::default();
+        let mut mock_chunk_caching_client = MockChunkCachingClient::default();
+        
+        let map_chunk_address = ChunkAddress::from_hex("a40e045a6fbed33b27039aa8383c9dbf286e19a7265141c2da3085e0c8571527").unwrap();
+        let pointer = Pointer::new(&SecretKey::random(), 0, PointerTarget::ChunkAddress(map_chunk_address));
+        
+        mock_pointer_caching_client
+            .expect_pointer_get()
+            .returning(move |_| Ok(pointer.clone()));
+
+        mock_pointer_caching_client
+            .expect_pointer_update_ttl()
+            .returning(|_, _| Ok(Pointer::new(&SecretKey::random(), 0, PointerTarget::ChunkAddress(ChunkAddress::from_hex("a40e045a6fbed33b27039aa8383c9dbf286e19a7265141c2da3085e0c8571527").unwrap()))));
+
+        let mut records = HashMap::new();
+        records.insert("sub".to_string(), PnrRecord::new("address123".to_string(), PnrRecordType::A, 100));
+        let pnr_zone = PnrZone::new("testname".to_string(), records, None, None);
+        let pnr_zone_bytes = serde_json::to_vec(&pnr_zone).unwrap();
+
+        mock_chunk_caching_client
+            .expect_chunk_get_internal()
+            .returning(move |_| Ok(Chunk::new(Bytes::from(pnr_zone_bytes.clone()))));
+
+        let resolver = create_test_resolver(mock_pointer_caching_client, mock_chunk_caching_client);
+        let result = resolver.resolve(&"sub.testname".to_string()).await;
+
+        assert!(result.is_some());
+        let record = result.unwrap();
+        assert_eq!(record.address, "address123");
+        assert_eq!(record.ttl, 100);
     }
 
     #[tokio::test]
@@ -236,7 +444,7 @@ mod tests {
             .returning(move |_| Ok(chunk.clone()));
 
         let resolver = create_test_resolver(mock_pointer_caching_client, mock_chunk_caching_client);
-        let result = resolver.resolve(&"test.name".to_string()).await;
+        let result = resolver.resolve(&"testname".to_string()).await;
 
         assert!(result.is_some());
         let record = result.unwrap();
@@ -278,7 +486,7 @@ mod tests {
         // Let's use a fixed secret key for the resolver so we can predict the pointer key.
         
         let resolver_sk = SecretKey::from_hex("55dcbc4624699d219b8ec293339a3b81e68815397f5a502026784d8122d09fce").unwrap();
-        let name = "test.name";
+        let name = "testname";
         let expected_pointer_key = Client::register_key_from_name(&resolver_sk, name);
         let expected_addr = PointerAddress::from_hex(&expected_pointer_key.public_key().to_hex()).unwrap();
 

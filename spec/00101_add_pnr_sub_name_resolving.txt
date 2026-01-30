@@ -1,0 +1,41 @@
+As an application user
+When I provide a PNR name to be resolved, if it contains full-stops, it should lookup the sub-name, instead of the default ("") record
+So there are more, faster, options for resolving names to addresses
+
+Given resolver_service.rs is responsible for taking the URL and resolving it to an address
+When a hostname is provided
+Then the full hostname should used, rather than a part of it, to allow sub-names to be included in resolution
+
+Given pointer_name_resolver.rs is responsible for resolving PNR names
+When a name with sub-names is provided (i.e. a name separated by full stops) to the PointerNameResolver resolve() function
+Then usually split the name by full stops to form the PNR zone name (right most part) and sub-name (remainder parts to the left of the last dot)
+And when the final part is a known top level domain name (TLD) or second level domain name (SLD), then include that within the PNR zone name part (to avoid top level/second level domain squatting).
+And assume that sub-names can include full stops to help punctuate sub-names.
+
+Given resolve_map() function  in pointer_name_resolver.rs currently looks up the default record key ("")
+When resolve_map() is also passed the sub-name
+Then the sub-name should be used as the record key to find a matching address
+
+Given a PNR name should be a-z or A-Z or 0-9 and hyphen (-) (but not start or end with hyphen) and should be between 1 and 63 characters long
+When a PNR name is provided
+Then the PNR name (PNR zone name and sub-name together) must be validated against these rules
+
+Given TLDs and SLDs will need to be included in the PNR zone name
+When starting AntTP
+Then these TLDs/SLDs should be loaded from a static map containing all known values
+And then this map can be provided to resolve() in PointerNameResolver to allow the name to be split into zone name and sub-name parts
+
+Implementation Notes
+
+- Place any unit tests at the bottom of the same file as the associated production code
+- Increment patch version of anttp package in Cargo.toml
+- Create a copy of this issue description and save to /spec using the name of this issue as the filename (with lower underscore case, starting with the 5 char padded issue number, e.g. 00001_issue_title.txt)
+- See a list of TLDs here: https://en.wikipedia.org/wiki/List_of_Internet_top-level_domains
+- See a list of SLDs here: https://en.wikipedia.org/wiki/Second-level_domain
+
+Example PNR name/sub-name splits:
+
+sub-name.pnr-zone-name
+sub1.sub2.sub3.zonename (sub-name = sub1.sub2.sub3, zone name: zonename)
+sub1.sub2.myzonename.com (sub-name = sub1.sub2, zone name: myzonename.com)
+sub1.myzonename.co.uk (sub-name = sub1, zone name: myzonename.co.uk)

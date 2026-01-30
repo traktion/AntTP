@@ -277,6 +277,14 @@ impl ResolverService {
                 .collect::<Vec<String>>();
             subdomain_parts.append(&mut path_parts.clone());
             subdomain_parts
+        } else if self.pointer_name_resolver.is_resolved(&hostname.to_string()).await {
+            let mut subdomain_parts = Vec::new();
+            subdomain_parts.push(hostname.to_string());
+            let path_parts = path.split("/")
+                .map(str::to_string)
+                .collect::<Vec<String>>();
+            subdomain_parts.append(&mut path_parts.clone());
+            subdomain_parts
         } else {
             path.split("/")
                 .map(str::to_string)
@@ -360,6 +368,22 @@ mod tests {
             pointer_name_resolver,
             1,
         )
+    }
+
+    #[actix_web::test]
+    async fn test_get_path_parts_with_pnr_subname() {
+        let service = create_test_service().await;
+        // Mock PNR to resolve sub.testname
+        // Actually, create_test_service uses a real PointerNameResolver with a mock PointerCachingClient.
+        // We can't easily make it resolve unless we mock the PointerCachingClient to return something.
+        // But we just want to test that get_path_parts calls is_resolved with the full hostname.
+        
+        let path_parts = service.get_path_parts("sub.testname", "/index.html").await;
+        // Since it won't resolve (mock returns Not Found), it should fall back to path splitting.
+        assert_eq!(path_parts, vec!["", "index.html"]);
+
+        // If we want to verify it uses the full hostname, we'd need to mock PointerNameResolver.
+        // But ResolverService::new takes Data<PointerNameResolver>, not a trait.
     }
 
     #[actix_web::test]

@@ -124,7 +124,7 @@ fn build_list_files_response(request: &HttpRequest, resolved_address: &ResolvedA
     }
 }
 
-fn update_partial_content_response(builder: &mut HttpResponseBuilder, resolved_address: &ResolvedAddress, header_builder: &HeaderBuilder, range_props: &RangeProps) {
+fn update_partial_content_response(builder: &mut HttpResponseBuilder, resolved_address: &ResolvedAddress, header_builder: &HeaderBuilder, range_props: &RangeProps, modified_time: Option<u64>) {
     builder
         .insert_header(header_builder.build_content_range_header(range_props.range_from().unwrap(), range_props.range_to().unwrap(), range_props.content_length()))
         .insert_header(header_builder.build_accept_ranges_header())
@@ -134,9 +134,12 @@ fn update_partial_content_response(builder: &mut HttpResponseBuilder, resolved_a
         .insert_header(header_builder.build_cors_header())
         .insert_header(header_builder.build_server_header())
         .insert_header(header_builder.build_content_type_header(range_props.extension()));
+    if modified_time.is_some() {
+        builder.insert_header(header_builder.build_last_modified_header(modified_time.unwrap()));
+    }
 }
 
-fn update_full_content_response(builder: &mut HttpResponseBuilder, resolved_address: &ResolvedAddress, header_builder: &HeaderBuilder, range_props: &RangeProps) {
+fn update_full_content_response(builder: &mut HttpResponseBuilder, resolved_address: &ResolvedAddress, header_builder: &HeaderBuilder, range_props: &RangeProps, modified_time: Option<u64>) {
     builder
         .insert_header(header_builder.build_content_length_header(range_props.content_length()))
         .insert_header(header_builder.build_cache_control_header(resolved_address.is_resolved_from_mutable))
@@ -145,25 +148,28 @@ fn update_full_content_response(builder: &mut HttpResponseBuilder, resolved_addr
         .insert_header(header_builder.build_cors_header())
         .insert_header(header_builder.build_server_header())
         .insert_header(header_builder.build_content_type_header(range_props.extension()));
+    if modified_time.is_some() {
+        builder.insert_header(header_builder.build_last_modified_header(modified_time.unwrap()));
+    }
 }
 
 async fn get_data_archive(request: &HttpRequest, resolved_address: &ResolvedAddress, header_builder: &HeaderBuilder, public_archive_service: PublicArchiveService, archive_info: ArchiveInfo, has_body: bool) -> Result<HttpResponse, ChunkError> {
-    let (chunk_receiver, range_props) = public_archive_service.get_data(&request, archive_info).await?;
+    let (chunk_receiver, range_props) = public_archive_service.get_data(&request, archive_info.clone()).await?;
     if range_props.is_range() {
         let mut builder = HttpResponse::PartialContent();
-        update_partial_content_response(&mut builder, &resolved_address, &header_builder, &range_props);
+        update_partial_content_response(&mut builder, &resolved_address, &header_builder, &range_props, Some(archive_info.modified_time));
         if has_body {
             Ok(builder.streaming(chunk_receiver))
         } else {
-            Ok(builder.finish())
+            Ok(builder.no_chunking(range_props.content_length()).streaming(chunk_receiver))
         }
     } else {
         let mut builder = HttpResponse::Ok();
-        update_full_content_response(&mut builder, &resolved_address, &header_builder, &range_props);
+        update_full_content_response(&mut builder, &resolved_address, &header_builder, &range_props, Some(archive_info.modified_time));
         if has_body {
             Ok(builder.streaming(chunk_receiver))
         } else {
-            Ok(builder.finish())
+            Ok(builder.no_chunking(range_props.content_length()).streaming(chunk_receiver))
         }
     }
 }
@@ -181,19 +187,19 @@ async fn get_data_xor(request: &HttpRequest, resolved_address: &ResolvedAddress,
     let (chunk_receiver, range_props) = file_service.get_data(&request, &resolved_address).await?;
     if range_props.is_range() {
         let mut builder = HttpResponse::PartialContent();
-        update_partial_content_response(&mut builder, &resolved_address, &header_builder, &range_props);
+        update_partial_content_response(&mut builder, &resolved_address, &header_builder, &range_props, None);
         if has_body {
             Ok(builder.streaming(chunk_receiver))
         } else {
-            Ok(builder.finish())
+            Ok(builder.no_chunking(range_props.content_length()).streaming(chunk_receiver))
         }
     } else {
         let mut builder = HttpResponse::Ok();
-        update_full_content_response(&mut builder, &resolved_address, &header_builder, &range_props);
+        update_full_content_response(&mut builder, &resolved_address, &header_builder, &range_props, None);
         if has_body {
             Ok(builder.streaming(chunk_receiver))
         } else {
-            Ok(builder.finish())
+            Ok(builder.no_chunking(range_props.content_length()).streaming(chunk_receiver))
         }
     }
 }

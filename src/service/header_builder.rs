@@ -2,6 +2,7 @@ use std::time::{Duration, SystemTime};
 use actix_files::file_extension_to_mime;
 use actix_http::header;
 use actix_web::http::header::{CacheControl, CacheDirective, ContentLength, ContentRange, ContentRangeSpec, ContentType, ETag, EntityTag, Expires, HeaderName};
+use chrono::DateTime;
 use mime::Mime;
 use xor_name::XorName;
 
@@ -37,6 +38,14 @@ impl HeaderBuilder {
         } else {
             ContentType(mime::TEXT_HTML) // default to text/html
         }
+    }
+
+    pub fn build_last_modified_header(&self, time: u64) -> (HeaderName, String) {
+        let mtime_datetime = DateTime::from_timestamp_millis( i64::try_from(time)
+            .unwrap_or(0) * 1000)
+            .unwrap_or(DateTime::default());
+        let mtime_iso = mtime_datetime.format("%a, %d %b %Y %H:%M:%S GMT");
+        (header::LAST_MODIFIED, mtime_iso.to_string())
     }
 
     pub fn build_content_type_header_from_mime(&self, mime: &Mime) -> ContentType {

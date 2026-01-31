@@ -21,6 +21,7 @@ pub struct ArchiveInfo {
     pub offset: u64,
     pub size: u64,
     pub limit: u64,
+    pub modified_time: u64,
 }
 
 #[derive(Clone, PartialEq, Eq, Debug)]
@@ -29,11 +30,11 @@ pub enum ArchiveAction {
 }
 
 impl ArchiveInfo {
-    pub fn new(path_string: String, resolved_xor_addr: XorName, action: ArchiveAction, is_modified: bool, offset: u64, size: u64) -> ArchiveInfo {
+    pub fn new(path_string: String, resolved_xor_addr: XorName, action: ArchiveAction, is_modified: bool, offset: u64, size: u64, modified_time: u64) -> ArchiveInfo {
         // note: offset is 0 indexed, size is 1 indexed
         //       offset is never 0 in a tarchive, due to header
         let limit = if size > 0 { size - 1 } else { 0 };
-        ArchiveInfo { path_string, resolved_xor_addr, action, is_modified, offset, size, limit }
+        ArchiveInfo { path_string, resolved_xor_addr, action, is_modified, offset, size, limit, modified_time }
     }
 }
 
@@ -88,7 +89,7 @@ impl ArchiveHelper {
 
         if self.has_moved_permanently(request_path, &resolved_route_path) {
             debug!("has moved permanently");
-            ArchiveInfo::new(resolved_route_path.clone(), XorName::default(), ArchiveAction::Redirect, true, 0, 0)
+            ArchiveInfo::new(resolved_route_path.clone(), XorName::default(), ArchiveAction::Redirect, true, 0, 0, 0)
         } else if has_route_map {
             debug!("retrieve route map index");
             match self.archive.find_file(resolved_route_path) {
@@ -100,10 +101,11 @@ impl ArchiveHelper {
                         ArchiveAction::Data,
                         resolved_address.is_modified,
                         data_address_offset.offset,
-                        data_address_offset.size
+                        data_address_offset.size,
+                        data_address_offset.modified
                     )
                 }
-                None => ArchiveInfo::new(resolved_route_path.clone(), XorName::default(), ArchiveAction::NotFound, true, 0, 0)
+                None => ArchiveInfo::new(resolved_route_path.clone(), XorName::default(), ArchiveAction::NotFound, true, 0, 0, 0)
             }
         } else if !resolved_route_path.is_empty() {
             debug!("retrieve path and data address");
@@ -116,12 +118,13 @@ impl ArchiveHelper {
                         ArchiveAction::Data,
                         resolved_address.is_modified,
                         data_address_offset.offset,
-                        data_address_offset.size
+                        data_address_offset.size,
+                        data_address_offset.modified
                     )
                 }
                 None => if !self.archive.list_dir(resolved_address.file_path.clone()).is_empty() {
                     if resolved_address.file_path.to_string().chars().last() != Some('/') {
-                        ArchiveInfo::new(format!("{}/", resolved_address.file_path.clone()), XorName::default(), ArchiveAction::Redirect, true, 0, 0)
+                        ArchiveInfo::new(format!("{}/", resolved_address.file_path.clone()), XorName::default(), ArchiveAction::Redirect, true, 0, 0, 0)
                     } else {
                         let default_index = format!("{}index.html", resolved_address.file_path.clone());
                         debug!("Lookup default index: {}", default_index);
@@ -134,17 +137,18 @@ impl ArchiveHelper {
                                     ArchiveAction::Data,
                                     resolved_address.is_modified,
                                     data_address_offset.offset,
-                                    data_address_offset.size
+                                    data_address_offset.size,
+                                    data_address_offset.modified
                                 )
                             }
                             None => {
                                 debug!("default index not found, retrieve file listing");
-                                ArchiveInfo::new(resolved_address.file_path.clone(), XorName::default(), ArchiveAction::Listing, true, 0, 0)
+                                ArchiveInfo::new(resolved_address.file_path.clone(), XorName::default(), ArchiveAction::Listing, true, 0, 0, 0)
                             }
                         }
                     }
                 } else {
-                    ArchiveInfo::new(resolved_route_path.clone(), XorName::default(), ArchiveAction::NotFound, true, 0, 0)
+                    ArchiveInfo::new(resolved_route_path.clone(), XorName::default(), ArchiveAction::NotFound, true, 0, 0, 0)
                 }
             }
         } else {
@@ -159,12 +163,13 @@ impl ArchiveHelper {
                         ArchiveAction::Data,
                         resolved_address.is_modified,
                         data_address_offset.offset,
-                        data_address_offset.size
+                        data_address_offset.size,
+                        data_address_offset.modified
                     )
                 }
                 None => {
                     debug!("default index not found, retrieve file listing");
-                    ArchiveInfo::new(resolved_address.file_path.clone(), XorName::default(), ArchiveAction::Listing, true, 0, 0)
+                    ArchiveInfo::new(resolved_address.file_path.clone(), XorName::default(), ArchiveAction::Listing, true, 0, 0, 0)
                 }
             }
         }

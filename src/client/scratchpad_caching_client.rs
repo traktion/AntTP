@@ -114,8 +114,8 @@ impl ScratchpadCachingClient {
 
         let ttl = if store_type != StoreType::Network { u64::MAX } else { self.caching_client.ant_tp_config.cached_mutable_ttl };
         let cache_item = CacheItem::new(Some(scratchpad.clone()), ttl);
-        let serialised_cache_item = rmp_serde::to_vec(&cache_item).expect("Failed to serialize register");
-        info!("updating cache with register at address {}[{}] to value [{:?}] and TTL [{}]", SCRATCHPAD_CACHE_KEY, scratchpad_address.to_hex(), scratchpad, ttl);
+        let serialised_cache_item = rmp_serde::to_vec(&cache_item).expect("Failed to serialize scratchpad");
+        info!("updating cache with scratchpad at address {}[{}] to value [{:?}] and TTL [{}]", SCRATCHPAD_CACHE_KEY, scratchpad_address.to_hex(), scratchpad, ttl);
         if store_type == StoreType::Disk {
             self.caching_client.hybrid_cache.insert(format!("{}{}", SCRATCHPAD_CACHE_KEY, scratchpad_address.to_hex()), serialised_cache_item);
         } else {

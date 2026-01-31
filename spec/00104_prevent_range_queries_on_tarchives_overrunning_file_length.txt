@@ -1,0 +1,14 @@
+As a tarchive user
+I want to be able to retrieve up to the max length of a file in an archive, even if the range-to is bigger than the file length
+So that AntTP doesn't return unrelated data from other files the tarchive
+
+Given file_service.rs has a get_range query that returns the derived range_to value
+When the range-to in the range header exceeds the content_length/size_modifier
+Then only return the content length
+
+Implementation Notes
+
+- Place any unit tests at the bottom of the same file as the associated production code
+- Increment patch version of anttp package in Cargo.toml
+- Create a copy of this issue description and save to /spec using the name of this issue as the filename (with lower underscore case, starting with the 5 char padded issue number, e.g. 00001_issue_title.txt)
+- Add unit test coverage

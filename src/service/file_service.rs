@@ -1,3 +1,4 @@
+use std::cmp::min;
 use std::path::Path;
 use actix_http::header;
 use actix_web::HttpRequest;
@@ -122,9 +123,15 @@ impl FileService {
                 .unwrap_or(("", "")).1;
             // todo: cover comma separated too: https://docs.rs/actix-web/latest/actix_web/http/header/enum.Range.html
             if let Some((range_from_str, range_to_str)) = range_value.split_once("-") {
-                let range_from_override = offset_modifier + range_from_str.parse::<u64>().unwrap_or_else(|_| 0);
-                let range_to_override = offset_modifier + range_to_str.parse::<u64>().unwrap_or_else(|_| length);
-                (range_from_override, range_to_override, range_to_override - range_from_override, true)
+                // range_to_override
+                let range_to_header = min(range_to_str.parse::<u64>().unwrap_or(length), length);
+                // range_to must not exceed length
+                let range_to_override = offset_modifier + range_to_header;
+                // range_from must not exceed range_to_header
+                let range_from_header = min(range_from_str.parse::<u64>().unwrap_or(0), range_to_header);
+                let range_from_override = offset_modifier + range_from_header;
+                let range_length =  range_to_override - range_from_override;
+                (range_from_override, range_to_override, range_length, true)
             } else {
                 (offset_modifier, range_to, length, true)
             }
@@ -251,6 +258,18 @@ mod tests {
         let service = create_test_service().await;
         let req = TestRequest::default().insert_header((header::RANGE, "bytes=10-")).to_http_request();
         
+        let (start, end, length, is_range) = service.get_range(Some(&req), 0, 100);
+        assert_eq!(start, 10);
+        assert_eq!(end, 99);
+        assert_eq!(length, 89);
+        assert!(is_range);
+    }
+
+    #[actix_web::test]
+    async fn test_get_range_with_header_end_over_length() {
+        let service = create_test_service().await;
+        let req = TestRequest::default().insert_header((header::RANGE, "bytes=10-120")).to_http_request();
+
         let (start, end, length, is_range) = service.get_range(Some(&req), 0, 100);
         assert_eq!(start, 10);
         assert_eq!(end, 99);

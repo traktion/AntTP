@@ -1,0 +1,45 @@
+Add HEAD query support to return content-length and no body
+
+As a rclone user
+I want to be able to retrieve the content-length by sending a HEAD request on a URL
+So that it is easy to get the size of individual files
+
+Given file_controller.rs has a get_public_data function to return response headers and body
+When a HEAD request with the same URL is received
+Then head_public_data should be called, which will return identical response headers, but no body
+
+Given get_public_data already contains logic to retrieve both the response header and body
+When implementing head_public_data
+Then common logic should be extracted from get_public_data into a new private fetch_public_data function
+And fetch_public_data should accept an hasBody boolean, which is only true on get_public_data
+And get_data_archive and get_data_xor should be passed hasBody, which dictates whether the body or just Ok(()) is returned
+
+Given /src/lib.rs configures the routing
+When implementing head_public_data
+Then add a route matching "/{path:.*}" for  web::get().to(file_controller::head_public_data)
+
+Implementation Notes
+
+- Place any unit tests at the bottom of the same file as the associated production code
+- Increment patch version of anttp package in Cargo.toml
+- Create a copy of this issue description and save to /spec using the name of this issue as the filename (with lower underscore case, starting with the 5 char padded issue number, e.g. 00001_issue_title.txt)
+- HEAD RFC is here: https://httpwg.org/specs/rfc9110.html#HEAD
+- Add unit test coverage
+
+Example request:
+
+```
+HEAD / HTTP/1.1
+Host: example.com
+User-Agent: curl/8.6.0
+Accept: */*
+```
+
+Example response:
+
+```
+HTTP/1.1 200 OK
+Content-Type: text/html; charset=UTF-8
+Date: Wed, 04 Sep 2024 10:33:11 GMT
+Content-Length: 1234567
+```

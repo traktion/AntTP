@@ -334,6 +334,10 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> io::Result<()> {
                 "/{path:.*}",
                 web::get().to(file_controller::get_public_data),
             )
+            .route(
+                "/{path:.*}",
+                web::head().to(file_controller::head_public_data),
+            )
             .app_data(Data::new(actix_config.clone()))
             .app_data(caching_client_data.clone())
             .app_data(evm_wallet_data.clone())

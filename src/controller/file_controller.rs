@@ -22,6 +22,29 @@ pub async fn get_public_data(
     conn: ConnectionInfo,
     ant_tp_config_data: Data<AntTpConfig>,
 ) -> Result<HttpResponse, ChunkError> {
+    fetch_public_data(request, path, resolver_service, caching_client_data, conn, ant_tp_config_data, true).await
+}
+
+pub async fn head_public_data(
+    request: HttpRequest,
+    path: web::Path<String>,
+    resolver_service: Data<ResolverService>,
+    caching_client_data: Data<CachingClient>,
+    conn: ConnectionInfo,
+    ant_tp_config_data: Data<AntTpConfig>,
+) -> Result<HttpResponse, ChunkError> {
+    fetch_public_data(request, path, resolver_service, caching_client_data, conn, ant_tp_config_data, false).await
+}
+
+async fn fetch_public_data(
+    request: HttpRequest,
+    path: web::Path<String>,
+    resolver_service: Data<ResolverService>,
+    caching_client_data: Data<CachingClient>,
+    conn: ConnectionInfo,
+    ant_tp_config_data: Data<AntTpConfig>,
+    has_body: bool,
+) -> Result<HttpResponse, ChunkError> {
     let ant_tp_config = ant_tp_config_data.get_ref().clone();
     let caching_client = caching_client_data.get_ref().clone();
 
@@ -42,16 +65,16 @@ pub async fn get_public_data(
                 let archive_info = public_archive_service.get_archive_info(&resolved_address, &request).await;
 
                 match archive_info.action {
-                    ArchiveAction::Data => get_data_archive(&request, &resolved_address, &header_builder, public_archive_service, archive_info).await,
+                    ArchiveAction::Data => get_data_archive(&request, &resolved_address, &header_builder, public_archive_service, archive_info, has_body).await,
                     ArchiveAction::Redirect => Ok(build_moved_permanently_response(&request.path(), &header_builder)),
-                    ArchiveAction::Listing  => Ok(build_list_files_response(&request, &resolved_address, &header_builder)),
+                    ArchiveAction::Listing  => Ok(build_list_files_response(&request, &resolved_address, &header_builder, has_body)),
                     ArchiveAction::NotFound => Err(GetError::RecordNotFound(format!("File not found: {}", request.full_url())).into()),
                 }
             } else {
                 debug!("Retrieving file from XOR [{:x}]", resolved_address.xor_name);
                 let chunk_caching_client = ChunkCachingClient::new(caching_client.clone());
                 let file_service = FileService::new(chunk_caching_client, caching_client.clone(), ant_tp_config.download_threads);
-                get_data_xor(&request, &resolved_address, &header_builder, file_service).await
+                get_data_xor(&request, &resolved_address, &header_builder, file_service, has_body).await
             }
         },
         None => Err(GetError::RecordNotFound(format!("File not found: {}", request.full_url())).into())
@@ -75,27 +98,33 @@ fn build_moved_permanently_response(request_path: &str, header_builder: &HeaderB
         .finish()
 }
 
-fn build_list_files_response(request: &HttpRequest, resolved_address: &ResolvedAddress, header_builder: &HeaderBuilder) -> HttpResponse {
+fn build_list_files_response(request: &HttpRequest, resolved_address: &ResolvedAddress, header_builder: &HeaderBuilder, has_body: bool) -> HttpResponse {
     let archive_helper = ArchiveHelper::new(resolved_address.archive.clone().unwrap());
     let mime = get_accept_header_value(request.headers());
+    let body = if has_body {
+        archive_helper.list_files(resolved_address.file_path.clone(), request.headers())
+    } else {
+        "".to_string()
+    };
+
     if mime == APPLICATION_JSON {
         HttpResponse::Ok()
             .insert_header(header_builder.build_etag_header(&resolved_address.xor_name))
             .insert_header(header_builder.build_cors_header())
             .insert_header(header_builder.build_server_header())
             .insert_header(header_builder.build_content_type_header_from_mime(&mime))
-            .body(archive_helper.list_files(resolved_address.file_path.clone(), request.headers()))
+            .body(body)
     } else {
         HttpResponse::Ok()
             // can only use etag for one content-type currently. JSON can have priority as could cause app issues.
             .insert_header(header_builder.build_cors_header())
             .insert_header(header_builder.build_server_header())
             .insert_header(header_builder.build_content_type_header_from_mime(&mime))
-            .body(archive_helper.list_files(resolved_address.file_path.clone(), request.headers()))
+            .body(body)
     }
 }
 
-fn update_partial_content_response(builder: &mut HttpResponseBuilder, resolved_address: &ResolvedAddress, header_builder: &HeaderBuilder, range_props: &RangeProps) {
+fn update_partial_content_response(builder: &mut HttpResponseBuilder, resolved_address: &ResolvedAddress, header_builder: &HeaderBuilder, range_props: &RangeProps, modified_time: Option<u64>) {
     builder
         .insert_header(header_builder.build_content_range_header(range_props.range_from().unwrap(), range_props.range_to().unwrap(), range_props.content_length()))
         .insert_header(header_builder.build_accept_ranges_header())
@@ -105,9 +134,12 @@ fn update_partial_content_response(builder: &mut HttpResponseBuilder, resolved_a
         .insert_header(header_builder.build_cors_header())
         .insert_header(header_builder.build_server_header())
         .insert_header(header_builder.build_content_type_header(range_props.extension()));
+    if modified_time.is_some() {
+        builder.insert_header(header_builder.build_last_modified_header(modified_time.unwrap()));
+    }
 }
 
-fn update_full_content_response(builder: &mut HttpResponseBuilder, resolved_address: &ResolvedAddress, header_builder: &HeaderBuilder, range_props: &RangeProps) {
+fn update_full_content_response(builder: &mut HttpResponseBuilder, resolved_address: &ResolvedAddress, header_builder: &HeaderBuilder, range_props: &RangeProps, modified_time: Option<u64>) {
     builder
         .insert_header(header_builder.build_content_length_header(range_props.content_length()))
         .insert_header(header_builder.build_cache_control_header(resolved_address.is_resolved_from_mutable))
@@ -116,18 +148,29 @@ fn update_full_content_response(builder: &mut HttpResponseBuilder, resolved_addr
         .insert_header(header_builder.build_cors_header())
         .insert_header(header_builder.build_server_header())
         .insert_header(header_builder.build_content_type_header(range_props.extension()));
+    if modified_time.is_some() {
+        builder.insert_header(header_builder.build_last_modified_header(modified_time.unwrap()));
+    }
 }
 
-async fn get_data_archive(request: &HttpRequest, resolved_address: &ResolvedAddress, header_builder: &HeaderBuilder, public_archive_service: PublicArchiveService, archive_info: ArchiveInfo) -> Result<HttpResponse, ChunkError> {
-    let (chunk_receiver, range_props) = public_archive_service.get_data(&request, archive_info).await?;
+async fn get_data_archive(request: &HttpRequest, resolved_address: &ResolvedAddress, header_builder: &HeaderBuilder, public_archive_service: PublicArchiveService, archive_info: ArchiveInfo, has_body: bool) -> Result<HttpResponse, ChunkError> {
+    let (chunk_receiver, range_props) = public_archive_service.get_data(&request, archive_info.clone()).await?;
     if range_props.is_range() {
         let mut builder = HttpResponse::PartialContent();
-        update_partial_content_response(&mut builder, &resolved_address, &header_builder, &range_props);
-        Ok(builder.streaming(chunk_receiver))
+        update_partial_content_response(&mut builder, &resolved_address, &header_builder, &range_props, Some(archive_info.modified_time));
+        if has_body {
+            Ok(builder.streaming(chunk_receiver))
+        } else {
+            Ok(builder.no_chunking(range_props.content_length()).streaming(chunk_receiver))
+        }
     } else {
         let mut builder = HttpResponse::Ok();
-        update_full_content_response(&mut builder, &resolved_address, &header_builder, &range_props);
-        Ok(builder.streaming(chunk_receiver))
+        update_full_content_response(&mut builder, &resolved_address, &header_builder, &range_props, Some(archive_info.modified_time));
+        if has_body {
+            Ok(builder.streaming(chunk_receiver))
+        } else {
+            Ok(builder.no_chunking(range_props.content_length()).streaming(chunk_receiver))
+        }
     }
 }
 
@@ -140,16 +183,114 @@ fn get_accept_header_value(header_map: &HeaderMap) -> Mime {
     }
 }
 
-async fn get_data_xor(request: &HttpRequest, resolved_address: &ResolvedAddress, header_builder: &HeaderBuilder, file_service: FileService) -> Result<HttpResponse, ChunkError> {
+async fn get_data_xor(request: &HttpRequest, resolved_address: &ResolvedAddress, header_builder: &HeaderBuilder, file_service: FileService, has_body: bool) -> Result<HttpResponse, ChunkError> {
     let (chunk_receiver, range_props) = file_service.get_data(&request, &resolved_address).await?;
     if range_props.is_range() {
         let mut builder = HttpResponse::PartialContent();
-        update_partial_content_response(&mut builder, &resolved_address, &header_builder, &range_props);
-        Ok(builder.streaming(chunk_receiver))
+        update_partial_content_response(&mut builder, &resolved_address, &header_builder, &range_props, None);
+        if has_body {
+            Ok(builder.streaming(chunk_receiver))
+        } else {
+            Ok(builder.no_chunking(range_props.content_length()).streaming(chunk_receiver))
+        }
     } else {
         let mut builder = HttpResponse::Ok();
-        update_full_content_response(&mut builder, &resolved_address, &header_builder, &range_props);
-        Ok(builder.streaming(chunk_receiver))
+        update_full_content_response(&mut builder, &resolved_address, &header_builder, &range_props, None);
+        if has_body {
+            Ok(builder.streaming(chunk_receiver))
+        } else {
+            Ok(builder.no_chunking(range_props.content_length()).streaming(chunk_receiver))
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use actix_web::test::{TestRequest};
+    use crate::client::client_harness::ClientHarness;
+    use ant_evm::EvmNetwork;
+    use foyer::HybridCacheBuilder;
+    use tokio::sync::mpsc;
+    use crate::client::command::Command;
+    use crate::service::access_checker::AccessChecker;
+    use crate::service::bookmark_resolver::BookmarkResolver;
+    use crate::service::pointer_name_resolver::PointerNameResolver;
+    use crate::client::MockPointerCachingClient;
+    use crate::client::MockChunkCachingClient;
+    use autonomi::SecretKey;
+    use clap::Parser;
+
+    use crate::error::pointer_error::PointerError;
+    use crate::error::GetError;
+
+    async fn create_test_data() -> (Data<ResolverService>, Data<CachingClient>, Data<AntTpConfig>) {
+        let config = AntTpConfig::parse_from(vec!["anttp"]);
+        let evm_network = EvmNetwork::ArbitrumOne;
+        let client_harness = Data::new(tokio::sync::Mutex::new(ClientHarness::new(evm_network, config.clone())));
+        let hybrid_cache = Data::new(HybridCacheBuilder::new().memory(10).storage().build().await.unwrap());
+        let (tx, _rx) = mpsc::channel::<Box<dyn Command>>(100);
+        let command_executor = Data::new(tx);
+        let caching_client = Data::new(CachingClient::new(client_harness, config.clone(), hybrid_cache, command_executor));
+        
+        let access_checker = Data::new(tokio::sync::Mutex::new(AccessChecker::new()));
+        let bookmark_resolver = Data::new(tokio::sync::Mutex::new(BookmarkResolver::new()));
+        
+        let mut mock_pointer_caching_client = MockPointerCachingClient::default();
+        mock_pointer_caching_client
+            .expect_clone()
+            .returning(|| {
+                let mut m = MockPointerCachingClient::default();
+                m.expect_pointer_get()
+                    .returning(|_| Err(PointerError::GetError(GetError::RecordNotFound("Not found".to_string()))));
+                m
+            });
+        mock_pointer_caching_client
+            .expect_pointer_get()
+            .returning(|_| Err(PointerError::GetError(GetError::RecordNotFound("Not found".to_string()))));
+
+        let mock_chunk_caching_client = MockChunkCachingClient::default();
+
+        let pointer_name_resolver = Data::new(PointerNameResolver::new(
+            mock_pointer_caching_client.clone(),
+            mock_chunk_caching_client,
+            SecretKey::default(),
+            1,
+        ));
+
+        let resolver_service = Data::new(ResolverService::new(
+            crate::client::ArchiveCachingClient::new(caching_client.get_ref().clone()),
+            mock_pointer_caching_client,
+            crate::client::RegisterCachingClient::new(caching_client.get_ref().clone()),
+            access_checker,
+            bookmark_resolver,
+            pointer_name_resolver,
+            1,
+        ));
+
+        (resolver_service, caching_client, Data::new(config))
+    }
+
+    #[actix_web::test]
+    async fn test_get_public_data_not_found() {
+        let (resolver_service, caching_client, config) = create_test_data().await;
+        let req = TestRequest::get().uri("/nonexistent").to_http_request();
+        let path = web::Path::from("nonexistent".to_string());
+        let conn = req.connection_info().clone();
+        
+        let result = get_public_data(req, path, resolver_service, caching_client, conn, config).await;
+        assert!(result.is_err());
+    }
+
+    #[actix_web::test]
+    async fn test_head_public_data_not_found() {
+        let (resolver_service, caching_client, config) = create_test_data().await;
+        let req = TestRequest::default().method(actix_web::http::Method::HEAD).uri("/nonexistent").to_http_request();
+        let path = web::Path::from("nonexistent".to_string());
+        let conn = req.connection_info().clone();
+        
+        let result = head_public_data(req, path, resolver_service, caching_client, conn, config).await;
+        assert!(result.is_err());
     }
 }
 

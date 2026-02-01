@@ -36,33 +36,7 @@ impl TarchiveService {
         {
             let tar_file = fs::File::create(&tar_path)?;
             let mut builder = Builder::new(tar_file);
-
-            let mut target_paths = Vec::new();
-            for tp in &public_archive_form.target_path {
-                for part in tp.0.split(',') {
-                    target_paths.push(part.to_string());
-                }
-            }
-
-            for (i, temp_file) in public_archive_form.files.iter().enumerate() {
-                if let Some(raw_file_name) = &temp_file.file_name {
-                    let mut file_path = PathBuf::new();
-                    if let Some(target_path_str) = target_paths.get(i) {
-                        for part in target_path_str.split('/') {
-                            let sanitised_part = sanitize(part);
-                            if !sanitised_part.is_empty() && sanitised_part != ".." && sanitised_part != "." {
-                                file_path.push(sanitised_part);
-                            }
-                        }
-                    }
-
-                    let file_name = sanitize(raw_file_name);
-                    file_path.push(file_name);
-                    builder.append_path_with_name(temp_file.file.path(), file_path)?;
-                } else {
-                    return Err(UpdateError::TemporaryStorage("Failed to get filename from multipart field".to_string()).into());
-                }
-            }
+            self.build_tar_from_form(&mut builder, public_archive_form)?;
             builder.finish()?;
         }
 
@@ -82,44 +56,14 @@ impl TarchiveService {
 
         // Download existing tar
         let existing_data = self.public_data_service.get_public_data_binary(address).await?;
-        {
-            let mut tar_file = fs::File::create(&tar_path)?;
-            tar_file.write_all(&existing_data)?;
-        }
+        let mut tar_file = fs::File::create(&tar_path)?;
+        tar_file.write_all(&existing_data)?;
 
         // Append new files
-        {
-            let tar_file = OpenOptions::new().append(true).read(true).open(&tar_path)?;
-            let mut builder = Builder::new(tar_file);
-
-            let mut target_paths = Vec::new();
-            for tp in &public_archive_form.target_path {
-                for part in tp.0.split(',') {
-                    target_paths.push(part.to_string());
-                }
-            }
-
-            for (i, temp_file) in public_archive_form.files.iter().enumerate() {
-                if let Some(raw_file_name) = &temp_file.file_name {
-                    let mut file_path = PathBuf::new();
-                    if let Some(target_path_str) = target_paths.get(i) {
-                        for part in target_path_str.split('/') {
-                            let sanitised_part = sanitize(part);
-                            if !sanitised_part.is_empty() && sanitised_part != ".." && sanitised_part != "." {
-                                file_path.push(sanitised_part);
-                            }
-                        }
-                    }
-
-                    let file_name = sanitize(raw_file_name);
-                    file_path.push(file_name);
-                    builder.append_path_with_name(temp_file.file.path(), file_path)?;
-                } else {
-                    return Err(UpdateError::TemporaryStorage("Failed to get filename from multipart field".to_string()).into());
-                }
-            }
-            builder.finish()?;
-        }
+        let tar_file = OpenOptions::new().append(true).read(true).open(&tar_path)?;
+        let mut builder = Builder::new(tar_file);
+        self.build_tar_from_form(&mut builder, public_archive_form)?;
+        builder.finish()?;
 
         // Generate and append index
         self.append_index(&tar_path)?;
@@ -128,6 +72,36 @@ impl TarchiveService {
         let result = self.upload_tar(&tar_path, evm_wallet, store_type).await;
         Self::purge_tmp_dir(&tmp_dir);
         result
+    }
+
+    fn build_tar_from_form<W: Write>(&self, builder: &mut Builder<W>, public_archive_form: MultipartForm<PublicArchiveForm>) -> Result<(), TarchiveError> {
+        let mut target_paths = Vec::new();
+        for tp in &public_archive_form.target_path {
+            for part in tp.0.split(',') {
+                target_paths.push(part.to_string());
+            }
+        }
+
+        for (i, temp_file) in public_archive_form.files.iter().enumerate() {
+            if let Some(raw_file_name) = &temp_file.file_name {
+                let mut file_path = PathBuf::new();
+                if let Some(target_path_str) = target_paths.get(i) {
+                    for part in target_path_str.split('/') {
+                        let sanitised_part = sanitize(part);
+                        if !sanitised_part.is_empty() && sanitised_part != ".." && sanitised_part != "." {
+                            file_path.push(sanitised_part);
+                        }
+                    }
+                }
+
+                let file_name = sanitize(raw_file_name);
+                file_path.push(file_name);
+                builder.append_path_with_name(temp_file.file.path(), file_path)?;
+            } else {
+                return Err(UpdateError::TemporaryStorage("Failed to get filename from multipart field".to_string()).into());
+            }
+        }
+        Ok(())
     }
 
     fn append_index(&self, tar_path: &PathBuf) -> Result<(), TarchiveError> {

@@ -37,15 +37,21 @@ impl TarchiveService {
             let tar_file = fs::File::create(&tar_path)?;
             let mut builder = Builder::new(tar_file);
 
+            let mut target_paths = Vec::new();
+            for tp in &public_archive_form.target_path {
+                for part in tp.0.split(',') {
+                    target_paths.push(part.to_string());
+                }
+            }
+
             for (i, temp_file) in public_archive_form.files.iter().enumerate() {
                 if let Some(raw_file_name) = &temp_file.file_name {
                     let mut file_path = PathBuf::new();
-                    if let Some(target_path_text) = public_archive_form.target_path.get(i) {
-                        let raw_target_path = target_path_text.0.clone();
-                        let paths: Vec<&str> = raw_target_path.split(',').collect();
-                        for path in paths {
-                            if !path.is_empty() {
-                                file_path.push(sanitize(path));
+                    if let Some(target_path_str) = target_paths.get(i) {
+                        for part in target_path_str.split('/') {
+                            let sanitised_part = sanitize(part);
+                            if !sanitised_part.is_empty() && sanitised_part != ".." && sanitised_part != "." {
+                                file_path.push(sanitised_part);
                             }
                         }
                     }
@@ -86,15 +92,21 @@ impl TarchiveService {
             let tar_file = OpenOptions::new().append(true).read(true).open(&tar_path)?;
             let mut builder = Builder::new(tar_file);
 
+            let mut target_paths = Vec::new();
+            for tp in &public_archive_form.target_path {
+                for part in tp.0.split(',') {
+                    target_paths.push(part.to_string());
+                }
+            }
+
             for (i, temp_file) in public_archive_form.files.iter().enumerate() {
                 if let Some(raw_file_name) = &temp_file.file_name {
                     let mut file_path = PathBuf::new();
-                    if let Some(target_path_text) = public_archive_form.target_path.get(i) {
-                        let raw_target_path = target_path_text.0.clone();
-                        let paths: Vec<&str> = raw_target_path.split(',').collect();
-                        for path in paths {
-                            if !path.is_empty() {
-                                file_path.push(sanitize(path));
+                    if let Some(target_path_str) = target_paths.get(i) {
+                        for part in target_path_str.split('/') {
+                            let sanitised_part = sanitize(part);
+                            if !sanitised_part.is_empty() && sanitised_part != ".." && sanitised_part != "." {
+                                file_path.push(sanitised_part);
                             }
                         }
                     }

@@ -51,7 +51,7 @@ use crate::service::command_service::CommandService;
 use crate::service::file_service::FileService;
 use crate::service::graph_service::GraphService;
 use crate::service::pointer_service::PointerService;
-use crate::service::public_archive_service::PublicArchiveService;
+use crate::service::public_archive_service::{PublicArchiveForm, PublicArchiveService, Upload};
 use crate::service::tarchive_service::TarchiveService;
 use crate::service::public_data_service::PublicDataService;
 use crate::service::register_service::RegisterService;
@@ -91,40 +91,45 @@ const API_BASE: &'static str = "/anttp-0/";
 #[cfg(not(test))]
 pub async fn run_server(ant_tp_config: AntTpConfig) -> io::Result<()> {
     #[derive(OpenApi)]
-    #[openapi(paths(
-        chunk_controller::get_chunk,
-        chunk_controller::get_chunk_binary,
-        chunk_controller::post_chunk,
-        chunk_controller::post_chunk_binary,
-        pointer_controller::get_pointer,
-        pointer_controller::post_pointer,
-        pointer_controller::put_pointer,
-        public_archive_controller::post_public_archive,
-        public_archive_controller::put_public_archive,
-        tarchive_controller::post_tarchive,
-        tarchive_controller::put_tarchive,
-        public_scratchpad_controller::get_public_scratchpad,
-        public_scratchpad_controller::post_public_scratchpad,
-        public_scratchpad_controller::put_public_scratchpad,
-        register_controller::get_register,
-        register_controller::get_register_history,
-        register_controller::post_register,
-        register_controller::put_register,
-        private_scratchpad_controller::get_private_scratchpad,
-        private_scratchpad_controller::post_private_scratchpad,
-        private_scratchpad_controller::put_private_scratchpad,
-        graph_controller::get_graph_entry,
-        graph_controller::post_graph_entry,
-        public_data_controller::get_public_data,
-        public_data_controller::post_public_data,
-        command_controller::get_commands,
-        pnr_controller::get_pnr,
-        pnr_controller::post_pnr,
-        pnr_controller::put_pnr,
-        pnr_controller::patch_pnr,
-        key_value_controller::post_key_value,
-        key_value_controller::get_key_value
-    ))]
+    #[openapi(
+        paths(
+            chunk_controller::get_chunk,
+            chunk_controller::get_chunk_binary,
+            chunk_controller::post_chunk,
+            chunk_controller::post_chunk_binary,
+            pointer_controller::get_pointer,
+            pointer_controller::post_pointer,
+            pointer_controller::put_pointer,
+            public_archive_controller::post_public_archive,
+            public_archive_controller::put_public_archive,
+            tarchive_controller::post_tarchive,
+            tarchive_controller::put_tarchive,
+            public_scratchpad_controller::get_public_scratchpad,
+            public_scratchpad_controller::post_public_scratchpad,
+            public_scratchpad_controller::put_public_scratchpad,
+            register_controller::get_register,
+            register_controller::get_register_history,
+            register_controller::post_register,
+            register_controller::put_register,
+            private_scratchpad_controller::get_private_scratchpad,
+            private_scratchpad_controller::post_private_scratchpad,
+            private_scratchpad_controller::put_private_scratchpad,
+            graph_controller::get_graph_entry,
+            graph_controller::post_graph_entry,
+            public_data_controller::get_public_data,
+            public_data_controller::post_public_data,
+            command_controller::get_commands,
+            pnr_controller::get_pnr,
+            pnr_controller::post_pnr,
+            pnr_controller::put_pnr,
+            pnr_controller::patch_pnr,
+            key_value_controller::post_key_value,
+            key_value_controller::get_key_value
+        ),
+        components(
+            schemas(PublicArchiveForm, Upload)
+        )
+    )]
     struct ApiDoc;
 
     let listen_address = ant_tp_config.listen_address.clone();

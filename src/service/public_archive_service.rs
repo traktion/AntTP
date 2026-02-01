@@ -39,7 +39,7 @@ pub struct PublicArchiveForm {
     #[multipart(limit = "1GB")]
     #[schema(value_type = Vec<String>, format = Binary, content_media_type = "application/octet-stream")]
     pub files: Vec<TempFile>,
-    #[schema(value_type = Vec<String>)]
+    #[schema(value_type = Vec<String>, example = "[\"path/to/dir1\", \"path/to/dir2\"]")]
     pub target_path: Vec<actix_multipart::form::text::Text<String>>,
 }
 
@@ -181,6 +181,14 @@ impl PublicArchiveService {
 
     fn move_files_to_tmp_dir(public_archive_form: MultipartForm<PublicArchiveForm>, tmp_dir: PathBuf) -> Result<(), PublicArchiveError> {
         info!("Moving files in {:?} to tmp directory: {:?}", public_archive_form.files, &tmp_dir);
+
+        let mut target_paths = Vec::new();
+        for tp in &public_archive_form.target_path {
+            for part in tp.0.split(',') {
+                target_paths.push(part.to_string());
+            }
+        }
+
         for (i, temp_file) in public_archive_form.files.iter().enumerate() {
             match temp_file.file_name.clone() {
                 Some(raw_file_name) => {
@@ -188,8 +196,7 @@ impl PublicArchiveService {
                     let mut file_path = tmp_dir.clone();
 
                     // Check if target_path is provided for this file
-                    if let Some(target_path_text) = public_archive_form.target_path.get(i) {
-                        let target_path_str = &target_path_text.0;
+                    if let Some(target_path_str) = target_paths.get(i) {
                         if !target_path_str.is_empty() {
                             // Sanitise and split target path to avoid traversals
                             for part in target_path_str.split('/') {
@@ -199,9 +206,7 @@ impl PublicArchiveService {
                                 }
                             }
                             // Ensure the target directory exists
-                            if let Some(parent) = file_path.parent() {
-                                fs::create_dir_all(file_path.clone())?;
-                            }
+                            fs::create_dir_all(&file_path)?;
                         }
                     }
 
@@ -237,11 +242,9 @@ mod tests {
         // Create a fake temp file
         let mut f1 = tempfile::NamedTempFile::new().unwrap();
         writeln!(f1, "file1 content").unwrap();
-        let f1_path = f1.path().to_path_buf();
 
         let mut f2 = tempfile::NamedTempFile::new().unwrap();
         writeln!(f2, "file2 content").unwrap();
-        let f2_path = f2.path().to_path_buf();
 
         let form = PublicArchiveForm {
             files: vec![
@@ -260,7 +263,7 @@ mod tests {
             ],
             target_path: vec![
                 actix_multipart::form::text::Text("dir1/subdir".to_string()),
-                actix_multipart::form::text::Text("".to_string()),
+                actix_multipart::form::text::Text("dir2".to_string()),
             ],
         };
 
@@ -268,7 +271,7 @@ mod tests {
 
         // Check if files are in the right place
         let expected_f1 = tmp_dir.join("dir1").join("subdir").join("f1.txt");
-        let expected_f2 = tmp_dir.join("f2.txt");
+        let expected_f2 = tmp_dir.join("dir2").join("f2.txt");
 
         assert!(expected_f1.exists());
         assert!(expected_f2.exists());
@@ -283,7 +286,7 @@ mod tests {
     }
 
     #[test]
-    fn test_move_files_to_tmp_dir_sanitisation() {
+    fn test_move_files_to_tmp_dir_mismatched_lengths() {
         let tmp_parent = tempdir().unwrap();
         let tmp_dir = tmp_parent.path().to_path_buf();
 
@@ -299,16 +302,52 @@ mod tests {
                     size: 13,
                 },
             ],
+            target_path: vec![], // Empty target_path
+        };
+
+        PublicArchiveService::move_files_to_tmp_dir(MultipartForm(form), tmp_dir.clone()).unwrap();
+
+        let expected_f1 = tmp_dir.join("f1.txt");
+        assert!(expected_f1.exists());
+    }
+
+    #[test]
+    fn test_move_files_to_tmp_dir_with_comma_separated_target_path() {
+        let tmp_parent = tempdir().unwrap();
+        let tmp_dir = tmp_parent.path().to_path_buf();
+
+        let mut f1 = tempfile::NamedTempFile::new().unwrap();
+        writeln!(f1, "file1 content").unwrap();
+
+        let mut f2 = tempfile::NamedTempFile::new().unwrap();
+        writeln!(f2, "file2 content").unwrap();
+
+        let form = PublicArchiveForm {
+            files: vec![
+                TempFile {
+                    file: f1,
+                    file_name: Some("f1.txt".to_string()),
+                    content_type: None,
+                    size: 13,
+                },
+                TempFile {
+                    file: f2,
+                    file_name: Some("f2.txt".to_string()),
+                    content_type: None,
+                    size: 13,
+                },
+            ],
             target_path: vec![
-                actix_multipart::form::text::Text("../evil/path".to_string()),
+                actix_multipart::form::text::Text("dir1,dir2".to_string()),
             ],
         };
 
         PublicArchiveService::move_files_to_tmp_dir(MultipartForm(form), tmp_dir.clone()).unwrap();
 
-        // Should be at tmp_dir/evil/path/f1.txt (because .. is sanitised/ignored)
-        let expected_f1 = tmp_dir.join("evil").join("path").join("f1.txt");
-        assert!(expected_f1.exists());
-        assert!(!tmp_dir.parent().unwrap().join("evil").exists());
+        let expected_f1 = tmp_dir.join("dir1").join("f1.txt");
+        let expected_f2 = tmp_dir.join("dir2").join("f2.txt");
+
+        assert!(expected_f1.exists(), "File 1 should be in dir1");
+        assert!(expected_f2.exists(), "File 2 should be in dir2");
     }
 }

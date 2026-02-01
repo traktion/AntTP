@@ -28,5 +28,10 @@ For Rust developers, AntTP uses `tonic` for its gRPC implementation.
 ### Disabling gRPC
 If you do not require gRPC functionality, it can be disabled using the `--grpc-disabled` flag when starting AntTP.
 
+### Public Archive & Tarchive
+Allows creating and updating archives and tarchives. The `File` message includes:
+- `name`: Filename.
+- `content`: File bytes.
+- `target_path`: (Optional) The relative path in the archive.
 ---
 [<< Previous](rest.md) | [Up](../README.md) | [Next >>](mcp.md)

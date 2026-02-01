@@ -19,3 +19,30 @@ Implementation Notes
 - Create a copy of this issue description and save to /spec using the name of this issue as the filename (with lower underscore case, starting with the 5 char padded issue number, e.g. 00001_issue_title.txt)
 - Integrate support with MCP tools and gRPC if necessary
 - Ensure paths are sanitised to avoid security vulnerabilities, especially during upload to the temporary directory
+- Update documentation and postman collection to reflect the new behaviour
+- It looks like the target-path array elements are not matching the files array. Validate this and test.
+- When providing 2 files, with matching 2 paths, all of the paths are prefixed to the first file path, with commas. This is creating an invalid path for the first file and no path for the second file. File 1 should have path 1 prefixed and file 2 should have path 2 prefixed. Please fix this.
+- Fixed a bug where Swagger UI (and potentially other clients) provides `target_path` as a single comma-separated string instead of multiple form fields. The parsing logic now correctly splits these strings to associate paths with their respective files.
+
+swagger UI is generating this POST providing 2 files and 2 associated target_paths:
+
+curl -X 'POST' \
+  'http://localhost:18888/anttp-0/multipart/public_archive' \
+  -H 'accept: application/json' \
+  -H 'x-store-type: memory' \
+  -H 'Content-Type: multipart/form-data' \
+  -F 'files=@bookmarks.json;type=application/json' \
+  -F 'files=@access_list.json;type=application/json' \
+  -F 'target_path=bookmarks,access'
+
+then it is creating:
+
+Creating temporary file for archive: "/tmp/f586ffa6-2b67-42a1-86a2-28cbf1260fd2/bookmarks,access/bookmarks.json"
+Creating temporary file for archive: "/tmp/f586ffa6-2b67-42a1-86a2-28cbf1260fd2/access_list.json"
+
+but this should be:
+
+Creating temporary file for archive: "/tmp/f586ffa6-2b67-42a1-86a2-28cbf1260fd2/bookmarks/bookmarks.json"
+Creating temporary file for archive: "/tmp/f586ffa6-2b67-42a1-86a2-28cbf1260fd2/access/access_list.json"
+
+Correct either the swagger UI schema or the parsing routing to correctly provide or process the form elements as expected.

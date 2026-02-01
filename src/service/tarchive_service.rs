@@ -37,10 +37,22 @@ impl TarchiveService {
             let tar_file = fs::File::create(&tar_path)?;
             let mut builder = Builder::new(tar_file);
 
-            for temp_file in public_archive_form.files.iter() {
+            for (i, temp_file) in public_archive_form.files.iter().enumerate() {
                 if let Some(raw_file_name) = &temp_file.file_name {
+                    let mut file_path = PathBuf::new();
+                    if let Some(target_path_text) = public_archive_form.target_path.get(i) {
+                        let raw_target_path = target_path_text.0.clone();
+                        let paths: Vec<&str> = raw_target_path.split(',').collect();
+                        for path in paths {
+                            if !path.is_empty() {
+                                file_path.push(sanitize(path));
+                            }
+                        }
+                    }
+
                     let file_name = sanitize(raw_file_name);
-                    builder.append_path_with_name(temp_file.file.path(), file_name)?;
+                    file_path.push(file_name);
+                    builder.append_path_with_name(temp_file.file.path(), file_path)?;
                 } else {
                     return Err(UpdateError::TemporaryStorage("Failed to get filename from multipart field".to_string()).into());
                 }
@@ -74,10 +86,22 @@ impl TarchiveService {
             let tar_file = OpenOptions::new().append(true).read(true).open(&tar_path)?;
             let mut builder = Builder::new(tar_file);
 
-            for temp_file in public_archive_form.files.iter() {
+            for (i, temp_file) in public_archive_form.files.iter().enumerate() {
                 if let Some(raw_file_name) = &temp_file.file_name {
+                    let mut file_path = PathBuf::new();
+                    if let Some(target_path_text) = public_archive_form.target_path.get(i) {
+                        let raw_target_path = target_path_text.0.clone();
+                        let paths: Vec<&str> = raw_target_path.split(',').collect();
+                        for path in paths {
+                            if !path.is_empty() {
+                                file_path.push(sanitize(path));
+                            }
+                        }
+                    }
+
                     let file_name = sanitize(raw_file_name);
-                    builder.append_path_with_name(temp_file.file.path(), file_name)?;
+                    file_path.push(file_name);
+                    builder.append_path_with_name(temp_file.file.path(), file_path)?;
                 } else {
                     return Err(UpdateError::TemporaryStorage("Failed to get filename from multipart field".to_string()).into());
                 }

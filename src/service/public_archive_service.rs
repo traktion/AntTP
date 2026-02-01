@@ -39,6 +39,8 @@ pub struct PublicArchiveForm {
     #[multipart(limit = "1GB")]
     #[schema(value_type = Vec<String>, format = Binary, content_media_type = "application/octet-stream")]
     pub files: Vec<TempFile>,
+    #[schema(value_type = Vec<String>)]
+    pub target_path: Vec<actix_multipart::form::text::Text<String>>,
 }
 
 impl Upload {
@@ -138,32 +140,34 @@ impl PublicArchiveService {
 
     async fn update_archive(&self, public_archive: &mut PublicArchive, tmp_dir: PathBuf, evm_wallet: Wallet, store_type: StoreType) -> Result<(), PublicArchiveError> {
         info!("Reading directory: {:?}", &tmp_dir);
-        for entry in fs::read_dir(tmp_dir.clone())? {
+        self.update_archive_recursive(public_archive, &tmp_dir, &tmp_dir, evm_wallet, store_type).await
+    }
+
+    #[async_recursion::async_recursion]
+    async fn update_archive_recursive(&self, public_archive: &mut PublicArchive, base_dir: &PathBuf, current_dir: &PathBuf, evm_wallet: Wallet, store_type: StoreType) -> Result<(), PublicArchiveError> {
+        for entry in fs::read_dir(current_dir)? {
             let path = entry?.path();
-            info!("Reading directory path: {:?}", path);
+            if path.is_dir() {
+                self.update_archive_recursive(public_archive, base_dir, &path, evm_wallet.clone(), store_type.clone()).await?;
+            } else {
+                info!("Reading file path: {:?}", path);
 
-            let data_address = self.public_data_caching_client
-                .file_content_upload_public(path.clone(), PaymentOption::Wallet(evm_wallet.clone()), store_type.clone())
-                .await?;
-            let created_at = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_secs();
-            let custom_metadata = Metadata {
-                created: created_at,
-                modified: created_at,
-                size: path.metadata()?.len(),
-                extra: None,
-            };
+                let data_address = self.public_data_caching_client
+                    .file_content_upload_public(path.clone(), PaymentOption::Wallet(evm_wallet.clone()), store_type.clone())
+                    .await?;
+                let created_at = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_secs();
+                let custom_metadata = Metadata {
+                    created: created_at,
+                    modified: created_at,
+                    size: path.metadata()?.len(),
+                    extra: None,
+                };
 
-            match path.file_name() {
-                Some(os_file_name) => {
-                    let file_name = os_file_name.to_str().unwrap_or("").to_string();
-                    let target_path = PathBuf::from(file_name);
-                    info!("Adding file [{:?}] at address [{}] to public archive", target_path, data_address.to_hex());
-                    public_archive.add_file(target_path, data_address, custom_metadata);
-                }
-                None => return Err(UpdateError::TemporaryStorage("Failed to get filename from temporary file".to_string()).into())
+                let relative_path = path.strip_prefix(base_dir).map_err(|e| UpdateError::TemporaryStorage(format!("Failed to strip prefix: {}", e)))?;
+                info!("Adding file [{:?}] at address [{}] to public archive", relative_path, data_address.to_hex());
+                public_archive.add_file(PathBuf::from(relative_path), data_address, custom_metadata);
             }
         }
-        info!("public archive [{:?}]", public_archive);
         Ok(())
     }
 
@@ -177,14 +181,34 @@ impl PublicArchiveService {
 
     fn move_files_to_tmp_dir(public_archive_form: MultipartForm<PublicArchiveForm>, tmp_dir: PathBuf) -> Result<(), PublicArchiveError> {
         info!("Moving files in {:?} to tmp directory: {:?}", public_archive_form.files, &tmp_dir);
-        for temp_file in public_archive_form.files.iter() {
+        for (i, temp_file) in public_archive_form.files.iter().enumerate() {
             match temp_file.file_name.clone() {
                 Some(raw_file_name) => {
                     let file_name = sanitize(raw_file_name);
-                    let file_path = tmp_dir.clone().join(&file_name);
+                    let mut file_path = tmp_dir.clone();
+
+                    // Check if target_path is provided for this file
+                    if let Some(target_path_text) = public_archive_form.target_path.get(i) {
+                        let target_path_str = &target_path_text.0;
+                        if !target_path_str.is_empty() {
+                            // Sanitise and split target path to avoid traversals
+                            for part in target_path_str.split('/') {
+                                let sanitised_part = sanitize(part);
+                                if !sanitised_part.is_empty() && sanitised_part != ".." && sanitised_part != "." {
+                                    file_path.push(sanitised_part);
+                                }
+                            }
+                            // Ensure the target directory exists
+                            if let Some(parent) = file_path.parent() {
+                                fs::create_dir_all(file_path.clone())?;
+                            }
+                        }
+                    }
+
+                    file_path.push(&file_name);
 
                     info!("Creating temporary file for archive: {:?}", file_path);
-                    fs::rename(temp_file.file.path(), file_path)?;
+                    fs::copy(temp_file.file.path(), file_path)?;
                 }
                 None => return Err(UpdateError::TemporaryStorage("Failed to get filename from multipart field".to_string()).into())
             }
@@ -194,5 +218,97 @@ impl PublicArchiveService {
 
     fn purge_tmp_dir(tmp_dir: &PathBuf) {
         fs::remove_dir_all(tmp_dir.clone()).unwrap_or_else(|e| warn!("failed to delete temporary directory at [{:?}]: {}", tmp_dir, e));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use actix_multipart::form::tempfile::TempFile;
+    use std::fs::File;
+    use std::io::{Read, Write};
+    use tempfile::tempdir;
+
+    #[test]
+    fn test_move_files_to_tmp_dir_with_target_path() {
+        let tmp_parent = tempdir().unwrap();
+        let tmp_dir = tmp_parent.path().to_path_buf();
+
+        // Create a fake temp file
+        let mut f1 = tempfile::NamedTempFile::new().unwrap();
+        writeln!(f1, "file1 content").unwrap();
+        let f1_path = f1.path().to_path_buf();
+
+        let mut f2 = tempfile::NamedTempFile::new().unwrap();
+        writeln!(f2, "file2 content").unwrap();
+        let f2_path = f2.path().to_path_buf();
+
+        let form = PublicArchiveForm {
+            files: vec![
+                TempFile {
+                    file: f1,
+                    file_name: Some("f1.txt".to_string()),
+                    content_type: None,
+                    size: 13,
+                },
+                TempFile {
+                    file: f2,
+                    file_name: Some("f2.txt".to_string()),
+                    content_type: None,
+                    size: 13,
+                },
+            ],
+            target_path: vec![
+                actix_multipart::form::text::Text("dir1/subdir".to_string()),
+                actix_multipart::form::text::Text("".to_string()),
+            ],
+        };
+
+        PublicArchiveService::move_files_to_tmp_dir(MultipartForm(form), tmp_dir.clone()).unwrap();
+
+        // Check if files are in the right place
+        let expected_f1 = tmp_dir.join("dir1").join("subdir").join("f1.txt");
+        let expected_f2 = tmp_dir.join("f2.txt");
+
+        assert!(expected_f1.exists());
+        assert!(expected_f2.exists());
+
+        let mut content1 = String::new();
+        File::open(expected_f1).unwrap().read_to_string(&mut content1).unwrap();
+        assert_eq!(content1.trim(), "file1 content");
+
+        let mut content2 = String::new();
+        File::open(expected_f2).unwrap().read_to_string(&mut content2).unwrap();
+        assert_eq!(content2.trim(), "file2 content");
+    }
+
+    #[test]
+    fn test_move_files_to_tmp_dir_sanitisation() {
+        let tmp_parent = tempdir().unwrap();
+        let tmp_dir = tmp_parent.path().to_path_buf();
+
+        let mut f1 = tempfile::NamedTempFile::new().unwrap();
+        writeln!(f1, "file1 content").unwrap();
+
+        let form = PublicArchiveForm {
+            files: vec![
+                TempFile {
+                    file: f1,
+                    file_name: Some("f1.txt".to_string()),
+                    content_type: None,
+                    size: 13,
+                },
+            ],
+            target_path: vec![
+                actix_multipart::form::text::Text("../evil/path".to_string()),
+            ],
+        };
+
+        PublicArchiveService::move_files_to_tmp_dir(MultipartForm(form), tmp_dir.clone()).unwrap();
+
+        // Should be at tmp_dir/evil/path/f1.txt (because .. is sanitised/ignored)
+        let expected_f1 = tmp_dir.join("evil").join("path").join("f1.txt");
+        assert!(expected_f1.exists());
+        assert!(!tmp_dir.parent().unwrap().join("evil").exists());
     }
 }

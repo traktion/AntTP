@@ -22,6 +22,8 @@ use crate::tool::McpTool;
 struct CreatePublicArchiveRequest {
     #[schemars(description = "Base64 encoded content of the files to archive (map of filename to base64 content)")]
     files: HashMap<String, String>,
+    #[schemars(description = "Optional map of filename to its relative target path in the archive")]
+    target_paths: Option<HashMap<String, String>>,
     #[schemars(description = "Store archive on memory, disk or network")]
     store_type: String,
 }
@@ -32,6 +34,8 @@ struct UpdatePublicArchiveRequest {
     address: String,
     #[schemars(description = "Base64 encoded content of the files to add to archive (map of filename to base64 content)")]
     files: HashMap<String, String>,
+    #[schemars(description = "Optional map of filename to its relative target path in the archive")]
+    target_paths: Option<HashMap<String, String>>,
     #[schemars(description = "Store archive on memory, disk or network")]
     store_type: String,
 }
@@ -60,9 +64,9 @@ impl McpTool {
     #[tool(description = "Create a new public archive")]
     async fn create_public_archive(
         &self,
-        Parameters(CreatePublicArchiveRequest { files, store_type }): Parameters<CreatePublicArchiveRequest>,
+        Parameters(CreatePublicArchiveRequest { files, target_paths, store_type }): Parameters<CreatePublicArchiveRequest>,
     ) -> Result<CallToolResult, ErrorData> {
-        let public_archive_form = self.map_to_multipart_form(files)?;
+        let public_archive_form = self.map_to_multipart_form(files, target_paths)?;
         Ok(self.public_archive_service.create_public_archive(
             public_archive_form,
             self.evm_wallet.get_ref().clone(),
@@ -73,9 +77,9 @@ impl McpTool {
     #[tool(description = "Update an existing public archive")]
     async fn update_public_archive(
         &self,
-        Parameters(UpdatePublicArchiveRequest { address, files, store_type }): Parameters<UpdatePublicArchiveRequest>,
+        Parameters(UpdatePublicArchiveRequest { address, files, target_paths, store_type }): Parameters<UpdatePublicArchiveRequest>,
     ) -> Result<CallToolResult, ErrorData> {
-        let public_archive_form = self.map_to_multipart_form(files)?;
+        let public_archive_form = self.map_to_multipart_form(files, target_paths)?;
         Ok(self.public_archive_service.update_public_archive(
             address,
             public_archive_form,
@@ -84,8 +88,11 @@ impl McpTool {
         ).await?.into())
     }
 
-    pub(crate) fn map_to_multipart_form(&self, files: HashMap<String, String>) -> Result<MultipartForm<PublicArchiveForm>, ErrorData> {
+    pub(crate) fn map_to_multipart_form(&self, files: HashMap<String, String>, target_paths: Option<HashMap<String, String>>) -> Result<MultipartForm<PublicArchiveForm>, ErrorData> {
         let mut temp_files = Vec::new();
+        let mut target_paths_vec = Vec::new();
+        let target_paths = target_paths.unwrap_or_default();
+
         for (name, content_base64) in files {
             let content = BASE64_STANDARD.decode(content_base64).map_err(|e| 
                 ErrorData::new(ErrorCode::INVALID_PARAMS, format!("Invalid base64 content for file {}: {}", name, e), None)
@@ -98,6 +105,9 @@ impl McpTool {
                 ErrorData::new(ErrorCode::INTERNAL_ERROR, format!("Failed to write to temp file: {}", e), None)
             )?;
 
+            let target_path = target_paths.get(&name).cloned().unwrap_or_default();
+            target_paths_vec.push(actix_multipart::form::text::Text(target_path));
+
             temp_files.push(TempFile {
                 file: temp_file,
                 file_name: Some(name),
@@ -105,6 +115,6 @@ impl McpTool {
                 size: content.len(),
             });
         }
-        Ok(MultipartForm(PublicArchiveForm { files: temp_files }))
+        Ok(MultipartForm(PublicArchiveForm { files: temp_files, target_path: target_paths_vec }))
     }
 }

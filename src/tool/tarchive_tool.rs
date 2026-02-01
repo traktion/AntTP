@@ -15,6 +15,8 @@ use crate::tool::McpTool;
 struct CreateTarchiveRequest {
     #[schemars(description = "Base64 encoded content of the files to archive (map of filename to base64 content)")]
     files: HashMap<String, String>,
+    #[schemars(description = "Optional map of filename to its relative target path in the archive")]
+    target_paths: Option<HashMap<String, String>>,
     #[schemars(description = "Store archive on memory, disk or network")]
     store_type: String,
 }
@@ -25,6 +27,8 @@ struct UpdateTarchiveRequest {
     address: String,
     #[schemars(description = "Base64 encoded content of the files to add to archive (map of filename to base64 content)")]
     files: HashMap<String, String>,
+    #[schemars(description = "Optional map of filename to its relative target path in the archive")]
+    target_paths: Option<HashMap<String, String>>,
     #[schemars(description = "Store archive on memory, disk or network")]
     store_type: String,
 }
@@ -41,9 +45,9 @@ impl McpTool {
     #[tool(description = "Create a new tarchive")]
     async fn create_tarchive(
         &self,
-        Parameters(CreateTarchiveRequest { files, store_type }): Parameters<CreateTarchiveRequest>,
+        Parameters(CreateTarchiveRequest { files, target_paths, store_type }): Parameters<CreateTarchiveRequest>,
     ) -> Result<CallToolResult, ErrorData> {
-        let public_archive_form = self.map_to_multipart_form(files)?;
+        let public_archive_form = self.map_to_multipart_form(files, target_paths)?;
         Ok(self.tarchive_service.create_tarchive(
             public_archive_form,
             self.evm_wallet.get_ref().clone(),
@@ -54,9 +58,9 @@ impl McpTool {
     #[tool(description = "Update an existing tarchive")]
     async fn update_tarchive(
         &self,
-        Parameters(UpdateTarchiveRequest { address, files, store_type }): Parameters<UpdateTarchiveRequest>,
+        Parameters(UpdateTarchiveRequest { address, files, target_paths, store_type }): Parameters<UpdateTarchiveRequest>,
     ) -> Result<CallToolResult, ErrorData> {
-        let public_archive_form = self.map_to_multipart_form(files)?;
+        let public_archive_form = self.map_to_multipart_form(files, target_paths)?;
         Ok(self.tarchive_service.update_tarchive(
             address,
             public_archive_form,
@@ -76,6 +80,7 @@ mod tests {
         files.insert("test.txt".to_string(), "SGVsbG8gd29ybGQ=".to_string());
         let request = CreateTarchiveRequest {
             files,
+            target_paths: None,
             store_type: "memory".to_string(),
         };
         let json = serde_json::to_string(&request).unwrap();
@@ -91,6 +96,7 @@ mod tests {
         let request = UpdateTarchiveRequest {
             address: "0x123".to_string(),
             files,
+            target_paths: Some(HashMap::new()),
             store_type: "disk".to_string(),
         };
         let json = serde_json::to_string(&request).unwrap();

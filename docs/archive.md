@@ -20,6 +20,16 @@ Once uploaded, you can access the files via AntTP:
 
 If you access the archive address directly (with a trailing slash), AntTP will generate a file listing.
 
+### Uploading via REST API
+
+You can also create or update public archives using the AntTP REST API. This supports `multipart/form-data` and allows you to specify a `target_path` for each file to organize them into folders.
+
+**Endpoint:** `POST /anttp-0/multipart/public_archive`
+
+**Body:**
+- `files`: One or more files to upload.
+- `target_path`: (Optional) The directory path within the archive where the corresponding file should be placed (e.g., `images/vacation`). If omitted or empty, the file is placed in the root.
+
 ---
 
 ## Tarchives

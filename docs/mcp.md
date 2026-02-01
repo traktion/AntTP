@@ -43,5 +43,11 @@ The MCP server provides tools for interacting with various Autonomi data types:
 
 For more information on the Model Context Protocol, visit [modelcontextprotocol.io](https://modelcontextprotocol.io/).
 
+### Public Archive & Tarchive Tools
+- `create_public_archive`: Creates a new public archive.
+- `update_public_archive`: Updates an existing public archive.
+- `create_tarchive`: Creates a new tarchive.
+- `update_tarchive`: Updates an existing tarchive.
+These tools accept a `files` map (filename to base64 content) and an optional `target_paths` map (filename to relative target path).
 ---
 [<< Previous](grpc.md) | [Up](../README.md) | [Next >>](roadmap.md)

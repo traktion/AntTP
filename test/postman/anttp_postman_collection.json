@@ -656,8 +656,19 @@
 										{
 											"key": "files",
 											"type": "text",
-											"value": "test content",
+											"value": "test content 1",
 											"contentType": "text/plain"
+										},
+										{
+											"key": "files",
+											"type": "text",
+											"value": "test content 2",
+											"contentType": "text/plain"
+										},
+										{
+											"key": "target_path",
+											"value": "docs/v1,docs/v2",
+											"type": "text"
 										}
 									]
 								},
@@ -772,8 +783,19 @@
 										{
 											"key": "files",
 											"type": "text",
-											"value": "tarchive content",
+											"value": "tarchive content 1",
 											"contentType": "text/plain"
+										},
+										{
+											"key": "files",
+											"type": "text",
+											"value": "tarchive content 2",
+											"contentType": "text/plain"
+										},
+										{
+											"key": "target_path",
+											"value": "secret/dir1,secret/dir2",
+											"type": "text"
 										}
 									]
 								},

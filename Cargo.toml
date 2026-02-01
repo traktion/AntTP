@@ -1,6 +1,6 @@
 [package]
 name = "anttp"
-version = "0.24.6"
+version = "0.24.7"
 edition = "2024"
 authors = ["Paul Green"]
 description = "AntTP is an HTTP server for the Autonomi Network"
@@ -51,6 +51,7 @@ indexmap = "2.11"
 rand = "0.9"
 thiserror = "2.0"
 tempfile = "3"
+async-recursion = "1.1"
 async-stream = "0.3.6"
 tonic = { version = "0.12", features = ["router"], optional = true }
 prost = { version = "0.13", optional = true }

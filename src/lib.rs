@@ -102,6 +102,7 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> io::Result<()> {
             pointer_controller::put_pointer,
             public_archive_controller::post_public_archive,
             public_archive_controller::put_public_archive,
+            public_archive_controller::get_public_archive,
             tarchive_controller::post_tarchive,
             tarchive_controller::put_tarchive,
             public_scratchpad_controller::get_public_scratchpad,
@@ -187,7 +188,11 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> io::Result<()> {
     Runner::new().add(Box::new(caching_client_data.get_ref().clone())).run().await;
 
     // define services
-    let public_archive_service_data = Data::new(PublicArchiveService::new(FileService::new(chunk_caching_client.clone(), caching_client_data.get_ref().clone(), ant_tp_config.download_threads), public_archive_caching_client.clone(), public_data_caching_client.clone()));
+    let public_archive_service_data = Data::new(PublicArchiveService::new(
+        FileService::new(chunk_caching_client.clone(), caching_client_data.get_ref().clone(), ant_tp_config.download_threads),
+        public_archive_caching_client.clone(),
+        public_data_caching_client.clone()
+    ));
     let tarchive_service_data = Data::new(TarchiveService::new(PublicDataService::new(public_data_caching_client.clone())));
     let command_service_data = Data::new(CommandService::new(command_status_data.clone()));
     let chunk_service_data = Data::new(ChunkService::new(chunk_caching_client.clone()));
@@ -389,6 +394,10 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> io::Result<()> {
                 .route(
                     format!("{}pointer/{{address}}", API_BASE).as_str(),
                     web::put().to(pointer_controller::put_pointer),
+                )
+                .route(
+                    format!("{}public_archive/{{address}}/{{path:.*}}", API_BASE).as_str(),
+                    web::get().to(public_archive_controller::get_public_archive),
                 )
                 .route(
                     format!("{}multipart/public_archive", API_BASE).as_str(),

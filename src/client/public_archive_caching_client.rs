@@ -8,10 +8,24 @@ use log::info;
 use crate::error::CreateError;
 use crate::controller::StoreType;
 use crate::error::public_archive_error::PublicArchiveError;
+use mockall::mock;
 
 #[derive(Debug, Clone)]
 pub struct PublicArchiveCachingClient {
     caching_client: CachingClient,
+}
+
+mock! {
+    #[derive(Debug)]
+    pub PublicArchiveCachingClient {
+        pub fn new(caching_client: CachingClient) -> Self;
+        pub async fn archive_put_public(&self, archive: &PublicArchive, payment_option: PaymentOption, store_type: StoreType) -> Result<ArchiveAddress, PublicArchiveError>;
+        pub async fn archive_get_public(&self, address: ArchiveAddress) -> Result<PublicArchive, PublicArchiveError>;
+        pub async fn archive_get_public_raw(&self, addr: &DataAddress) -> Result<Bytes, PublicArchiveError>;
+    }
+    impl Clone for PublicArchiveCachingClient {
+        fn clone(&self) -> Self;
+    }
 }
 
 impl PublicArchiveCachingClient {

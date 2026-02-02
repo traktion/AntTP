@@ -9,10 +9,13 @@ use chunk_streamer::chunk_streamer::ChunkStreamer;
 use futures_util::StreamExt;
 use log::{debug, info};
 use xor_name::XorName;
-use crate::client::{CachingClient, ChunkCachingClient};
+#[double]
+use crate::client::chunk_caching_client::ChunkCachingClient;
+use crate::client::CachingClient;
 use crate::error::{GetError, GetStreamError};
 use crate::error::chunk_error::ChunkError;
 use crate::service::resolver_service::ResolvedAddress;
+use mockall_double::double;
 
 pub struct RangeProps {
     range_from: Option<u64>,

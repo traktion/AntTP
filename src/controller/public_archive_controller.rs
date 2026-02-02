@@ -3,9 +3,31 @@ use actix_web::{web, HttpRequest, HttpResponse};
 use actix_web::web::Data;
 use ant_evm::EvmWallet;
 use log::debug;
-use crate::service::public_archive_service::{PublicArchiveForm, PublicArchiveService, Upload};
+use crate::service::public_archive_service::{ArchiveContent, PublicArchiveForm, PublicArchiveService, Upload};
 use crate::error::public_archive_error::PublicArchiveError;
 use crate::controller::get_store_type;
+
+#[utoipa::path(
+    get,
+    path = "/anttp-0/public_archive/{address}/{path}",
+    responses(
+        (status = OK, description = "Public archive retrieved successfully", body = ArchiveContent)
+    ),
+    params(
+        ("address" = String, Path, description = "Public archive address"),
+        ("path" = String, Path, description = "Path within the archive"),
+    ),
+)]
+pub async fn get_public_archive(
+    path_params: web::Path<(String, String)>,
+    public_archive_service: Data<PublicArchiveService>,
+) -> Result<HttpResponse, PublicArchiveError> {
+    let (address, path) = path_params.into_inner();
+    debug!("Retrieving public archive at [{}] with path [{}]", address, path);
+    Ok(HttpResponse::Ok().json(
+        public_archive_service.get_public_archive(address, path).await?
+    ))
+}
 
 #[utoipa::path(
     post,

@@ -9,10 +9,29 @@ use crate::client::command::public_data::create_public_data_command::CreatePubli
 use crate::error::{CreateError, GetError};
 use crate::controller::StoreType;
 use crate::error::public_data_error::PublicDataError;
+use mockall::mock;
 
 #[derive(Debug, Clone)]
 pub struct PublicDataCachingClient {
     caching_client: CachingClient,
+}
+
+mock! {
+    #[derive(Debug)]
+    pub PublicDataCachingClient {
+        pub fn new(caching_client: CachingClient) -> Self;
+        pub async fn data_put_public(
+            &self,
+            data: Bytes,
+            payment_option: PaymentOption,
+            store_type: StoreType,
+        ) -> Result<DataAddress, PublicDataError>;
+        pub async fn data_get_public(&self, addr: &DataAddress) -> Result<Bytes, PublicDataError>;
+        pub async fn file_content_upload_public(&self, path: PathBuf, payment_option: PaymentOption, store_type: StoreType) -> Result<DataAddress, PublicDataError>;
+    }
+    impl Clone for PublicDataCachingClient {
+        fn clone(&self) -> Self;
+    }
 }
 
 impl PublicDataCachingClient {

@@ -15,8 +15,16 @@ use serde::Deserialize;
 use serde_json::json;
 use crate::controller::StoreType;
 use crate::error::public_archive_error::PublicArchiveError;
-use crate::service::public_archive_service::{PublicArchiveForm, Upload};
+use crate::service::public_archive_service::{ArchiveContent, PublicArchiveForm, Upload};
 use crate::tool::McpTool;
+
+#[derive(Debug, Deserialize, JsonSchema)]
+struct GetPublicArchiveRequest {
+    #[schemars(description = "Address of the public archive")]
+    address: String,
+    #[schemars(description = "Path within the archive")]
+    path: String,
+}
 
 #[derive(Debug, Deserialize, JsonSchema)]
 struct CreatePublicArchiveRequest {
@@ -52,6 +60,12 @@ impl From<Upload> for CallToolResult {
     }
 }
 
+impl From<ArchiveContent> for CallToolResult {
+    fn from(content: ArchiveContent) -> CallToolResult {
+        CallToolResult::structured(json!(content))
+    }
+}
+
 impl From<PublicArchiveError> for ErrorData {
     fn from(error: PublicArchiveError) -> Self {
         ErrorData::new(ErrorCode::INTERNAL_ERROR, error.to_string(), None)
@@ -60,6 +74,17 @@ impl From<PublicArchiveError> for ErrorData {
 
 #[tool_router(router = public_archive_tool_router, vis = "pub")]
 impl McpTool {
+
+    #[tool(description = "Get content or list files in a public archive")]
+    async fn get_public_archive(
+        &self,
+        Parameters(GetPublicArchiveRequest { address, path }): Parameters<GetPublicArchiveRequest>,
+    ) -> Result<CallToolResult, ErrorData> {
+        Ok(self.public_archive_service.get_public_archive(
+            address,
+            path,
+        ).await?.into())
+    }
 
     #[tool(description = "Create a new public archive")]
     async fn create_public_archive(

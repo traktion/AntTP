@@ -13,8 +13,15 @@ use autonomi::files::archive_public::ArchiveAddress;
 use chunk_streamer::chunk_receiver::ChunkReceiver;
 use log::{debug, info, warn};
 use crate::service::archive_helper::{ArchiveHelper, ArchiveInfo};
-use crate::client::{PublicArchiveCachingClient, PublicDataCachingClient};
+use mockall_double::double;
+#[double]
+use crate::client::public_archive_caching_client::PublicArchiveCachingClient;
+#[double]
+use crate::client::public_data_caching_client::PublicDataCachingClient;
 use crate::service::file_service::{FileService, RangeProps};
+use base64::Engine;
+use base64::prelude::BASE64_STANDARD;
+use futures_util::StreamExt;
 use crate::service::resolver_service::ResolvedAddress;
 use sanitize_filename::sanitize;
 use serde::{Deserialize, Serialize};
@@ -49,9 +56,16 @@ impl Upload {
     }
 }
 
+#[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
+pub struct ArchiveContent {
+    pub files: Vec<String>,
+    pub content: String,
+    pub address: String,
+}
+
 #[derive(Debug)]
 pub struct PublicArchiveService {
-    file_client: FileService,
+    file_client: Option<FileService>,
     public_archive_caching_client: PublicArchiveCachingClient,
     public_data_caching_client: PublicDataCachingClient,
 }
@@ -59,7 +73,16 @@ pub struct PublicArchiveService {
 impl PublicArchiveService {
     
     pub fn new(file_client: FileService, public_archive_caching_client: PublicArchiveCachingClient, public_data_caching_client: PublicDataCachingClient) -> Self {
-        PublicArchiveService { file_client, public_archive_caching_client, public_data_caching_client }
+        PublicArchiveService { file_client: Some(file_client), public_archive_caching_client, public_data_caching_client }
+    }
+
+    #[cfg(test)]
+    pub fn create_test_service(public_archive_caching_client: PublicArchiveCachingClient, public_data_caching_client: PublicDataCachingClient) -> Self {
+        PublicArchiveService { 
+            file_client: None,
+            public_archive_caching_client, 
+            public_data_caching_client 
+        }
     }
 
     pub async fn get_archive_info(&self, resolved_address: &ResolvedAddress, request: &HttpRequest) -> ArchiveInfo {
@@ -77,7 +100,11 @@ impl PublicArchiveService {
     }
     
     pub async fn get_data(&self, request: &HttpRequest, archive_info: ArchiveInfo) -> Result<(ChunkReceiver, RangeProps), ChunkError> {
-        self.file_client.download_data_request(request, archive_info.path_string, archive_info.resolved_xor_addr, archive_info.offset, archive_info.size).await
+        if let Some(ref file_client) = self.file_client {
+            file_client.download_data_request(request, archive_info.path_string, archive_info.resolved_xor_addr, archive_info.offset, archive_info.size).await
+        } else {
+            Err(ChunkError::GetError(crate::error::GetError::RecordNotFound("File client not initialized".to_string())))
+        }
     }
 
     pub async fn get_app_config(&self, archive: &Archive, archive_address_xorname: &XorName) -> AppConfig {
@@ -88,13 +115,17 @@ impl PublicArchiveService {
         match archive.find_file(&path_str.to_string()) {
             Some(data_address_offset) => {
                 info!("Downloading app-config [{}] with addr [{}] from archive [{}]", path_str, format!("{:x}", data_address_offset.data_address.xorname()), format!("{:x}", archive_address_xorname));
-                match self.file_client.download_data_bytes(*data_address_offset.data_address.xorname(), data_address_offset.offset, data_address_offset.size).await {
-                    Ok(buf) => {
-                        let json = String::from_utf8(buf.to_vec()).unwrap_or(String::new());
-                        debug!("json [{}]", json);
-                        serde_json::from_str(&json.as_str().trim()).unwrap_or(AppConfig::default())
+                if let Some(ref file_client) = self.file_client {
+                    match file_client.download_data_bytes(*data_address_offset.data_address.xorname(), data_address_offset.offset, data_address_offset.size).await {
+                        Ok(buf) => {
+                            let json = String::from_utf8(buf.to_vec()).unwrap_or(String::new());
+                            debug!("json [{}]", json);
+                            serde_json::from_str(&json.as_str().trim()).unwrap_or(AppConfig::default())
+                        }
+                        Err(_) => AppConfig::default()
                     }
-                    Err(_) => AppConfig::default()
+                } else {
+                    AppConfig::default()
                 }
             },
             None => AppConfig::default()
@@ -107,9 +138,68 @@ impl PublicArchiveService {
     }
 
     pub async fn update_public_archive(&self, address: String, public_archive_form: MultipartForm<PublicArchiveForm>, evm_wallet: Wallet, store_type: StoreType) -> Result<Upload, PublicArchiveError> {
-        let public_archive = &mut self.public_archive_caching_client.archive_get_public(ArchiveAddress::from_hex(address.as_str())?).await?;
-        info!("Uploading updated public archive to the network [{:?}]", public_archive);
-        Ok(self.update_public_archive_common(public_archive_form, evm_wallet, public_archive, store_type).await?)
+        let mut public_archive = self.public_archive_caching_client.archive_get_public(ArchiveAddress::from_hex(address.as_str())?).await?;
+        info!("Uploading updated public archive to the network");
+        Ok(self.update_public_archive_common(public_archive_form, evm_wallet, &mut public_archive, store_type).await?)
+    }
+
+    pub async fn get_public_archive(&self, address: String, path: String) -> Result<ArchiveContent, PublicArchiveError> {
+        debug!("get_public_archive: address: {}, path: {}", address, path);
+        let archive_address = ArchiveAddress::from_hex(address.as_str())?;
+        let public_archive = self.public_archive_caching_client.archive_get_public(archive_address).await?;
+        let sanitised_path = if path.is_empty() || path == "/" {
+            "".to_string()
+        } else {
+            path.trim_start_matches('/').to_string()
+        };
+
+        // Check if the path is a file
+        if let Some((data_address, _)) = public_archive.map().get(&PathBuf::from(&sanitised_path)) {
+            let bytes = self.public_data_caching_client.data_get_public(data_address).await?;
+            return Ok(ArchiveContent {
+                files: Vec::new(),
+                content: BASE64_STANDARD.encode(bytes),
+                address,
+            });
+        }
+
+        // Check if the path is a directory (or root)
+        let mut dir_files = Vec::new();
+        let prefix = if sanitised_path.is_empty() {
+            "".to_string()
+        } else if sanitised_path.ends_with('/') {
+            sanitised_path.clone()
+        } else {
+            format!("{}/", sanitised_path)
+        };
+
+        for key in public_archive.map().keys() {
+            let key_str = key.to_string_lossy();
+            if key_str == sanitised_path {
+                continue; // Already handled as file
+            }
+
+            if key_str.starts_with(&prefix) {
+                let relative = &key_str[prefix.len()..];
+                if let Some(first_part) = relative.split('/').next() {
+                    if !first_part.is_empty() && !dir_files.contains(&first_part.to_string()) {
+                        dir_files.push(first_part.to_string());
+                    }
+                }
+            }
+        }
+
+        if dir_files.is_empty() && !sanitised_path.is_empty() {
+             return Err(PublicArchiveError::GetError(crate::error::GetError::RecordNotFound(format!("Path [{}] not found in archive", path))));
+        }
+
+        dir_files.sort();
+
+        Ok(ArchiveContent {
+            files: dir_files,
+            content: "".to_string(),
+            address,
+        })
     }
 
     pub async fn update_public_archive_common(&self, public_archive_form: MultipartForm<PublicArchiveForm>, evm_wallet: Wallet, public_archive: &mut PublicArchive, store_type: StoreType) -> Result<Upload, PublicArchiveError> {
@@ -233,6 +323,13 @@ mod tests {
     use std::fs::File;
     use std::io::{Read, Write};
     use tempfile::tempdir;
+    use super::*;
+    use crate::client::public_archive_caching_client::MockPublicArchiveCachingClient;
+    use crate::client::public_data_caching_client::MockPublicDataCachingClient;
+    use crate::client::chunk_caching_client::MockChunkCachingClient;
+    use crate::client::CachingClient;
+    use autonomi::data::DataAddress;
+    use bytes::Bytes;
 
     #[test]
     fn test_move_files_to_tmp_dir_with_target_path() {
@@ -349,5 +446,79 @@ mod tests {
 
         assert!(expected_f1.exists(), "File 1 should be in dir1");
         assert!(expected_f2.exists(), "File 2 should be in dir2");
+    }
+
+    #[tokio::test]
+    async fn test_get_public_archive_file() {
+        use autonomi::data::DataAddress;
+        use bytes::Bytes;
+        use crate::client::public_archive_caching_client::MockPublicArchiveCachingClient;
+        use crate::client::public_data_caching_client::MockPublicDataCachingClient;
+        use crate::client::chunk_caching_client::MockChunkCachingClient;
+        use std::mem::MaybeUninit;
+        
+        let mut mock_archive_client = MockPublicArchiveCachingClient::default();
+        let mut mock_data_client = MockPublicDataCachingClient::default();
+        
+        let address_hex = "0000000000000000000000000000000000000000000000000000000000000000";
+        let path = "file.txt";
+        let content = "hello world";
+        
+        let mut archive = PublicArchive::new();
+        let data_addr = DataAddress::new(xor_name::XorName([0; 32]));
+        archive.add_file(PathBuf::from(path), data_addr.clone(), Metadata { size: content.len() as u64, modified: 0, created: 0, extra: None });
+
+        mock_archive_client.expect_archive_get_public()
+            .returning(move |_| Ok(archive.clone()));
+            
+        mock_data_client.expect_data_get_public()
+            .returning(move |_| Ok(Bytes::from(content)));
+
+        let service = PublicArchiveService::create_test_service(
+            mock_archive_client,
+            mock_data_client
+        );
+
+        let result = service.get_public_archive(address_hex.to_string(), path.to_string()).await.unwrap();
+        
+        assert_eq!(result.content, BASE64_STANDARD.encode(content));
+        assert!(result.files.is_empty());
+        assert_eq!(result.address, address_hex);
+    }
+
+    #[tokio::test]
+    async fn test_get_public_archive_directory() {
+        use autonomi::data::DataAddress;
+        use crate::client::public_archive_caching_client::MockPublicArchiveCachingClient;
+        use crate::client::public_data_caching_client::MockPublicDataCachingClient;
+        use crate::client::chunk_caching_client::MockChunkCachingClient;
+        use std::mem::MaybeUninit;
+
+        let mut mock_archive_client = MockPublicArchiveCachingClient::default();
+        let mock_data_client = MockPublicDataCachingClient::default();
+        
+        let address_hex = "0000000000000000000000000000000000000000000000000000000000000000";
+        
+        let mut archive = PublicArchive::new();
+        archive.add_file(PathBuf::from("dir1/file1.txt"), DataAddress::new(xor_name::XorName([0; 32])), Metadata { size: 0, modified: 0, created: 0, extra: None });
+        archive.add_file(PathBuf::from("dir1/subdir/file2.txt"), DataAddress::new(xor_name::XorName([0; 32])), Metadata { size: 0, modified: 0, created: 0, extra: None });
+        archive.add_file(PathBuf::from("file3.txt"), DataAddress::new(xor_name::XorName([0; 32])), Metadata { size: 0, modified: 0, created: 0, extra: None });
+
+        mock_archive_client.expect_archive_get_public()
+            .returning(move |_| Ok(archive.clone()));
+
+        let service = PublicArchiveService::create_test_service(
+            mock_archive_client,
+            mock_data_client
+        );
+
+        // Test root
+        let result = service.get_public_archive(address_hex.to_string(), "".to_string()).await.unwrap();
+        assert_eq!(result.files, vec!["dir1", "file3.txt"]);
+        assert!(result.content.is_empty());
+
+        // Test subdirectory
+        let result = service.get_public_archive(address_hex.to_string(), "dir1".to_string()).await.unwrap();
+        assert_eq!(result.files, vec!["file1.txt", "subdir"]);
     }
 }

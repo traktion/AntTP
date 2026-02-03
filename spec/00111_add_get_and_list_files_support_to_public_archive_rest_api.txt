@@ -26,6 +26,7 @@ Implementation Notes
 - Integrate support with MCP tools and gRPC if necessary
 - Do not attempt to clone or mock other *_service.rs code
 - Mock PublicArchiveCachingClient using mockall `!mock` annotation to improve testing of public_archive_service.rs
+- Update get_public_archive to allow path to be optional
 
 Example JSON responses for file URL at path '/anttp-0/public_archive/{address}/path/to/file/file.txt':
 

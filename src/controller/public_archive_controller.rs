@@ -15,15 +15,15 @@ use crate::controller::get_store_type;
     ),
     params(
         ("address" = String, Path, description = "Public archive address"),
-        ("path" = String, Path, description = "Path within the archive"),
+        ("path" = Option<String>, Path, description = "Path within the archive"),
     ),
 )]
 pub async fn get_public_archive(
-    path_params: web::Path<(String, String)>,
+    path_params: web::Path<(String, Option<String>)>,
     public_archive_service: Data<PublicArchiveService>,
 ) -> Result<HttpResponse, PublicArchiveError> {
     let (address, path) = path_params.into_inner();
-    debug!("Retrieving public archive at [{}] with path [{}]", address, path);
+    debug!("Retrieving public archive at [{}] with path [{:?}]", address, path);
     Ok(HttpResponse::Ok().json(
         public_archive_service.get_public_archive(address, path).await?
     ))

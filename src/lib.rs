@@ -396,7 +396,7 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> io::Result<()> {
                     web::put().to(pointer_controller::put_pointer),
                 )
                 .route(
-                    format!("{}public_archive/{{address}}/{{path:.*}}", API_BASE).as_str(),
+                    format!("{}public_archive/{{address}}{{path:/?.*}}", API_BASE).as_str(),
                     web::get().to(public_archive_controller::get_public_archive),
                 )
                 .route(

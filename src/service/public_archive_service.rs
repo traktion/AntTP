@@ -143,14 +143,15 @@ impl PublicArchiveService {
         Ok(self.update_public_archive_common(public_archive_form, evm_wallet, &mut public_archive, store_type).await?)
     }
 
-    pub async fn get_public_archive(&self, address: String, path: String) -> Result<ArchiveContent, PublicArchiveError> {
-        debug!("get_public_archive: address: {}, path: {}", address, path);
+    pub async fn get_public_archive(&self, address: String, path: Option<String>) -> Result<ArchiveContent, PublicArchiveError> {
+        let path_str = path.unwrap_or_default();
+        debug!("get_public_archive: address: {}, path: {}", address, path_str);
         let archive_address = ArchiveAddress::from_hex(address.as_str())?;
         let public_archive = self.public_archive_caching_client.archive_get_public(archive_address).await?;
-        let sanitised_path = if path.is_empty() || path == "/" {
+        let sanitised_path = if path_str.is_empty() || path_str == "/" {
             "".to_string()
         } else {
-            path.trim_start_matches('/').to_string()
+            path_str.trim_start_matches('/').to_string()
         };
 
         // Check if the path is a file
@@ -190,7 +191,7 @@ impl PublicArchiveService {
         }
 
         if dir_files.is_empty() && !sanitised_path.is_empty() {
-             return Err(PublicArchiveError::GetError(crate::error::GetError::RecordNotFound(format!("Path [{}] not found in archive", path))));
+             return Err(PublicArchiveError::GetError(crate::error::GetError::RecordNotFound(format!("Path [{}] not found in archive", path_str))));
         }
 
         dir_files.sort();
@@ -479,7 +480,7 @@ mod tests {
             mock_data_client
         );
 
-        let result = service.get_public_archive(address_hex.to_string(), path.to_string()).await.unwrap();
+        let result = service.get_public_archive(address_hex.to_string(), Some(path.to_string())).await.unwrap();
         
         assert_eq!(result.content, BASE64_STANDARD.encode(content));
         assert!(result.files.is_empty());
@@ -513,12 +514,15 @@ mod tests {
         );
 
         // Test root
-        let result = service.get_public_archive(address_hex.to_string(), "".to_string()).await.unwrap();
+        let result = service.get_public_archive(address_hex.to_string(), None).await.unwrap();
         assert_eq!(result.files, vec!["dir1", "file3.txt"]);
         assert!(result.content.is_empty());
 
+        let result = service.get_public_archive(address_hex.to_string(), Some("".to_string())).await.unwrap();
+        assert_eq!(result.files, vec!["dir1", "file3.txt"]);
+
         // Test subdirectory
-        let result = service.get_public_archive(address_hex.to_string(), "dir1".to_string()).await.unwrap();
+        let result = service.get_public_archive(address_hex.to_string(), Some("dir1".to_string())).await.unwrap();
         assert_eq!(result.files, vec!["file1.txt", "subdir"]);
     }
 }

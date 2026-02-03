@@ -23,7 +23,7 @@ struct GetPublicArchiveRequest {
     #[schemars(description = "Address of the public archive")]
     address: String,
     #[schemars(description = "Path within the archive")]
-    path: String,
+    path: Option<String>,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]

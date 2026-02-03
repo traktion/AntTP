@@ -641,6 +641,20 @@
 					"item": [
 						{
 							"name": "Create Public Archive",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"exec": [
+											"var jsonData = pm.response.json();",
+											"if (jsonData.address) {",
+											"    pm.environment.set(\"public_archive_address\", jsonData.address);",
+											"}"
+										],
+										"type": "text/javascript"
+									}
+								}
+							],
 							"request": {
 								"method": "POST",
 								"header": [
@@ -681,6 +695,43 @@
 										"anttp-0",
 										"multipart",
 										"public_archive"
+									]
+								}
+							}
+						},
+						{
+							"name": "Get Public Archive Root",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/anttp-0/public_archive/{{public_archive_address}}",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"anttp-0",
+										"public_archive",
+										"{{public_archive_address}}"
+									]
+								}
+							}
+						},
+						{
+							"name": "Get Public Archive Path",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/anttp-0/public_archive/{{public_archive_address}}/docs",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"anttp-0",
+										"public_archive",
+										"{{public_archive_address}}",
+										"docs"
 									]
 								}
 							}

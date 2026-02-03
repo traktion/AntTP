@@ -5,6 +5,8 @@ use bytes::Bytes;
 use chunk_streamer::chunk_streamer::ChunkGetter;
 use log::{debug, error, info};
 use mockall::mock;
+use mockall_double::double;
+#[double]
 use crate::client::CachingClient;
 use crate::client::command::chunk::create_chunk_command::CreateChunkCommand;
 use crate::error::chunk_error::ChunkError;
@@ -43,11 +45,11 @@ impl ChunkCachingClient {
         payment_option: PaymentOption,
         store_type: StoreType
     ) -> Result<ChunkAddress, ChunkError> {
-        self.caching_client.hybrid_cache.insert(chunk.address.to_hex(), Vec::from(chunk.value.clone()));
+        self.caching_client.get_hybrid_cache().insert(chunk.address.to_hex(), Vec::from(chunk.value.clone()));
         debug!("creating chunk with address [{}] in cache", chunk.address.to_hex());
         if store_type == StoreType::Network {
             let command = Box::new(
-                CreateChunkCommand::new(self.caching_client.client_harness.clone(), chunk.clone(), payment_option)
+                CreateChunkCommand::new(self.caching_client.get_client_harness().clone(), chunk.clone(), payment_option)
             );
             self.caching_client.send_create_command(command).await?;
         }
@@ -56,8 +58,8 @@ impl ChunkCachingClient {
 
     pub async fn chunk_get_internal(&self, address: &ChunkAddress) -> Result<Chunk, ChunkError> {
         let local_address = address.clone();
-        let cache_entry = self.caching_client.hybrid_cache.get_ref().fetch(local_address.to_hex(), {
-            let client = self.caching_client.client_harness.get_ref().lock().await.get_client().await?;
+        let cache_entry = self.caching_client.get_hybrid_cache().get_ref().fetch(local_address.to_hex(), {
+            let client = self.caching_client.get_client_harness().get_ref().lock().await.get_client().await?;
             || async move {
                 match client.chunk_get(&local_address).await {
                     Ok(chunk) => {
@@ -83,13 +85,5 @@ impl ChunkGetter for ChunkCachingClient {
             Ok(chunk) => Ok(chunk),
             Err(_) => Err(autonomi::client::GetError::RecordNotFound)
         }
-    }
-}
-
-#[async_trait]
-impl ChunkGetter for CachingClient {
-    async fn chunk_get(&self, address: &ChunkAddress) -> Result<Chunk, autonomi::client::GetError> {
-        let chunk_caching_client = ChunkCachingClient::new(self.clone());
-        chunk_caching_client.chunk_get(address).await
     }
 }

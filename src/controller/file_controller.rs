@@ -13,6 +13,7 @@ use crate::client::ChunkCachingClient;
 use crate::client::PublicArchiveCachingClient;
 #[double]
 use crate::client::PublicDataCachingClient;
+#[double]
 use crate::client::CachingClient;
 use crate::error::GetError;
 use crate::error::chunk_error::ChunkError;

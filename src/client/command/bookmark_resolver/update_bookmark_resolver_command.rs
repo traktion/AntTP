@@ -9,7 +9,10 @@ use tokio::sync::Mutex;
 use crate::client::PointerCachingClient;
 #[double]
 use crate::client::ChunkCachingClient;
-use crate::client::{ArchiveCachingClient, CachingClient, RegisterCachingClient};
+#[double]
+use crate::client::CachingClient;
+use crate::client::ArchiveCachingClient;
+use crate::client::RegisterCachingClient;
 use mockall_double::double;
 use crate::client::command::error::CommandError;
 use crate::client::command::Command;
@@ -31,7 +34,7 @@ pub struct UpdateBookmarkResolverCommand {
 }
 
 impl UpdateBookmarkResolverCommand {
-    pub fn new(caching_client: Data<Mutex<CachingClient>>,
+    pub fn new(caching_client: Data<tokio::sync::Mutex<CachingClient>>,
                ant_tp_config: AntTpConfig,
                access_checker: Data<Mutex<AccessChecker>>,
                bookmark_resolver: Data<Mutex<BookmarkResolver>>,

@@ -1,5 +1,6 @@
 use std::fs;
 use actix_web::web::Data;
+use ant_protocol::storage::Chunk;
 use async_job::{Job, Schedule};
 use async_trait::async_trait;
 use autonomi::ChunkAddress;
@@ -11,17 +12,71 @@ use crate::config::anttp_config::AntTpConfig;
 use bytes::{BufMut, Bytes, BytesMut};
 use futures_util::StreamExt;
 use tokio::sync::mpsc::Sender;
-use tokio::sync::Mutex;
-use crate::client::CachingClient;
-use crate::client::chunk_caching_client::ChunkCachingClient;
-use crate::client::client_harness::ClientHarness;
-use crate::client::command::Command;
+#[double]
+use crate::client::ChunkCachingClient;
 use crate::error::{CheckError, CreateError, GetError, GetStreamError, UpdateError};
 use crate::error::chunk_error::ChunkError;
+use chunk_streamer::chunk_streamer::ChunkGetter;
+use mockall::mock;
+use mockall_double::double;
+use crate::client::client_harness::ClientHarness;
+use crate::client::command::Command;
 
+#[derive(Debug, Clone)]
+pub struct CachingClient {
+    pub client_harness: Data<tokio::sync::Mutex<ClientHarness>>,
+    pub ant_tp_config: AntTpConfig,
+    pub hybrid_cache: Data<HybridCache<String, Vec<u8>>>,
+    pub command_executor: Data<Sender<Box<dyn Command>>>,
+}
+
+mock! {
+    #[derive(Debug)]
+    pub CachingClient {
+        pub fn new(client_harness: Data<tokio::sync::Mutex<ClientHarness>>, ant_tp_config: AntTpConfig,
+                   hybrid_cache: Data<HybridCache<String, Vec<u8>>>, command_executor: Data<Sender<Box<dyn Command>>>) -> Self;
+        pub async fn download_stream(
+            &self,
+            addr: &DataAddress,
+            range_from: i64,
+            range_to: i64,
+        ) -> Result<Bytes, ChunkError>;
+        pub fn get_derived_ranges(&self, range_from: i64, range_to: i64, length: Option<u64>) -> (u64, u64);
+        pub async fn send_create_command(&self, command: Box<dyn Command>) -> Result<(), CreateError>;
+        pub async fn send_update_command(&self, command: Box<dyn Command>) -> Result<(), UpdateError>;
+        pub async fn send_get_command(&self, command: Box<dyn Command>) -> Result<(), GetError>;
+        pub async fn send_check_command(&self, command: Box<dyn Command>) -> Result<(), CheckError>;
+        pub fn get_hybrid_cache(&self) -> &Data<HybridCache<String, Vec<u8>>>;
+        pub fn get_client_harness(&self) -> &Data<tokio::sync::Mutex<ClientHarness>>;
+        pub fn get_ant_tp_config(&self) -> &AntTpConfig;
+    }
+    impl Clone for CachingClient {
+        fn clone(&self) -> Self;
+    }
+    #[async_trait]
+    impl ChunkGetter for CachingClient {
+        async fn chunk_get(&self, address: &ChunkAddress) -> Result<Chunk, autonomi::client::GetError>;
+    }
+}
+
+/*#[async_trait]
+impl ChunkGetter for CachingClient {
+    async fn chunk_get(&self, address: &ChunkAddress) -> Result<Chunk, autonomi::client::GetError> {
+        self.chunk_get(address).await
+    }
+}*/
+
+#[async_trait]
+impl ChunkGetter for CachingClient {
+    async fn chunk_get(&self, address: &ChunkAddress) -> Result<Chunk, autonomi::client::GetError> {
+        let chunk_caching_client = crate::client::ChunkCachingClient::new(self.clone());
+        chunk_caching_client.chunk_get(address).await
+    }
+}
 
 pub const ARCHIVE_TAR_IDX_BYTES: &[u8] = "\0archive.tar.idx\0".as_bytes();
 
+#[cfg(not(test))]
 #[async_trait]
 impl Job for CachingClient {
     fn schedule(&self) -> Option<Schedule> {
@@ -35,7 +90,7 @@ impl Job for CachingClient {
 
 impl CachingClient {
 
-    pub fn new(client_harness: Data<Mutex<ClientHarness>>, ant_tp_config: AntTpConfig,
+    pub fn new(client_harness: Data<tokio::sync::Mutex<ClientHarness>>, ant_tp_config: AntTpConfig,
                hybrid_cache: Data<HybridCache<String, Vec<u8>>>, command_executor: Data<Sender<Box<dyn Command>>>) -> Self {
         let cache_dir = ant_tp_config.clone().map_cache_directory;
         CachingClient::create_tmp_dir(cache_dir.clone());
@@ -43,6 +98,18 @@ impl CachingClient {
         Self {
             client_harness, ant_tp_config, hybrid_cache, command_executor
         }
+    }
+
+    pub fn get_hybrid_cache(&self) -> &Data<HybridCache<String, Vec<u8>>> {
+        &self.hybrid_cache
+    }
+
+    pub fn get_client_harness(&self) -> &Data<tokio::sync::Mutex<ClientHarness>> {
+        &self.client_harness
+    }
+
+    pub fn get_ant_tp_config(&self) -> &AntTpConfig {
+        &self.ant_tp_config
     }
 
     fn create_tmp_dir(cache_dir: String) {
@@ -159,11 +226,21 @@ impl CachingClient {
 }
 
 #[cfg(test)]
+#[async_trait]
+impl Job for CachingClient {
+    fn schedule(&self) -> Option<Schedule> {
+        Some("1/10 * * * * *".parse().unwrap())
+    }
+    async fn handle(&mut self) {}
+}
+
+#[cfg(test)]
 mod tests {
     use super::*;
     use ant_evm::EvmNetwork;
     use foyer::HybridCacheBuilder;
     use clap::Parser;
+    use mockall_double::double;
     use tokio::sync::mpsc;
     use tempfile::tempdir;
 
@@ -179,7 +256,7 @@ mod tests {
         let hybrid_cache = HybridCacheBuilder::new().memory(1024).storage().build().await.unwrap();
 
         let client = CachingClient::new(
-            Data::new(Mutex::new(client_harness)),
+            Data::new(tokio::sync::Mutex::new(client_harness)),
             ant_tp_config,
             Data::new(hybrid_cache),
             Data::new(tx),
@@ -250,7 +327,7 @@ mod tests {
         let hybrid_cache = HybridCacheBuilder::new().memory(1024).storage().build().await.unwrap();
 
         let _client = CachingClient::new(
-            Data::new(Mutex::new(client_harness)),
+            Data::new(tokio::sync::Mutex::new(client_harness)),
             ant_tp_config,
             Data::new(hybrid_cache),
             Data::new(tx),

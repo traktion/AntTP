@@ -1,8 +1,13 @@
 use autonomi::files::archive_public::ArchiveAddress;
 use autonomi::files::PublicArchive;
 use log::{info, debug};
+use mockall_double::double;
 use tokio::join;
-use crate::client::{CachingClient, ARCHIVE_CACHE_KEY, PublicArchiveCachingClient, TArchiveCachingClient};
+#[double]
+use crate::client::CachingClient;
+#[double]
+use crate::client::PublicArchiveCachingClient;
+use crate::client::{ARCHIVE_CACHE_KEY, TArchiveCachingClient};
 use crate::error::archive_error::ArchiveError;
 use crate::model::archive::Archive;
 
@@ -20,7 +25,7 @@ impl ArchiveCachingClient {
         // todo: could remove caching of sub-calls, unless called directly elsewhere?
         let local_caching_client = self.caching_client.clone();
         let local_address = addr.clone();
-        let cache_entry = self.caching_client.hybrid_cache.get_ref().fetch(format!("{}{}", ARCHIVE_CACHE_KEY, local_address.to_hex()), || async move {
+        let cache_entry = self.caching_client.get_hybrid_cache().get_ref().fetch(format!("{}{}", ARCHIVE_CACHE_KEY, local_address.to_hex()), || async move {
             let public_archive_caching_client = PublicArchiveCachingClient::new(local_caching_client.clone());
             let tarchive_caching_client = TArchiveCachingClient::new(local_caching_client.clone());
             let (public_archive, tarchive) = join!(

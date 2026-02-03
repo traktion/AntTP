@@ -9,7 +9,9 @@ use tokio::sync::Mutex;
 use crate::client::PointerCachingClient;
 #[double]
 use crate::client::ChunkCachingClient;
-use crate::client::{CachingClient, RegisterCachingClient, ArchiveCachingClient};
+#[double]
+use crate::client::CachingClient;
+use crate::client::{RegisterCachingClient, ArchiveCachingClient};
 use mockall_double::double;
 use crate::client::command::error::CommandError;
 use crate::client::command::Command;

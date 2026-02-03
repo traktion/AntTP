@@ -1,4 +1,6 @@
-use crate::client::{CachingClient, PUBLIC_ARCHIVE_CACHE_KEY};
+#[double]
+use crate::client::CachingClient;
+use crate::client::PUBLIC_ARCHIVE_CACHE_KEY;
 use autonomi::client::payment::PaymentOption;
 use autonomi::data::DataAddress;
 use autonomi::files::archive_public::ArchiveAddress;
@@ -6,6 +8,7 @@ use autonomi::files::PublicArchive;
 use bytes::Bytes;
 use log::info;
 use mockall::mock;
+use mockall_double::double;
 use crate::error::CreateError;
 use crate::controller::StoreType;
 use crate::error::public_archive_error::PublicArchiveError;
@@ -57,7 +60,7 @@ impl PublicArchiveCachingClient {
     pub async fn archive_get_public_raw(&self, addr: &DataAddress) -> Result<Bytes, PublicArchiveError> {
         let local_caching_client = self.caching_client.clone();
         let local_address = addr.clone();
-        match self.caching_client.hybrid_cache.get_ref().fetch(format!("{}{}", PUBLIC_ARCHIVE_CACHE_KEY, local_address.to_hex()), || async move {
+        match self.caching_client.get_hybrid_cache().get_ref().fetch(format!("{}{}", PUBLIC_ARCHIVE_CACHE_KEY, local_address.to_hex()), || async move {
             // todo: optimise range_to to first chunk length (to avoid downloading other chunks when not needed)
             let maybe_bytes = local_caching_client.download_stream(&local_address, 0, 524288).await;
             match maybe_bytes {

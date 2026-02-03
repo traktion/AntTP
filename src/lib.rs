@@ -26,6 +26,7 @@ use actix_web::http::Method;
 use async_job::Runner;
 use foyer::{BlockEngineBuilder, Compression, DeviceBuilder, FsDeviceBuilder, HybridCache, HybridCacheBuilder, HybridCachePolicy, IoEngineBuilder, LfuConfig, PsyncIoEngineBuilder, RecoverMode, RuntimeOptions, TokioRuntimeOptions};
 use indexmap::IndexMap;
+use mockall_double::double;
 use rmcp_actix_web::transport::{StreamableHttpService};
 use rmcp::transport::streamable_http_server::session::local::LocalSessionManager;
 use tokio::sync::mpsc::Sender;
@@ -34,7 +35,17 @@ use tokio::sync::Mutex;
 use tonic::transport::Server;
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
-use crate::client::{ArchiveCachingClient, CachingClient, ChunkCachingClient, GraphEntryCachingClient, PointerCachingClient, PublicArchiveCachingClient, PublicDataCachingClient, RegisterCachingClient, ScratchpadCachingClient};
+#[double]
+use crate::client::CachingClient;
+#[double]
+use crate::client::ChunkCachingClient;
+#[double]
+use crate::client::PointerCachingClient;
+#[double]
+use crate::client::PublicArchiveCachingClient;
+#[double]
+use crate::client::PublicDataCachingClient;
+use crate::client::{ArchiveCachingClient, GraphEntryCachingClient, RegisterCachingClient, ScratchpadCachingClient};
 use crate::client::client_harness::ClientHarness;
 use client::command::executor::Executor;
 use crate::client::command::access_checker::update_access_checker_command::UpdateAccessCheckerCommand;

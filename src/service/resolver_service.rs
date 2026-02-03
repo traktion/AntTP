@@ -9,9 +9,8 @@ use log::{debug, error, info};
 use xor_name::XorName;
 #[double]
 use crate::client::PointerCachingClient;
-//#[double]
-//use crate::client::ChunkCachingClient;
-use crate::client::{ArchiveCachingClient, RegisterCachingClient};
+use crate::client::ArchiveCachingClient;
+use crate::client::RegisterCachingClient;
 use crate::model::archive::Archive;
 use crate::service::access_checker::AccessChecker;
 use crate::service::pointer_name_resolver::PointerNameResolver;
@@ -304,13 +303,11 @@ impl ResolverService {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::client::MockPointerCachingClient;
+    use crate::client::{MockCachingClient, MockPointerCachingClient};
     use crate::client::MockChunkCachingClient;
     use crate::config::anttp_config::AntTpConfig;
     use crate::error::GetError;
     use crate::error::pointer_error::PointerError;
-    use crate::client::ChunkCachingClient;
-    use crate::client::CachingClient;
     use crate::client::client_harness::ClientHarness;
     use ant_evm::EvmNetwork;
     use foyer::HybridCacheBuilder;
@@ -330,7 +327,7 @@ mod tests {
         let (tx, _rx) = mpsc::channel::<Box<dyn Command>>(100);
         let command_executor = Data::new(tx);
         
-        let caching_client = CachingClient::new(client_harness, config, hybrid_cache, command_executor);
+        let caching_client = MockCachingClient::new(client_harness, config, hybrid_cache, command_executor);
         let access_checker = Data::new(tokio::sync::Mutex::new(AccessChecker::new()));
         let bookmark_resolver = Data::new(tokio::sync::Mutex::new(BookmarkResolver::new()));
         

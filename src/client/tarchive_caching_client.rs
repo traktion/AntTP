@@ -2,8 +2,11 @@ use std::cmp::min;
 use autonomi::data::DataAddress;
 use bytes::Bytes;
 use log::{debug, info};
+use mockall_double::double;
 use crate::client::caching_client::ARCHIVE_TAR_IDX_BYTES;
-use crate::client::{CachingClient, TARCHIVE_CACHE_KEY};
+#[double]
+use crate::client::CachingClient;
+use crate::client::TARCHIVE_CACHE_KEY;
 use crate::error::GetError;
 
 #[derive(Debug, Clone)]
@@ -19,7 +22,7 @@ impl TArchiveCachingClient {
     pub async fn get_archive_from_tar(&self, addr: &DataAddress) -> Result<Bytes, GetError> {
         let local_caching_client = self.caching_client.clone();
         let local_address = addr.clone();
-        let cache_entry = self.caching_client.hybrid_cache.get_ref().fetch(format!("{}{}", TARCHIVE_CACHE_KEY, local_address.to_hex()), || async move {
+        let cache_entry = self.caching_client.get_hybrid_cache().get_ref().fetch(format!("{}{}", TARCHIVE_CACHE_KEY, local_address.to_hex()), || async move {
             let trailer_bytes = local_caching_client.download_stream(&local_address, -20480, 0).await;
             match trailer_bytes {
                 Ok(trailer_bytes) => {

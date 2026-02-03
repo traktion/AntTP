@@ -73,14 +73,20 @@ impl PublicArchiveService {
     pub async fn get_public_archive(&self, address: String, path: Option<String>) -> Result<Bytes, PublicArchiveError> {
         let archive_address = ArchiveAddress::from_hex(address.as_str())?;
         let public_archive = self.public_archive_caching_client.archive_get_public(archive_address).await?;
-        let file_path = path.unwrap_or_else(|| "index.html".to_string());
-        
-        let archive = Archive::build_from_public_archive(public_archive);
-        match archive.find_file(&file_path) {
-            Some(data_address_offset) => {
-                Ok(self.public_archive_caching_client.archive_get_public_raw(&data_address_offset.data_address).await?)
-            },
-            None => Err(PublicArchiveError::GetError(GetError::RecordNotFound(format!("File not found in archive: {}", file_path))))
+
+        match path {
+            Some(file_path) => {
+                let archive = Archive::build_from_public_archive(public_archive);
+                match archive.find_file(&file_path) {
+                    Some(data_address_offset) => {
+                        Ok(self.public_archive_caching_client.archive_get_public_raw(&data_address_offset.data_address).await?)
+                    },
+                    None => Err(PublicArchiveError::GetError(GetError::RecordNotFound(format!("File not found in archive: {}", file_path))))
+                }
+            }
+            None => {
+                Ok(self.public_archive_caching_client.archive_get_public_raw(&archive_address).await?)
+            }
         }
     }
 

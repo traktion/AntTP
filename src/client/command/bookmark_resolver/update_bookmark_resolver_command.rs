@@ -7,7 +7,9 @@ use sha2::Digest;
 use tokio::sync::Mutex;
 #[double]
 use crate::client::PointerCachingClient;
-use crate::client::{ArchiveCachingClient, CachingClient, ChunkCachingClient, RegisterCachingClient};
+#[double]
+use crate::client::ChunkCachingClient;
+use crate::client::{ArchiveCachingClient, CachingClient, RegisterCachingClient};
 use mockall_double::double;
 use crate::client::command::error::CommandError;
 use crate::client::command::Command;

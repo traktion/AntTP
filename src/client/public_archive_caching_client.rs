@@ -5,6 +5,7 @@ use autonomi::files::archive_public::ArchiveAddress;
 use autonomi::files::PublicArchive;
 use bytes::Bytes;
 use log::info;
+use mockall::mock;
 use crate::error::CreateError;
 use crate::controller::StoreType;
 use crate::error::public_archive_error::PublicArchiveError;
@@ -12,6 +13,19 @@ use crate::error::public_archive_error::PublicArchiveError;
 #[derive(Debug, Clone)]
 pub struct PublicArchiveCachingClient {
     caching_client: CachingClient,
+}
+
+mock! {
+    #[derive(Debug)]
+    pub PublicArchiveCachingClient {
+        pub fn new(caching_client: CachingClient) -> Self;
+        pub async fn archive_put_public(&self, archive: &PublicArchive, payment_option: PaymentOption, store_type: StoreType) -> Result<ArchiveAddress, PublicArchiveError>;
+        pub async fn archive_get_public(&self, archive_address: ArchiveAddress) -> Result<PublicArchive, PublicArchiveError>;
+        pub async fn archive_get_public_raw(&self, addr: &DataAddress) -> Result<Bytes, PublicArchiveError>;
+    }
+    impl Clone for PublicArchiveCachingClient {
+        fn clone(&self) -> Self;
+    }
 }
 
 impl PublicArchiveCachingClient {

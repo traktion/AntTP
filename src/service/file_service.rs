@@ -8,12 +8,17 @@ use chunk_streamer::chunk_receiver::ChunkReceiver;
 use chunk_streamer::chunk_streamer::ChunkStreamer;
 use futures_util::StreamExt;
 use log::{debug, info};
+use mockall::mock;
+use mockall_double::double;
 use xor_name::XorName;
-use crate::client::{CachingClient, ChunkCachingClient};
+#[double]
+use crate::client::ChunkCachingClient;
+use crate::client::{CachingClient};
 use crate::error::{GetError, GetStreamError};
 use crate::error::chunk_error::ChunkError;
 use crate::service::resolver_service::ResolvedAddress;
 
+#[derive(Debug, Clone)]
 pub struct RangeProps {
     range_from: Option<u64>,
     range_to: Option<u64>,
@@ -53,11 +58,24 @@ pub struct Range {
     pub end: u64,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct FileService {
     chunk_caching_client: ChunkCachingClient,
     caching_client: CachingClient,
     download_threads: usize,
+}
+
+mock! {
+    #[derive(Debug)]
+    pub FileService {
+        pub fn new(chunk_caching_client: ChunkCachingClient, caching_client: CachingClient, download_threads: usize) -> Self;
+        pub async fn get_data(&self, request: &HttpRequest, resolved_address: &ResolvedAddress) -> Result<(ChunkReceiver, RangeProps), ChunkError>;
+        pub async fn download_data_request(&self, request: &HttpRequest, path_str: String, xor_name: XorName, offset_modifier: u64, size_modifier: u64) -> Result<(ChunkReceiver, RangeProps), ChunkError>;
+        pub async fn download_data_bytes(&self, xor_name: XorName, range_from: u64, size_modifier: u64) -> Result<BytesMut, ChunkError>;
+    }
+    impl Clone for FileService {
+        fn clone(&self) -> Self;
+    }
 }
 
 impl FileService {
@@ -215,7 +233,11 @@ mod tests {
         
         let caching_client = CachingClient::new(client_harness, config, hybrid_cache, command_executor);
 
-        FileService::new(ChunkCachingClient::new(caching_client.clone()), caching_client, 8)
+        FileService {
+            chunk_caching_client: ChunkCachingClient::default(),
+            caching_client,
+            download_threads: 8,
+        }
     }
 
     #[test]

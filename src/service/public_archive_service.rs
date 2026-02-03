@@ -1,7 +1,7 @@
 use std::{env, fs};
 use std::fs::create_dir;
 use std::io::Error;
-use std::path::PathBuf;
+use std::path::{PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 use actix_multipart::form::MultipartForm;
 use actix_multipart::form::tempfile::TempFile;
@@ -12,9 +12,15 @@ use autonomi::files::{Metadata, PublicArchive};
 use autonomi::files::archive_public::ArchiveAddress;
 use chunk_streamer::chunk_receiver::ChunkReceiver;
 use log::{debug, info, warn};
+use mockall_double::double;
 use crate::service::archive_helper::{ArchiveHelper, ArchiveInfo};
-use crate::client::{PublicArchiveCachingClient, PublicDataCachingClient};
-use crate::service::file_service::{FileService, RangeProps};
+#[double]
+use crate::client::PublicArchiveCachingClient;
+#[double]
+use crate::client::PublicDataCachingClient;
+#[double]
+use crate::service::file_service::FileService;
+use crate::service::file_service::RangeProps;
 use crate::service::resolver_service::ResolvedAddress;
 use sanitize_filename::sanitize;
 use serde::{Deserialize, Serialize};
@@ -27,6 +33,8 @@ use crate::config::app_config::AppConfig;
 use crate::controller::StoreType;
 use crate::error::UpdateError;
 use crate::model::archive::Archive;
+use bytes::Bytes;
+use crate::error::GetError;
 
 #[derive(Serialize, Deserialize, Clone, ToSchema)]
 pub struct Upload {
@@ -49,7 +57,7 @@ impl Upload {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct PublicArchiveService {
     file_client: FileService,
     public_archive_caching_client: PublicArchiveCachingClient,
@@ -60,6 +68,20 @@ impl PublicArchiveService {
     
     pub fn new(file_client: FileService, public_archive_caching_client: PublicArchiveCachingClient, public_data_caching_client: PublicDataCachingClient) -> Self {
         PublicArchiveService { file_client, public_archive_caching_client, public_data_caching_client }
+    }
+
+    pub async fn get_public_archive(&self, address: String, path: Option<String>) -> Result<Bytes, PublicArchiveError> {
+        let archive_address = ArchiveAddress::from_hex(address.as_str())?;
+        let public_archive = self.public_archive_caching_client.archive_get_public(archive_address).await?;
+        let file_path = path.unwrap_or_else(|| "index.html".to_string());
+        
+        let archive = Archive::build_from_public_archive(public_archive);
+        match archive.find_file(&file_path) {
+            Some(data_address_offset) => {
+                Ok(self.public_archive_caching_client.archive_get_public_raw(&data_address_offset.data_address).await?)
+            },
+            None => Err(PublicArchiveError::GetError(GetError::RecordNotFound(format!("File not found in archive: {}", file_path))))
+        }
     }
 
     pub async fn get_archive_info(&self, resolved_address: &ResolvedAddress, request: &HttpRequest) -> ArchiveInfo {
@@ -349,5 +371,191 @@ mod tests {
 
         assert!(expected_f1.exists(), "File 1 should be in dir1");
         assert!(expected_f2.exists(), "File 2 should be in dir2");
+    }
+
+    #[tokio::test]
+    async fn test_get_public_archive_optional_path() {
+        use crate::client::MockPublicArchiveCachingClient;
+        use crate::client::MockPublicDataCachingClient;
+        use crate::service::file_service::MockFileService;
+        use mockall::predicate::eq;
+
+        let mut mock_archive_client = MockPublicArchiveCachingClient::default();
+        let mock_data_client = MockPublicDataCachingClient::default();
+        let mock_file_service = MockFileService::default();
+
+        let addr_hex = "0000000000000000000000000000000000000000000000000000000000000000";
+        let archive_address = ArchiveAddress::from_hex(addr_hex).unwrap();
+        let mut public_archive = PublicArchive::new();
+        
+        let file_data = Bytes::from("hello world");
+        let file_addr = autonomi::data::DataAddress::new(XorName([1; 32]));
+        public_archive.add_file(PathBuf::from("index.html"), file_addr, Metadata { created: 0, modified: 0, size: 11, extra: None });
+
+        mock_archive_client.expect_archive_get_public()
+            .with(eq(archive_address))
+            .times(1)
+            .returning(move |_| Ok(public_archive.clone()));
+
+        mock_archive_client.expect_archive_get_public_raw()
+            .with(eq(file_addr))
+            .times(1)
+            .returning(move |_| Ok(file_data.clone()));
+
+        let service = PublicArchiveService::new(
+            mock_file_service,
+            mock_archive_client,
+            mock_data_client,
+        );
+
+        let result = service.get_public_archive(addr_hex.to_string(), None).await;
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), Bytes::from("hello world"));
+    }
+
+    #[tokio::test]
+    async fn test_get_public_archive_with_path() {
+        use crate::client::MockPublicArchiveCachingClient;
+        use crate::client::MockPublicDataCachingClient;
+        use crate::service::file_service::MockFileService;
+        use mockall::predicate::eq;
+
+        let mut mock_archive_client = MockPublicArchiveCachingClient::default();
+        let mock_data_client = MockPublicDataCachingClient::default();
+        let mock_file_service = MockFileService::default();
+
+        let addr_hex = "0000000000000000000000000000000000000000000000000000000000000000";
+        let archive_address = ArchiveAddress::from_hex(addr_hex).unwrap();
+        let mut public_archive = PublicArchive::new();
+        
+        let file_data = Bytes::from("some content");
+        let file_addr = autonomi::data::DataAddress::new(XorName([2; 32]));
+        public_archive.add_file(PathBuf::from("test.txt"), file_addr, Metadata { created: 0, modified: 0, size: 12, extra: None });
+
+        mock_archive_client.expect_archive_get_public()
+            .with(eq(archive_address))
+            .times(1)
+            .returning(move |_| Ok(public_archive.clone()));
+
+        mock_archive_client.expect_archive_get_public_raw()
+            .with(eq(file_addr))
+            .times(1)
+            .returning(move |_| Ok(file_data.clone()));
+
+        let service = PublicArchiveService::new(
+            mock_file_service,
+            mock_archive_client,
+            mock_data_client,
+        );
+
+        let result = service.get_public_archive(addr_hex.to_string(), Some("test.txt".to_string())).await;
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), Bytes::from("some content"));
+    }
+
+    #[tokio::test]
+    async fn test_get_public_archive_file_not_found() {
+        use crate::client::MockPublicArchiveCachingClient;
+        use crate::client::MockPublicDataCachingClient;
+        use crate::service::file_service::MockFileService;
+        use mockall::predicate::eq;
+
+        let mut mock_archive_client = MockPublicArchiveCachingClient::default();
+        let mock_data_client = MockPublicDataCachingClient::default();
+        let mock_file_service = MockFileService::default();
+
+        let addr_hex = "0000000000000000000000000000000000000000000000000000000000000000";
+        let archive_address = ArchiveAddress::from_hex(addr_hex).unwrap();
+        let public_archive = PublicArchive::new();
+
+        mock_archive_client.expect_archive_get_public()
+            .with(eq(archive_address))
+            .times(1)
+            .returning(move |_| Ok(public_archive.clone()));
+
+        let service = PublicArchiveService::new(
+            mock_file_service,
+            mock_archive_client,
+            mock_data_client,
+        );
+
+        let result = service.get_public_archive(addr_hex.to_string(), Some("missing.txt".to_string())).await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_get_archive_info() {
+        use crate::client::MockPublicArchiveCachingClient;
+        use crate::client::MockPublicDataCachingClient;
+        use crate::service::file_service::MockFileService;
+
+        let mock_archive_client = MockPublicArchiveCachingClient::default();
+        let mock_data_client = MockPublicDataCachingClient::default();
+        let mut mock_file_service = MockFileService::default();
+
+        let addr_hex = "0000000000000000000000000000000000000000000000000000000000000000";
+        let xor_name = XorName([0; 32]);
+        let archive = Archive::new(std::collections::HashMap::new(), Vec::new());
+        
+        let resolved_address = ResolvedAddress::new(
+            true,
+            Some(archive.clone()),
+            xor_name,
+            "test.txt".to_string(),
+            false,
+            false,
+            true,
+            5
+        );
+        let request = actix_web::test::TestRequest::with_uri("/test.txt").to_http_request();
+
+        // mock get_app_config dependency (it calls file_client.download_data_bytes)
+        // actually get_app_config is called, and it tries to find "app-conf.json" in archive
+        // which is empty, so it returns AppConfig::default()
+
+        let service = PublicArchiveService::new(
+            mock_file_service,
+            mock_archive_client,
+            mock_data_client,
+        );
+
+        let info = service.get_archive_info(&resolved_address, &request).await;
+        assert_eq!(info.path_string, "test.txt");
+    }
+
+    #[tokio::test]
+    async fn test_get_data() {
+        use crate::client::MockPublicArchiveCachingClient;
+        use crate::client::MockPublicDataCachingClient;
+        use crate::service::file_service::MockFileService;
+
+        let mock_archive_client = MockPublicArchiveCachingClient::default();
+        let mock_data_client = MockPublicDataCachingClient::default();
+        let mut mock_file_service = MockFileService::default();
+
+        let xor_name = XorName([1; 32]);
+        let archive_info = ArchiveInfo::new(
+            "test.txt".to_string(),
+            xor_name,
+            crate::service::archive_helper::ArchiveAction::Data,
+            false,
+            0,
+            100,
+            0
+        );
+        let request = actix_web::test::TestRequest::with_uri("/test.txt").to_http_request();
+
+        mock_file_service.expect_download_data_request()
+            .times(1)
+            .returning(|_, _, _, _, _| Err(ChunkError::GetError(crate::error::GetError::RecordNotFound("test".to_string()))));
+
+        let service = PublicArchiveService::new(
+            mock_file_service,
+            mock_archive_client,
+            mock_data_client,
+        );
+
+        let result = service.get_data(&request, archive_info).await;
+        assert!(result.is_err());
     }
 }

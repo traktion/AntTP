@@ -4,13 +4,22 @@ use actix_web::dev::ConnectionInfo;
 use actix_web::web::Data;
 use log::debug;
 use mime::{Mime, APPLICATION_JSON, TEXT_HTML};
+use mockall_double::double;
 use crate::config::anttp_config::AntTpConfig;
 use crate::service::public_archive_service::PublicArchiveService;
-use crate::client::{CachingClient, ChunkCachingClient, PublicArchiveCachingClient, PublicDataCachingClient};
+#[double]
+use crate::client::ChunkCachingClient;
+#[double]
+use crate::client::PublicArchiveCachingClient;
+#[double]
+use crate::client::PublicDataCachingClient;
+use crate::client::CachingClient;
 use crate::error::GetError;
 use crate::error::chunk_error::ChunkError;
 use crate::service::archive_helper::{ArchiveAction, ArchiveHelper, ArchiveInfo};
-use crate::service::file_service::{FileService, RangeProps};
+#[double]
+use crate::service::file_service::FileService;
+use crate::service::file_service::{RangeProps};
 use crate::service::header_builder::HeaderBuilder;
 use crate::service::resolver_service::{ResolvedAddress, ResolverService};
 

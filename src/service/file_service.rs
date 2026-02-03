@@ -233,7 +233,11 @@ mod tests {
         
         let caching_client = CachingClient::new(client_harness, config, hybrid_cache, command_executor);
 
-        FileService::new(ChunkCachingClient::new(caching_client.clone()), caching_client, 8)
+        FileService {
+            chunk_caching_client: ChunkCachingClient::default(),
+            caching_client,
+            download_threads: 8,
+        }
     }
 
     #[test]

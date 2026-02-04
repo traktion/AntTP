@@ -404,7 +404,7 @@ mod tests {
             .returning(move |_| Ok(public_archive.clone()));
 
         mock_archive_client.expect_archive_get_public_raw()
-            .with(eq(file_addr))
+            .with(eq(autonomi::data::DataAddress::new(*archive_address.xorname())))
             .times(1)
             .returning(move |_| Ok(file_data.clone()));
 

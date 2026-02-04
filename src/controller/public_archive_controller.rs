@@ -3,7 +3,7 @@ use actix_web::{web, HttpRequest, HttpResponse};
 use actix_web::web::Data;
 use ant_evm::EvmWallet;
 use log::debug;
-use crate::service::public_archive_service::{PublicArchiveForm, PublicArchiveService, Upload};
+use crate::service::public_archive_service::{PublicArchiveForm, PublicArchiveService, Upload, PublicArchiveResponse};
 use crate::error::public_archive_error::PublicArchiveError;
 use crate::controller::get_store_type;
 
@@ -65,5 +65,49 @@ pub async fn put_public_archive(
     debug!("Updating [{}] archive from multipart PUT with store type [{:?}]", address, get_store_type(&request));
     Ok(HttpResponse::Ok().json(
         public_archive_service.update_public_archive(address, public_archive_form, evm_wallet, get_store_type(&request)).await?
+    ))
+}
+
+#[utoipa::path(
+    get,
+    path = "/anttp-0/public_archive/{address}",
+    responses(
+        (status = OK, description = "Public archive retrieved successfully", body = PublicArchiveResponse)
+    ),
+    params(
+        ("address" = String, Path, description = "Public archive address"),
+    ),
+)]
+pub async fn get_public_archive_root(
+    path_params: web::Path<String>,
+    public_archive_service: Data<PublicArchiveService>,
+) -> Result<HttpResponse, PublicArchiveError> {
+    let address = path_params.into_inner();
+    debug!("Getting public archive root for address [{}]", address);
+    Ok(HttpResponse::Ok().json(
+        public_archive_service.get_public_archive(address, None).await?
+    ))
+}
+
+#[utoipa::path(
+    get,
+    path = "/anttp-0/public_archive/{address}/{path}",
+    responses(
+        (status = OK, description = "Public archive retrieved successfully", body = PublicArchiveResponse)
+    ),
+    params(
+        ("address" = String, Path, description = "Public archive address"),
+        ("path" = String, Path, description = "Path to directory or file within the archive"),
+    ),
+)]
+pub async fn get_public_archive(
+    path_params: web::Path<(String, String)>,
+    public_archive_service: Data<PublicArchiveService>,
+) -> Result<HttpResponse, PublicArchiveError> {
+    let (address, mut path) = path_params.into_inner();
+    path = path.replace("%2F", "/");
+    debug!("Getting public archive for address [{}] and path [{}]", address, path);
+    Ok(HttpResponse::Ok().json(
+        public_archive_service.get_public_archive(address, Some(path)).await?
     ))
 }

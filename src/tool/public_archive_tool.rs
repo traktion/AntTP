@@ -41,6 +41,16 @@ struct UpdatePublicArchiveRequest {
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
+struct TruncatePublicArchiveRequest {
+    #[schemars(description = "Address of the public archive")]
+    address: String,
+    #[schemars(description = "Path to directory or file within the archive to be deleted")]
+    path: String,
+    #[schemars(description = "Store archive on memory, disk or network")]
+    store_type: String,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
 struct GetStatusPublicArchiveRequest {
     #[schemars(description = "Id of upload")]
     id: String,
@@ -83,6 +93,19 @@ impl McpTool {
         Ok(self.public_archive_service.update_public_archive(
             address,
             public_archive_form,
+            self.evm_wallet.get_ref().clone(),
+            StoreType::from(store_type)
+        ).await?.into())
+    }
+
+    #[tool(description = "Truncate an existing public archive (delete file or directory)")]
+    async fn truncate_public_archive(
+        &self,
+        Parameters(TruncatePublicArchiveRequest { address, path, store_type }): Parameters<TruncatePublicArchiveRequest>,
+    ) -> Result<CallToolResult, ErrorData> {
+        Ok(self.public_archive_service.truncate_public_archive(
+            address,
+            path,
             self.evm_wallet.get_ref().clone(),
             StoreType::from(store_type)
         ).await?.into())

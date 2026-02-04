@@ -14,7 +14,7 @@ pub mod public_archive_proto {
 
 use public_archive_proto::public_archive_service_server::PublicArchiveService as PublicArchiveServiceTrait;
 pub use public_archive_proto::public_archive_service_server::PublicArchiveServiceServer;
-use public_archive_proto::{CreatePublicArchiveRequest, UpdatePublicArchiveRequest, PublicArchiveResponse, File as ProtoFile};
+use public_archive_proto::{CreatePublicArchiveRequest, UpdatePublicArchiveRequest, TruncatePublicArchiveRequest, PublicArchiveResponse, File as ProtoFile};
 
 pub struct PublicArchiveHandler {
     public_archive_service: Data<PublicArchiveService>,
@@ -91,6 +91,22 @@ impl PublicArchiveServiceTrait for PublicArchiveHandler {
         let result = self.public_archive_service.update_public_archive(
             req.address,
             public_archive_form,
+            self.evm_wallet.get_ref().clone(),
+            StoreType::from(req.store_type.unwrap_or_default())
+        ).await?;
+
+        Ok(Response::new(PublicArchiveResponse::from(result)))
+    }
+
+    async fn truncate_public_archive(
+        &self,
+        request: Request<TruncatePublicArchiveRequest>,
+    ) -> Result<Response<PublicArchiveResponse>, Status> {
+        let req = request.into_inner();
+        
+        let result = self.public_archive_service.truncate_public_archive(
+            req.address,
+            req.path,
             self.evm_wallet.get_ref().clone(),
             StoreType::from(req.store_type.unwrap_or_default())
         ).await?;

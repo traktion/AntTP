@@ -117,6 +117,7 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> io::Result<()> {
             public_archive_controller::get_public_archive_root,
             public_archive_controller::post_public_archive,
             public_archive_controller::put_public_archive,
+            public_archive_controller::delete_public_archive,
             tarchive_controller::post_tarchive,
             tarchive_controller::put_tarchive,
             public_scratchpad_controller::get_public_scratchpad,
@@ -359,6 +360,10 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> io::Result<()> {
             .route(
                 format!("{}public_archive/{{address}}/{{path:.*}}", API_BASE).as_str(),
                 web::get().to(public_archive_controller::get_public_archive),
+            )
+            .route(
+                format!("{}public_archive/{{address}}/{{path:.*}}", API_BASE).as_str(),
+                web::delete().to(public_archive_controller::delete_public_archive),
             )
             .route(
                 "/{path:.*}",

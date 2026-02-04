@@ -70,23 +70,14 @@ impl PublicArchiveCachingClient {
             let maybe_bytes = local_streaming_client.download_stream(&local_address, 0, 524288).await;
             match maybe_bytes {
                 Ok(bytes) => {
-                    let maybe_public_archive = PublicArchive::from_bytes(bytes.clone());
-                    match maybe_public_archive {
-                        // confirm successful serialization, before returning the data
-                        Ok(_) => {
-                            info!("retrieved public archive for [{}] from network - storing in hybrid cache", local_address.to_hex());
-                            Ok(Vec::from(bytes))
-                        },
-                        Err(e) => {
-                            Err(foyer::Error::other(format!("Failed to retrieve public archive for [{}] from network: {:?}", local_address.to_hex(), e)))
-                        }
-                    }
+                    info!("retrieved public data for [{}] from network - storing in hybrid cache", local_address.to_hex());
+                    Ok(Vec::from(bytes))
                 },
                 Err(e) => Err(foyer::Error::other(format!("Failed to download stream for [{}] from network: {:?}", local_address.to_hex(), e)))
             }
         }).await {
             Ok(cache_entry) => {
-                info!("retrieved public archive for [{}] from hybrid cache", addr.to_hex());
+                info!("retrieved public data for [{}] from hybrid cache", addr.to_hex());
                 Ok(Bytes::from(cache_entry.value().to_vec()))
             },
             Err(e) => Err(PublicArchiveError::GetError(e.into()))

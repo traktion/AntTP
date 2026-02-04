@@ -303,7 +303,7 @@ impl ResolverService {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::client::{MockCachingClient, MockPointerCachingClient};
+    use crate::client::{MockCachingClient, MockPointerCachingClient, MockStreamingClient};
     use crate::client::MockChunkCachingClient;
     use crate::config::anttp_config::AntTpConfig;
     use crate::error::GetError;
@@ -356,8 +356,10 @@ mod tests {
             1,
         ));
 
+        let mock_streaming_client = MockStreamingClient::default();
+
         ResolverService::new(
-            crate::client::ArchiveCachingClient::new(caching_client.clone()),
+            crate::client::ArchiveCachingClient::new(caching_client.clone(), mock_streaming_client),
             mock_pointer_caching_client,
             crate::client::RegisterCachingClient::new(caching_client.clone()),
             access_checker,

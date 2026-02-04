@@ -83,7 +83,6 @@ impl KeyValueService {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
 
     #[tokio::test]
     async fn test_create_and_get_key_value() {

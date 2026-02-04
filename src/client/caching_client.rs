@@ -1,24 +1,15 @@
 use std::fs;
 use actix_web::web::Data;
-use ant_protocol::storage::Chunk;
 use async_job::{Job, Schedule};
 use async_trait::async_trait;
-use autonomi::ChunkAddress;
 use autonomi::data::DataAddress;
-use chunk_streamer::chunk_streamer::ChunkStreamer;
 use foyer::HybridCache;
-use log::{debug, error};
 use crate::config::anttp_config::AntTpConfig;
-use bytes::{BufMut, Bytes, BytesMut};
-use futures_util::StreamExt;
+use bytes::Bytes;
 use tokio::sync::mpsc::Sender;
-#[double]
-use crate::client::ChunkCachingClient;
-use crate::error::{CheckError, CreateError, GetError, GetStreamError, UpdateError};
+use crate::error::{CheckError, CreateError, GetError, UpdateError};
 use crate::error::chunk_error::ChunkError;
-use chunk_streamer::chunk_streamer::ChunkGetter;
 use mockall::mock;
-use mockall_double::double;
 use crate::client::client_harness::ClientHarness;
 use crate::client::command::Command;
 
@@ -53,10 +44,10 @@ mock! {
     impl Clone for CachingClient {
         fn clone(&self) -> Self;
     }
-    #[async_trait]
+    /*#[async_trait]
     impl ChunkGetter for CachingClient {
         async fn chunk_get(&self, address: &ChunkAddress) -> Result<Chunk, autonomi::client::GetError>;
-    }
+    }*/
 }
 
 /*#[async_trait]
@@ -66,13 +57,13 @@ impl ChunkGetter for CachingClient {
     }
 }*/
 
-#[async_trait]
+/*#[async_trait]
 impl ChunkGetter for CachingClient {
     async fn chunk_get(&self, address: &ChunkAddress) -> Result<Chunk, autonomi::client::GetError> {
         let chunk_caching_client = crate::client::ChunkCachingClient::new(self.clone());
         chunk_caching_client.chunk_get(address).await
     }
-}
+}*/
 
 pub const ARCHIVE_TAR_IDX_BYTES: &[u8] = "\0archive.tar.idx\0".as_bytes();
 
@@ -118,14 +109,14 @@ impl CachingClient {
         }
     }
 
-    pub async fn download_stream(
+    /*pub async fn download_stream(
         &self,
         addr: &DataAddress,
         range_from: i64,
         range_to: i64,
     ) -> Result<Bytes, ChunkError> {
         // todo: combine with file_service code
-        match ChunkCachingClient::new(self.clone()).chunk_get_internal(&ChunkAddress::new(*addr.xorname())).await {
+        match self.chunk_get(&ChunkAddress::new(*addr.xorname())).await {
             Ok(data_map_chunk) => {
                 let chunk_streamer = ChunkStreamer::new(addr.to_hex(), data_map_chunk.value, self.clone(), self.ant_tp_config.download_threads);
 
@@ -206,7 +197,7 @@ impl CachingClient {
                 (derived_range_from, derived_range_to)
             }
         }
-    }
+    }*/
 
     pub async fn send_create_command(&self, command: Box<dyn Command>) -> Result<(), CreateError> {
         Ok(self.command_executor.send(command).await?)
@@ -240,7 +231,6 @@ mod tests {
     use ant_evm::EvmNetwork;
     use foyer::HybridCacheBuilder;
     use clap::Parser;
-    use mockall_double::double;
     use tokio::sync::mpsc;
     use tempfile::tempdir;
 
@@ -265,7 +255,7 @@ mod tests {
         (client, rx)
     }
 
-    #[tokio::test]
+    /*#[tokio::test]
     async fn test_get_derived_ranges_with_length() {
         let (client, _) = create_mock_caching_client().await;
         let length = Some(100u64);
@@ -308,7 +298,7 @@ mod tests {
 
         assert_eq!(client.get_derived_ranges(0, 10, length), (0, 0));
         assert_eq!(client.get_derived_ranges(-1, -1, length), (0, 0));
-    }
+    }*/
 
     #[tokio::test]
     async fn test_new_creates_cache_dir() {

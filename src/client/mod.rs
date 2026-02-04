@@ -20,6 +20,7 @@ pub mod tarchive_caching_client;
 pub mod archive_caching_client;
 pub mod public_data_caching_client;
 pub mod command;
+pub mod streaming_client;
 
 pub use self::caching_client::*;
 pub use chunk_caching_client::{ChunkCachingClient, MockChunkCachingClient};
@@ -31,3 +32,4 @@ pub use public_archive_caching_client::{PublicArchiveCachingClient, MockPublicAr
 pub use tarchive_caching_client::TArchiveCachingClient;
 pub use archive_caching_client::ArchiveCachingClient;
 pub use public_data_caching_client::{PublicDataCachingClient, MockPublicDataCachingClient};
+pub use streaming_client::{StreamingClient, MockStreamingClient};

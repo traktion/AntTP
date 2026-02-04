@@ -497,9 +497,8 @@ mod tests {
 
         let mock_archive_client = MockPublicArchiveCachingClient::default();
         let mock_data_client = MockPublicDataCachingClient::default();
-        let mut mock_file_service = MockFileService::default();
+        let mock_file_service = MockFileService::default();
 
-        let addr_hex = "0000000000000000000000000000000000000000000000000000000000000000";
         let xor_name = XorName([0; 32]);
         let archive = Archive::new(std::collections::HashMap::new(), Vec::new());
         

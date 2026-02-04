@@ -45,6 +45,8 @@ use crate::client::PointerCachingClient;
 use crate::client::PublicArchiveCachingClient;
 #[double]
 use crate::client::PublicDataCachingClient;
+#[double]
+use crate::client::StreamingClient;
 use crate::client::{ArchiveCachingClient, GraphEntryCachingClient, RegisterCachingClient, ScratchpadCachingClient};
 use crate::client::client_harness::ClientHarness;
 use client::command::executor::Executor;
@@ -174,21 +176,23 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> io::Result<()> {
     let caching_client = CachingClient::new(client_harness_data, ant_tp_config.clone(), hybrid_cache_data.clone(), command_executor_data.clone());
     let caching_client_data = Data::new(caching_client.clone());
 
-    let archive_caching_client = ArchiveCachingClient::new(caching_client.clone());
     let chunk_caching_client = ChunkCachingClient::new(caching_client.clone());
+    let streaming_client = StreamingClient::new(chunk_caching_client.clone(), ant_tp_config.clone());
+    let streaming_client_data = Data::new(streaming_client.clone());
+    let archive_caching_client = ArchiveCachingClient::new(caching_client.clone(), streaming_client.clone());
     let graph_entry_caching_client = GraphEntryCachingClient::new(caching_client.clone());
     let pointer_caching_client = PointerCachingClient::new(caching_client.clone());
-    let public_archive_caching_client = PublicArchiveCachingClient::new(caching_client.clone());
-    let public_data_caching_client = PublicDataCachingClient::new(caching_client.clone());
+    let public_archive_caching_client = PublicArchiveCachingClient::new(caching_client.clone(), streaming_client.clone());
+    let public_data_caching_client = PublicDataCachingClient::new(caching_client.clone(), streaming_client.clone());
     let register_caching_client = RegisterCachingClient::new(caching_client.clone());
     let scratchpad_caching_client = ScratchpadCachingClient::new(caching_client.clone());
 
     let pointer_name_resolver_data = Data::new(PointerNameResolver::new(pointer_caching_client.clone(), chunk_caching_client.clone(), ant_tp_config.get_resolver_private_key().unwrap(), ant_tp_config.cached_mutable_ttl));
 
     let bookmark_resolver_data = hydrate_bookmark_resolver(
-        &ant_tp_config, &command_executor, &caching_client, pointer_name_resolver_data.clone()).await;
+        &ant_tp_config, &command_executor, &caching_client, &streaming_client, pointer_name_resolver_data.clone()).await;
     let access_checker_data = hydrate_access_checker(
-        &ant_tp_config, &command_executor, &caching_client, &bookmark_resolver_data, &pointer_name_resolver_data).await;
+        &ant_tp_config, &command_executor, &caching_client, &streaming_client, &bookmark_resolver_data, &pointer_name_resolver_data).await;
 
     let resolver_service_data = Data::new(
         ResolverService::new(archive_caching_client.clone(), pointer_caching_client.clone(), register_caching_client.clone(), access_checker_data.clone(), bookmark_resolver_data.clone(), pointer_name_resolver_data.clone(), ant_tp_config.cached_mutable_ttl)
@@ -198,7 +202,7 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> io::Result<()> {
     Runner::new().add(Box::new(caching_client_data.get_ref().clone())).run().await;
 
     // define services
-    let public_archive_service_data = Data::new(PublicArchiveService::new(FileService::new(chunk_caching_client.clone(), caching_client_data.get_ref().clone(), ant_tp_config.download_threads), public_archive_caching_client.clone(), public_data_caching_client.clone()));
+    let public_archive_service_data = Data::new(PublicArchiveService::new(FileService::new(chunk_caching_client.clone(), ant_tp_config.download_threads), public_archive_caching_client.clone(), public_data_caching_client.clone()));
     let tarchive_service_data = Data::new(TarchiveService::new(PublicDataService::new(public_data_caching_client.clone())));
     let command_service_data = Data::new(CommandService::new(command_status_data.clone()));
     let chunk_service_data = Data::new(ChunkService::new(chunk_caching_client.clone()));
@@ -356,6 +360,7 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> io::Result<()> {
             )
             .app_data(Data::new(actix_config.clone()))
             .app_data(caching_client_data.clone())
+            .app_data(streaming_client_data.clone())
             .app_data(evm_wallet_data.clone())
             .app_data(hybrid_cache_data.clone())
             .app_data(command_status_data.clone())
@@ -486,6 +491,7 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> io::Result<()> {
 async fn hydrate_access_checker(ant_tp_config: &AntTpConfig,
                                 command_executor: &Sender<Box<dyn Command>>,
                                 caching_client: &CachingClient,
+                                streaming_client: &StreamingClient,
                                 bookmark_resolver_data: &Data<Mutex<BookmarkResolver>>,
                                 pointer_name_resolver_data: &Data<PointerNameResolver>,
 ) -> Data<Mutex<AccessChecker>> {
@@ -493,6 +499,7 @@ async fn hydrate_access_checker(ant_tp_config: &AntTpConfig,
     let update_access_checker_command = Box::new(
         UpdateAccessCheckerCommand::new(
             Data::new(Mutex::new(caching_client.clone())),
+            Data::new(Mutex::new(streaming_client.clone())),
             ant_tp_config.clone(),
             access_checker_data.clone(),
             bookmark_resolver_data.clone(),
@@ -506,6 +513,7 @@ async fn hydrate_access_checker(ant_tp_config: &AntTpConfig,
 async fn hydrate_bookmark_resolver(ant_tp_config: &AntTpConfig,
                                    command_executor: &Sender<Box<dyn Command>>,
                                    caching_client: &CachingClient,
+                                   streaming_client: &StreamingClient,
                                    pointer_name_resolver_data: Data<PointerNameResolver>,
 ) -> Data<Mutex<BookmarkResolver>> {
     let access_checker_data = Data::new(Mutex::new(AccessChecker::new()));
@@ -513,6 +521,7 @@ async fn hydrate_bookmark_resolver(ant_tp_config: &AntTpConfig,
     let update_bookmark_resolver_command = Box::new(
         UpdateBookmarkResolverCommand::new(
             Data::new(Mutex::new(caching_client.clone())),
+            Data::new(Mutex::new(streaming_client.clone())),
             ant_tp_config.clone(),
             access_checker_data.clone(),
             bookmark_resolver_data.clone(),

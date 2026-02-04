@@ -11,6 +11,8 @@ use crate::client::PointerCachingClient;
 use crate::client::ChunkCachingClient;
 #[double]
 use crate::client::CachingClient;
+#[double]
+use crate::client::StreamingClient;
 use crate::client::{RegisterCachingClient, ArchiveCachingClient};
 use mockall_double::double;
 use crate::client::command::error::CommandError;
@@ -26,6 +28,7 @@ use crate::service::resolver_service::ResolverService;
 pub struct UpdateAccessCheckerCommand {
     id: u128,
     caching_client: Data<Mutex<CachingClient>>,
+    streaming_client: Data<Mutex<StreamingClient>>,
     ant_tp_config: AntTpConfig,
     access_checker: Data<Mutex<AccessChecker>>,
     bookmark_resolver: Data<Mutex<BookmarkResolver>>,
@@ -34,13 +37,14 @@ pub struct UpdateAccessCheckerCommand {
 
 impl UpdateAccessCheckerCommand {
     pub fn new(caching_client: Data<Mutex<CachingClient>>,
+               streaming_client: Data<Mutex<StreamingClient>>,
                ant_tp_config: AntTpConfig,
                access_checker: Data<Mutex<AccessChecker>>,
                bookmark_resolver: Data<Mutex<BookmarkResolver>>,
                pointer_name_resolver: Data<PointerNameResolver>,
     ) -> Self {
         let id = rand::random::<u128>();
-        Self { id, caching_client, ant_tp_config, access_checker, bookmark_resolver, pointer_name_resolver }
+        Self { id, caching_client, streaming_client, ant_tp_config, access_checker, bookmark_resolver, pointer_name_resolver }
     }
 }
 
@@ -50,8 +54,9 @@ const STRUCT_NAME: &'static str = "UpdateAccessCheckerCommand";
 impl Command for UpdateAccessCheckerCommand {
     async fn execute(&self) -> Result<(), CommandError> {
         let caching_client = self.caching_client.get_ref().lock().await.clone();
+        let streaming_client = self.streaming_client.get_ref().lock().await.clone();
         let resolver_service = ResolverService::new(
-            ArchiveCachingClient::new(caching_client.clone()),
+            ArchiveCachingClient::new(caching_client.clone(), streaming_client),
             PointerCachingClient::new(caching_client.clone()),
             RegisterCachingClient::new(caching_client.clone()),
             self.access_checker.clone(),
@@ -59,7 +64,7 @@ impl Command for UpdateAccessCheckerCommand {
             self.pointer_name_resolver.clone(),
             self.ant_tp_config.cached_mutable_ttl,
         );
-        let file_service = FileService::new(ChunkCachingClient::new(caching_client.clone()), caching_client, 1);
+        let file_service = FileService::new(ChunkCachingClient::new(caching_client.clone()), 1);
         
         let access_list = match resolver_service.resolve(&self.ant_tp_config.access_list_address, &"", &HeaderMap::new()).await {
             Some(resolved_address) => match file_service.download_data_bytes(resolved_address.xor_name, 0, 0).await {

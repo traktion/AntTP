@@ -15,6 +15,8 @@ use crate::client::PublicArchiveCachingClient;
 use crate::client::PublicDataCachingClient;
 #[double]
 use crate::client::CachingClient;
+#[double]
+use crate::client::StreamingClient;
 use crate::error::GetError;
 use crate::error::chunk_error::ChunkError;
 use crate::service::archive_helper::{ArchiveAction, ArchiveHelper, ArchiveInfo};
@@ -29,10 +31,12 @@ pub async fn get_public_data(
     path: web::Path<String>,
     resolver_service: Data<ResolverService>,
     caching_client_data: Data<CachingClient>,
+    streaming_client_data: Data<StreamingClient>,
     conn: ConnectionInfo,
     ant_tp_config_data: Data<AntTpConfig>,
 ) -> Result<HttpResponse, ChunkError> {
-    fetch_public_data(request, path, resolver_service, caching_client_data, conn, ant_tp_config_data, true).await
+    fetch_public_data(request, path, resolver_service, caching_client_data, streaming_client_data,
+                      conn, ant_tp_config_data, true).await
 }
 
 pub async fn head_public_data(
@@ -40,10 +44,12 @@ pub async fn head_public_data(
     path: web::Path<String>,
     resolver_service: Data<ResolverService>,
     caching_client_data: Data<CachingClient>,
+    streaming_client_data: Data<StreamingClient>,
     conn: ConnectionInfo,
     ant_tp_config_data: Data<AntTpConfig>,
 ) -> Result<HttpResponse, ChunkError> {
-    fetch_public_data(request, path, resolver_service, caching_client_data, conn, ant_tp_config_data, false).await
+    fetch_public_data(request, path, resolver_service, caching_client_data, streaming_client_data,
+                      conn, ant_tp_config_data, false).await
 }
 
 async fn fetch_public_data(
@@ -51,12 +57,14 @@ async fn fetch_public_data(
     path: web::Path<String>,
     resolver_service: Data<ResolverService>,
     caching_client_data: Data<CachingClient>,
+    streaming_client_data: Data<StreamingClient>,
     conn: ConnectionInfo,
     ant_tp_config_data: Data<AntTpConfig>,
     has_body: bool,
 ) -> Result<HttpResponse, ChunkError> {
     let ant_tp_config = ant_tp_config_data.get_ref().clone();
     let caching_client = caching_client_data.get_ref().clone();
+    let streaming_client = streaming_client_data.get_ref().clone();
 
     match resolver_service.resolve(&conn.host(), &path.into_inner(), &request.headers()).await {
         Some(resolved_address) => {
@@ -68,9 +76,9 @@ async fn fetch_public_data(
             } else if resolved_address.archive.is_some() {
                 debug!("Retrieving file from archive [{:x}]", resolved_address.xor_name);
                 let chunk_caching_client = ChunkCachingClient::new(caching_client.clone());
-                let public_archive_caching_client = PublicArchiveCachingClient::new(caching_client.clone());
-                let public_data_caching_client = PublicDataCachingClient::new(caching_client.clone());
-                let file_service = FileService::new(chunk_caching_client, caching_client.clone(), ant_tp_config.download_threads);
+                let public_archive_caching_client = PublicArchiveCachingClient::new(caching_client.clone(), streaming_client.clone());
+                let public_data_caching_client = PublicDataCachingClient::new(caching_client.clone(), streaming_client.clone());
+                let file_service = FileService::new(chunk_caching_client, ant_tp_config.download_threads);
                 let public_archive_service = PublicArchiveService::new(file_service, public_archive_caching_client, public_data_caching_client);
                 let archive_info = public_archive_service.get_archive_info(&resolved_address, &request).await;
 
@@ -83,7 +91,7 @@ async fn fetch_public_data(
             } else {
                 debug!("Retrieving file from XOR [{:x}]", resolved_address.xor_name);
                 let chunk_caching_client = ChunkCachingClient::new(caching_client.clone());
-                let file_service = FileService::new(chunk_caching_client, caching_client.clone(), ant_tp_config.download_threads);
+                let file_service = FileService::new(chunk_caching_client, ant_tp_config.download_threads);
                 get_data_xor(&request, &resolved_address, &header_builder, file_service, has_body).await
             }
         },
@@ -228,13 +236,14 @@ mod tests {
     use crate::service::pointer_name_resolver::PointerNameResolver;
     use crate::client::MockPointerCachingClient;
     use crate::client::MockChunkCachingClient;
+    use crate::client::MockStreamingClient;
     use autonomi::SecretKey;
     use clap::Parser;
 
     use crate::error::pointer_error::PointerError;
     use crate::error::GetError;
 
-    async fn create_test_data() -> (Data<ResolverService>, Data<CachingClient>, Data<AntTpConfig>) {
+    async fn create_test_data() -> (Data<ResolverService>, Data<CachingClient>, Data<MockStreamingClient>, Data<AntTpConfig>) {
         let config = AntTpConfig::parse_from(vec!["anttp"]);
         let evm_network = EvmNetwork::ArbitrumOne;
         let client_harness = Data::new(tokio::sync::Mutex::new(ClientHarness::new(evm_network, config.clone())));
@@ -268,8 +277,10 @@ mod tests {
             1,
         ));
 
+        let mock_streaming_client = MockStreamingClient::default();
+
         let resolver_service = Data::new(ResolverService::new(
-            crate::client::ArchiveCachingClient::new(caching_client.get_ref().clone()),
+            crate::client::ArchiveCachingClient::new(caching_client.get_ref().clone(), mock_streaming_client.clone()),
             mock_pointer_caching_client,
             crate::client::RegisterCachingClient::new(caching_client.get_ref().clone()),
             access_checker,
@@ -278,28 +289,28 @@ mod tests {
             1,
         ));
 
-        (resolver_service, caching_client, Data::new(config))
+        (resolver_service, caching_client, Data::new(mock_streaming_client), Data::new(config))
     }
 
     #[actix_web::test]
     async fn test_get_public_data_not_found() {
-        let (resolver_service, caching_client, config) = create_test_data().await;
+        let (resolver_service, caching_client, streaming_client, config) = create_test_data().await;
         let req = TestRequest::get().uri("/nonexistent").to_http_request();
         let path = web::Path::from("nonexistent".to_string());
         let conn = req.connection_info().clone();
         
-        let result = get_public_data(req, path, resolver_service, caching_client, conn, config).await;
+        let result = get_public_data(req, path, resolver_service, caching_client, streaming_client, conn, config).await;
         assert!(result.is_err());
     }
 
     #[actix_web::test]
     async fn test_head_public_data_not_found() {
-        let (resolver_service, caching_client, config) = create_test_data().await;
+        let (resolver_service, caching_client, streaming_client, config) = create_test_data().await;
         let req = TestRequest::default().method(actix_web::http::Method::HEAD).uri("/nonexistent").to_http_request();
         let path = web::Path::from("nonexistent".to_string());
         let conn = req.connection_info().clone();
         
-        let result = head_public_data(req, path, resolver_service, caching_client, conn, config).await;
+        let result = head_public_data(req, path, resolver_service, caching_client, streaming_client, conn, config).await;
         assert!(result.is_err());
     }
 }

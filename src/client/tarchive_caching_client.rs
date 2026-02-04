@@ -6,24 +6,27 @@ use mockall_double::double;
 use crate::client::caching_client::ARCHIVE_TAR_IDX_BYTES;
 #[double]
 use crate::client::CachingClient;
+#[double]
+use crate::client::StreamingClient;
 use crate::client::TARCHIVE_CACHE_KEY;
 use crate::error::GetError;
 
 #[derive(Debug, Clone)]
 pub struct TArchiveCachingClient {
     caching_client: CachingClient,
+    streaming_client: StreamingClient
 }
 
 impl TArchiveCachingClient {
-    pub fn new(caching_client: CachingClient) -> Self {
-        Self { caching_client }
+    pub fn new(caching_client: CachingClient, streaming_client: StreamingClient) -> Self {
+        Self { caching_client, streaming_client }
     }
 
     pub async fn get_archive_from_tar(&self, addr: &DataAddress) -> Result<Bytes, GetError> {
-        let local_caching_client = self.caching_client.clone();
+        let local_streaming_client = self.streaming_client.clone();
         let local_address = addr.clone();
         let cache_entry = self.caching_client.get_hybrid_cache().get_ref().fetch(format!("{}{}", TARCHIVE_CACHE_KEY, local_address.to_hex()), || async move {
-            let trailer_bytes = local_caching_client.download_stream(&local_address, -20480, 0).await;
+            let trailer_bytes = local_streaming_client.download_stream(&local_address, -20480, 0).await;
             match trailer_bytes {
                 Ok(trailer_bytes) => {
                     match TArchiveCachingClient::find_subsequence(trailer_bytes.iter().as_slice(), ARCHIVE_TAR_IDX_BYTES) {

@@ -7,6 +7,8 @@ use tokio::join;
 use crate::client::CachingClient;
 #[double]
 use crate::client::PublicArchiveCachingClient;
+#[double]
+use crate::client::StreamingClient;
 use crate::client::{ARCHIVE_CACHE_KEY, TArchiveCachingClient};
 use crate::error::archive_error::ArchiveError;
 use crate::model::archive::Archive;
@@ -14,20 +16,23 @@ use crate::model::archive::Archive;
 #[derive(Debug, Clone)]
 pub struct ArchiveCachingClient {
     caching_client: CachingClient,
+    streaming_client: StreamingClient
 }
 
 impl ArchiveCachingClient {
-    pub fn new(caching_client: CachingClient) -> Self {
-        Self { caching_client }
+    pub fn new(caching_client: CachingClient, streaming_client: StreamingClient) -> Self {
+        Self { caching_client, streaming_client }
     }
 
     pub async fn archive_get(&self, addr: ArchiveAddress) -> Result<Archive, ArchiveError> {
         // todo: could remove caching of sub-calls, unless called directly elsewhere?
         let local_caching_client = self.caching_client.clone();
         let local_address = addr.clone();
+        let local_streaming_client = self.streaming_client.clone();
         let cache_entry = self.caching_client.get_hybrid_cache().get_ref().fetch(format!("{}{}", ARCHIVE_CACHE_KEY, local_address.to_hex()), || async move {
-            let public_archive_caching_client = PublicArchiveCachingClient::new(local_caching_client.clone());
-            let tarchive_caching_client = TArchiveCachingClient::new(local_caching_client.clone());
+            // todo: can these be injected?
+            let public_archive_caching_client = PublicArchiveCachingClient::new(local_caching_client.clone(), local_streaming_client.clone());
+            let tarchive_caching_client = TArchiveCachingClient::new(local_caching_client.clone(), local_streaming_client.clone());
             let (public_archive, tarchive) = join!(
                 public_archive_caching_client.archive_get_public_raw(&addr),
                 tarchive_caching_client.get_archive_from_tar(&addr)

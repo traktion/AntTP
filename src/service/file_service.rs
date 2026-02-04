@@ -13,8 +13,6 @@ use mockall_double::double;
 use xor_name::XorName;
 #[double]
 use crate::client::ChunkCachingClient;
-#[double]
-use crate::client::CachingClient;
 use crate::error::{GetError, GetStreamError};
 use crate::error::chunk_error::ChunkError;
 use crate::service::resolver_service::ResolvedAddress;
@@ -62,14 +60,13 @@ pub struct Range {
 #[derive(Debug, Clone)]
 pub struct FileService {
     chunk_caching_client: ChunkCachingClient,
-    caching_client: CachingClient,
     download_threads: usize,
 }
 
 mock! {
     #[derive(Debug)]
     pub FileService {
-        pub fn new(chunk_caching_client: ChunkCachingClient, caching_client: CachingClient, download_threads: usize) -> Self;
+        pub fn new(chunk_caching_client: ChunkCachingClient, download_threads: usize) -> Self;
         pub async fn get_data(&self, request: &HttpRequest, resolved_address: &ResolvedAddress) -> Result<(ChunkReceiver, RangeProps), ChunkError>;
         pub async fn download_data_request(&self, request: &HttpRequest, path_str: String, xor_name: XorName, offset_modifier: u64, size_modifier: u64) -> Result<(ChunkReceiver, RangeProps), ChunkError>;
         pub async fn download_data_bytes(&self, xor_name: XorName, range_from: u64, size_modifier: u64) -> Result<BytesMut, ChunkError>;
@@ -80,8 +77,8 @@ mock! {
 }
 
 impl FileService {
-    pub fn new(chunk_caching_client: ChunkCachingClient, caching_client: CachingClient, download_threads: usize) -> Self {
-        FileService { chunk_caching_client, caching_client, download_threads }
+    pub fn new(chunk_caching_client: ChunkCachingClient, download_threads: usize) -> Self {
+        FileService { chunk_caching_client, download_threads }
     }
 
     pub async fn get_data(&self, request: &HttpRequest, resolved_address: &ResolvedAddress) -> Result<(ChunkReceiver, RangeProps), ChunkError> {
@@ -98,7 +95,7 @@ impl FileService {
     ) -> Result<(ChunkReceiver, RangeProps), ChunkError> {
         let data_map_chunk = self.chunk_caching_client.chunk_get_internal(&ChunkAddress::new(xor_name)).await?;
 
-        let chunk_streamer = ChunkStreamer::new(xor_name.to_string(), data_map_chunk.value, self.caching_client.clone(), self.download_threads);
+        let chunk_streamer = ChunkStreamer::new(xor_name.to_string(), data_map_chunk.value, self.chunk_caching_client.clone(), self.download_threads);
         let content_length = self.get_content_length(&chunk_streamer, size_modifier).await;
 
         let (range_from, range_to, range_length, is_range_request) = self.get_range(Some(&request), offset_modifier, content_length);
@@ -119,7 +116,7 @@ impl FileService {
         Ok((chunk_receiver, RangeProps::new(maybe_response_range_from, maybe_response_range_to, content_length, extension)))
     }
 
-    async fn get_content_length(&self, chunk_streamer: &ChunkStreamer<CachingClient>, size_modifier: u64) -> u64 {
+    async fn get_content_length(&self, chunk_streamer: &ChunkStreamer<ChunkCachingClient>, size_modifier: u64) -> u64 {
         if size_modifier > 0 {
             // file is in an archive (so, we already have the size)
             size_modifier
@@ -198,7 +195,7 @@ impl FileService {
             Err(e) => return Err(e),
         };
 
-        let chunk_streamer = ChunkStreamer::new(xor_name.to_string(), data_map_chunk.value, self.caching_client.clone(), self.download_threads);
+        let chunk_streamer = ChunkStreamer::new(xor_name.to_string(), data_map_chunk.value, self.chunk_caching_client.clone(), self.download_threads);
         let content_length = self.get_content_length(&chunk_streamer, size_modifier).await;
         let (range_from, range_to, _, _) = self.get_range(None, range_from, content_length);
 
@@ -213,13 +210,12 @@ impl FileService {
 mod tests {
     use super::*;
     use actix_web::test::TestRequest;
-    use crate::client::{MockCachingClient, MockChunkCachingClient};
+    use crate::client::MockChunkCachingClient;
     use autonomi::Chunk;
 
-    fn create_test_service(mock_chunk_caching_client: MockChunkCachingClient, mock_caching_client: MockCachingClient) -> FileService {
+    fn create_test_service(mock_chunk_caching_client: MockChunkCachingClient) -> FileService {
         FileService {
             chunk_caching_client: mock_chunk_caching_client,
-            caching_client: mock_caching_client,
             download_threads: 8,
         }
     }
@@ -239,7 +235,7 @@ mod tests {
 
     #[actix_web::test]
     async fn test_get_range_no_header() {
-        let service = create_test_service(MockChunkCachingClient::default(), MockCachingClient::default());
+        let service = create_test_service(MockChunkCachingClient::default());
         let (start, end, length, is_range) = service.get_range(None, 0, 100);
         assert_eq!(start, 0);
         assert_eq!(end, 99);
@@ -249,7 +245,7 @@ mod tests {
 
     #[actix_web::test]
     async fn test_get_range_with_header() {
-        let service = create_test_service(MockChunkCachingClient::default(), MockCachingClient::default());
+        let service = create_test_service(MockChunkCachingClient::default());
         let req = TestRequest::default().insert_header((header::RANGE, "bytes=10-50")).to_http_request();
         
         let (start, end, length, is_range) = service.get_range(Some(&req), 0, 100);
@@ -261,7 +257,7 @@ mod tests {
 
     #[actix_web::test]
     async fn test_get_range_with_header_open_end() {
-        let service = create_test_service(MockChunkCachingClient::default(), MockCachingClient::default());
+        let service = create_test_service(MockChunkCachingClient::default());
         let req = TestRequest::default().insert_header((header::RANGE, "bytes=10-")).to_http_request();
         
         let (start, end, length, is_range) = service.get_range(Some(&req), 0, 100);
@@ -273,7 +269,7 @@ mod tests {
 
     #[actix_web::test]
     async fn test_get_range_with_header_end_over_length() {
-        let service = create_test_service(MockChunkCachingClient::default(), MockCachingClient::default());
+        let service = create_test_service(MockChunkCachingClient::default());
         let req = TestRequest::default().insert_header((header::RANGE, "bytes=10-120")).to_http_request();
 
         let (start, end, length, is_range) = service.get_range(Some(&req), 0, 100);
@@ -285,7 +281,7 @@ mod tests {
 
     #[actix_web::test]
     async fn test_get_response_range() {
-        let service = create_test_service(MockChunkCachingClient::default(), MockCachingClient::default());
+        let service = create_test_service(MockChunkCachingClient::default());
         
         let (start, end) = service.get_response_range(10, 50, true, 0);
         assert_eq!(start, Some(10));
@@ -304,7 +300,6 @@ mod tests {
     #[actix_web::test]
     async fn test_download_data_bytes_success() {
         let mut mock_chunk_client = MockChunkCachingClient::default();
-        let mut mock_caching_client = MockCachingClient::default();
 
         let xor_name = XorName::default();
         let chunk_addr = ChunkAddress::new(xor_name);
@@ -328,7 +323,6 @@ mod tests {
     #[actix_web::test]
     async fn test_get_data_success() {
         let mut mock_chunk_client = MockChunkCachingClient::default();
-        let mut mock_caching_client = MockCachingClient::default();
 
         let xor_name = XorName::default();
         let chunk_addr = ChunkAddress::new(xor_name);
@@ -339,12 +333,8 @@ mod tests {
             .with(mockall::predicate::eq(chunk_addr))
             .times(1)
             .returning(move |_| Ok(chunk.clone()));
-            
-        // ChunkStreamer::new is called with self.caching_client.clone()
-        mock_caching_client.expect_clone()
-            .returning(MockCachingClient::default);
 
-        let service = create_test_service(mock_chunk_client, mock_caching_client);
+        let service = create_test_service(mock_chunk_client);
         let req = TestRequest::default().to_http_request();
         let resolved_address = ResolvedAddress {
             is_found: false,

@@ -32,6 +32,10 @@ mock! {
     impl Clone for ChunkCachingClient {
         fn clone(&self) -> Self;
     }
+    #[async_trait]
+    impl ChunkGetter for ChunkCachingClient {
+        async fn chunk_get(&self, address: &ChunkAddress) -> Result<Chunk, autonomi::client::GetError>;
+    }
 }
 
 impl ChunkCachingClient {

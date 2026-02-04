@@ -111,3 +111,32 @@ pub async fn get_public_archive(
         public_archive_service.get_public_archive(address, Some(path)).await?
     ))
 }
+
+#[utoipa::path(
+    delete,
+    path = "/anttp-0/public_archive/{address}/{path}",
+    responses(
+        (status = OK, description = "Public archive truncated successfully", body = Upload)
+    ),
+    params(
+        ("address" = String, Path, description = "Public archive address"),
+        ("path" = String, Path, description = "Path to directory or file within the archive to be deleted"),
+        ("x-store-type", Header, description = "Only persist to cache and do not publish (memory|disk|none)",
+        example = "memory"),
+    ),
+)]
+pub async fn delete_public_archive(
+    path_params: web::Path<(String, String)>,
+    public_archive_service: Data<PublicArchiveService>,
+    evm_wallet_data: Data<EvmWallet>,
+    request: HttpRequest,
+) -> Result<HttpResponse, PublicArchiveError> {
+    let (address, mut path) = path_params.into_inner();
+    path = path.replace("%2F", "/");
+    let evm_wallet = evm_wallet_data.get_ref().clone();
+
+    debug!("Truncating public archive at address [{}] and path [{}]", address, path);
+    Ok(HttpResponse::Ok().json(
+        public_archive_service.truncate_public_archive(address, path, evm_wallet, get_store_type(&request)).await?
+    ))
+}

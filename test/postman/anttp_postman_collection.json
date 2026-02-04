@@ -748,6 +748,32 @@
 									]
 								}
 							}
+						},
+						{
+							"name": "Delete Public Archive Path",
+							"request": {
+								"method": "DELETE",
+								"header": [
+									{
+										"key": "x-store-type",
+										"value": "memory",
+										"type": "text"
+									}
+								],
+								"url": {
+									"raw": "{{base_url}}/anttp-0/public_archive/{{public_archive_address}}/docs/v1",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"anttp-0",
+										"public_archive",
+										"{{public_archive_address}}",
+										"docs",
+										"v1"
+									]
+								}
+							}
 						}
 					]
 				},

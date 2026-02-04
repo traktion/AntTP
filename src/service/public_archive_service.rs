@@ -155,6 +155,48 @@ impl PublicArchiveService {
         Ok(self.update_public_archive_common(public_archive_form, evm_wallet, public_archive, store_type).await?)
     }
 
+    pub async fn truncate_public_archive(&self, address: String, path: String, evm_wallet: Wallet, store_type: StoreType) -> Result<Upload, PublicArchiveError> {
+        let archive_address = ArchiveAddress::from_hex(address.as_str())?;
+        let public_archive = self.public_archive_caching_client.archive_get_public(archive_address).await?;
+        let archive = Archive::build_from_public_archive(public_archive);
+
+        let tmp_dir = Self::create_tmp_dir()?;
+        let path = Archive::sanitise_path(&path);
+
+        for (file_path_str, data_address_offset) in archive.map() {
+            if file_path_str == &path || file_path_str.starts_with(&format!("{}/", path)) {
+                info!("Skipping file [{}] from truncated archive", file_path_str);
+                continue;
+            }
+
+            let bytes = self.public_data_caching_client.data_get_public(&data_address_offset.data_address).await?;
+            let mut file_path = tmp_dir.clone();
+            file_path.push(file_path_str);
+
+            if let Some(parent) = file_path.parent() {
+                fs::create_dir_all(parent)?;
+            }
+            fs::write(file_path, bytes)?;
+        }
+
+        let mut new_public_archive = PublicArchive::new();
+        if let Some(e) = self.update_archive(&mut new_public_archive, tmp_dir.clone(), evm_wallet.clone(), store_type.clone()).await.err() {
+            Self::purge_tmp_dir(&tmp_dir);
+            return Err(e);
+        }
+
+        match self.public_archive_caching_client.archive_put_public(&new_public_archive, PaymentOption::Wallet(evm_wallet), store_type).await {
+            Ok(new_address) => {
+                Self::purge_tmp_dir(&tmp_dir);
+                Ok(Upload::new(Some(new_address.to_hex())))
+            }
+            Err(e) => {
+                Self::purge_tmp_dir(&tmp_dir);
+                Err(e)
+            }
+        }
+    }
+
     pub async fn update_public_archive_common(&self, public_archive_form: MultipartForm<PublicArchiveForm>, evm_wallet: Wallet, public_archive: &mut PublicArchive, store_type: StoreType) -> Result<Upload, PublicArchiveError> {
         let tmp_dir = Self::create_tmp_dir()?;
         if let Some(e) = Self::move_files_to_tmp_dir(public_archive_form, tmp_dir.clone()).err() {
@@ -581,5 +623,61 @@ mod tests {
 
         let result = service.get_data(&request, archive_info).await;
         assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_truncate_public_archive() {
+        use crate::client::MockPublicArchiveCachingClient;
+        use crate::client::MockPublicDataCachingClient;
+        use crate::service::file_service::MockFileService;
+        use mockall::predicate::eq;
+
+        let mut mock_archive_client = MockPublicArchiveCachingClient::default();
+        let mut mock_data_client = MockPublicDataCachingClient::default();
+        let mock_file_service = MockFileService::default();
+
+        let addr_hex = "0000000000000000000000000000000000000000000000000000000000000000";
+        let archive_address = ArchiveAddress::from_hex(addr_hex).unwrap();
+        let mut public_archive = PublicArchive::new();
+        
+        let file1_data = Bytes::from("file1 content");
+        let file1_addr = autonomi::data::DataAddress::new(XorName([1; 32]));
+        public_archive.add_file(PathBuf::from("file1.txt"), file1_addr, Metadata { created: 0, modified: 0, size: 13, extra: None });
+
+        let file2_addr = autonomi::data::DataAddress::new(XorName([2; 32]));
+        public_archive.add_file(PathBuf::from("dir/file2.txt"), file2_addr, Metadata { created: 0, modified: 0, size: 13, extra: None });
+
+        mock_archive_client.expect_archive_get_public()
+            .with(eq(archive_address))
+            .times(1)
+            .returning(move |_| Ok(public_archive.clone()));
+
+        mock_data_client.expect_data_get_public()
+            .with(eq(file1_addr))
+            .times(1)
+            .returning(move |_| Ok(file1_data.clone()));
+
+        // We expect dir/file2.txt to be skipped if we truncate "dir"
+        
+        mock_data_client.expect_file_content_upload_public()
+            .times(1)
+            .returning(move |_, _, _| Ok(file1_addr));
+
+        let new_archive_address = ArchiveAddress::from_hex("1111111111111111111111111111111111111111111111111111111111111111").unwrap();
+        mock_archive_client.expect_archive_put_public()
+            .times(1)
+            .returning(move |_, _, _| Ok(new_archive_address));
+
+        let service = PublicArchiveService::new(
+            mock_file_service,
+            mock_archive_client,
+            mock_data_client,
+        );
+
+        let wallet = Wallet::new_with_random_wallet(autonomi::Network::ArbitrumOne);
+        let result = service.truncate_public_archive(addr_hex.to_string(), "dir".to_string(), wallet, StoreType::Memory).await;
+        
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap().address, Some(new_archive_address.to_hex()));
     }
 }

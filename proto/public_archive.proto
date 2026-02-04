@@ -5,6 +5,7 @@ package public_archive;
 service PublicArchiveService {
   rpc CreatePublicArchive(CreatePublicArchiveRequest) returns (PublicArchiveResponse);
   rpc UpdatePublicArchive(UpdatePublicArchiveRequest) returns (PublicArchiveResponse);
+  rpc TruncatePublicArchive(TruncatePublicArchiveRequest) returns (PublicArchiveResponse);
 }
 
 message File {
@@ -21,6 +22,12 @@ message CreatePublicArchiveRequest {
 message UpdatePublicArchiveRequest {
   string address = 1;
   repeated File files = 2;
+  optional string store_type = 3;
+}
+
+message TruncatePublicArchiveRequest {
+  string address = 1;
+  string path = 2;
   optional string store_type = 3;
 }
 

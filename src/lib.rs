@@ -64,7 +64,7 @@ use crate::service::command_service::CommandService;
 use crate::service::file_service::FileService;
 use crate::service::graph_service::GraphService;
 use crate::service::pointer_service::PointerService;
-use crate::service::public_archive_service::{PublicArchiveForm, PublicArchiveService, Upload};
+use crate::service::public_archive_service::{PublicArchiveForm, PublicArchiveService, Upload, PublicArchiveResponse};
 use crate::service::tarchive_service::TarchiveService;
 use crate::service::public_data_service::PublicDataService;
 use crate::service::register_service::RegisterService;
@@ -113,6 +113,8 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> io::Result<()> {
             pointer_controller::get_pointer,
             pointer_controller::post_pointer,
             pointer_controller::put_pointer,
+            public_archive_controller::get_public_archive,
+            public_archive_controller::get_public_archive_root,
             public_archive_controller::post_public_archive,
             public_archive_controller::put_public_archive,
             tarchive_controller::post_tarchive,
@@ -140,7 +142,7 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> io::Result<()> {
             key_value_controller::get_key_value
         ),
         components(
-            schemas(PublicArchiveForm, Upload)
+            schemas(PublicArchiveForm, Upload, PublicArchiveResponse)
         )
     )]
     struct ApiDoc;
@@ -349,6 +351,14 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> io::Result<()> {
             .route(
                 format!("{}key_value/{{bucket}}/{{object}}", API_BASE).as_str(),
                 web::get().to(key_value_controller::get_key_value)
+            )
+            .route(
+                format!("{}public_archive/{{address}}", API_BASE).as_str(),
+                web::get().to(public_archive_controller::get_public_archive_root),
+            )
+            .route(
+                format!("{}public_archive/{{address}}/{{path:.*}}", API_BASE).as_str(),
+                web::get().to(public_archive_controller::get_public_archive),
             )
             .route(
                 "/{path:.*}",

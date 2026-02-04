@@ -1,0 +1,438 @@
+   Compiling anttp v0.24.9 (/home/paul/dev/anttp)
+error[E0252]: the name `MockCachingClient` is defined multiple times
+   --> src/service/resolver_service.rs:322:9
+    |
+306 |     use crate::client::{MockCachingClient, MockPointerCachingClient, Mo...
+    |                         ----------------- previous import of the type `MockCachingClient` here
+...
+322 |     use crate::client::MockCachingClient;
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `MockCachingClient` reimported here
+    |
+    = note: `MockCachingClient` must be defined only once in the type namespace of this module
+
+warning: unused import: `crate::client::MockCachingClient`
+   --> src/service/resolver_service.rs:322:9
+    |
+322 |     use crate::client::MockCachingClient;
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused imports: `chunk_controller`, `command_controller`, `connect_controller`, `file_controller`, `graph_controller`, `key_value_controller`, `pnr_controller`, `pointer_controller`, `private_scratchpad_controller`, `public_archive_controller`, `public_data_controller`, `public_scratchpad_controller`, `register_controller`, and `tarchive_controller`
+  --> src/lib.rs:10:25
+   |
+10 | ...::{key_value_controller, pnr_controller, chunk_controller, command_controller, connect_controller, file_controller, graph_controller, pointer_controller, private_scratchpad_controller, public_archive_controller, tarchive_controller, public_data_controller, public_scratchpad_controller, register_controller};
+   |       ^^^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `actix_files::Files`
+  --> src/lib.rs:11:5
+   |
+11 | use actix_files::Files;
+   |     ^^^^^^^^^^^^^^^^^^
+
+warning: unused imports: `App`, `HttpServer`, `middleware::Logger`, `middleware`, and `web`
+  --> src/lib.rs:14:17
+   |
+14 | use actix_web::{middleware, middleware::Logger, web, App, HttpServer};
+   |                 ^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^  ^^^  ^^^  ^^^^^^^^^^
+
+warning: unused imports: `ArbitrumOne` and `ArbitrumSepoliaTest`
+  --> src/lib.rs:15:27
+   |
+15 | use ant_evm::EvmNetwork::{ArbitrumOne, ArbitrumSepoliaTest};
+   |                           ^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `ant_evm::EvmWallet`
+  --> src/lib.rs:16:5
+   |
+16 | use ant_evm::EvmWallet;
+   |     ^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `autonomi::Network`
+  --> src/lib.rs:17:5
+   |
+17 | use autonomi::Network;
+   |     ^^^^^^^^^^^^^^^^^
+
+warning: unused import: `std::sync::Arc`
+  --> src/lib.rs:23:5
+   |
+23 | use std::sync::Arc;
+   |     ^^^^^^^^^^^^^^
+
+warning: unused import: `std::time::Duration`
+  --> src/lib.rs:24:5
+   |
+24 | use std::time::Duration;
+   |     ^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `actix_web::http::Method`
+  --> src/lib.rs:25:5
+   |
+25 | use actix_web::http::Method;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `async_job::Runner`
+  --> src/lib.rs:26:5
+   |
+26 | use async_job::Runner;
+   |     ^^^^^^^^^^^^^^^^^
+
+warning: unused import: `indexmap::IndexMap`
+  --> src/lib.rs:28:5
+   |
+28 | use indexmap::IndexMap;
+   |     ^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `StreamableHttpService`
+  --> src/lib.rs:30:33
+   |
+30 | use rmcp_actix_web::transport::{StreamableHttpService};
+   |                                 ^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `rmcp::transport::streamable_http_server::session::local::LocalSessionManager`
+  --> src/lib.rs:31:5
+   |
+31 | use rmcp::transport::streamable_http_server::session::local::LocalSessionManager;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `tonic::transport::Server`
+  --> src/lib.rs:35:5
+   |
+35 | use tonic::transport::Server;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `utoipa::OpenApi`
+  --> src/lib.rs:36:5
+   |
+36 | use utoipa::OpenApi;
+   |     ^^^^^^^^^^^^^^^
+
+warning: unused import: `utoipa_swagger_ui::SwaggerUi`
+  --> src/lib.rs:37:5
+   |
+37 | use utoipa_swagger_ui::SwaggerUi;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `crate::client::ChunkCachingClient`
+  --> src/lib.rs:41:5
+   |
+41 | use crate::client::ChunkCachingClient;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `crate::client::PointerCachingClient`
+  --> src/lib.rs:43:5
+   |
+43 | use crate::client::PointerCachingClient;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `crate::client::PublicArchiveCachingClient`
+  --> src/lib.rs:45:5
+   |
+45 | use crate::client::PublicArchiveCachingClient;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `crate::client::PublicDataCachingClient`
+  --> src/lib.rs:47:5
+   |
+47 | use crate::client::PublicDataCachingClient;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused imports: `ArchiveCachingClient`, `GraphEntryCachingClient`, `RegisterCachingClient`, and `ScratchpadCachingClient`
+  --> src/lib.rs:50:21
+   |
+50 | ...::{ArchiveCachingClient, GraphEntryCachingClient, RegisterCachingClient, ScratchpadCachingClient};
+   |       ^^^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `crate::client::client_harness::ClientHarness`
+  --> src/lib.rs:51:5
+   |
+51 | use crate::client::client_harness::ClientHarness;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `client::command::executor::Executor`
+  --> src/lib.rs:52:5
+   |
+52 | use client::command::executor::Executor;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `crate::client::command::command_details::CommandDetails`
+  --> src/lib.rs:56:5
+   |
+56 | use crate::client::command::command_details::CommandDetails;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `crate::service::pnr_service::PnrService`
+  --> src/lib.rs:60:5
+   |
+60 | use crate::service::pnr_service::PnrService;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `crate::service::key_value_service::KeyValueService`
+  --> src/lib.rs:61:5
+   |
+61 | use crate::service::key_value_service::KeyValueService;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `crate::service::chunk_service::ChunkService`
+  --> src/lib.rs:62:5
+   |
+62 | use crate::service::chunk_service::ChunkService;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `crate::service::command_service::CommandService`
+  --> src/lib.rs:63:5
+   |
+63 | use crate::service::command_service::CommandService;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `crate::service::file_service::FileService`
+  --> src/lib.rs:64:5
+   |
+64 | use crate::service::file_service::FileService;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `crate::service::graph_service::GraphService`
+  --> src/lib.rs:65:5
+   |
+65 | use crate::service::graph_service::GraphService;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `crate::service::pointer_service::PointerService`
+  --> src/lib.rs:66:5
+   |
+66 | use crate::service::pointer_service::PointerService;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused imports: `PublicArchiveForm`, `PublicArchiveService`, and `Upload`
+  --> src/lib.rs:67:46
+   |
+67 | ..._service::{PublicArchiveForm, PublicArchiveService, Upload};
+   |               ^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^^^  ^^^^^^
+
+warning: unused import: `crate::service::tarchive_service::TarchiveService`
+  --> src/lib.rs:68:5
+   |
+68 | use crate::service::tarchive_service::TarchiveService;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `crate::service::public_data_service::PublicDataService`
+  --> src/lib.rs:69:5
+   |
+69 | use crate::service::public_data_service::PublicDataService;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `crate::service::register_service::RegisterService`
+  --> src/lib.rs:70:5
+   |
+70 | use crate::service::register_service::RegisterService;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `crate::service::resolver_service::ResolverService`
+  --> src/lib.rs:71:5
+   |
+71 | use crate::service::resolver_service::ResolverService;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `crate::service::scratchpad_service::ScratchpadService`
+  --> src/lib.rs:72:5
+   |
+72 | use crate::service::scratchpad_service::ScratchpadService;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `crate::tool::McpTool`
+  --> src/lib.rs:73:5
+   |
+73 | use crate::tool::McpTool;
+   |     ^^^^^^^^^^^^^^^^^^^^
+
+warning: unused imports: `PointerHandler` and `PointerServiceServer`
+  --> src/lib.rs:75:36
+   |
+75 | use crate::grpc::pointer_handler::{PointerHandler, PointerServiceServer};
+   |                                    ^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^^^
+
+warning: unused imports: `RegisterHandler` and `RegisterServiceServer`
+  --> src/lib.rs:77:37
+   |
+77 | ...ster_handler::{RegisterHandler, RegisterServiceServer};
+   |                   ^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused imports: `ChunkHandler` and `ChunkServiceServer`
+  --> src/lib.rs:79:34
+   |
+79 | use crate::grpc::chunk_handler::{ChunkHandler, ChunkServiceServer};
+   |                                  ^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^
+
+warning: unused imports: `GraphHandler` and `GraphServiceServer`
+  --> src/lib.rs:81:34
+   |
+81 | use crate::grpc::graph_handler::{GraphHandler, GraphServiceServer};
+   |                                  ^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^
+
+warning: unused imports: `CommandHandler` and `CommandServiceServer`
+  --> src/lib.rs:83:36
+   |
+83 | use crate::grpc::command_handler::{CommandHandler, CommandServiceServer};
+   |                                    ^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^^^
+
+warning: unused imports: `PnrHandler` and `PnrServiceServer`
+  --> src/lib.rs:85:32
+   |
+85 | use crate::grpc::pnr_handler::{PnrHandler, PnrServiceServer};
+   |                                ^^^^^^^^^^  ^^^^^^^^^^^^^^^^
+
+warning: unused imports: `PublicDataHandler` and `PublicServiceServer`
+  --> src/lib.rs:87:40
+   |
+87 | ...data_handler::{PublicDataHandler, PublicServiceServer};
+   |                   ^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^^
+
+warning: unused imports: `PublicArchiveHandler` and `PublicArchiveServiceServer`
+  --> src/lib.rs:89:43
+   |
+89 | ...handler::{PublicArchiveHandler, PublicArchiveServiceServer};
+   |              ^^^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused imports: `TarchiveHandler` and `TarchiveServiceServer`
+  --> src/lib.rs:91:37
+   |
+91 | ...hive_handler::{TarchiveHandler, TarchiveServiceServer};
+   |                   ^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused imports: `PrivateScratchpadHandler` and `PrivateScratchpadServiceServer`
+  --> src/lib.rs:93:47
+   |
+93 | ...ler::{PrivateScratchpadHandler, PrivateScratchpadServiceServer};
+   |          ^^^^^^^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused imports: `PublicScratchpadHandler` and `PublicScratchpadServiceServer`
+  --> src/lib.rs:95:46
+   |
+95 | ...dler::{PublicScratchpadHandler, PublicScratchpadServiceServer};
+   |           ^^^^^^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error[E0599]: no method named `schedule` found for struct `caching_client::MockCachingClient` in the current scope
+   --> src/client/caching_client.rs:367:24
+    |
+ 24 | / mock! {
+ 25 | |     #[derive(Debug)]
+ 26 | |     pub CachingClient {
+    | |_____________________- method `schedule` not found for this struct
+...
+367 |           assert!(client.schedule().is_some());
+    |                          ^^^^^^^^ method not found in `caching_client::MockCachingClient`
+    |
+    = help: items from traits can only be used if the trait is implemented and in scope
+    = note: the following trait defines an item `schedule`, perhaps you need to implement it:
+            candidate #1: `async_job::Job`
+
+error[E0599]: no method named `handle` found for struct `caching_client::MockCachingClient` in the current scope
+   --> src/client/caching_client.rs:374:16
+    |
+ 24 | / mock! {
+ 25 | |     #[derive(Debug)]
+ 26 | |     pub CachingClient {
+    | |_____________________- method `handle` not found for this struct
+...
+374 |           client.handle().await;
+    |                  ^^^^^^
+    |
+    = help: items from traits can only be used if the trait is implemented and in scope
+    = note: the following traits define an item `handle`, perhaps you need to implement one of them:
+            candidate #1: `GetPromptHandler`
+            candidate #2: `async_job::Job`
+help: there is a method `and` with a similar name, but with different arguments
+   --> /home/paul/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tower-http-0.6.6/src/follow_redirect/policy/mod.rs:141:5
+    |
+141 | /     fn and<P, B, E>(self, other: P) -> And<Self, P>
+142 | |     where
+143 | |         Self: Policy<B, E> + Sized,
+144 | |         P: Policy<B, E>;
+    | |________________________^
+
+warning: unused variable: `tx`
+   --> src/client/caching_client.rs:238:14
+    |
+238 |         let (tx, rx) = mpsc::channel(100);
+    |              ^^ help: if this is intentional, prefix it with an underscore: `_tx`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `client_harness`
+   --> src/client/caching_client.rs:350:25
+    |
+350 |             .returning(|client_harness, config, hybrid_cache, command_e...
+    |                         ^^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_client_harness`
+
+warning: unused variable: `config`
+   --> src/client/caching_client.rs:350:41
+    |
+350 | ...turning(|client_harness, config, hybrid_cache, command_executor| {
+    |                             ^^^^^^ help: if this is intentional, prefix it with an underscore: `_config`
+
+warning: unused variable: `hybrid_cache`
+   --> src/client/caching_client.rs:350:49
+    |
+350 | ...lient_harness, config, hybrid_cache, command_executor| {
+    |                           ^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_hybrid_cache`
+
+warning: unused variable: `command_executor`
+   --> src/client/caching_client.rs:350:63
+    |
+350 | ...onfig, hybrid_cache, command_executor| {
+    |                         ^^^^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_command_executor`
+
+warning: unused variable: `client_harness`
+   --> src/controller/file_controller.rs:259:25
+    |
+259 |             .returning(|client_harness, config, hybrid_cache, command_e...
+    |                         ^^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_client_harness`
+
+warning: unused variable: `config`
+   --> src/controller/file_controller.rs:259:41
+    |
+259 | ...turning(|client_harness, config, hybrid_cache, command_executor| {
+    |                             ^^^^^^ help: if this is intentional, prefix it with an underscore: `_config`
+
+warning: unused variable: `hybrid_cache`
+   --> src/controller/file_controller.rs:259:49
+    |
+259 | ...lient_harness, config, hybrid_cache, command_executor| {
+    |                           ^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_hybrid_cache`
+
+warning: unused variable: `command_executor`
+   --> src/controller/file_controller.rs:259:63
+    |
+259 | ...onfig, hybrid_cache, command_executor| {
+    |                         ^^^^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_command_executor`
+
+warning: unused variable: `client_harness`
+   --> src/service/resolver_service.rs:334:25
+    |
+334 |             .returning(|client_harness, config, hybrid_cache, command_e...
+    |                         ^^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_client_harness`
+
+warning: unused variable: `config`
+   --> src/service/resolver_service.rs:334:41
+    |
+334 | ...turning(|client_harness, config, hybrid_cache, command_executor| {
+    |                             ^^^^^^ help: if this is intentional, prefix it with an underscore: `_config`
+
+warning: unused variable: `hybrid_cache`
+   --> src/service/resolver_service.rs:334:49
+    |
+334 | ...lient_harness, config, hybrid_cache, command_executor| {
+    |                           ^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_hybrid_cache`
+
+warning: unused variable: `command_executor`
+   --> src/service/resolver_service.rs:334:63
+    |
+334 | ...onfig, hybrid_cache, command_executor| {
+    |                         ^^^^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_command_executor`
+
+Some errors have detailed explanations: E0252, E0599.
+For more information about an error, try `rustc --explain E0252`.
+warning: `anttp` (lib test) generated 63 warnings
+error: could not compile `anttp` (lib test) due to 3 previous errors; 63 warnings emitted
+warning: build failed, waiting for other jobs to finish...

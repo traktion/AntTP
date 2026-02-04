@@ -1,0 +1,595 @@
+   Compiling anttp v0.24.9 (/home/paul/dev/anttp)
+warning: unused imports: `chunk_controller`, `command_controller`, `connect_controller`, `file_controller`, `graph_controller`, `key_value_controller`, `pnr_controller`, `pointer_controller`, `private_scratchpad_controller`, `public_archive_controller`, `public_data_controller`, `public_scratchpad_controller`, `register_controller`, and `tarchive_controller`
+  --> src/lib.rs:10:25
+   |
+10 | ...::{key_value_controller, pnr_controller, chunk_controller, command_controller, connect_controller, file_controller, graph_controller, pointer_controller, private_scratchpad_controller, public_archive_controller, tarchive_controller, public_data_controller, public_scratchpad_controller, register_controller};
+   |       ^^^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `actix_files::Files`
+  --> src/lib.rs:11:5
+   |
+11 | use actix_files::Files;
+   |     ^^^^^^^^^^^^^^^^^^
+
+warning: unused imports: `App`, `HttpServer`, `middleware::Logger`, `middleware`, and `web`
+  --> src/lib.rs:14:17
+   |
+14 | use actix_web::{middleware, middleware::Logger, web, App, HttpServer};
+   |                 ^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^  ^^^  ^^^  ^^^^^^^^^^
+
+warning: unused imports: `ArbitrumOne` and `ArbitrumSepoliaTest`
+  --> src/lib.rs:15:27
+   |
+15 | use ant_evm::EvmNetwork::{ArbitrumOne, ArbitrumSepoliaTest};
+   |                           ^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `ant_evm::EvmWallet`
+  --> src/lib.rs:16:5
+   |
+16 | use ant_evm::EvmWallet;
+   |     ^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `autonomi::Network`
+  --> src/lib.rs:17:5
+   |
+17 | use autonomi::Network;
+   |     ^^^^^^^^^^^^^^^^^
+
+warning: unused import: `std::sync::Arc`
+  --> src/lib.rs:23:5
+   |
+23 | use std::sync::Arc;
+   |     ^^^^^^^^^^^^^^
+
+warning: unused import: `std::time::Duration`
+  --> src/lib.rs:24:5
+   |
+24 | use std::time::Duration;
+   |     ^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `actix_web::http::Method`
+  --> src/lib.rs:25:5
+   |
+25 | use actix_web::http::Method;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `async_job::Runner`
+  --> src/lib.rs:26:5
+   |
+26 | use async_job::Runner;
+   |     ^^^^^^^^^^^^^^^^^
+
+warning: unused import: `indexmap::IndexMap`
+  --> src/lib.rs:28:5
+   |
+28 | use indexmap::IndexMap;
+   |     ^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `StreamableHttpService`
+  --> src/lib.rs:30:33
+   |
+30 | use rmcp_actix_web::transport::{StreamableHttpService};
+   |                                 ^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `rmcp::transport::streamable_http_server::session::local::LocalSessionManager`
+  --> src/lib.rs:31:5
+   |
+31 | use rmcp::transport::streamable_http_server::session::local::LocalSessionManager;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `tonic::transport::Server`
+  --> src/lib.rs:35:5
+   |
+35 | use tonic::transport::Server;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `utoipa::OpenApi`
+  --> src/lib.rs:36:5
+   |
+36 | use utoipa::OpenApi;
+   |     ^^^^^^^^^^^^^^^
+
+warning: unused import: `utoipa_swagger_ui::SwaggerUi`
+  --> src/lib.rs:37:5
+   |
+37 | use utoipa_swagger_ui::SwaggerUi;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `crate::client::ChunkCachingClient`
+  --> src/lib.rs:41:5
+   |
+41 | use crate::client::ChunkCachingClient;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `crate::client::PointerCachingClient`
+  --> src/lib.rs:43:5
+   |
+43 | use crate::client::PointerCachingClient;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `crate::client::PublicArchiveCachingClient`
+  --> src/lib.rs:45:5
+   |
+45 | use crate::client::PublicArchiveCachingClient;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `crate::client::PublicDataCachingClient`
+  --> src/lib.rs:47:5
+   |
+47 | use crate::client::PublicDataCachingClient;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused imports: `ArchiveCachingClient`, `GraphEntryCachingClient`, `RegisterCachingClient`, and `ScratchpadCachingClient`
+  --> src/lib.rs:50:21
+   |
+50 | ...::{ArchiveCachingClient, GraphEntryCachingClient, RegisterCachingClient, ScratchpadCachingClient};
+   |       ^^^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `crate::client::client_harness::ClientHarness`
+  --> src/lib.rs:51:5
+   |
+51 | use crate::client::client_harness::ClientHarness;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `client::command::executor::Executor`
+  --> src/lib.rs:52:5
+   |
+52 | use client::command::executor::Executor;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `crate::client::command::command_details::CommandDetails`
+  --> src/lib.rs:56:5
+   |
+56 | use crate::client::command::command_details::CommandDetails;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `crate::service::pnr_service::PnrService`
+  --> src/lib.rs:60:5
+   |
+60 | use crate::service::pnr_service::PnrService;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `crate::service::key_value_service::KeyValueService`
+  --> src/lib.rs:61:5
+   |
+61 | use crate::service::key_value_service::KeyValueService;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `crate::service::chunk_service::ChunkService`
+  --> src/lib.rs:62:5
+   |
+62 | use crate::service::chunk_service::ChunkService;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `crate::service::command_service::CommandService`
+  --> src/lib.rs:63:5
+   |
+63 | use crate::service::command_service::CommandService;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `crate::service::file_service::FileService`
+  --> src/lib.rs:64:5
+   |
+64 | use crate::service::file_service::FileService;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `crate::service::graph_service::GraphService`
+  --> src/lib.rs:65:5
+   |
+65 | use crate::service::graph_service::GraphService;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `crate::service::pointer_service::PointerService`
+  --> src/lib.rs:66:5
+   |
+66 | use crate::service::pointer_service::PointerService;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused imports: `PublicArchiveForm`, `PublicArchiveService`, and `Upload`
+  --> src/lib.rs:67:46
+   |
+67 | ..._service::{PublicArchiveForm, PublicArchiveService, Upload};
+   |               ^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^^^  ^^^^^^
+
+warning: unused import: `crate::service::tarchive_service::TarchiveService`
+  --> src/lib.rs:68:5
+   |
+68 | use crate::service::tarchive_service::TarchiveService;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `crate::service::public_data_service::PublicDataService`
+  --> src/lib.rs:69:5
+   |
+69 | use crate::service::public_data_service::PublicDataService;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `crate::service::register_service::RegisterService`
+  --> src/lib.rs:70:5
+   |
+70 | use crate::service::register_service::RegisterService;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `crate::service::resolver_service::ResolverService`
+  --> src/lib.rs:71:5
+   |
+71 | use crate::service::resolver_service::ResolverService;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `crate::service::scratchpad_service::ScratchpadService`
+  --> src/lib.rs:72:5
+   |
+72 | use crate::service::scratchpad_service::ScratchpadService;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `crate::tool::McpTool`
+  --> src/lib.rs:73:5
+   |
+73 | use crate::tool::McpTool;
+   |     ^^^^^^^^^^^^^^^^^^^^
+
+warning: unused imports: `PointerHandler` and `PointerServiceServer`
+  --> src/lib.rs:75:36
+   |
+75 | use crate::grpc::pointer_handler::{PointerHandler, PointerServiceServer};
+   |                                    ^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^^^
+
+warning: unused imports: `RegisterHandler` and `RegisterServiceServer`
+  --> src/lib.rs:77:37
+   |
+77 | ...ster_handler::{RegisterHandler, RegisterServiceServer};
+   |                   ^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused imports: `ChunkHandler` and `ChunkServiceServer`
+  --> src/lib.rs:79:34
+   |
+79 | use crate::grpc::chunk_handler::{ChunkHandler, ChunkServiceServer};
+   |                                  ^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^
+
+warning: unused imports: `GraphHandler` and `GraphServiceServer`
+  --> src/lib.rs:81:34
+   |
+81 | use crate::grpc::graph_handler::{GraphHandler, GraphServiceServer};
+   |                                  ^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^
+
+warning: unused imports: `CommandHandler` and `CommandServiceServer`
+  --> src/lib.rs:83:36
+   |
+83 | use crate::grpc::command_handler::{CommandHandler, CommandServiceServer};
+   |                                    ^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^^^
+
+warning: unused imports: `PnrHandler` and `PnrServiceServer`
+  --> src/lib.rs:85:32
+   |
+85 | use crate::grpc::pnr_handler::{PnrHandler, PnrServiceServer};
+   |                                ^^^^^^^^^^  ^^^^^^^^^^^^^^^^
+
+warning: unused imports: `PublicDataHandler` and `PublicServiceServer`
+  --> src/lib.rs:87:40
+   |
+87 | ...data_handler::{PublicDataHandler, PublicServiceServer};
+   |                   ^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^^
+
+warning: unused imports: `PublicArchiveHandler` and `PublicArchiveServiceServer`
+  --> src/lib.rs:89:43
+   |
+89 | ...handler::{PublicArchiveHandler, PublicArchiveServiceServer};
+   |              ^^^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused imports: `TarchiveHandler` and `TarchiveServiceServer`
+  --> src/lib.rs:91:37
+   |
+91 | ...hive_handler::{TarchiveHandler, TarchiveServiceServer};
+   |                   ^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused imports: `PrivateScratchpadHandler` and `PrivateScratchpadServiceServer`
+  --> src/lib.rs:93:47
+   |
+93 | ...ler::{PrivateScratchpadHandler, PrivateScratchpadServiceServer};
+   |          ^^^^^^^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused imports: `PublicScratchpadHandler` and `PublicScratchpadServiceServer`
+  --> src/lib.rs:95:46
+   |
+95 | ...dler::{PublicScratchpadHandler, PublicScratchpadServiceServer};
+   |           ^^^^^^^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused variable: `tx`
+   --> src/client/caching_client.rs:243:14
+    |
+243 |         let (tx, rx) = mpsc::channel(100);
+    |              ^^ help: if this is intentional, prefix it with an underscore: `_tx`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `client_harness`
+   --> src/client/caching_client.rs:356:25
+    |
+356 |             .returning(|client_harness, config, hybrid_cache, command_e...
+    |                         ^^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_client_harness`
+
+warning: unused variable: `hybrid_cache`
+   --> src/client/caching_client.rs:356:49
+    |
+356 | ...lient_harness, config, hybrid_cache, command_executor| {
+    |                           ^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_hybrid_cache`
+
+warning: unused variable: `command_executor`
+   --> src/client/caching_client.rs:356:63
+    |
+356 | ...onfig, hybrid_cache, command_executor| {
+    |                         ^^^^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_command_executor`
+
+warning: unused variable: `client_harness`
+   --> src/controller/file_controller.rs:259:25
+    |
+259 |             .returning(|client_harness, config, hybrid_cache, command_e...
+    |                         ^^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_client_harness`
+
+warning: unused variable: `config`
+   --> src/controller/file_controller.rs:259:41
+    |
+259 | ...turning(|client_harness, config, hybrid_cache, command_executor| {
+    |                             ^^^^^^ help: if this is intentional, prefix it with an underscore: `_config`
+
+warning: unused variable: `hybrid_cache`
+   --> src/controller/file_controller.rs:259:49
+    |
+259 | ...lient_harness, config, hybrid_cache, command_executor| {
+    |                           ^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_hybrid_cache`
+
+warning: unused variable: `command_executor`
+   --> src/controller/file_controller.rs:259:63
+    |
+259 | ...onfig, hybrid_cache, command_executor| {
+    |                         ^^^^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_command_executor`
+
+warning: unused variable: `client_harness`
+   --> src/service/resolver_service.rs:332:25
+    |
+332 |             .returning(|client_harness, config, hybrid_cache, command_e...
+    |                         ^^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_client_harness`
+
+warning: unused variable: `config`
+   --> src/service/resolver_service.rs:332:41
+    |
+332 | ...turning(|client_harness, config, hybrid_cache, command_executor| {
+    |                             ^^^^^^ help: if this is intentional, prefix it with an underscore: `_config`
+
+warning: unused variable: `hybrid_cache`
+   --> src/service/resolver_service.rs:332:49
+    |
+332 | ...lient_harness, config, hybrid_cache, command_executor| {
+    |                           ^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_hybrid_cache`
+
+warning: unused variable: `command_executor`
+   --> src/service/resolver_service.rs:332:63
+    |
+332 | ...onfig, hybrid_cache, command_executor| {
+    |                         ^^^^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_command_executor`
+
+warning: static `TONIC_SERVER_HANDLE` is never used
+  --> src/lib.rs:99:8
+   |
+99 | static TONIC_SERVER_HANDLE: Lazy<Mutex<Option<String>>> = Lazy::new(|| M...
+   |        ^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: constant `API_BASE` is never used
+   --> src/lib.rs:101:7
+    |
+101 | const API_BASE: &'static str = "/anttp-0/";
+    |       ^^^^^^^^
+
+warning: function `hydrate_access_checker` is never used
+   --> src/lib.rs:491:10
+    |
+491 | async fn hydrate_access_checker(ant_tp_config: &AntTpConfig,
+    |          ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `hydrate_bookmark_resolver` is never used
+   --> src/lib.rs:513:10
+    |
+513 | async fn hydrate_bookmark_resolver(ant_tp_config: &AntTpConfig,
+    |          ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `build_foyer_cache` is never used
+   --> src/lib.rs:535:10
+    |
+535 | async fn build_foyer_cache(app_config: &AntTpConfig) -> HybridCache<Str...
+    |          ^^^^^^^^^^^^^^^^^
+
+warning: function `rustls_config` is never used
+   --> src/lib.rs:595:4
+    |
+595 | fn rustls_config() -> rustls::ServerConfig {
+    |    ^^^^^^^^^^^^^
+
+warning: `anttp` (lib test) generated 67 warnings (run `cargo fix --lib -p anttp --tests` to apply 61 suggestions)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 8.73s
+     Running unittests src/lib.rs (target/debug/deps/anttp-4ebaec66e5187887)
+
+running 135 tests
+test client::caching_client::tests::test_job_schedule ... ok
+test client::caching_client::tests::test_send_commands ... FAILED
+test client::caching_client::tests::test_job_handle ... ok
+test config::anttp_config::tests::test_anttp_config_grpc_disabled_default ... ok
+test config::anttp_config::tests::test_anttp_config_grpc_disabled_long_arg ... ok
+test client::caching_client::tests::test_new_creates_cache_dir ... ok
+test config::app_config::tests::test_resolve_route_no_match ... ok
+test controller::tests::test_cache_type_eq ... ok
+test config::app_config::tests::test_resolve_route_match ... ok
+test controller::tests::test_cache_type_from_string ... ok
+test config::anttp_config::tests::test_anttp_config_mcp_tools_disabled_long_arg ... ok
+test grpc::chunk_handler::tests::test_from_chunk ... ok
+test config::anttp_config::tests::test_anttp_config_mcp_tools_disabled_default ... ok
+test grpc::chunk_handler::tests::test_from_service_chunk ... ok
+test grpc::command_handler::tests::test_command_from_service ... ok
+test controller::tests::test_get_store_type ... ok
+test grpc::command_handler::tests::test_property_from_service ... ok
+test grpc::graph_handler::tests::test_graph_descendants_mapping ... ok
+test config::app_config::tests::test_resolve_route_glob ... ok
+test grpc::command_handler::tests::test_get_commands ... ok
+test grpc::graph_handler::tests::test_graph_entry_mapping_empty ... ok
+test grpc::graph_handler::tests::test_graph_entry_mapping ... ok
+test controller::file_controller::tests::test_get_public_data_not_found ... FAILED
+test controller::file_controller::tests::test_head_public_data_not_found ... FAILED
+test grpc::pnr_handler::tests::test_create_pnr ... ok
+test grpc::pnr_handler::tests::test_get_pnr_request_mapping ... ok
+test grpc::pnr_handler::tests::test_update_pnr_request_mapping ... ok
+test grpc::private_scratchpad_handler::tests::test_from_proto_to_service ... ok
+test grpc::private_scratchpad_handler::tests::test_from_service_to_proto ... ok
+test grpc::public_data_handler::tests::test_error_conversion ... ok
+test grpc::public_scratchpad_handler::tests::test_from_proto_to_service ... ok
+test grpc::public_archive_handler::tests::test_mapping ... ok
+test grpc::public_scratchpad_handler::tests::test_from_service_to_proto ... ok
+test grpc::register_handler::tests::test_from_register_proto_to_service ... ok
+test grpc::register_handler::tests::test_from_service_to_register_proto ... ok
+test grpc::register_handler::tests::test_status_from_register_error ... ok
+test model::archive::tests::test_build_from_tar ... ok
+test model::archive::tests::test_find_file ... ok
+test grpc::tarchive_handler::tests::test_mapping ... ok
+test model::archive::tests::test_list_dir_root ... ok
+test model::archive::tests::test_list_dir_sub ... ok
+test model::archive::tests::test_sanitise_path ... ok
+test service::access_checker::tests::test_default_allow ... ok
+test service::access_checker::tests::test_allow_override_deny_all ... ok
+test model::tarchive::tests::test_tarchive_index ... ok
+test service::access_checker::tests::test_deny_all ... ok
+test service::access_checker::tests::test_deny_override_default_allow ... ok
+test service::access_checker::tests::test_explicit_allow ... ok
+test service::access_checker::tests::test_explicit_deny ... ok
+test service::archive_helper::tests::test_list_files_json ... ok
+test service::archive_helper::tests::test_list_files_html ... ok
+test service::archive_helper::tests::test_resolve_directory_index ... ok
+test service::archive_helper::tests::test_resolve_directory_listing ... ok
+test service::bookmark_resolver::tests::test_is_bookmark ... ok
+test service::archive_helper::tests::test_resolve_directory_redirect ... ok
+test service::bookmark_resolver::tests::test_new ... ok
+test service::archive_helper::tests::test_resolve_file ... ok
+test service::archive_helper::tests::test_resolve_not_found ... ok
+test service::bookmark_resolver::tests::test_update_and_resolve ... ok
+test service::bookmark_resolver::tests::test_resolve_non_existent ... ok
+test service::chunk_service::tests::test_get_chunk_bad_address_error ... ok
+test service::chunk_service::tests::test_get_chunk_binary_not_found_error ... ok
+test service::chunk_service::tests::test_get_chunk_binary_success ... ok
+test service::chunk_service::tests::test_get_chunk_success ... ok
+test service::file_service::tests::test_get_range_no_header ... ok
+test service::file_service::tests::test_get_range_with_header ... ok
+test service::file_service::tests::test_get_data_range_success ... ok
+test service::file_service::tests::test_get_data_success ... ok
+test service::file_service::tests::test_get_range_with_header_end_over_length ... ok
+test service::chunk_service::tests::test_create_chunk_binary_success ... ok
+test service::chunk_service::tests::test_create_chunk_success ... ok
+test service::file_service::tests::test_download_data_bytes_success ... ok
+test service::chunk_service::tests::test_create_chunk_empty_payload_error ... ok
+test service::file_service::tests::test_range_props ... ok
+test service::html_directory_renderer::tests::test_format_size ... ok
+test service::file_service::tests::test_get_range_with_header_open_end ... ok
+test service::file_service::tests::test_get_response_range ... ok
+test service::html_directory_renderer::tests::test_render_empty_archive ... ok
+test service::html_directory_renderer::tests::test_visited_links_css ... ok
+test service::key_value_service::tests::test_create_and_get_key_value ... ok
+test service::pnr_service::tests::test_append_pnr_logic ... ok
+test service::pointer_name_resolver::tests::test_resolve_empty_name ... ok
+test service::pointer_name_resolver::tests::test_split_name ... ok
+test service::pointer_name_resolver::tests::test_validate_pnr_name ... ok
+test service::pointer_name_resolver::tests::test_resolve_pointer_not_found ... ok
+test service::pointer_name_resolver::tests::test_resolve_pointer_to_chunk_directly ... ok
+test service::pointer_name_resolver::tests::test_resolve_with_subname ... ok
+test service::pointer_service::tests::test_create_pointer_no_name_error ... ok
+test service::pointer_service::tests::test_get_data_key_custom_invalid_error ... ok
+test service::pointer_service::tests::test_create_pointer_data_key_error ... ok
+test service::pointer_service::tests::test_get_data_key_custom_success ... ok
+test service::pointer_service::tests::test_get_pointer_invalid_address_error ... ok
+test service::pointer_service::tests::test_create_pointer_success ... ok
+test service::pointer_name_resolver::tests::test_resolve_pointer_to_pnr_map ... ok
+test service::pointer_service::tests::test_get_pointer_target_immutable ... ok
+test service::pointer_service::tests::test_update_pointer_address_mismatch_error ... ok
+test service::pointer_service::tests::test_update_pointer_data_key_error ... ok
+test service::pointer_service::tests::test_update_pointer_no_name_error ... ok
+test service::pointer_service::tests::test_get_resolver_address_success ... ok
+test service::pointer_name_resolver::tests::test_resolve_pointer_chain ... ok
+test service::pointer_name_resolver::tests::test_resolve_pointer_cycle ... ok
+test service::public_archive_service::tests::test_get_archive_info ... ok
+test service::public_archive_service::tests::test_get_data ... ok
+test service::public_archive_service::tests::test_get_public_archive_file_not_found ... ok
+test service::public_archive_service::tests::test_get_public_archive_optional_path ... ok
+test service::public_archive_service::tests::test_get_public_archive_with_path ... ok
+test service::pointer_service::tests::test_get_pointer_success ... ok
+test service::pointer_service::tests::test_update_pointer_success ... ok
+test service::register_service::tests::test_get_register_bad_address_error ... ok
+test service::register_service::tests::test_get_register_success ... ok
+test service::register_service::tests::test_create_register_no_name_error ... ok
+test service::register_service::tests::test_create_register_success ... ok
+test service::resolver_service::tests::test_resolve_access_denied ... ok
+test service::resolver_service::tests::test_get_path_parts_with_pnr_subname ... ok
+test service::register_service::tests::test_update_register_address_mismatch_error ... ok
+test service::resolver_service::tests::test_resolve_bookmark ... FAILED
+test tool::pnr_tool::tests::test_get_pnr_request_serialization ... ok
+test service::register_service::tests::test_update_register_success ... ok
+test tool::pnr_tool::tests::test_update_pnr_request_serialization ... ok
+test tool::pnr_tool::tests::test_pnr_request_serialization ... ok
+test tool::public_scratchpad_tool::tests::test_create_public_scratchpad_request_serialization ... ok
+test tool::public_scratchpad_tool::tests::test_get_public_scratchpad_request_serialization ... ok
+test service::public_archive_service::tests::test_move_files_to_tmp_dir_mismatched_lengths ... ok
+test service::resolver_service::tests::test_resolve_immutable_address ... FAILED
+test service::public_archive_service::tests::test_move_files_to_tmp_dir_with_comma_separated_target_path ... ok
+test service::resolver_service::tests::test_resolve_path_parsing ... FAILED
+test tool::public_scratchpad_tool::tests::test_update_public_scratchpad_request_serialization ... ok
+test tool::tarchive_tool::tests::test_update_tarchive_request_serialization ... ok
+test tool::tarchive_tool::tests::test_create_tarchive_request_serialization ... ok
+test service::public_archive_service::tests::test_move_files_to_tmp_dir_with_target_path ... ok
+test service::resolver_service::tests::test_resolve_invalid_address ... ok
+test client::command::executor::tests::test_execute_failure_unrecoverable ... ok
+test client::command::executor::tests::test_execute_success ... ok
+test client::command::executor::tests::test_execute_duplicate ... ok
+test client::command::executor::tests::test_execute_failure_recoverable ... ok
+
+failures:
+
+---- client::caching_client::tests::test_send_commands stdout ----
+
+thread 'client::caching_client::tests::test_send_commands' (1971926) panicked at src/client/caching_client.rs:409:59:
+called `Option::unwrap()` on a `None` value
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- controller::file_controller::tests::test_get_public_data_not_found stdout ----
+
+thread 'controller::file_controller::tests::test_get_public_data_not_found' (1971938) panicked at src/client/streaming_client.rs:19:1:
+MockStreamingClient::clone(): No matching expectation found
+
+---- controller::file_controller::tests::test_head_public_data_not_found stdout ----
+
+thread 'controller::file_controller::tests::test_head_public_data_not_found' (1971939) panicked at src/client/streaming_client.rs:19:1:
+MockStreamingClient::clone(): No matching expectation found
+
+---- service::resolver_service::tests::test_resolve_bookmark stdout ----
+
+thread 'service::resolver_service::tests::test_resolve_bookmark' (1972049) panicked at src/client/caching_client.rs:24:1:
+MockCachingClient::clone(): No matching expectation found
+
+---- service::resolver_service::tests::test_resolve_immutable_address stdout ----
+
+thread 'service::resolver_service::tests::test_resolve_immutable_address' (1972050) panicked at src/client/caching_client.rs:24:1:
+MockCachingClient::clone(): No matching expectation found
+
+---- service::resolver_service::tests::test_resolve_path_parsing stdout ----
+
+thread 'service::resolver_service::tests::test_resolve_path_parsing' (1972052) panicked at src/client/caching_client.rs:24:1:
+MockCachingClient::clone(): No matching expectation found
+
+
+failures:
+    client::caching_client::tests::test_send_commands
+    controller::file_controller::tests::test_get_public_data_not_found
+    controller::file_controller::tests::test_head_public_data_not_found
+    service::resolver_service::tests::test_resolve_bookmark
+    service::resolver_service::tests::test_resolve_immutable_address
+    service::resolver_service::tests::test_resolve_path_parsing
+
+test result: FAILED. 129 passed; 6 failed; 0 ignored; 0 measured; 0 filtered out; finished in 5.07s
+
+error: test failed, to rerun pass `--lib`

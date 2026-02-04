@@ -1,3 +1,5 @@
+use base64::Engine;
+use base64::prelude::BASE64_STANDARD;
 use std::{env, fs};
 use std::fs::create_dir;
 use std::io::Error;
@@ -33,8 +35,6 @@ use crate::config::app_config::AppConfig;
 use crate::controller::StoreType;
 use crate::error::UpdateError;
 use crate::model::archive::Archive;
-use bytes::Bytes;
-use crate::error::GetError;
 
 #[derive(Serialize, Deserialize, Clone, ToSchema)]
 pub struct Upload {
@@ -57,9 +57,22 @@ impl Upload {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Serialize, Deserialize, ToSchema, Debug, Clone, PartialEq)]
+pub struct PublicArchiveResponse {
+    pub items: Vec<String>,
+    pub content: String,
+    pub address: String,
+}
+
+impl PublicArchiveResponse {
+    pub fn new(items: Vec<String>, content: String, address: String) -> Self {
+        PublicArchiveResponse { items, content, address }
+    }
+}
+
+#[derive(Debug)]
 pub struct PublicArchiveService {
-    file_client: FileService,
+    file_service: FileService,
     public_archive_caching_client: PublicArchiveCachingClient,
     public_data_caching_client: PublicDataCachingClient,
 }
@@ -67,25 +80,27 @@ pub struct PublicArchiveService {
 impl PublicArchiveService {
     
     pub fn new(file_client: FileService, public_archive_caching_client: PublicArchiveCachingClient, public_data_caching_client: PublicDataCachingClient) -> Self {
-        PublicArchiveService { file_client, public_archive_caching_client, public_data_caching_client }
+        PublicArchiveService { file_service: file_client, public_archive_caching_client, public_data_caching_client }
     }
 
-    pub async fn get_public_archive(&self, address: String, path: Option<String>) -> Result<Bytes, PublicArchiveError> {
+    pub async fn get_public_archive(&self, address: String, path: Option<String>) -> Result<PublicArchiveResponse, PublicArchiveError> {
         let archive_address = ArchiveAddress::from_hex(address.as_str())?;
         let public_archive = self.public_archive_caching_client.archive_get_public(archive_address).await?;
+        let archive = Archive::build_from_public_archive(public_archive);
+        let path = path.unwrap_or_default();
 
-        match path {
-            Some(file_path) => {
-                let archive = Archive::build_from_public_archive(public_archive);
-                match archive.find_file(&file_path) {
-                    Some(data_address_offset) => {
-                        Ok(self.public_archive_caching_client.archive_get_public_raw(&data_address_offset.data_address).await?)
-                    },
-                    None => Err(PublicArchiveError::GetError(GetError::RecordNotFound(format!("File not found in archive: {}", file_path))))
-                }
+        match archive.find_file(&path) {
+            Some(data_address_offset) => {
+                debug!("download file from public archive at [{}]", path);
+                let bytes = self.public_data_caching_client.data_get_public(&data_address_offset.data_address).await?;
+                let content = BASE64_STANDARD.encode(bytes);
+                Ok(PublicArchiveResponse::new(vec![], content, address))
             }
             None => {
-                Ok(self.public_archive_caching_client.archive_get_public_raw(&archive_address).await?)
+                debug!("download directory from public archive at [{}]", path);
+                let path_details = archive.list_dir(path);
+                let items = path_details.into_iter().map(|pd| pd.path).collect();
+                Ok(PublicArchiveResponse::new(items, "".to_string(), address))
             }
         }
     }
@@ -105,7 +120,7 @@ impl PublicArchiveService {
     }
     
     pub async fn get_data(&self, request: &HttpRequest, archive_info: ArchiveInfo) -> Result<(ChunkReceiver, RangeProps), ChunkError> {
-        self.file_client.download_data_request(request, archive_info.path_string, archive_info.resolved_xor_addr, archive_info.offset, archive_info.size).await
+        self.file_service.download_data_request(request, archive_info.path_string, archive_info.resolved_xor_addr, archive_info.offset, archive_info.size).await
     }
 
     pub async fn get_app_config(&self, archive: &Archive, archive_address_xorname: &XorName) -> AppConfig {
@@ -116,7 +131,7 @@ impl PublicArchiveService {
         match archive.find_file(&path_str.to_string()) {
             Some(data_address_offset) => {
                 info!("Downloading app-config [{}] with addr [{}] from archive [{}]", path_str, format!("{:x}", data_address_offset.data_address.xorname()), format!("{:x}", archive_address_xorname));
-                match self.file_client.download_data_bytes(*data_address_offset.data_address.xorname(), data_address_offset.offset, data_address_offset.size).await {
+                match self.file_service.download_data_bytes(*data_address_offset.data_address.xorname(), data_address_offset.offset, data_address_offset.size).await {
                     Ok(buf) => {
                         let json = String::from_utf8(buf.to_vec()).unwrap_or(String::new());
                         debug!("json [{}]", json);
@@ -260,6 +275,7 @@ mod tests {
     use actix_multipart::form::tempfile::TempFile;
     use std::fs::File;
     use std::io::{Read, Write};
+    use bytes::Bytes;
     use tempfile::tempdir;
 
     #[test]
@@ -380,7 +396,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_get_public_archive_optional_path() {
+    async fn test_get_public_archive_directory_listing() {
         use crate::client::MockPublicArchiveCachingClient;
         use crate::client::MockPublicDataCachingClient;
         use crate::service::file_service::MockFileService;
@@ -394,7 +410,6 @@ mod tests {
         let archive_address = ArchiveAddress::from_hex(addr_hex).unwrap();
         let mut public_archive = PublicArchive::new();
         
-        let file_data = Bytes::from("hello world");
         let file_addr = autonomi::data::DataAddress::new(XorName([1; 32]));
         public_archive.add_file(PathBuf::from("index.html"), file_addr, Metadata { created: 0, modified: 0, size: 11, extra: None });
 
@@ -402,11 +417,6 @@ mod tests {
             .with(eq(archive_address))
             .times(1)
             .returning(move |_| Ok(public_archive.clone()));
-
-        mock_archive_client.expect_archive_get_public_raw()
-            .with(eq(autonomi::data::DataAddress::new(*archive_address.xorname())))
-            .times(1)
-            .returning(move |_| Ok(file_data.clone()));
 
         let service = PublicArchiveService::new(
             mock_file_service,
@@ -416,7 +426,10 @@ mod tests {
 
         let result = service.get_public_archive(addr_hex.to_string(), None).await;
         assert!(result.is_ok());
-        assert_eq!(result.unwrap(), Bytes::from("hello world"));
+        let response = result.unwrap();
+        assert_eq!(response.address, addr_hex);
+        assert_eq!(response.items, vec!["index.html".to_string()]);
+        assert_eq!(response.content, "".to_string());
     }
 
     #[tokio::test]
@@ -427,7 +440,7 @@ mod tests {
         use mockall::predicate::eq;
 
         let mut mock_archive_client = MockPublicArchiveCachingClient::default();
-        let mock_data_client = MockPublicDataCachingClient::default();
+        let mut mock_data_client = MockPublicDataCachingClient::default();
         let mock_file_service = MockFileService::default();
 
         let addr_hex = "0000000000000000000000000000000000000000000000000000000000000000";
@@ -443,7 +456,7 @@ mod tests {
             .times(1)
             .returning(move |_| Ok(public_archive.clone()));
 
-        mock_archive_client.expect_archive_get_public_raw()
+        mock_data_client.expect_data_get_public()
             .with(eq(file_addr))
             .times(1)
             .returning(move |_| Ok(file_data.clone()));
@@ -456,7 +469,10 @@ mod tests {
 
         let result = service.get_public_archive(addr_hex.to_string(), Some("test.txt".to_string())).await;
         assert!(result.is_ok());
-        assert_eq!(result.unwrap(), Bytes::from("some content"));
+        let response = result.unwrap();
+        assert_eq!(response.address, addr_hex);
+        assert_eq!(response.items, Vec::<String>::new());
+        assert_eq!(response.content, BASE64_STANDARD.encode("some content"));
     }
 
     #[tokio::test]
@@ -486,7 +502,10 @@ mod tests {
         );
 
         let result = service.get_public_archive(addr_hex.to_string(), Some("missing.txt".to_string())).await;
-        assert!(result.is_err());
+        assert!(result.is_ok());
+        let response = result.unwrap();
+        assert_eq!(response.items.len(), 0);
+        assert_eq!(response.content, "".to_string());
     }
 
     #[tokio::test]

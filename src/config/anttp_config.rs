@@ -33,7 +33,7 @@ pub struct AntTpConfig {
     #[arg(short, long, default_value = "55dcbc4624699d219b8ec293339a3b81e68815397f5a502026784d8122d09fce")]
     pub resolver_private_key: String,
 
-    #[arg(short, long, default_value = "a40e045a6fbed33b27039aa8383c9dbf286e19a7265141c2da3085e0c8571527a73a699f9f96a80045391a23356ed0e3")]
+    #[arg(short, long, default_value = "43533a7c56b27cb44ef78d84458dd8494ead68ac71f53781ff166fa1a1b31a64")]
     pub bookmarks_address: String,
 
     #[arg(short, long, default_value_t = false)]

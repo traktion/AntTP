@@ -1,5 +1,6 @@
 use base64::Engine;
 use base64::prelude::BASE64_STANDARD;
+use bytes::Bytes;
 use std::{env, fs};
 use std::fs::create_dir;
 use std::io::Error;
@@ -70,6 +71,20 @@ impl PublicArchiveResponse {
     }
 }
 
+#[derive(Serialize, Deserialize, ToSchema, Debug, Clone, PartialEq)]
+pub struct PublicArchiveRaw {
+    pub items: Vec<String>,
+    #[schema(value_type = String, format = Binary)]
+    pub content: Bytes,
+    pub address: String,
+}
+
+impl PublicArchiveRaw {
+    pub fn new(items: Vec<String>, content: Bytes, address: String) -> Self {
+        PublicArchiveRaw { items, content, address }
+    }
+}
+
 #[derive(Debug)]
 pub struct PublicArchiveService {
     file_service: FileService,
@@ -84,6 +99,11 @@ impl PublicArchiveService {
     }
 
     pub async fn get_public_archive(&self, address: String, path: Option<String>) -> Result<PublicArchiveResponse, PublicArchiveError> {
+        let res = self.get_public_archive_binary(address, path).await?;
+        Ok(PublicArchiveResponse::new(res.items, BASE64_STANDARD.encode(res.content), res.address))
+    }
+
+    pub async fn get_public_archive_binary(&self, address: String, path: Option<String>) -> Result<PublicArchiveRaw, PublicArchiveError> {
         let archive_address = ArchiveAddress::from_hex(address.as_str())?;
         let public_archive = self.public_archive_caching_client.archive_get_public(archive_address).await?;
         let archive = Archive::build_from_public_archive(public_archive);
@@ -93,14 +113,13 @@ impl PublicArchiveService {
             Some(data_address_offset) => {
                 debug!("download file from public archive at [{}]", path);
                 let bytes = self.public_data_caching_client.data_get_public(&data_address_offset.data_address).await?;
-                let content = BASE64_STANDARD.encode(bytes);
-                Ok(PublicArchiveResponse::new(vec![], content, address))
+                Ok(PublicArchiveRaw::new(vec![], bytes, address))
             }
             None => {
                 debug!("download directory from public archive at [{}]", path);
                 let path_details = archive.list_dir(path);
                 let items = path_details.into_iter().map(|pd| pd.path).collect();
-                Ok(PublicArchiveResponse::new(items, "".to_string(), address))
+                Ok(PublicArchiveRaw::new(items, Bytes::new(), address))
             }
         }
     }

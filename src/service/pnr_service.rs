@@ -147,7 +147,6 @@ impl PnrService {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::model::pnr::{PnrRecord, PnrRecordType};
     use std::collections::HashMap;
 
@@ -156,7 +155,6 @@ mod tests {
         // This is a logic-only test for the record merging, as full mocking of PnrService's dependencies 
         // (ChunkCachingClient and PointerService) for an integration test here is complex.
         
-        let name = "test".to_string();
         let mut existing_records = HashMap::new();
         existing_records.insert("old".to_string(), PnrRecord::new("addr1".to_string(), PnrRecordType::A, 60));
         existing_records.insert("keep".to_string(), PnrRecord::new("addr2".to_string(), PnrRecordType::A, 60));

@@ -1,4 +1,9 @@
-use crate::client::{CachingClient, PUBLIC_ARCHIVE_CACHE_KEY};
+#[double]
+use crate::client::CachingClient;
+#[double]
+use crate::client::StreamingClient;
+use crate::client::PublicDataCachingClient;
+use crate::client::PUBLIC_ARCHIVE_CACHE_KEY;
 use autonomi::client::payment::PaymentOption;
 use autonomi::data::DataAddress;
 use autonomi::files::archive_public::ArchiveAddress;
@@ -6,6 +11,7 @@ use autonomi::files::PublicArchive;
 use bytes::Bytes;
 use log::info;
 use mockall::mock;
+use mockall_double::double;
 use crate::error::CreateError;
 use crate::controller::StoreType;
 use crate::error::public_archive_error::PublicArchiveError;
@@ -13,12 +19,13 @@ use crate::error::public_archive_error::PublicArchiveError;
 #[derive(Debug, Clone)]
 pub struct PublicArchiveCachingClient {
     caching_client: CachingClient,
+    streaming_client: StreamingClient,
 }
 
 mock! {
     #[derive(Debug)]
     pub PublicArchiveCachingClient {
-        pub fn new(caching_client: CachingClient) -> Self;
+        pub fn new(caching_client: CachingClient, streaming_client: StreamingClient) -> Self;
         pub async fn archive_put_public(&self, archive: &PublicArchive, payment_option: PaymentOption, store_type: StoreType) -> Result<ArchiveAddress, PublicArchiveError>;
         pub async fn archive_get_public(&self, archive_address: ArchiveAddress) -> Result<PublicArchive, PublicArchiveError>;
         pub async fn archive_get_public_raw(&self, addr: &DataAddress) -> Result<Bytes, PublicArchiveError>;
@@ -29,14 +36,15 @@ mock! {
 }
 
 impl PublicArchiveCachingClient {
-    pub fn new(caching_client: CachingClient) -> Self {
-        Self { caching_client }
+    pub fn new(caching_client: CachingClient, streaming_client: StreamingClient) -> Self {
+        Self { caching_client, streaming_client }
     }
 
     pub async fn archive_put_public(&self, archive: &PublicArchive, payment_option: PaymentOption, store_type: StoreType) -> Result<ArchiveAddress, PublicArchiveError> {
         match archive.to_bytes() {
             Ok(bytes) => {
-                let public_data_caching_client = crate::client::PublicDataCachingClient::new(self.caching_client.clone());
+                // todo: can this be injected?
+                let public_data_caching_client = PublicDataCachingClient::new(self.caching_client.clone(), self.streaming_client.clone());
                 Ok(public_data_caching_client.data_put_public(bytes, payment_option, store_type).await?)
             },
             Err(e) => Err(CreateError::Serialization(format!("Failed to serialize archive: {}", e.to_string())).into()),
@@ -55,11 +63,11 @@ impl PublicArchiveCachingClient {
     }
 
     pub async fn archive_get_public_raw(&self, addr: &DataAddress) -> Result<Bytes, PublicArchiveError> {
-        let local_caching_client = self.caching_client.clone();
+        let local_streaming_client = self.streaming_client.clone();
         let local_address = addr.clone();
-        match self.caching_client.hybrid_cache.get_ref().fetch(format!("{}{}", PUBLIC_ARCHIVE_CACHE_KEY, local_address.to_hex()), || async move {
+        match self.caching_client.get_hybrid_cache().get_ref().fetch(format!("{}{}", PUBLIC_ARCHIVE_CACHE_KEY, local_address.to_hex()), || async move {
             // todo: optimise range_to to first chunk length (to avoid downloading other chunks when not needed)
-            let maybe_bytes = local_caching_client.download_stream(&local_address, 0, 524288).await;
+            let maybe_bytes = local_streaming_client.download_stream(&local_address, 0, 524288).await;
             match maybe_bytes {
                 Ok(bytes) => {
                     let maybe_public_archive = PublicArchive::from_bytes(bytes.clone());

@@ -274,7 +274,6 @@ mod tests {
     use crate::error::chunk_error::ChunkError;
     use autonomi::{Chunk, ChunkAddress};
     use bytes::Bytes;
-    use mockall::predicate::*;
 
     fn create_test_resolver(
         mock_pointer_caching_client: MockPointerCachingClient,
@@ -455,8 +454,7 @@ mod tests {
     #[tokio::test]
     async fn test_resolve_pointer_chain() {
         let mut mock_pointer_caching_client = MockPointerCachingClient::default();
-        let mock_chunk_caching_client = MockChunkCachingClient::default();
-        
+
         let sk1 = SecretKey::random();
         let sk2 = SecretKey::random();
         let addr2 = PointerAddress::from_hex(&sk2.public_key().to_hex()).unwrap();
@@ -480,8 +478,7 @@ mod tests {
                 }
             });
 
-        let resolver = PointerNameResolver::new(mock_pointer_caching_client, mock_chunk_caching_client, sk1, 3600);
-        // We need to know the name that hashes to sk1. 
+        // We need to know the name that hashes to sk1.
         // But Client::register_key_from_name is deterministic.
         // Let's use a fixed secret key for the resolver so we can predict the pointer key.
         

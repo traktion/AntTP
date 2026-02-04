@@ -1,8 +1,11 @@
 use autonomi::client::payment::PaymentOption;
 use autonomi::{GraphEntry, GraphEntryAddress};
 use log::{debug, info};
+use mockall_double::double;
 use crate::client::cache_item::CacheItem;
-use crate::client::{CachingClient, GRAPH_ENTRY_CACHE_KEY};
+#[double]
+use crate::client::CachingClient;
+use crate::client::GRAPH_ENTRY_CACHE_KEY;
 use crate::client::command::graph::create_graph_entry_command::CreateGraphEntryCommand;
 use crate::client::command::graph::get_graph_entry_command::GetGraphEntryCommand;
 use crate::error::graph_error::GraphError;
@@ -27,7 +30,7 @@ impl GraphEntryCachingClient {
         self.cache_graph_entry(graph_entry.clone(), store_type.clone());
         if store_type == StoreType::Network {
             let command = Box::new(
-                CreateGraphEntryCommand::new(self.caching_client.client_harness.clone(), graph_entry.clone(), payment_option)
+                CreateGraphEntryCommand::new(self.caching_client.get_client_harness().clone(), graph_entry.clone(), payment_option)
             );
             self.caching_client.send_create_command(command).await?;
         }
@@ -35,14 +38,14 @@ impl GraphEntryCachingClient {
     }
 
     fn cache_graph_entry(&self, graph_entry: GraphEntry, store_type: StoreType) {
-        let ttl = if store_type != StoreType::Network { u64::MAX } else { self.caching_client.ant_tp_config.cached_mutable_ttl };
+        let ttl = if store_type != StoreType::Network { u64::MAX } else { self.caching_client.get_ant_tp_config().cached_mutable_ttl };
         let cache_item = CacheItem::new(Some(graph_entry.clone()), ttl);
         let serialised_cache_item = rmp_serde::to_vec(&cache_item).expect("Failed to serialize graph entry");
         info!("updating cache with graph_entry at address {}[{}] and TTL [{}]", GRAPH_ENTRY_CACHE_KEY, graph_entry.address().to_hex(), ttl);
         if store_type == StoreType::Disk {
-            self.caching_client.hybrid_cache.insert(format!("{}{}", GRAPH_ENTRY_CACHE_KEY, graph_entry.address().to_hex()), serialised_cache_item);
+            self.caching_client.get_hybrid_cache().insert(format!("{}{}", GRAPH_ENTRY_CACHE_KEY, graph_entry.address().to_hex()), serialised_cache_item);
         } else {
-            self.caching_client.hybrid_cache.memory().insert(format!("{}{}", GRAPH_ENTRY_CACHE_KEY, graph_entry.address().to_hex()), serialised_cache_item);
+            self.caching_client.get_hybrid_cache().memory().insert(format!("{}{}", GRAPH_ENTRY_CACHE_KEY, graph_entry.address().to_hex()), serialised_cache_item);
         }
     }
 
@@ -51,9 +54,9 @@ impl GraphEntryCachingClient {
         address: &GraphEntryAddress,
     ) -> Result<GraphEntry, GraphError> {
         let local_address = address.clone();
-        let local_ant_tp_config = self.caching_client.ant_tp_config.clone();
-        let cache_entry = self.caching_client.hybrid_cache.get_ref().fetch(format!("{}{}", GRAPH_ENTRY_CACHE_KEY, local_address.to_hex()), {
-            let client = self.caching_client.client_harness.get_ref().lock().await.get_client().await?;           
+        let local_ant_tp_config = self.caching_client.get_ant_tp_config().clone();
+        let cache_entry = self.caching_client.get_hybrid_cache().get_ref().fetch(format!("{}{}", GRAPH_ENTRY_CACHE_KEY, local_address.to_hex()), {
+            let client = self.caching_client.get_client_harness().get_ref().lock().await.get_client().await?;
             || async move {
                 match client.graph_entry_get(&local_address).await {
                     Ok(scratchpad) => {
@@ -72,7 +75,7 @@ impl GraphEntryCachingClient {
         info!("retrieved graph entry for [{}] from hybrid cache", address.to_hex());
         if cache_item.has_expired() {
             let command = Box::new(
-                GetGraphEntryCommand::new(self.caching_client.client_harness.clone(), self.caching_client.hybrid_cache.clone(), address.clone(), self.caching_client.ant_tp_config.cached_mutable_ttl)
+                GetGraphEntryCommand::new(self.caching_client.get_client_harness().clone(), self.caching_client.get_hybrid_cache().clone(), address.clone(), self.caching_client.get_ant_tp_config().cached_mutable_ttl)
             );
             self.caching_client.send_get_command(command).await?;
         }

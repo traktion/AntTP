@@ -196,7 +196,7 @@ mod tests {
     #[tokio::test]
     async fn test_create_pointer_no_name_error() {
         let mock_pointer_caching_client = MockPointerCachingClient::default();
-        let mut mock_resolver_service = MockResolverService::default();
+        let mock_resolver_service = MockResolverService::default();
         let evm_wallet = Wallet::new_with_random_wallet(autonomi::Network::ArbitrumOne);
         let pointer = super::Pointer {
             name: None,

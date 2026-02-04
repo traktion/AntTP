@@ -4,8 +4,11 @@ use autonomi::pointer::PointerTarget;
 use autonomi::{Pointer, PointerAddress, SecretKey};
 use log::{debug, info, warn};
 use mockall::mock;
+use mockall_double::double;
 use crate::client::cache_item::CacheItem;
-use crate::client::{CachingClient, POINTER_CACHE_KEY, POINTER_CHECK_CACHE_KEY};
+#[double]
+use crate::client::CachingClient;
+use crate::client::{POINTER_CACHE_KEY, POINTER_CHECK_CACHE_KEY};
 use crate::client::command::Command;
 use crate::client::command::pointer::check_pointer_command::CheckPointerCommand;
 use crate::client::command::pointer::get_pointer_command::GetPointerCommand;
@@ -65,7 +68,7 @@ impl PointerCachingClient {
 
         if store_type == StoreType::Network {
             let command = Box::new(
-                CreatePointerCommand::new(self.caching_client.client_harness.clone(), owner.clone(), target, payment_option)
+                CreatePointerCommand::new(self.caching_client.get_client_harness().clone(), owner.clone(), target, payment_option)
             );
             self.caching_client.send_create_command(command).await?;
         }
@@ -83,7 +86,7 @@ impl PointerCachingClient {
 
         if store_type == StoreType::Network {
             let command = Box::new(
-                UpdatePointerCommand::new(self.caching_client.client_harness.clone(), owner.clone(), target, counter)
+                UpdatePointerCommand::new(self.caching_client.get_client_harness().clone(), owner.clone(), target, counter)
             );
             self.caching_client.send_update_command(command).await?;
         }
@@ -92,14 +95,14 @@ impl PointerCachingClient {
 
     fn cache_pointer(&self, owner: &SecretKey, target: &PointerTarget, counter: Option<u64>, store_type: StoreType) -> Pointer {
         let pointer = Pointer::new(owner, counter.unwrap_or(0), target.clone());
-        let ttl = if store_type != StoreType::Network { u64::MAX } else { self.caching_client.ant_tp_config.cached_mutable_ttl };
+        let ttl = if store_type != StoreType::Network { u64::MAX } else { self.caching_client.get_ant_tp_config().cached_mutable_ttl };
         let cache_item = CacheItem::new(Some(pointer.clone()), ttl);
         let serialised_cache_item = rmp_serde::to_vec(&cache_item).expect("Failed to serialize pointer");
         info!("updating cache with pointer at address {}[{}] to target [{}] and TTL [{}]", POINTER_CACHE_KEY, pointer.address().to_hex(), target.to_hex(), ttl);
         if store_type == StoreType::Disk {
-            self.caching_client.hybrid_cache.insert(format!("{}{}", POINTER_CACHE_KEY, pointer.address().to_hex()), serialised_cache_item);
+            self.caching_client.get_hybrid_cache().insert(format!("{}{}", POINTER_CACHE_KEY, pointer.address().to_hex()), serialised_cache_item);
         } else {
-            self.caching_client.hybrid_cache.memory().insert(format!("{}{}", POINTER_CACHE_KEY, pointer.address().to_hex()), serialised_cache_item);
+            self.caching_client.get_hybrid_cache().memory().insert(format!("{}{}", POINTER_CACHE_KEY, pointer.address().to_hex()), serialised_cache_item);
         }
         pointer
     }
@@ -110,7 +113,7 @@ impl PointerCachingClient {
             Some(_) => {
                 info!("retrieved pointer for [{}] from hybrid cache", address.to_hex());
                 if cache_item.has_expired() {
-                    let command = GetPointerCommand::new(self.caching_client.client_harness.clone(), self.caching_client.hybrid_cache.clone(), address.clone(), self.caching_client.ant_tp_config.cached_mutable_ttl);
+                    let command = GetPointerCommand::new(self.caching_client.get_client_harness().clone(), self.caching_client.get_hybrid_cache().clone(), address.clone(), self.caching_client.get_ant_tp_config().cached_mutable_ttl);
                     tokio::spawn(async move {
                         let _ = command.execute().await;
                     });
@@ -131,7 +134,7 @@ impl PointerCachingClient {
                 let updated_cache_item = CacheItem::new(Some(cache_item.item.clone().unwrap()), ttl_override);
                 match rmp_serde::to_vec(&updated_cache_item) {
                     Ok(serialized_cache_item) => {
-                        self.caching_client.hybrid_cache.insert(
+                        self.caching_client.get_hybrid_cache().insert(
                             format!("{}{}", POINTER_CACHE_KEY,  address.to_hex()),
                             serialized_cache_item
                         );
@@ -151,9 +154,9 @@ impl PointerCachingClient {
 
     async fn get_cache_item(&self, address: &PointerAddress) -> Result<CacheItem<Pointer>, PointerError> {
         let local_address = address.clone();
-        let local_ant_tp_config = self.caching_client.ant_tp_config.clone();
-        let cache_entry = self.caching_client.hybrid_cache.get_ref().fetch(format!("{}{}", POINTER_CACHE_KEY, local_address.to_hex()), {
-            let client = self.caching_client.client_harness.get_ref().lock().await.get_client().await?;
+        let local_ant_tp_config = self.caching_client.get_ant_tp_config().clone();
+        let cache_entry = self.caching_client.get_hybrid_cache().get_ref().fetch(format!("{}{}", POINTER_CACHE_KEY, local_address.to_hex()), {
+            let client = self.caching_client.get_client_harness().get_ref().lock().await.get_client().await?;
             || async move {
                 match client.pointer_get(&local_address).await {
                     Ok(pointer) => {
@@ -175,9 +178,9 @@ impl PointerCachingClient {
 
     pub async fn pointer_check_existence(&self, address: &PointerAddress) -> Result<bool, PointerError> {
         let local_address = address.clone();
-        let local_ant_tp_config = self.caching_client.ant_tp_config.clone();
-        let cache_entry = self.caching_client.hybrid_cache.get_ref().fetch(format!("{}{}", POINTER_CHECK_CACHE_KEY, local_address.to_hex()), {
-            let client = self.caching_client.client_harness.get_ref().lock().await.get_client().await?;
+        let local_ant_tp_config = self.caching_client.get_ant_tp_config().clone();
+        let cache_entry = self.caching_client.get_hybrid_cache().get_ref().fetch(format!("{}{}", POINTER_CHECK_CACHE_KEY, local_address.to_hex()), {
+            let client = self.caching_client.get_client_harness().get_ref().lock().await.get_client().await?;
             || async move {
                 match client.pointer_check_existence(&local_address).await {
                     Ok(_) => {
@@ -202,7 +205,7 @@ impl PointerCachingClient {
             Some(_) => {
                 info!("retrieved pointer check existence for [{}] from hybrid cache", address.to_hex());
                 if cache_item.has_expired() {
-                    let command = CheckPointerCommand::new(self.caching_client.client_harness.clone(), self.caching_client.hybrid_cache.clone(), address.clone(), self.caching_client.ant_tp_config.cached_mutable_ttl);
+                    let command = CheckPointerCommand::new(self.caching_client.get_client_harness().clone(), self.caching_client.get_hybrid_cache().clone(), address.clone(), self.caching_client.get_ant_tp_config().cached_mutable_ttl);
                     tokio::spawn(async move {
                         let _ = command.execute().await;
                     });

@@ -73,14 +73,20 @@ impl PublicArchiveService {
     pub async fn get_public_archive(&self, address: String, path: Option<String>) -> Result<Bytes, PublicArchiveError> {
         let archive_address = ArchiveAddress::from_hex(address.as_str())?;
         let public_archive = self.public_archive_caching_client.archive_get_public(archive_address).await?;
-        let file_path = path.unwrap_or_else(|| "index.html".to_string());
-        
-        let archive = Archive::build_from_public_archive(public_archive);
-        match archive.find_file(&file_path) {
-            Some(data_address_offset) => {
-                Ok(self.public_archive_caching_client.archive_get_public_raw(&data_address_offset.data_address).await?)
-            },
-            None => Err(PublicArchiveError::GetError(GetError::RecordNotFound(format!("File not found in archive: {}", file_path))))
+
+        match path {
+            Some(file_path) => {
+                let archive = Archive::build_from_public_archive(public_archive);
+                match archive.find_file(&file_path) {
+                    Some(data_address_offset) => {
+                        Ok(self.public_archive_caching_client.archive_get_public_raw(&data_address_offset.data_address).await?)
+                    },
+                    None => Err(PublicArchiveError::GetError(GetError::RecordNotFound(format!("File not found in archive: {}", file_path))))
+                }
+            }
+            None => {
+                Ok(self.public_archive_caching_client.archive_get_public_raw(&archive_address).await?)
+            }
         }
     }
 
@@ -398,7 +404,7 @@ mod tests {
             .returning(move |_| Ok(public_archive.clone()));
 
         mock_archive_client.expect_archive_get_public_raw()
-            .with(eq(file_addr))
+            .with(eq(autonomi::data::DataAddress::new(*archive_address.xorname())))
             .times(1)
             .returning(move |_| Ok(file_data.clone()));
 
@@ -491,9 +497,8 @@ mod tests {
 
         let mock_archive_client = MockPublicArchiveCachingClient::default();
         let mock_data_client = MockPublicDataCachingClient::default();
-        let mut mock_file_service = MockFileService::default();
+        let mock_file_service = MockFileService::default();
 
-        let addr_hex = "0000000000000000000000000000000000000000000000000000000000000000";
         let xor_name = XorName([0; 32]);
         let archive = Archive::new(std::collections::HashMap::new(), Vec::new());
         

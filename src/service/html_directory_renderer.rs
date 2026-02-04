@@ -155,8 +155,6 @@ mod tests {
     use super::*;
     use crate::model::archive::Archive;
     use std::collections::HashMap;
-    use autonomi::data::DataAddress;
-    use xor_name::XorName;
 
     #[test]
     fn test_render_empty_archive() {

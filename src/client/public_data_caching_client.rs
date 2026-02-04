@@ -5,8 +5,12 @@ use bytes::Bytes;
 use chunk_streamer::chunk_encrypter::ChunkEncrypter;
 use log::info;
 use mockall::mock;
+use mockall_double::double;
+#[double]
 use crate::client::CachingClient;
 use crate::client::command::public_data::create_public_data_command::CreatePublicDataCommand;
+#[double]
+use crate::client::StreamingClient;
 use crate::error::{CreateError, GetError};
 use crate::controller::StoreType;
 use crate::error::public_data_error::PublicDataError;
@@ -14,12 +18,13 @@ use crate::error::public_data_error::PublicDataError;
 #[derive(Debug, Clone)]
 pub struct PublicDataCachingClient {
     caching_client: CachingClient,
+    streaming_client: StreamingClient,
 }
 
 mock! {
     #[derive(Debug)]
     pub PublicDataCachingClient {
-        pub fn new(caching_client: CachingClient) -> Self;
+        pub fn new(caching_client: CachingClient, streaming_client: StreamingClient) -> Self;
         pub async fn data_put_public(
             &self,
             data: Bytes,
@@ -35,8 +40,8 @@ mock! {
 }
 
 impl PublicDataCachingClient {
-    pub fn new(caching_client: CachingClient) -> Self {
-        Self { caching_client }
+    pub fn new(caching_client: CachingClient, streaming_client: StreamingClient) -> Self {
+        Self { caching_client, streaming_client }
     }
 
     pub async fn data_put_public(
@@ -49,7 +54,7 @@ impl PublicDataCachingClient {
         let data_address = self.cache_public_data(data.clone(), store_type.clone()).await?;
         if store_type == StoreType::Network {
             let command = Box::new(
-                CreatePublicDataCommand::new(self.caching_client.client_harness.clone(), data, payment_option)
+                CreatePublicDataCommand::new(self.caching_client.get_client_harness().clone(), data, payment_option)
             );
             self.caching_client.send_create_command(command).await?;
         }
@@ -67,10 +72,10 @@ impl PublicDataCachingClient {
                 for chunk in chunks {
                     if store_type == StoreType::Disk {
                         info!("updating disk cache with chunk at address [{}]", chunk.address.to_hex());
-                        self.caching_client.hybrid_cache.insert(format!("{}", chunk.address.to_hex()), chunk.value.to_vec());
+                        self.caching_client.get_hybrid_cache().insert(format!("{}", chunk.address.to_hex()), chunk.value.to_vec());
                     } else {
                         info!("updating cache with chunk at address [{}]", chunk.address.to_hex());
-                        self.caching_client.hybrid_cache.memory().insert(format!("{}", chunk.address.to_hex()), chunk.value.to_vec());
+                        self.caching_client.get_hybrid_cache().memory().insert(format!("{}", chunk.address.to_hex()), chunk.value.to_vec());
                     }
                 }
                 Ok(data_address)
@@ -80,7 +85,7 @@ impl PublicDataCachingClient {
     }
 
     pub async fn data_get_public(&self, addr: &DataAddress) -> Result<Bytes, PublicDataError> {
-        match self.caching_client.download_stream(addr, 0, 0).await {
+        match self.streaming_client.download_stream(addr, 0, 0).await {
             Ok(bytes) => {
                 info!("retrieved public data for [{}] with size [{}]", addr.to_hex(), bytes.len());
                 Ok(bytes)

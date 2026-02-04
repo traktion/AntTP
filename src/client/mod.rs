@@ -1,19 +1,3 @@
-use actix_web::web::Data;
-use foyer::HybridCache;
-use tokio::sync::mpsc::Sender;
-use tokio::sync::Mutex;
-use crate::client::client_harness::ClientHarness;
-use command::Command;
-use crate::config::anttp_config::AntTpConfig;
-
-#[derive(Debug, Clone)]
-pub struct CachingClient {
-    pub client_harness: Data<Mutex<ClientHarness>>,
-    pub ant_tp_config: AntTpConfig,
-    pub hybrid_cache: Data<HybridCache<String, Vec<u8>>>,
-    pub command_executor: Data<Sender<Box<dyn Command>>>,
-}
-
 const ARCHIVE_CACHE_KEY: &'static str = "ar";
 const GRAPH_ENTRY_CACHE_KEY: &'static str = "gg";
 const POINTER_CACHE_KEY: &'static str = "pg";
@@ -36,6 +20,7 @@ pub mod tarchive_caching_client;
 pub mod archive_caching_client;
 pub mod public_data_caching_client;
 pub mod command;
+pub mod streaming_client;
 
 pub use self::caching_client::*;
 pub use chunk_caching_client::{ChunkCachingClient, MockChunkCachingClient};
@@ -47,3 +32,4 @@ pub use public_archive_caching_client::{PublicArchiveCachingClient, MockPublicAr
 pub use tarchive_caching_client::TArchiveCachingClient;
 pub use archive_caching_client::ArchiveCachingClient;
 pub use public_data_caching_client::{PublicDataCachingClient, MockPublicDataCachingClient};
+pub use streaming_client::{StreamingClient, MockStreamingClient};

@@ -2,8 +2,11 @@ use autonomi::client::payment::PaymentOption;
 use autonomi::{Scratchpad, ScratchpadAddress, SecretKey};
 use bytes::Bytes;
 use log::{debug, info};
+use mockall_double::double;
 use crate::client::cache_item::CacheItem;
-use crate::client::{CachingClient, SCRATCHPAD_CACHE_KEY};
+#[double]
+use crate::client::CachingClient;
+use crate::client::SCRATCHPAD_CACHE_KEY;
 use crate::client::command::scratchpad::create_private_scratchpad_command::CreatePrivateScratchpadCommand;
 use crate::client::command::scratchpad::create_public_scratchpad_command::CreatePublicScratchpadCommand;
 use crate::client::command::scratchpad::get_scratchpad_command::GetScratchpadCommand;
@@ -34,7 +37,7 @@ impl ScratchpadCachingClient {
 
         if store_type == StoreType::Network {
             let command = Box::new(
-                CreatePrivateScratchpadCommand::new(self.caching_client.client_harness.clone(), owner.clone(), content_type, data.clone(), payment_option)
+                CreatePrivateScratchpadCommand::new(self.caching_client.get_client_harness().clone(), owner.clone(), content_type, data.clone(), payment_option)
             );
             self.caching_client.send_create_command(command).await?;
         }
@@ -52,7 +55,7 @@ impl ScratchpadCachingClient {
 
         if store_type == StoreType::Network {
             let command = Box::new(
-                UpdatePrivateScratchpadCommand::new(self.caching_client.client_harness.clone(), owner.clone(), content_type, data.clone())
+                UpdatePrivateScratchpadCommand::new(self.caching_client.get_client_harness().clone(), owner.clone(), content_type, data.clone())
             );
             self.caching_client.send_create_command(command).await?;
         }
@@ -71,7 +74,7 @@ impl ScratchpadCachingClient {
 
         if store_type == StoreType::Network {
             let command = Box::new(
-                CreatePublicScratchpadCommand::new(self.caching_client.client_harness.clone(), owner.clone(), content_type, data.clone(), payment_option)
+                CreatePublicScratchpadCommand::new(self.caching_client.get_client_harness().clone(), owner.clone(), content_type, data.clone(), payment_option)
             );
             self.caching_client.send_create_command(command).await?;
         }
@@ -90,7 +93,7 @@ impl ScratchpadCachingClient {
 
         if store_type == StoreType::Network {
             let command = Box::new(
-                UpdatePublicScratchpadCommand::new(self.caching_client.client_harness.clone(), owner.clone(), content_type, data.clone(), payment_option)
+                UpdatePublicScratchpadCommand::new(self.caching_client.get_client_harness().clone(), owner.clone(), content_type, data.clone(), payment_option)
             );
             self.caching_client.send_update_command(command).await?;
         }
@@ -112,23 +115,23 @@ impl ScratchpadCachingClient {
             Scratchpad::new_with_signature(owner.public_key(), content_type, data.clone(), 0, signature)
         };
 
-        let ttl = if store_type != StoreType::Network { u64::MAX } else { self.caching_client.ant_tp_config.cached_mutable_ttl };
+        let ttl = if store_type != StoreType::Network { u64::MAX } else { self.caching_client.get_ant_tp_config().cached_mutable_ttl };
         let cache_item = CacheItem::new(Some(scratchpad.clone()), ttl);
         let serialised_cache_item = rmp_serde::to_vec(&cache_item).expect("Failed to serialize scratchpad");
         info!("updating cache with scratchpad at address {}[{}] to value [{:?}] and TTL [{}]", SCRATCHPAD_CACHE_KEY, scratchpad_address.to_hex(), scratchpad, ttl);
         if store_type == StoreType::Disk {
-            self.caching_client.hybrid_cache.insert(format!("{}{}", SCRATCHPAD_CACHE_KEY, scratchpad_address.to_hex()), serialised_cache_item);
+            self.caching_client.get_hybrid_cache().insert(format!("{}{}", SCRATCHPAD_CACHE_KEY, scratchpad_address.to_hex()), serialised_cache_item);
         } else {
-            self.caching_client.hybrid_cache.memory().insert(format!("{}{}", SCRATCHPAD_CACHE_KEY, scratchpad_address.to_hex()), serialised_cache_item);
+            self.caching_client.get_hybrid_cache().memory().insert(format!("{}{}", SCRATCHPAD_CACHE_KEY, scratchpad_address.to_hex()), serialised_cache_item);
         }
         scratchpad_address
     }
 
     pub async fn scratchpad_get(&self, address: &ScratchpadAddress) -> Result<Scratchpad, ScratchpadError> {
         let local_address = address.clone();
-        let local_ant_tp_config = self.caching_client.ant_tp_config.clone();
-        let cache_entry = self.caching_client.hybrid_cache.get_ref().fetch(format!("{}{}", SCRATCHPAD_CACHE_KEY, local_address.to_hex()), {
-            let client = self.caching_client.client_harness.get_ref().lock().await.get_client().await?;
+        let local_ant_tp_config = self.caching_client.get_ant_tp_config().clone();
+        let cache_entry = self.caching_client.get_hybrid_cache().get_ref().fetch(format!("{}{}", SCRATCHPAD_CACHE_KEY, local_address.to_hex()), {
+            let client = self.caching_client.get_client_harness().get_ref().lock().await.get_client().await?;
             || async move {
                 match client.scratchpad_get(&local_address).await {
                     Ok(scratchpad) => {
@@ -147,7 +150,7 @@ impl ScratchpadCachingClient {
         info!("retrieved scratchpad for [{}] from hybrid cache", address.to_hex());
         if cache_item.has_expired() {
             let command = Box::new(
-                GetScratchpadCommand::new(self.caching_client.client_harness.clone(), self.caching_client.hybrid_cache.clone(), address.clone(), self.caching_client.ant_tp_config.cached_mutable_ttl)
+                GetScratchpadCommand::new(self.caching_client.get_client_harness().clone(), self.caching_client.get_hybrid_cache().clone(), address.clone(), self.caching_client.get_ant_tp_config().cached_mutable_ttl)
             );
             self.caching_client.send_get_command(command).await?;
         }

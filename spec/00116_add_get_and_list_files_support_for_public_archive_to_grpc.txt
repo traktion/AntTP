@@ -1,0 +1,60 @@
+As a software engineer
+I want to provide a get and list files for public archives over gRPC
+So that I can can also use the gRPC endpoint to get/list files
+
+Given  GET /anttp-0/public_archive/{address}/{*path} endpoint is already supported in public_archive_controller.rs
+When get or list files over gRPC
+Then use public_archive_controller.rs as an example
+And use get_public_data in public_data_handler.rs as an example gRPC endpoint
+
+Given public_archive_service.rs has get_public_archive that returns base64 encoded content
+When calling via gRPC handler
+Then provide an additional parameter to return the raw bytes in the payload (instead of base64 encoded string)
+And return PublicArchiveRaw (see examples below) instead, with content being Bytes instead of String
+And then gRPC proto can contain the raw bytes
+
+Given a {*path} can be a directory or a file
+When the path is a file
+Then return the content as a protobuf containing a content field (for content), address field (for archive address), and an empty items list field
+And see example proto file below
+
+Given a {*path} can be a directory or a file
+When the path is a directory
+Then return the content as a protobuf containing an items field, with a list of the files in that directory, address field (for archive address), and an empty content field
+And see example proto file below
+
+Implementation Notes
+
+- Place any unit tests at the bottom of the same file as the associated production code
+- Increment patch version of anttp package in Cargo.toml
+- Create a copy of this issue description and save to /spec using the name of this issue as the filename (with lower underscore case, starting with the 5 char padded issue number, e.g. 00001_issue_title.txt)
+- Do not attempt to clone or mock *_service.rs code
+
+Example proto responses for file:
+
+```
+rpc GetPublicArchive(GetPublicArchiveRequest) returns (PublicArchiveResponse);
+
+message TruncatePublicArchiveRequest {
+  string address = 1;
+  string path = 2;
+  optional string store_type = 3;
+}
+
+message PublicArchiveResponse {
+  optional string address = 1;
+  repeated string items = 2;
+  optional bytes content = 3;
+}
+```
+
+PublicArchiveRaw:
+
+```
+#[derive(Serialize, Deserialize, ToSchema, Debug, Clone, PartialEq)]
+pub struct PublicArchiveResponse {
+    pub items: Vec<String>,
+    pub content: Bytes,
+    pub address: String,
+}
+```

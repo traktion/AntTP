@@ -440,7 +440,7 @@ mod tests {
         use mockall::predicate::eq;
 
         let mut mock_archive_client = MockPublicArchiveCachingClient::default();
-        let mock_data_client = MockPublicDataCachingClient::default();
+        let mut mock_data_client = MockPublicDataCachingClient::default();
         let mock_file_service = MockFileService::default();
 
         let addr_hex = "0000000000000000000000000000000000000000000000000000000000000000";
@@ -456,7 +456,7 @@ mod tests {
             .times(1)
             .returning(move |_| Ok(public_archive.clone()));
 
-        mock_archive_client.expect_archive_get_public_raw()
+        mock_data_client.expect_data_get_public()
             .with(eq(file_addr))
             .times(1)
             .returning(move |_| Ok(file_data.clone()));

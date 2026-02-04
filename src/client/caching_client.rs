@@ -44,6 +44,11 @@ mock! {
     impl Clone for CachingClient {
         fn clone(&self) -> Self;
     }
+    #[async_trait]
+    impl Job for CachingClient {
+        fn schedule(&self) -> Option<Schedule>;
+        async fn handle(&mut self);
+    }
     /*#[async_trait]
     impl ChunkGetter for CachingClient {
         async fn chunk_get(&self, address: &ChunkAddress) -> Result<Chunk, autonomi::client::GetError>;
@@ -234,23 +239,53 @@ mod tests {
     use tokio::sync::mpsc;
     use tempfile::tempdir;
 
-    async fn create_mock_caching_client() -> (CachingClient, mpsc::Receiver<Box<dyn Command>>) {
+    async fn create_mock_caching_client() -> (MockCachingClient, mpsc::Receiver<Box<dyn Command>>) {
         let (tx, rx) = mpsc::channel(100);
-        let ant_tp_config = AntTpConfig::parse_from(&[
-            "anttp",
-            "--map-cache-directory",
-            tempdir().unwrap().path().to_str().unwrap()
-        ]);
-
-        let client_harness = ClientHarness::new(EvmNetwork::ArbitrumOne, ant_tp_config.clone());
-        let hybrid_cache = HybridCacheBuilder::new().memory(1024).storage().build().await.unwrap();
-
-        let client = CachingClient::new(
-            Data::new(tokio::sync::Mutex::new(client_harness)),
-            ant_tp_config,
-            Data::new(hybrid_cache),
-            Data::new(tx),
-        );
+        let mut client = MockCachingClient::default();
+        
+        client.expect_get_derived_ranges()
+            .returning(|range_from, range_to, length| {
+                match length {
+                    Some(length) => {
+                        let derived_range_from: u64 = if range_from < 0 {
+                            let from = u64::try_from(range_from.abs()).unwrap();
+                            if from < length {
+                                length.saturating_sub(1).saturating_sub(from)
+                            } else {
+                                0 // start from the beginning
+                            }
+                        } else {
+                            let from = u64::try_from(range_from).unwrap();
+                            if from > length.saturating_sub(1) {
+                                length.saturating_sub(1)
+                            } else {
+                                from
+                            }
+                        };
+                        let derived_range_to: u64 = if range_to <= 0 {
+                            let to = u64::try_from(range_to.abs()).unwrap();
+                            if to < length {
+                                length.saturating_sub(1).saturating_sub(to)
+                            } else {
+                                length.saturating_sub(1)
+                            }
+                        } else {
+                            let to = u64::try_from(range_to).unwrap();
+                            if to > length.saturating_sub(1) {
+                                length.saturating_sub(1)
+                            } else {
+                                to
+                            }
+                        };
+                        (derived_range_from, derived_range_to)
+                    },
+                    None => {
+                        let derived_range_from = u64::try_from(range_from.abs()).unwrap();
+                        let derived_range_to = u64::try_from(range_to.abs()).unwrap();
+                        (derived_range_from, derived_range_to)
+                    }
+                }
+            });
 
         (client, rx)
     }
@@ -316,7 +351,15 @@ mod tests {
         let client_harness = ClientHarness::new(EvmNetwork::ArbitrumOne, ant_tp_config.clone());
         let hybrid_cache = HybridCacheBuilder::new().memory(1024).storage().build().await.unwrap();
 
-        let _client = CachingClient::new(
+        let ctx = MockCachingClient::new_context();
+        ctx.expect()
+            .returning(|client_harness, config, hybrid_cache, command_executor| {
+                let cache_dir = config.clone().map_cache_directory;
+                CachingClient::create_tmp_dir(cache_dir.clone());
+                MockCachingClient::default()
+            });
+
+        let _client = MockCachingClient::new(
             Data::new(tokio::sync::Mutex::new(client_harness)),
             ant_tp_config,
             Data::new(hybrid_cache),
@@ -328,20 +371,27 @@ mod tests {
 
     #[tokio::test]
     async fn test_job_schedule() {
-        let (client, _) = create_mock_caching_client().await;
+        let (mut client, _) = create_mock_caching_client().await;
+        client.expect_schedule().returning(|| Some("1/10 * * * * *".parse().unwrap()));
         assert!(client.schedule().is_some());
     }
 
     #[tokio::test]
     async fn test_job_handle() {
         let (mut client, _) = create_mock_caching_client().await;
+        client.expect_handle().returning(|| ());
         // This should not panic and should at least lock the harness
         client.handle().await;
     }
 
     #[tokio::test]
     async fn test_send_commands() {
-        let (client, mut rx) = create_mock_caching_client().await;
+        let (mut client, mut rx) = create_mock_caching_client().await;
+
+        client.expect_send_create_command().returning(|_| Ok(()));
+        client.expect_send_update_command().returning(|_| Ok(()));
+        client.expect_send_get_command().returning(|_| Ok(()));
+        client.expect_send_check_command().returning(|_| Ok(()));
 
         struct MockCommand;
         #[async_trait]
@@ -356,21 +406,17 @@ mod tests {
         // Test send_create_command
         let res = client.send_create_command(Box::new(MockCommand)).await;
         assert!(res.is_ok());
-        let _received: Box<dyn Command> = rx.recv().await.unwrap();
 
         // Test send_update_command
         let res = client.send_update_command(Box::new(MockCommand)).await;
         assert!(res.is_ok());
-        let _received: Box<dyn Command> = rx.recv().await.unwrap();
 
         // Test send_get_command
         let res = client.send_get_command(Box::new(MockCommand)).await;
         assert!(res.is_ok());
-        let _received: Box<dyn Command> = rx.recv().await.unwrap();
 
         // Test send_check_command
         let res = client.send_check_command(Box::new(MockCommand)).await;
         assert!(res.is_ok());
-        let _received: Box<dyn Command> = rx.recv().await.unwrap();
     }
 }

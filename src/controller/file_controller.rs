@@ -237,6 +237,7 @@ mod tests {
     use crate::client::MockPointerCachingClient;
     use crate::client::MockChunkCachingClient;
     use crate::client::MockStreamingClient;
+    use crate::client::MockCachingClient;
     use autonomi::SecretKey;
     use clap::Parser;
 
@@ -250,6 +251,25 @@ mod tests {
         let hybrid_cache = Data::new(HybridCacheBuilder::new().memory(10).storage().build().await.unwrap());
         let (tx, _rx) = mpsc::channel::<Box<dyn Command>>(100);
         let command_executor = Data::new(tx);
+        let mut mock_caching_client = MockCachingClient::default();
+        mock_caching_client.expect_clone().returning(MockCachingClient::default);
+
+        let hc = hybrid_cache.clone();
+        let ctx = MockCachingClient::new_context();
+        ctx.expect()
+            .returning(move |client_harness, config, hybrid_cache, command_executor| {
+                let mut mock = MockCachingClient::default();
+                mock.expect_get_hybrid_cache().return_const(hc.clone());
+                let hc_for_clone = hc.clone();
+                mock.expect_clone().returning(move || {
+                    let mut m = MockCachingClient::default();
+                    m.expect_get_hybrid_cache().return_const(hc_for_clone.clone());
+                    m.expect_clone().returning(MockCachingClient::default);
+                    m
+                });
+                mock
+            });
+
         let caching_client = Data::new(CachingClient::new(client_harness, config.clone(), hybrid_cache, command_executor));
         
         let access_checker = Data::new(tokio::sync::Mutex::new(AccessChecker::new()));
@@ -277,7 +297,8 @@ mod tests {
             1,
         ));
 
-        let mock_streaming_client = MockStreamingClient::default();
+        let mut mock_streaming_client = MockStreamingClient::default();
+        mock_streaming_client.expect_clone().returning(MockStreamingClient::default);
 
         let resolver_service = Data::new(ResolverService::new(
             crate::client::ArchiveCachingClient::new(caching_client.get_ref().clone(), mock_streaming_client.clone()),

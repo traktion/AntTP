@@ -59,27 +59,27 @@ impl Upload {
 
 #[derive(Serialize, Deserialize, ToSchema, Debug, Clone, PartialEq)]
 pub struct PublicArchiveResponse {
-    pub items: Vec<crate::model::path_detail::PathDetail>,
+    pub items: Vec<PathDetail>,
     pub content: String,
     pub address: String,
 }
 
 impl PublicArchiveResponse {
-    pub fn new(items: Vec<crate::model::path_detail::PathDetail>, content: String, address: String) -> Self {
+    pub fn new(items: Vec<PathDetail>, content: String, address: String) -> Self {
         PublicArchiveResponse { items, content, address }
     }
 }
 
 #[derive(Serialize, Deserialize, ToSchema, Debug, Clone, PartialEq)]
 pub struct PublicArchiveRaw {
-    pub items: Vec<crate::model::path_detail::PathDetail>,
+    pub items: Vec<PathDetail>,
     #[schema(value_type = String, format = Binary)]
     pub content: Bytes,
     pub address: String,
 }
 
 impl PublicArchiveRaw {
-    pub fn new(items: Vec<crate::model::path_detail::PathDetail>, content: Bytes, address: String) -> Self {
+    pub fn new(items: Vec<PathDetail>, content: Bytes, address: String) -> Self {
         PublicArchiveRaw { items, content, address }
     }
 }

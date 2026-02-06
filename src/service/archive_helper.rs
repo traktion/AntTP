@@ -70,7 +70,7 @@ impl ArchiveHelper {
             output.push_str("{");
             output.push_str(
                 &format!("\"name\": \"{}\", \"type\": \"{:?}\", \"mtime\": \"{}\", \"size\": \"{}\"",
-                         path_detail.path, path_detail.path_type, mtime_iso, path_detail.size));
+                         path_detail.display, path_detail.path_type, mtime_iso, path_detail.size));
             output.push_str("}");
             if i < count {
                 output.push_str(",");

@@ -146,7 +146,7 @@ impl Archive {
                 if i == path_parts.len() - 1 && data_address_offset.size != 0 {
                     debug!("adding file: {}", path_parts[i]);
                     let path_detail =  PathDetail {
-                        path: path_parts[i].to_string(),
+                        path: data_address_offset.path.clone(),
                         display: path_parts[i].to_string(),
                         modified: data_address_offset.modified,
                         size: data_address_offset.size,
@@ -154,11 +154,16 @@ impl Archive {
                     };
                     vec.push(path_detail);
                 } else if i == search_key_parts.len() - 1 && !map.contains_key(&path_parts[i].to_string()) {
-                    let dir = format!("{}/", path_parts[i].to_string());
+                    let dir_display = format!("{}/", path_parts[i]);
+                    let mut dir_path = path_parts[..=i].join("/");
+                    if !dir_path.ends_with('/') {
+                        dir_path.push('/');
+                    }
+
                     debug!("adding dir: {}", path_parts[i]);
                     let path_detail =  PathDetail {
-                        path: dir.clone(),
-                        display: dir.clone(),
+                        path: dir_path,
+                        display: dir_display,
                         modified: data_address_offset.modified,
                         size: 0,
                         path_type: PathDetailType::DIRECTORY,
@@ -247,8 +252,8 @@ mod tests {
         let list = archive.list_dir("".to_string());
         assert_eq!(list.len(), 2); // file1.txt and folder/
         
-        let has_file1 = list.iter().any(|p| p.path == "file1.txt" && p.path_type == PathDetailType::FILE);
-        let has_folder = list.iter().any(|p| p.path == "folder/" && p.path_type == PathDetailType::DIRECTORY);
+        let has_file1 = list.iter().any(|p| p.path == "file1.txt" && p.display == "file1.txt" && p.path_type == PathDetailType::FILE);
+        let has_folder = list.iter().any(|p| p.path == "folder/" && p.display == "folder/" && p.path_type == PathDetailType::DIRECTORY);
         
         assert!(has_file1);
         assert!(has_folder);
@@ -262,16 +267,16 @@ mod tests {
         let archive = Archive::build_from_tar(&addr, data);
 
         let list = archive.list_dir("folder".to_string());
-        // Should contain file2.txt, sub/, and ../
+        // Should contain folder/file2.txt, folder/sub/, and ../
         assert_eq!(list.len(), 3);
         
-        let has_file2 = list.iter().any(|p| p.path == "file2.txt");
-        let has_sub = list.iter().any(|p| p.path == "sub/");
+        let has_file2 = list.iter().any(|p| p.path == "folder/file2.txt" && p.display == "file2.txt");
+        let has_sub = list.iter().any(|p| p.path == "folder/sub/" && p.display == "sub/");
         let has_parent = list.iter().any(|p| p.path == "../");
 
-        assert!(has_file2);
-        assert!(has_sub);
-        assert!(has_parent);
+        assert!(has_file2, "file2.txt missing or incorrect: {:?}", list);
+        assert!(has_sub, "sub/ missing or incorrect: {:?}", list);
+        assert!(has_parent, "../ missing or incorrect: {:?}", list);
     }
 
     #[test]

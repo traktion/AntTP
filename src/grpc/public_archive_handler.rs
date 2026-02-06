@@ -14,7 +14,7 @@ pub mod public_archive_proto {
 
 use public_archive_proto::public_archive_service_server::PublicArchiveService as PublicArchiveServiceTrait;
 pub use public_archive_proto::public_archive_service_server::PublicArchiveServiceServer;
-use public_archive_proto::{CreatePublicArchiveRequest, UpdatePublicArchiveRequest, TruncatePublicArchiveRequest, PublicArchiveResponse, File as ProtoFile, GetPublicArchiveRequest, GetPublicArchiveResponse};
+use public_archive_proto::{CreatePublicArchiveRequest, UpdatePublicArchiveRequest, TruncatePublicArchiveRequest, PublicArchiveResponse, File as ProtoFile, GetPublicArchiveRequest, GetPublicArchiveResponse, Item};
 
 pub struct PublicArchiveHandler {
     public_archive_service: Data<PublicArchiveService>,
@@ -129,9 +129,16 @@ impl PublicArchiveServiceTrait for PublicArchiveHandler {
         let req = request.into_inner();
         let result = self.public_archive_service.get_public_archive_binary(req.address, Some(req.path)).await?;
 
+        let items: Vec<Item> = result.items.into_iter().map(|pd| Item {
+            name: pd.display,
+            modified: pd.modified,
+            size: pd.size,
+            r#type: format!("{:?}", pd.path_type),
+        }).collect();
+
         Ok(Response::new(GetPublicArchiveResponse {
             address: Some(result.address),
-            items: result.items,
+            items,
             content: Some(result.content.into()),
         }))
     }
@@ -152,7 +159,10 @@ mod tests {
 
     #[test]
     fn test_get_public_archive_response_mapping() {
-        let items = vec!["file1.txt".to_string(), "file2.txt".to_string()];
+        let items = vec![
+            Item { name: "file1.txt".to_string(), modified: 0, size: 1, r#type: "FILE".to_string() },
+            Item { name: "file2.txt".to_string(), modified: 0, size: 2, r#type: "FILE".to_string() },
+        ];
         let content = bytes::Bytes::from("hello world");
         let address = "0x1234".to_string();
         
@@ -163,7 +173,8 @@ mod tests {
         };
         
         assert_eq!(response.address, Some(address));
-        assert_eq!(response.items, items);
+        assert_eq!(response.items.len(), 2);
+        assert_eq!(response.items[0].name, "file1.txt");
         assert_eq!(response.content, Some(content.to_vec()));
     }
 }

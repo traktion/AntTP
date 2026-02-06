@@ -1,0 +1,34 @@
+Update Public Archive and Tarchive REST endpoints to return PathDetails in 'items' instead of filename strings
+
+As a public archive and tarchive API consumer
+I want to see the meta data associated with the item, including name, date modified, size and type
+So that it is easier to understand more detail about the files in the archive
+
+Given path_detail.rs contains PathDetail which includes all file/directory meta data
+When a public archive or tarcdive API is called (REST, MCP or gRPC)
+Then PublicArchiveResponse returns items as a Vec instead of Vec
+And public_archive_controller.rs and tarchive_controller.rs are updated to reflect the changes
+
+Given gRPC will require a proto change to reflect the new data
+When updating gRPC endpoints
+Then update the public_archive.proto responses to return define an Item message, which includes name (PathDetail.display), modified (PathDetail.modified), size ((PathDetail.size) and type ((PathDetail.path_type)
+And an example proto is at the bottom of this issue.
+
+Implementation Notes
+
+- Place any unit tests at the bottom of the same file as the associated production code
+- Increment patch version of anttp package in Cargo.toml
+- Create a copy of this issue description and save to /spec using the name of this issue as the filename (with lower underscore case, starting with the 5 char padded issue number, e.g. 00001_issue_title.txt)
+- Do not attempt to clone or mock *_service.rs code
+- Update postman collection and run newman to validate the changes
+
+Example proto response (where the types are the best type to reflect the data):
+
+```
+message Item {
+  name = 1;
+  modified = 2;
+  size = 3;
+  type = 4; 
+}
+```

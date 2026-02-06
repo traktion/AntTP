@@ -42,8 +42,15 @@ message PublicArchiveResponse {
   optional string address = 1;
 }
 
+message Item {
+  string name = 1;
+  uint64 modified = 2;
+  uint64 size = 3;
+  string type = 4;
+}
+
 message GetPublicArchiveResponse {
   optional string address = 1;
-  repeated string items = 2;
+  repeated Item items = 2;
   optional bytes content = 3;
 }

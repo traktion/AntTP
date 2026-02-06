@@ -10,7 +10,7 @@ use sanitize_filename::sanitize;
 use uuid::Uuid;
 use tar::Builder;
 
-use crate::service::public_archive_service::{PublicArchiveForm, Upload};
+use crate::service::public_archive_service::{PublicArchiveForm, TarchiveForm, Upload};
 use crate::service::public_data_service::PublicDataService;
 use crate::error::tarchive_error::TarchiveError;
 use crate::error::UpdateError;
@@ -27,7 +27,7 @@ impl TarchiveService {
         TarchiveService { public_data_service }
     }
 
-    pub async fn create_tarchive(&self, public_archive_form: MultipartForm<PublicArchiveForm>, evm_wallet: Wallet, store_type: StoreType) -> Result<Upload, TarchiveError> {
+    pub async fn create_tarchive(&self, tarchive_form: MultipartForm<TarchiveForm>, evm_wallet: Wallet, store_type: StoreType) -> Result<Upload, TarchiveError> {
         info!("Creating new tarchive");
         let tmp_dir = Self::create_tmp_dir()?;
         let tar_path = tmp_dir.join("archive.tar");
@@ -36,7 +36,7 @@ impl TarchiveService {
         {
             let tar_file = fs::File::create(&tar_path)?;
             let mut builder = Builder::new(tar_file);
-            self.build_tar_from_form(&mut builder, public_archive_form)?;
+            self.build_tar_from_form(&mut builder, tarchive_form)?;
             builder.finish()?;
         }
 
@@ -49,7 +49,7 @@ impl TarchiveService {
         result
     }
 
-    pub async fn update_tarchive(&self, address: String, public_archive_form: MultipartForm<PublicArchiveForm>, evm_wallet: Wallet, store_type: StoreType) -> Result<Upload, TarchiveError> {
+    pub async fn update_tarchive(&self, address: String, tarchive_form: MultipartForm<TarchiveForm>, evm_wallet: Wallet, store_type: StoreType) -> Result<Upload, TarchiveError> {
         info!("Updating tarchive at address [{}]", address);
         let tmp_dir = Self::create_tmp_dir()?;
         let tar_path = tmp_dir.join("archive.tar");
@@ -62,7 +62,7 @@ impl TarchiveService {
         // Append new files
         let tar_file = OpenOptions::new().append(true).read(true).open(&tar_path)?;
         let mut builder = Builder::new(tar_file);
-        self.build_tar_from_form(&mut builder, public_archive_form)?;
+        self.build_tar_from_form(&mut builder, tarchive_form)?;
         builder.finish()?;
 
         // Generate and append index
@@ -74,15 +74,15 @@ impl TarchiveService {
         result
     }
 
-    fn build_tar_from_form<W: Write>(&self, builder: &mut Builder<W>, public_archive_form: MultipartForm<PublicArchiveForm>) -> Result<(), TarchiveError> {
+    fn build_tar_from_form<W: Write>(&self, builder: &mut Builder<W>, tarchive_form: MultipartForm<TarchiveForm>) -> Result<(), TarchiveError> {
         let mut target_paths = Vec::new();
-        for tp in &public_archive_form.target_path {
+        for tp in &tarchive_form.target_path {
             for part in tp.0.split(',') {
                 target_paths.push(part.to_string());
             }
         }
 
-        for (i, temp_file) in public_archive_form.files.iter().enumerate() {
+        for (i, temp_file) in tarchive_form.files.iter().enumerate() {
             if let Some(raw_file_name) = &temp_file.file_name {
                 let mut file_path = PathBuf::new();
                 if let Some(target_path_str) = target_paths.get(i) {

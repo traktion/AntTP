@@ -28,7 +28,6 @@ impl PublicArchiveHandler {
 
     fn map_to_multipart_form(&self, files: Vec<ProtoFile>) -> Result<MultipartForm<PublicArchiveForm>, Status> {
         let mut temp_files = Vec::new();
-        let mut target_paths = Vec::new();
         for file in files {
             let mut temp_file = tempfile::NamedTempFile::new().map_err(|e|
                 Status::internal(format!("Failed to create temp file: {}", e))
@@ -43,9 +42,8 @@ impl PublicArchiveHandler {
                 content_type: None,
                 size: file.content.len(),
             });
-            target_paths.push(actix_multipart::form::text::Text(file.target_path.unwrap_or_default()));
         }
-        Ok(MultipartForm(PublicArchiveForm { files: temp_files, target_path: target_paths }))
+        Ok(MultipartForm(PublicArchiveForm { files: temp_files }))
     }
 }
 

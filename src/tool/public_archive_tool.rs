@@ -119,10 +119,8 @@ impl McpTool {
         ).await?.into())
     }
 
-    pub(crate) fn map_to_multipart_form(&self, files: HashMap<String, String>, target_paths: Option<HashMap<String, String>>) -> Result<MultipartForm<PublicArchiveForm>, ErrorData> {
+    pub(crate) fn map_to_multipart_form(&self, files: HashMap<String, String>, _target_paths: Option<HashMap<String, String>>) -> Result<MultipartForm<PublicArchiveForm>, ErrorData> {
         let mut temp_files = Vec::new();
-        let mut target_paths_vec = Vec::new();
-        let target_paths = target_paths.unwrap_or_default();
 
         for (name, content_base64) in files {
             let content = BASE64_STANDARD.decode(content_base64).map_err(|e| 
@@ -136,9 +134,6 @@ impl McpTool {
                 ErrorData::new(ErrorCode::INTERNAL_ERROR, format!("Failed to write to temp file: {}", e), None)
             )?;
 
-            let target_path = target_paths.get(&name).cloned().unwrap_or_default();
-            target_paths_vec.push(actix_multipart::form::text::Text(target_path));
-
             temp_files.push(TempFile {
                 file: temp_file,
                 file_name: Some(name),
@@ -146,6 +141,6 @@ impl McpTool {
                 size: content.len(),
             });
         }
-        Ok(MultipartForm(PublicArchiveForm { files: temp_files, target_path: target_paths_vec }))
+        Ok(MultipartForm(PublicArchiveForm { files: temp_files }))
     }
 }

@@ -3,7 +3,7 @@ use actix_web::{web, HttpRequest, HttpResponse};
 use actix_web::web::Data;
 use ant_evm::EvmWallet;
 use log::debug;
-use crate::service::public_archive_service::{PublicArchiveForm, Upload};
+use crate::service::public_archive_service::{PublicArchiveForm, TarchiveForm, Upload};
 use crate::service::tarchive_service::TarchiveService;
 use crate::error::tarchive_error::TarchiveError;
 use crate::controller::get_store_type;
@@ -12,7 +12,7 @@ use crate::controller::get_store_type;
     post,
     path = "/anttp-0/multipart/tarchive",
     request_body(
-        content = PublicArchiveForm,
+        content = TarchiveForm,
         content_type = "multipart/form-data"
     ),
     responses(
@@ -24,7 +24,7 @@ use crate::controller::get_store_type;
     ),
 )]
 pub async fn post_tarchive(
-    public_archive_form: MultipartForm<PublicArchiveForm>,
+    tarchive_form: MultipartForm<TarchiveForm>,
     tarchive_service: Data<TarchiveService>,
     evm_wallet_data: Data<EvmWallet>,
     request: HttpRequest
@@ -33,7 +33,7 @@ pub async fn post_tarchive(
 
     debug!("Creating new tarchive from multipart POST");
     Ok(HttpResponse::Created().json(
-        tarchive_service.create_tarchive(public_archive_form, evm_wallet, get_store_type(&request)).await?
+        tarchive_service.create_tarchive(tarchive_form, evm_wallet, get_store_type(&request)).await?
     ))
 }
 
@@ -41,7 +41,7 @@ pub async fn post_tarchive(
     put,
     path = "/anttp-0/multipart/tarchive/{address}",
     request_body(
-        content = PublicArchiveForm,
+        content = TarchiveForm,
         content_type = "multipart/form-data"
     ),
     responses(
@@ -55,7 +55,7 @@ pub async fn post_tarchive(
 )]
 pub async fn put_tarchive(
     path: web::Path<String>,
-    public_archive_form: MultipartForm<PublicArchiveForm>,
+    tarchive_form: MultipartForm<TarchiveForm>,
     tarchive_service: Data<TarchiveService>,
     evm_wallet_data: Data<EvmWallet>,
     request: HttpRequest,
@@ -65,6 +65,6 @@ pub async fn put_tarchive(
 
     debug!("Updating [{}] tarchive from multipart PUT with store type [{:?}]", address, get_store_type(&request));
     Ok(HttpResponse::Ok().json(
-        tarchive_service.update_tarchive(address, public_archive_form, evm_wallet, get_store_type(&request)).await?
+        tarchive_service.update_tarchive(address, tarchive_form, evm_wallet, get_store_type(&request)).await?
     ))
 }

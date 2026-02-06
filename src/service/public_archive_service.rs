@@ -48,6 +48,13 @@ pub struct PublicArchiveForm {
     #[multipart(limit = "1GB")]
     #[schema(value_type = Vec<String>, format = Binary, content_media_type = "application/octet-stream")]
     pub files: Vec<TempFile>,
+}
+
+#[derive(Debug, MultipartForm, ToSchema)]
+pub struct TarchiveForm {
+    #[multipart(limit = "1GB")]
+    #[schema(value_type = Vec<String>, format = Binary, content_media_type = "application/octet-stream")]
+    pub files: Vec<TempFile>,
     #[schema(value_type = Vec<String>, example = "[\"path/to/dir1\", \"path/to/dir2\"]")]
     pub target_path: Vec<actix_multipart::form::text::Text<String>>,
 }
@@ -370,7 +377,6 @@ mod tests {
                     size: 13,
                 },
             ],
-            target_path: vec![],
         };
 
         PublicArchiveService::move_files_to_tmp_dir(Some("dir1/subdir".to_string()), MultipartForm(form), tmp_dir.clone()).unwrap();
@@ -408,7 +414,6 @@ mod tests {
                     size: 13,
                 },
             ],
-            target_path: vec![], // Empty target_path
         };
 
         PublicArchiveService::move_files_to_tmp_dir(None, MultipartForm(form), tmp_dir.clone()).unwrap();
@@ -443,7 +448,6 @@ mod tests {
                     size: 13,
                 },
             ],
-            target_path: vec![],
         };
 
         PublicArchiveService::move_files_to_tmp_dir(Some("dir1".to_string()), MultipartForm(form), tmp_dir.clone()).unwrap();

@@ -4,7 +4,7 @@ use ant_evm::EvmWallet;
 use actix_multipart::form::tempfile::TempFile;
 use actix_multipart::form::MultipartForm;
 use std::io::Write;
-use crate::service::public_archive_service::{PublicArchiveForm, Upload};
+use crate::service::public_archive_service::{PublicArchiveForm, TarchiveForm, Upload};
 use crate::service::tarchive_service::TarchiveService;
 use crate::controller::StoreType;
 use crate::error::tarchive_error::TarchiveError;
@@ -27,7 +27,7 @@ impl TarchiveHandler {
         Self { tarchive_service, evm_wallet }
     }
 
-    fn map_to_multipart_form(&self, files: Vec<ProtoFile>) -> Result<MultipartForm<PublicArchiveForm>, Status> {
+    fn map_to_multipart_form(&self, files: Vec<ProtoFile>) -> Result<MultipartForm<TarchiveForm>, Status> {
         let mut temp_files = Vec::new();
         let mut target_paths = Vec::new();
         for file in files {
@@ -46,7 +46,7 @@ impl TarchiveHandler {
             });
             target_paths.push(actix_multipart::form::text::Text(file.target_path.unwrap_or_default()));
         }
-        Ok(MultipartForm(PublicArchiveForm { files: temp_files, target_path: target_paths }))
+        Ok(MultipartForm(TarchiveForm { files: temp_files, target_path: target_paths }))
     }
 }
 
@@ -71,10 +71,10 @@ impl TarchiveServiceTrait for TarchiveHandler {
         request: Request<CreateTarchiveRequest>,
     ) -> Result<Response<TarchiveResponse>, Status> {
         let req = request.into_inner();
-        let public_archive_form = self.map_to_multipart_form(req.files)?;
+        let tarchive_form = self.map_to_multipart_form(req.files)?;
         
         let result = self.tarchive_service.create_tarchive(
-            public_archive_form,
+            tarchive_form,
             self.evm_wallet.get_ref().clone(),
             StoreType::from(req.store_type.unwrap_or_default())
         ).await?;
@@ -87,11 +87,11 @@ impl TarchiveServiceTrait for TarchiveHandler {
         request: Request<UpdateTarchiveRequest>,
     ) -> Result<Response<TarchiveResponse>, Status> {
         let req = request.into_inner();
-        let public_archive_form = self.map_to_multipart_form(req.files)?;
+        let tarchive_form = self.map_to_multipart_form(req.files)?;
         
         let result = self.tarchive_service.update_tarchive(
             req.address,
-            public_archive_form,
+            tarchive_form,
             self.evm_wallet.get_ref().clone(),
             StoreType::from(req.store_type.unwrap_or_default())
         ).await?;

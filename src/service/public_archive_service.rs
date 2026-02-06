@@ -163,15 +163,26 @@ impl PublicArchiveService {
         }
     }
 
-    pub async fn create_public_archive(&self, public_archive_form: MultipartForm<PublicArchiveForm>, evm_wallet: Wallet, store_type: StoreType) -> Result<Upload, PublicArchiveError> {
+    pub async fn create_public_archive(&self, target_path: Option<String>, public_archive_form: MultipartForm<PublicArchiveForm>, evm_wallet: Wallet, store_type: StoreType) -> Result<PublicArchiveResponse, PublicArchiveError> {
         info!("Uploading new public archive to the network");
-        Ok(self.update_public_archive_common(public_archive_form, evm_wallet, &mut PublicArchive::new(), store_type).await?)
+        let upload = self.update_public_archive_common(target_path.clone(), public_archive_form, evm_wallet, &mut PublicArchive::new(), store_type).await?;
+        self.get_public_archive(upload.address.unwrap_or_default(), target_path).await
     }
 
-    pub async fn update_public_archive(&self, address: String, public_archive_form: MultipartForm<PublicArchiveForm>, evm_wallet: Wallet, store_type: StoreType) -> Result<Upload, PublicArchiveError> {
-        let public_archive = &mut self.public_archive_caching_client.archive_get_public(ArchiveAddress::from_hex(address.as_str())?).await?;
+    pub async fn update_public_archive(&self, address: String, target_path: Option<String>, public_archive_form: MultipartForm<PublicArchiveForm>, evm_wallet: Wallet, store_type: StoreType) -> Result<PublicArchiveResponse, PublicArchiveError> {
+        let public_archive_data = self.public_archive_caching_client.archive_get_public(ArchiveAddress::from_hex(address.as_str())?).await?;
+        let archive = Archive::build_from_public_archive(public_archive_data.clone());
+
+        if let Some(target_path_str) = &target_path {
+            if archive.find_file(target_path_str).is_some() {
+                return Err(UpdateError::InvalidData(format!("Target path [{}] is a file, not a directory", target_path_str)).into());
+            }
+        }
+
+        let mut public_archive = public_archive_data;
         info!("Uploading updated public archive to the network [{:?}]", public_archive);
-        Ok(self.update_public_archive_common(public_archive_form, evm_wallet, public_archive, store_type).await?)
+        let upload = self.update_public_archive_common(target_path.clone(), public_archive_form, evm_wallet, &mut public_archive, store_type).await?;
+        self.get_public_archive(upload.address.unwrap_or_default(), target_path).await
     }
 
     pub async fn truncate_public_archive(&self, address: String, path: String, evm_wallet: Wallet, store_type: StoreType) -> Result<Upload, PublicArchiveError> {
@@ -216,9 +227,9 @@ impl PublicArchiveService {
         }
     }
 
-    pub async fn update_public_archive_common(&self, public_archive_form: MultipartForm<PublicArchiveForm>, evm_wallet: Wallet, public_archive: &mut PublicArchive, store_type: StoreType) -> Result<Upload, PublicArchiveError> {
+    pub async fn update_public_archive_common(&self, target_path: Option<String>, public_archive_form: MultipartForm<PublicArchiveForm>, evm_wallet: Wallet, public_archive: &mut PublicArchive, store_type: StoreType) -> Result<Upload, PublicArchiveError> {
         let tmp_dir = Self::create_tmp_dir()?;
-        if let Some(e) = Self::move_files_to_tmp_dir(public_archive_form, tmp_dir.clone()).err() {
+        if let Some(e) = Self::move_files_to_tmp_dir(target_path, public_archive_form, tmp_dir.clone()).err() {
             Self::purge_tmp_dir(&tmp_dir);
             return Err(e);
         }
@@ -283,24 +294,17 @@ impl PublicArchiveService {
         Ok(tmp_dir)
     }
 
-    fn move_files_to_tmp_dir(public_archive_form: MultipartForm<PublicArchiveForm>, tmp_dir: PathBuf) -> Result<(), PublicArchiveError> {
+    fn move_files_to_tmp_dir(target_path: Option<String>, public_archive_form: MultipartForm<PublicArchiveForm>, tmp_dir: PathBuf) -> Result<(), PublicArchiveError> {
         info!("Moving files in {:?} to tmp directory: {:?}", public_archive_form.files, &tmp_dir);
 
-        let mut target_paths = Vec::new();
-        for tp in &public_archive_form.target_path {
-            for part in tp.0.split(',') {
-                target_paths.push(part.to_string());
-            }
-        }
-
-        for (i, temp_file) in public_archive_form.files.iter().enumerate() {
+        for temp_file in public_archive_form.files.iter() {
             match temp_file.file_name.clone() {
                 Some(raw_file_name) => {
                     let file_name = sanitize(raw_file_name);
                     let mut file_path = tmp_dir.clone();
 
-                    // Check if target_path is provided for this file
-                    if let Some(target_path_str) = target_paths.get(i) {
+                    // Check if target_path is provided
+                    if let Some(target_path_str) = &target_path {
                         if !target_path_str.is_empty() {
                             // Sanitise and split target path to avoid traversals
                             for part in target_path_str.split('/') {
@@ -366,17 +370,14 @@ mod tests {
                     size: 13,
                 },
             ],
-            target_path: vec![
-                actix_multipart::form::text::Text("dir1/subdir".to_string()),
-                actix_multipart::form::text::Text("dir2".to_string()),
-            ],
+            target_path: vec![],
         };
 
-        PublicArchiveService::move_files_to_tmp_dir(MultipartForm(form), tmp_dir.clone()).unwrap();
+        PublicArchiveService::move_files_to_tmp_dir(Some("dir1/subdir".to_string()), MultipartForm(form), tmp_dir.clone()).unwrap();
 
         // Check if files are in the right place
         let expected_f1 = tmp_dir.join("dir1").join("subdir").join("f1.txt");
-        let expected_f2 = tmp_dir.join("dir2").join("f2.txt");
+        let expected_f2 = tmp_dir.join("dir1").join("subdir").join("f2.txt");
 
         assert!(expected_f1.exists());
         assert!(expected_f2.exists());
@@ -410,7 +411,7 @@ mod tests {
             target_path: vec![], // Empty target_path
         };
 
-        PublicArchiveService::move_files_to_tmp_dir(MultipartForm(form), tmp_dir.clone()).unwrap();
+        PublicArchiveService::move_files_to_tmp_dir(None, MultipartForm(form), tmp_dir.clone()).unwrap();
 
         let expected_f1 = tmp_dir.join("f1.txt");
         assert!(expected_f1.exists());
@@ -442,18 +443,16 @@ mod tests {
                     size: 13,
                 },
             ],
-            target_path: vec![
-                actix_multipart::form::text::Text("dir1,dir2".to_string()),
-            ],
+            target_path: vec![],
         };
 
-        PublicArchiveService::move_files_to_tmp_dir(MultipartForm(form), tmp_dir.clone()).unwrap();
+        PublicArchiveService::move_files_to_tmp_dir(Some("dir1".to_string()), MultipartForm(form), tmp_dir.clone()).unwrap();
 
         let expected_f1 = tmp_dir.join("dir1").join("f1.txt");
-        let expected_f2 = tmp_dir.join("dir2").join("f2.txt");
+        let expected_f2 = tmp_dir.join("dir1").join("f2.txt");
 
         assert!(expected_f1.exists(), "File 1 should be in dir1");
-        assert!(expected_f2.exists(), "File 2 should be in dir2");
+        assert!(expected_f2.exists(), "File 2 should be in dir1");
     }
 
     #[tokio::test]

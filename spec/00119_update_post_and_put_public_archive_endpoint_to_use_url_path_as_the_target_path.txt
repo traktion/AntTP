@@ -1,0 +1,37 @@
+As a pubilc archive REST API consumer
+I want to provide the target path (directory) for an uploaded file as part of the 'path' in the URL
+So that it is easier to place a new file within the archive
+
+Given GET /anttp-0/public_archive/{address}/{*path} endpoint is already supported in public_archive_controller.rs
+When POST or PUT files via the REST API
+Then use public_archive_controller.rs get_public_archive_root and get_public_archive as an examples
+And replace the target_path array (which is per upload) with the shared {path:*} variable containing a target path/directory for all uploads
+
+Given a {*path} can only be a directory
+When the path is not a directory
+Then return a validation error from public_archive_service.rs (using appropriate errors for the struct)
+
+Given the response to create or update a public archive should return a similar response to POST or GET requests
+When there is a POST or PUT operation
+Then return the same payload as a GET /anttp-0/public_archive/{address}/{*path} request (see example JSON below)
+And items and address should be populated, to reflect the files PUT/POSTed and the address of the archive, respectively.
+
+Implementation Notes
+
+- Place any unit tests at the bottom of the same file as the associated production code
+- Increment patch version of anttp package in Cargo.toml
+- Create a copy of this issue description and save to /spec using the name of this issue as the filename (with lower underscore case, starting with the 5 char padded issue number, e.g. 00001_issue_title.txt)
+- Do not attempt to clone or mock *_service.rs code
+
+Example JSNON responses for file:
+
+```
+{
+  "items": [
+    "file.txt",
+    "file2.txt"
+  ],
+  "content": "",
+  "address": "{address}"
+}
+```

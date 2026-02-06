@@ -423,10 +423,18 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> io::Result<()> {
                 )
                 .route(
                     format!("{}multipart/public_archive", API_BASE).as_str(),
+                    web::post().to(public_archive_controller::post_public_archive_root),
+                )
+                .route(
+                    format!("{}multipart/public_archive/{{path:.*}}", API_BASE).as_str(),
                     web::post().to(public_archive_controller::post_public_archive),
                 )
                 .route(
                     format!("{}multipart/public_archive/{{address}}", API_BASE).as_str(),
+                    web::put().to(public_archive_controller::put_public_archive_root),
+                )
+                .route(
+                    format!("{}multipart/public_archive/{{address}}/{{path:.*}}", API_BASE).as_str(),
                     web::put().to(public_archive_controller::put_public_archive),
                 )
                 .route(

@@ -49,6 +49,14 @@ impl PublicArchiveHandler {
     }
 }
 
+impl From<crate::service::public_archive_service::PublicArchiveResponse> for PublicArchiveResponse {
+    fn from(res: crate::service::public_archive_service::PublicArchiveResponse) -> Self {
+        PublicArchiveResponse {
+            address: Some(res.address),
+        }
+    }
+}
+
 impl From<Upload> for PublicArchiveResponse {
     fn from(upload: Upload) -> Self {
         PublicArchiveResponse {
@@ -73,6 +81,7 @@ impl PublicArchiveServiceTrait for PublicArchiveHandler {
         let public_archive_form = self.map_to_multipart_form(req.files)?;
         
         let result = self.public_archive_service.create_public_archive(
+            None,
             public_archive_form,
             self.evm_wallet.get_ref().clone(),
             StoreType::from(req.store_type.unwrap_or_default())
@@ -90,6 +99,7 @@ impl PublicArchiveServiceTrait for PublicArchiveHandler {
         
         let result = self.public_archive_service.update_public_archive(
             req.address,
+            None,
             public_archive_form,
             self.evm_wallet.get_ref().clone(),
             StoreType::from(req.store_type.unwrap_or_default())

@@ -678,11 +678,6 @@
 											"type": "text",
 											"value": "test content 2",
 											"contentType": "text/plain"
-										},
-										{
-											"key": "target_path",
-											"value": "docs/v1,docs/v2",
-											"type": "text"
 										}
 									]
 								},
@@ -695,6 +690,131 @@
 										"anttp-0",
 										"multipart",
 										"public_archive"
+									]
+								}
+							}
+						},
+						{
+							"name": "Create Public Archive with Path",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"exec": [
+											"var jsonData = pm.response.json();",
+											"if (jsonData.address) {",
+											"    pm.environment.set(\"public_archive_address_path\", jsonData.address);",
+											"}"
+										],
+										"type": "text/javascript"
+									}
+								}
+							],
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "x-store-type",
+										"value": "memory",
+										"type": "text"
+									}
+								],
+								"body": {
+									"mode": "formdata",
+									"formdata": [
+										{
+											"key": "files",
+											"type": "text",
+											"value": "test content path 1",
+											"contentType": "text/plain"
+										}
+									]
+								},
+								"url": {
+									"raw": "{{base_url}}/anttp-0/multipart/public_archive/docs/v1",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"anttp-0",
+										"multipart",
+										"public_archive",
+										"docs",
+										"v1"
+									]
+								}
+							}
+						},
+						{
+							"name": "Update Public Archive",
+							"request": {
+								"method": "PUT",
+								"header": [
+									{
+										"key": "x-store-type",
+										"value": "memory",
+										"type": "text"
+									}
+								],
+								"body": {
+									"mode": "formdata",
+									"formdata": [
+										{
+											"key": "files",
+											"type": "text",
+											"value": "updated content",
+											"contentType": "text/plain"
+										}
+									]
+								},
+								"url": {
+									"raw": "{{base_url}}/anttp-0/multipart/public_archive/{{public_archive_address}}",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"anttp-0",
+										"multipart",
+										"public_archive",
+										"{{public_archive_address}}"
+									]
+								}
+							}
+						},
+						{
+							"name": "Update Public Archive with Path",
+							"request": {
+								"method": "PUT",
+								"header": [
+									{
+										"key": "x-store-type",
+										"value": "memory",
+										"type": "text"
+									}
+								],
+								"body": {
+									"mode": "formdata",
+									"formdata": [
+										{
+											"key": "files",
+											"type": "text",
+											"value": "updated content with path",
+											"contentType": "text/plain"
+										}
+									]
+								},
+								"url": {
+									"raw": "{{base_url}}/anttp-0/multipart/public_archive/{{public_archive_address_path}}/docs/v2",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"anttp-0",
+										"multipart",
+										"public_archive",
+										"{{public_archive_address_path}}",
+										"docs",
+										"v2"
 									]
 								}
 							}
@@ -880,28 +1000,23 @@
 										"type": "text"
 									}
 								],
-								"body": {
-									"mode": "formdata",
-									"formdata": [
-										{
-											"key": "files",
-											"type": "text",
-											"value": "tarchive content 1",
-											"contentType": "text/plain"
-										},
-										{
-											"key": "files",
-											"type": "text",
-											"value": "tarchive content 2",
-											"contentType": "text/plain"
-										},
-										{
-											"key": "target_path",
-											"value": "secret/dir1,secret/dir2",
-											"type": "text"
-										}
-									]
+        "body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "files",
+									"type": "text",
+									"value": "tarchive content 1",
+									"contentType": "text/plain"
 								},
+								{
+									"key": "files",
+									"type": "text",
+									"value": "tarchive content 2",
+									"contentType": "text/plain"
+								}
+							]
+						},
 								"url": {
 									"raw": "{{base_url}}/anttp-0/multipart/tarchive",
 									"host": [

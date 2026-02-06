@@ -15,15 +15,15 @@ use serde::Deserialize;
 use serde_json::json;
 use crate::controller::StoreType;
 use crate::error::public_archive_error::PublicArchiveError;
-use crate::service::public_archive_service::{PublicArchiveForm, Upload};
+use crate::service::public_archive_service::{PublicArchiveForm, Upload, PublicArchiveResponse};
 use crate::tool::McpTool;
 
 #[derive(Debug, Deserialize, JsonSchema)]
 struct CreatePublicArchiveRequest {
     #[schemars(description = "Base64 encoded content of the files to archive (map of filename to base64 content)")]
     files: HashMap<String, String>,
-    #[schemars(description = "Optional map of filename to its relative target path in the archive")]
-    target_paths: Option<HashMap<String, String>>,
+    #[schemars(description = "Optional shared target path (directory) for all files in the archive")]
+    path: Option<String>,
     #[schemars(description = "Store archive on memory, disk or network")]
     store_type: String,
 }
@@ -34,8 +34,8 @@ struct UpdatePublicArchiveRequest {
     address: String,
     #[schemars(description = "Base64 encoded content of the files to add to archive (map of filename to base64 content)")]
     files: HashMap<String, String>,
-    #[schemars(description = "Optional map of filename to its relative target path in the archive")]
-    target_paths: Option<HashMap<String, String>>,
+    #[schemars(description = "Optional shared target path (directory) for all files in the archive")]
+    path: Option<String>,
     #[schemars(description = "Store archive on memory, disk or network")]
     store_type: String,
 }
@@ -56,6 +56,12 @@ struct GetStatusPublicArchiveRequest {
     id: String,
 }
 
+impl From<PublicArchiveResponse> for CallToolResult {
+    fn from(res: PublicArchiveResponse) -> CallToolResult {
+        CallToolResult::structured(json!(res))
+    }
+}
+
 impl From<Upload> for CallToolResult {
     fn from(upload: Upload) -> CallToolResult {
         CallToolResult::structured(json!(upload))
@@ -74,10 +80,11 @@ impl McpTool {
     #[tool(description = "Create a new public archive")]
     async fn create_public_archive(
         &self,
-        Parameters(CreatePublicArchiveRequest { files, target_paths, store_type }): Parameters<CreatePublicArchiveRequest>,
+        Parameters(CreatePublicArchiveRequest { files, path, store_type }): Parameters<CreatePublicArchiveRequest>,
     ) -> Result<CallToolResult, ErrorData> {
-        let public_archive_form = self.map_to_multipart_form(files, target_paths)?;
+        let public_archive_form = self.map_to_multipart_form(files, None)?;
         Ok(self.public_archive_service.create_public_archive(
+            path,
             public_archive_form,
             self.evm_wallet.get_ref().clone(),
             StoreType::from(store_type)
@@ -87,11 +94,12 @@ impl McpTool {
     #[tool(description = "Update an existing public archive")]
     async fn update_public_archive(
         &self,
-        Parameters(UpdatePublicArchiveRequest { address, files, target_paths, store_type }): Parameters<UpdatePublicArchiveRequest>,
+        Parameters(UpdatePublicArchiveRequest { address, files, path, store_type }): Parameters<UpdatePublicArchiveRequest>,
     ) -> Result<CallToolResult, ErrorData> {
-        let public_archive_form = self.map_to_multipart_form(files, target_paths)?;
+        let public_archive_form = self.map_to_multipart_form(files, None)?;
         Ok(self.public_archive_service.update_public_archive(
             address,
+            path,
             public_archive_form,
             self.evm_wallet.get_ref().clone(),
             StoreType::from(store_type)
@@ -111,10 +119,8 @@ impl McpTool {
         ).await?.into())
     }
 
-    pub(crate) fn map_to_multipart_form(&self, files: HashMap<String, String>, target_paths: Option<HashMap<String, String>>) -> Result<MultipartForm<PublicArchiveForm>, ErrorData> {
+    pub(crate) fn map_to_multipart_form(&self, files: HashMap<String, String>, _target_paths: Option<HashMap<String, String>>) -> Result<MultipartForm<PublicArchiveForm>, ErrorData> {
         let mut temp_files = Vec::new();
-        let mut target_paths_vec = Vec::new();
-        let target_paths = target_paths.unwrap_or_default();
 
         for (name, content_base64) in files {
             let content = BASE64_STANDARD.decode(content_base64).map_err(|e| 
@@ -128,9 +134,6 @@ impl McpTool {
                 ErrorData::new(ErrorCode::INTERNAL_ERROR, format!("Failed to write to temp file: {}", e), None)
             )?;
 
-            let target_path = target_paths.get(&name).cloned().unwrap_or_default();
-            target_paths_vec.push(actix_multipart::form::text::Text(target_path));
-
             temp_files.push(TempFile {
                 file: temp_file,
                 file_name: Some(name),
@@ -138,6 +141,6 @@ impl McpTool {
                 size: content.len(),
             });
         }
-        Ok(MultipartForm(PublicArchiveForm { files: temp_files, target_path: target_paths_vec }))
+        Ok(MultipartForm(PublicArchiveForm { files: temp_files }))
     }
 }

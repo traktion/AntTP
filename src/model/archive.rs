@@ -113,6 +113,11 @@ impl Archive {
     }
 
     pub fn list_dir(&self, search_key: String) -> Vec<PathDetail> {
+        let mut search_key = search_key;
+        if search_key.starts_with("/") {
+            search_key = search_key[1..].to_string();
+        }
+
         let search_key_sanitised = if search_key.len() > 0 && search_key[search_key.len()-1..].to_string() != "/" {
             &format!("{}/", &search_key)
         } else {
@@ -267,5 +272,20 @@ mod tests {
         assert!(has_file2);
         assert!(has_sub);
         assert!(has_parent);
+    }
+
+    #[test]
+    fn test_list_dir_leading_slash() {
+        let tar_content = "folder/file2.txt 200 60\n";
+        let data = Bytes::from(tar_content);
+        let addr = create_test_data_address();
+        let archive = Archive::build_from_tar(&addr, data);
+
+        // list_dir with leading slash should return same as without
+        let list1 = archive.list_dir("folder".to_string());
+        let list2 = archive.list_dir("/folder".to_string());
+        
+        assert_eq!(list1.len(), list2.len());
+        assert_eq!(list1[0].path, list2[0].path);
     }
 }

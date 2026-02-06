@@ -1,0 +1,38 @@
+As a public archive and tarchive gRPC API consumer
+I want to provide a single path value along with a selection of files during create/update
+So that gRPC better aligns with REST and the interface becomes simpler
+
+Given create/update /anttp-0/public_archive/{address}/{*path} endpoints are already supported in public_archive_controller.rs
+When defining protos (and handlers) for create/update operations
+Then public_archive_handler.rs and tarchive_handler.rs should more closely follow the same structure (see example proto below)
+And it allows the same public_archive_service.rs and tarchive_service.rs code to be shared
+And it still allows batches of files to be uploaded at once (for files in the same directory)
+
+Implementation Notes
+
+- Place any unit tests at the bottom of the same file as the associated production code
+- Increment patch version of anttp package in Cargo.toml
+- Create a copy of this issue description and save to /spec using the name of this issue as the filename (with lower underscore case, starting with the 5 char padded issue number, e.g. 00001_issue_title.txt)
+- Do not attempt to clone or mock *_service.rs code
+
+Example proto responses for file:
+
+```
+message File {
+  string name = 1;
+  bytes content = 2;
+}
+
+message CreatePublicArchiveRequest {
+  repeated File files = 1;
+  optional string path = 2;
+  optional string store_type = 3;
+}
+
+message UpdatePublicArchiveRequest {
+  string address = 1;
+  repeated File files = 2;
+  optional string path = 3;
+  optional string store_type = 4;
+}
+```

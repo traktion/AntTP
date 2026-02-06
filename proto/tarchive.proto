@@ -10,18 +10,19 @@ service TarchiveService {
 message File {
   string name = 1;
   bytes content = 2;
-  optional string target_path = 3;
 }
 
 message CreateTarchiveRequest {
   repeated File files = 1;
-  optional string store_type = 2;
+  optional string path = 2;
+  optional string store_type = 3;
 }
 
 message UpdateTarchiveRequest {
   string address = 1;
   repeated File files = 2;
-  optional string store_type = 3;
+  optional string path = 3;
+  optional string store_type = 4;
 }
 
 message TarchiveResponse {

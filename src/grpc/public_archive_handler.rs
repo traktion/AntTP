@@ -79,7 +79,7 @@ impl PublicArchiveServiceTrait for PublicArchiveHandler {
         let public_archive_form = self.map_to_multipart_form(req.files)?;
         
         let result = self.public_archive_service.create_public_archive(
-            None,
+            req.path,
             public_archive_form,
             self.evm_wallet.get_ref().clone(),
             StoreType::from(req.store_type.unwrap_or_default())
@@ -97,7 +97,7 @@ impl PublicArchiveServiceTrait for PublicArchiveHandler {
         
         let result = self.public_archive_service.update_public_archive(
             req.address,
-            None,
+            req.path,
             public_archive_form,
             self.evm_wallet.get_ref().clone(),
             StoreType::from(req.store_type.unwrap_or_default())

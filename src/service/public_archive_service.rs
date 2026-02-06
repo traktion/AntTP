@@ -36,6 +36,7 @@ use crate::config::app_config::AppConfig;
 use crate::controller::StoreType;
 use crate::error::UpdateError;
 use crate::model::archive::Archive;
+use crate::model::path_detail::PathDetail;
 
 #[derive(Serialize, Deserialize, Clone, ToSchema)]
 pub struct Upload {
@@ -58,27 +59,27 @@ impl Upload {
 
 #[derive(Serialize, Deserialize, ToSchema, Debug, Clone, PartialEq)]
 pub struct PublicArchiveResponse {
-    pub items: Vec<String>,
+    pub items: Vec<crate::model::path_detail::PathDetail>,
     pub content: String,
     pub address: String,
 }
 
 impl PublicArchiveResponse {
-    pub fn new(items: Vec<String>, content: String, address: String) -> Self {
+    pub fn new(items: Vec<crate::model::path_detail::PathDetail>, content: String, address: String) -> Self {
         PublicArchiveResponse { items, content, address }
     }
 }
 
 #[derive(Serialize, Deserialize, ToSchema, Debug, Clone, PartialEq)]
 pub struct PublicArchiveRaw {
-    pub items: Vec<String>,
+    pub items: Vec<crate::model::path_detail::PathDetail>,
     #[schema(value_type = String, format = Binary)]
     pub content: Bytes,
     pub address: String,
 }
 
 impl PublicArchiveRaw {
-    pub fn new(items: Vec<String>, content: Bytes, address: String) -> Self {
+    pub fn new(items: Vec<crate::model::path_detail::PathDetail>, content: Bytes, address: String) -> Self {
         PublicArchiveRaw { items, content, address }
     }
 }
@@ -116,8 +117,7 @@ impl PublicArchiveService {
             None => {
                 debug!("download directory from public archive at [{}]", path);
                 let path_details = archive.list_dir(path);
-                let items = path_details.into_iter().map(|pd| pd.path).collect();
-                Ok(PublicArchiveRaw::new(items, Bytes::new(), address))
+                Ok(PublicArchiveRaw::new(path_details, Bytes::new(), address))
             }
         }
     }
@@ -483,7 +483,10 @@ mod tests {
         assert!(result.is_ok());
         let response = result.unwrap();
         assert_eq!(response.address, addr_hex);
-        assert_eq!(response.items, vec!["index.html".to_string()]);
+        assert_eq!(response.items.len(), 1);
+        let item = &response.items[0];
+        assert_eq!(item.display, "index.html");
+        assert_eq!(item.path_type, crate::model::path_detail::PathDetailType::FILE);
         assert_eq!(response.content, "".to_string());
     }
 
@@ -526,7 +529,7 @@ mod tests {
         assert!(result.is_ok());
         let response = result.unwrap();
         assert_eq!(response.address, addr_hex);
-        assert_eq!(response.items, Vec::<String>::new());
+        assert_eq!(response.items, Vec::<PathDetail>::new());
         assert_eq!(response.content, BASE64_STANDARD.encode("some content"));
     }
 

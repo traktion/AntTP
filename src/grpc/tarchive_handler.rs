@@ -72,7 +72,7 @@ impl TarchiveServiceTrait for TarchiveHandler {
         let tarchive_form = self.map_to_multipart_form(req.files)?;
         
         let result = self.tarchive_service.create_tarchive(
-            None,
+            req.path,
             tarchive_form,
             self.evm_wallet.get_ref().clone(),
             StoreType::from(req.store_type.unwrap_or_default())
@@ -90,7 +90,7 @@ impl TarchiveServiceTrait for TarchiveHandler {
         
         let result = self.tarchive_service.update_tarchive(
             req.address,
-            None,
+            req.path,
             tarchive_form,
             self.evm_wallet.get_ref().clone(),
             StoreType::from(req.store_type.unwrap_or_default())

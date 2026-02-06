@@ -109,15 +109,12 @@ impl Archive {
     }
 
     pub fn find_file(&self, search_key: &String) -> Option<&DataAddressOffset> {
-        self.data_address_offsets_map.get(search_key)
+        let search_key = Archive::sanitise_path(&search_key);
+        self.data_address_offsets_map.get(&search_key)
     }
 
     pub fn list_dir(&self, search_key: String) -> Vec<PathDetail> {
-        let mut search_key = search_key;
-        if search_key.starts_with("/") {
-            search_key = search_key[1..].to_string();
-        }
-
+        let search_key = Archive::sanitise_path(&search_key);
         let search_key_sanitised = if search_key.len() > 0 && search_key[search_key.len()-1..].to_string() != "/" {
             &format!("{}/", &search_key)
         } else {

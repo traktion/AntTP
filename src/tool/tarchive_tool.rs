@@ -14,15 +14,15 @@ use rmcp::schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use crate::controller::StoreType;
 use crate::error::tarchive_error::TarchiveError;
-use crate::service::public_archive_service::TarchiveForm;
+use crate::service::public_archive_service::PublicArchiveForm;
 use crate::tool::McpTool;
 
 #[derive(Debug, Deserialize, JsonSchema, Serialize)]
 struct CreateTarchiveRequest {
     #[schemars(description = "Base64 encoded content of the files to archive (map of filename to base64 content)")]
     files: HashMap<String, String>,
-    #[schemars(description = "Optional map of filename to its relative target path in the archive")]
-    target_paths: Option<HashMap<String, String>>,
+    #[schemars(description = "Optional shared target path (directory) for all files in the archive")]
+    path: Option<String>,
     #[schemars(description = "Store archive on memory, disk or network")]
     store_type: String,
 }
@@ -33,8 +33,8 @@ struct UpdateTarchiveRequest {
     address: String,
     #[schemars(description = "Base64 encoded content of the files to add to archive (map of filename to base64 content)")]
     files: HashMap<String, String>,
-    #[schemars(description = "Optional map of filename to its relative target path in the archive")]
-    target_paths: Option<HashMap<String, String>>,
+    #[schemars(description = "Optional shared target path (directory) for all files in the archive")]
+    path: Option<String>,
     #[schemars(description = "Store archive on memory, disk or network")]
     store_type: String,
 }
@@ -51,10 +51,11 @@ impl McpTool {
     #[tool(description = "Create a new tarchive")]
     async fn create_tarchive(
         &self,
-        Parameters(CreateTarchiveRequest { files, target_paths, store_type }): Parameters<CreateTarchiveRequest>,
+        Parameters(CreateTarchiveRequest { files, path, store_type }): Parameters<CreateTarchiveRequest>,
     ) -> Result<CallToolResult, ErrorData> {
-        let tarchive_form = self.map_to_tarchive_multipart_form(files, target_paths)?;
+        let tarchive_form = self.map_to_tarchive_multipart_form(files)?;
         Ok(self.tarchive_service.create_tarchive(
+            path,
             tarchive_form,
             self.evm_wallet.get_ref().clone(),
             StoreType::from(store_type)
@@ -64,20 +65,20 @@ impl McpTool {
     #[tool(description = "Update an existing tarchive")]
     async fn update_tarchive(
         &self,
-        Parameters(UpdateTarchiveRequest { address, files, target_paths, store_type }): Parameters<UpdateTarchiveRequest>,
+        Parameters(UpdateTarchiveRequest { address, files, path, store_type }): Parameters<UpdateTarchiveRequest>,
     ) -> Result<CallToolResult, ErrorData> {
-        let tarchive_form = self.map_to_tarchive_multipart_form(files, target_paths)?;
+        let tarchive_form = self.map_to_tarchive_multipart_form(files)?;
         Ok(self.tarchive_service.update_tarchive(
             address,
+            path,
             tarchive_form,
             self.evm_wallet.get_ref().clone(),
             StoreType::from(store_type)
         ).await?.into())
     }
-    fn map_to_tarchive_multipart_form(&self, files: HashMap<String, String>, target_paths: Option<HashMap<String, String>>) -> Result<MultipartForm<TarchiveForm>, ErrorData> {
+
+    fn map_to_tarchive_multipart_form(&self, files: HashMap<String, String>) -> Result<MultipartForm<PublicArchiveForm>, ErrorData> {
         let mut temp_files = Vec::new();
-        let mut target_paths_vec = Vec::new();
-        let target_paths = target_paths.unwrap_or_default();
 
         for (name, content_base64) in files {
             let content = BASE64_STANDARD.decode(content_base64).map_err(|e| 
@@ -91,9 +92,6 @@ impl McpTool {
                 ErrorData::new(ErrorCode::INTERNAL_ERROR, format!("Failed to write to temp file: {}", e), None)
             )?;
 
-            let target_path = target_paths.get(&name).cloned().unwrap_or_default();
-            target_paths_vec.push(actix_multipart::form::text::Text(target_path));
-
             temp_files.push(TempFile {
                 file: temp_file,
                 file_name: Some(name),
@@ -101,7 +99,7 @@ impl McpTool {
                 size: content.len(),
             });
         }
-        Ok(MultipartForm(TarchiveForm { files: temp_files, target_path: target_paths_vec }))
+        Ok(MultipartForm(PublicArchiveForm { files: temp_files }))
     }
 }
 
@@ -115,7 +113,7 @@ mod tests {
         files.insert("test.txt".to_string(), "SGVsbG8gd29ybGQ=".to_string());
         let request = CreateTarchiveRequest {
             files,
-            target_paths: None,
+            path: None,
             store_type: "memory".to_string(),
         };
         let json = serde_json::to_string(&request).unwrap();
@@ -131,7 +129,7 @@ mod tests {
         let request = UpdateTarchiveRequest {
             address: "0x123".to_string(),
             files,
-            target_paths: Some(HashMap::new()),
+            path: Some("secret".to_string()),
             store_type: "disk".to_string(),
         };
         let json = serde_json::to_string(&request).unwrap();
@@ -139,5 +137,6 @@ mod tests {
         assert_eq!(deserialized.address, "0x123");
         assert_eq!(deserialized.store_type, "disk");
         assert_eq!(deserialized.files.get("test2.txt").unwrap(), "VXBkYXRlZA==");
+        assert_eq!(deserialized.path, Some("secret".to_string()));
     }
 }

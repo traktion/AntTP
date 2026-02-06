@@ -50,15 +50,6 @@ pub struct PublicArchiveForm {
     pub files: Vec<TempFile>,
 }
 
-#[derive(Debug, MultipartForm, ToSchema)]
-pub struct TarchiveForm {
-    #[multipart(limit = "1GB")]
-    #[schema(value_type = Vec<String>, format = Binary, content_media_type = "application/octet-stream")]
-    pub files: Vec<TempFile>,
-    #[schema(value_type = Vec<String>, example = "[\"path/to/dir1\", \"path/to/dir2\"]")]
-    pub target_path: Vec<actix_multipart::form::text::Text<String>>,
-}
-
 impl Upload {
     pub fn new(address: Option<String>) -> Self {
         Upload { address }

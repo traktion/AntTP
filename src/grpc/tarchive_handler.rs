@@ -4,7 +4,7 @@ use ant_evm::EvmWallet;
 use actix_multipart::form::tempfile::TempFile;
 use actix_multipart::form::MultipartForm;
 use std::io::Write;
-use crate::service::public_archive_service::{PublicArchiveForm, TarchiveForm, Upload};
+use crate::service::public_archive_service::{PublicArchiveForm, Upload};
 use crate::service::tarchive_service::TarchiveService;
 use crate::controller::StoreType;
 use crate::error::tarchive_error::TarchiveError;
@@ -27,9 +27,8 @@ impl TarchiveHandler {
         Self { tarchive_service, evm_wallet }
     }
 
-    fn map_to_multipart_form(&self, files: Vec<ProtoFile>) -> Result<MultipartForm<TarchiveForm>, Status> {
+    fn map_to_multipart_form(&self, files: Vec<ProtoFile>) -> Result<MultipartForm<PublicArchiveForm>, Status> {
         let mut temp_files = Vec::new();
-        let mut target_paths = Vec::new();
         for file in files {
             let mut temp_file = tempfile::NamedTempFile::new().map_err(|e|
                 Status::internal(format!("Failed to create temp file: {}", e))
@@ -44,9 +43,8 @@ impl TarchiveHandler {
                 content_type: None,
                 size: file.content.len(),
             });
-            target_paths.push(actix_multipart::form::text::Text(file.target_path.unwrap_or_default()));
         }
-        Ok(MultipartForm(TarchiveForm { files: temp_files, target_path: target_paths }))
+        Ok(MultipartForm(PublicArchiveForm { files: temp_files }))
     }
 }
 
@@ -74,6 +72,7 @@ impl TarchiveServiceTrait for TarchiveHandler {
         let tarchive_form = self.map_to_multipart_form(req.files)?;
         
         let result = self.tarchive_service.create_tarchive(
+            None,
             tarchive_form,
             self.evm_wallet.get_ref().clone(),
             StoreType::from(req.store_type.unwrap_or_default())
@@ -91,6 +90,7 @@ impl TarchiveServiceTrait for TarchiveHandler {
         
         let result = self.tarchive_service.update_tarchive(
             req.address,
+            None,
             tarchive_form,
             self.evm_wallet.get_ref().clone(),
             StoreType::from(req.store_type.unwrap_or_default())

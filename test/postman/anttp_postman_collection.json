@@ -1000,28 +1000,23 @@
 										"type": "text"
 									}
 								],
-								"body": {
-									"mode": "formdata",
-									"formdata": [
-										{
-											"key": "files",
-											"type": "text",
-											"value": "tarchive content 1",
-											"contentType": "text/plain"
-										},
-										{
-											"key": "files",
-											"type": "text",
-											"value": "tarchive content 2",
-											"contentType": "text/plain"
-										},
-										{
-											"key": "target_path",
-											"value": "secret/dir1,secret/dir2",
-											"type": "text"
-										}
-									]
+        "body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "files",
+									"type": "text",
+									"value": "tarchive content 1",
+									"contentType": "text/plain"
 								},
+								{
+									"key": "files",
+									"type": "text",
+									"value": "tarchive content 2",
+									"contentType": "text/plain"
+								}
+							]
+						},
 								"url": {
 									"raw": "{{base_url}}/anttp-0/multipart/tarchive",
 									"host": [

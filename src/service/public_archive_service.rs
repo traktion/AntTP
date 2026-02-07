@@ -34,7 +34,7 @@ use crate::error::public_archive_error::PublicArchiveError;
 use crate::error::chunk_error::ChunkError;
 use crate::config::app_config::AppConfig;
 use crate::controller::StoreType;
-use crate::error::UpdateError;
+use crate::error::{CreateError, UpdateError};
 use crate::model::archive::Archive;
 use crate::model::path_detail::PathDetail;
 
@@ -265,9 +265,14 @@ impl PublicArchiveService {
             } else {
                 info!("Reading file path: {:?}", path);
 
-                let data_address = self.public_data_caching_client
+                let data_address = match self.public_data_caching_client
                     .file_content_upload_public(path.clone(), PaymentOption::Wallet(evm_wallet.clone()), store_type.clone())
-                    .await?;
+                    .await {
+                    Ok(data_address) => data_address,
+                    Err(e) => {
+                        return Err(PublicArchiveError::CreateError(CreateError::Encryption(e.to_string())))
+                    }
+                };
                 let created_at = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_secs();
                 let custom_metadata = Metadata {
                     created: created_at,

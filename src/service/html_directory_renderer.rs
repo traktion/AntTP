@@ -123,7 +123,7 @@ impl HtmlDirectoryRenderer {
             };
 
             output.push_str("                <tr>\n");
-            output.push_str(&format!("                    <td><a href=\"{}\">{} {}</a></td>\n", path_detail.path, icon, path_detail.display));
+            output.push_str(&format!("                    <td><a href=\"/{}\">{} {}</a></td>\n", path_detail.path, icon, path_detail.display));
             output.push_str(&format!("                    <td class=\"mtime\">{}</td>\n", mtime_iso));
             output.push_str(&format!("                    <td class=\"size\">{}</td>\n", format_size(path_detail.size)));
             output.push_str("                </tr>\n");

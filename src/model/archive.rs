@@ -114,6 +114,7 @@ impl Archive {
     }
 
     pub fn list_dir(&self, search_key: String) -> Vec<PathDetail> {
+        debug!("list_dir - search_key: {}", &search_key);
         let search_key = Archive::sanitise_path(&search_key);
         let search_key_sanitised = if search_key.len() > 0 && search_key[search_key.len()-1..].to_string() != "/" {
             &format!("{}/", &search_key)
@@ -122,7 +123,7 @@ impl Archive {
         };
 
         let search_key_parts = search_key_sanitised.split("/").collect::<Vec<&str>>();
-        debug!("list_dir - search_key: {}", &search_key_sanitised);
+        debug!("list_dir - search_key_sanitised: {}", &search_key_sanitised);
         let mut vec = vec![];
         let mut map = HashMap::new();
 

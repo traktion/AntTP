@@ -99,7 +99,7 @@ impl PointerServiceTrait for PointerHandler {
         request: Request<GetPointerRequest>,
     ) -> Result<Response<PointerResponse>, Status> {
         let req = request.into_inner();
-        let result = self.pointer_service.get_pointer(req.address).await?;
+        let result = self.pointer_service.get_pointer(req.address, DataKey::from(req.data_key.unwrap_or_default())).await?;
 
         Ok(Response::new(PointerResponse {
             pointer: Some(Pointer::from(result)),

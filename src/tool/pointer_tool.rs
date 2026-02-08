@@ -42,6 +42,8 @@ struct UpdatePointerRequest {
 struct GetPointerRequest {
     #[schemars(description = "Address of the pointer")]
     address: String,
+    #[schemars(description = "Data key type (personal, resolver, or custom hex key)")]
+    data_key: String,
 }
 
 impl From<Pointer> for CallToolResult {
@@ -90,8 +92,8 @@ impl McpTool {
     #[tool(description = "Get a pointer by its address")]
     async fn get_pointer(
         &self,
-        Parameters(GetPointerRequest { address }): Parameters<GetPointerRequest>,
+        Parameters(GetPointerRequest { address, data_key }): Parameters<GetPointerRequest>,
     ) -> Result<CallToolResult, ErrorData> {
-        Ok(self.pointer_service.get_pointer(address).await?.into())
+        Ok(self.pointer_service.get_pointer(address, DataKey::from(data_key)).await?.into())
     }
 }

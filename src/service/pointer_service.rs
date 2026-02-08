@@ -65,7 +65,8 @@ impl PointerService {
     pub async fn update_pointer(&self, address: String, pointer: Pointer, store_type: StoreType, data_key: DataKey) -> Result<Pointer, PointerError> {
         match pointer.name {
             Some(name) => {
-                let resolved_address = self.resolver_service.resolve_name(&address).await.unwrap_or(address);
+                let resolved_address = self.resolve_address(address, data_key.clone()).await?;
+
                 let secret_key = self.get_data_key(data_key)?;
                 let pointer_key = Client::register_key_from_name(&secret_key, name.as_str());
                 if resolved_address.clone() != pointer_key.public_key().to_hex() {
@@ -82,6 +83,15 @@ impl PointerService {
             },
             None => Err(PointerError::CreateError(CreateError::InvalidData("Name must be provided".to_string())))
         }
+    }
+
+    async fn resolve_address(&self, address: String, data_key: DataKey) -> Result<String, PointerError> {
+        Ok(if self.resolver_service.is_mutable_address(&address) {
+            self.resolver_service.resolve_name(&address).await.unwrap_or(address)
+        } else {
+            let secret_key = self.get_data_key(data_key)?;
+            Client::register_key_from_name(&secret_key, address.as_str()).public_key().to_hex()
+        })
     }
 
     pub fn get_resolver_address(&self, name: &String) -> Result<String, CreateError> {
@@ -108,8 +118,8 @@ impl PointerService {
         })
     }
 
-    pub async fn get_pointer(&self, address: String) -> Result<Pointer, PointerError> {
-        let resolved_address = self.resolver_service.resolve_name(&address).await.unwrap_or(address);
+    pub async fn get_pointer(&self, address: String, data_key: DataKey) -> Result<Pointer, PointerError> {
+        let resolved_address = self.resolve_address(address, data_key).await?;
 
         info!("Get pointer with resolved_address [{}]", resolved_address);
         let pointer_address = PointerAddress::from_hex(resolved_address.as_str())?;
@@ -236,6 +246,10 @@ mod tests {
             cost: None,
         };
 
+        mock_resolver_service
+            .expect_is_mutable_address()
+            .returning(|_| true);
+
         let address_val = address.clone();
         mock_resolver_service
             .expect_resolve_name()
@@ -279,6 +293,10 @@ mod tests {
         };
 
         mock_resolver_service
+            .expect_is_mutable_address()
+            .returning(|_| true);
+
+        mock_resolver_service
             .expect_resolve_name()
             .returning(|_| None);
 
@@ -301,6 +319,10 @@ mod tests {
         let target_hex = "b40e045a6fbed33b27039aa8383c9dbf286e19a7265141c2da3085e0c8571527";
         let target = PointerTarget::ChunkAddress(ChunkAddress::from_hex(target_hex).unwrap());
 
+        mock_resolver_service
+            .expect_is_mutable_address()
+            .returning(|_| true);
+
         let address_val = address_hex.clone();
         mock_resolver_service
             .expect_resolve_name()
@@ -316,7 +338,7 @@ mod tests {
             .returning(move |_| Ok(autonomi_pointer.clone()));
 
         let service = create_test_service(mock_pointer_caching_client, mock_resolver_service);
-        let result = service.get_pointer(address_hex.clone()).await;
+        let result = service.get_pointer(address_hex.clone(), DataKey::Personal).await;
 
         match result {
             Ok(retrieved_pointer) => {
@@ -398,11 +420,15 @@ mod tests {
         let invalid_address = "invalid_address".to_string();
         
         mock_resolver_service
+            .expect_is_mutable_address()
+            .returning(|_| true);
+
+        mock_resolver_service
             .expect_resolve_name()
             .returning(|address| Some(address.to_string()));
             
         let service = create_test_service(mock_pointer_caching_client, mock_resolver_service);
-        let result = service.get_pointer(invalid_address).await;
+        let result = service.get_pointer(invalid_address, DataKey::Personal).await;
         
         assert!(result.is_err());
     }
@@ -455,31 +481,85 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_update_pointer_data_key_error() {
-        let mock_pointer_caching_client = MockPointerCachingClient::default();
+    async fn test_get_pointer_by_name_success() {
+        let mut mock_pointer_caching_client = MockPointerCachingClient::default();
         let mut mock_resolver_service = MockResolverService::default();
+        
+        let pointer_name = "my_pointer_name".to_string();
+        let owner_sk_hex = "55dcbc4624699d219b8ec293339a3b81e68815397f5a502026784d8122d09fce";
+        let owner_sk = SecretKey::from_hex(owner_sk_hex).unwrap();
+        let derived_address = Client::register_key_from_name(&owner_sk, &pointer_name).public_key().to_hex();
+        
+        let target_hex = "b40e045a6fbed33b27039aa8383c9dbf286e19a7265141c2da3085e0c8571527";
+        let target = PointerTarget::ChunkAddress(ChunkAddress::from_hex(target_hex).unwrap());
+
+        mock_resolver_service
+            .expect_is_mutable_address()
+            .with(eq(pointer_name.clone()))
+            .returning(|_| false);
+
+        let autonomi_pointer = autonomi::Pointer::new(&owner_sk, 1, target);
+
+        mock_pointer_caching_client
+            .expect_pointer_get()
+            .times(1)
+            .returning(move |_| Ok(autonomi_pointer.clone()));
+
+        let service = create_test_service(mock_pointer_caching_client, mock_resolver_service);
+        let result = service.get_pointer(pointer_name.clone(), DataKey::Personal).await;
+
+        match result {
+            Ok(retrieved_pointer) => {
+                assert_eq!(retrieved_pointer.content, target_hex);
+                assert_eq!(retrieved_pointer.address, Some(derived_address));
+                assert_eq!(retrieved_pointer.counter, Some(1));
+            },
+            Err(e) => panic!("Get Error: {:?}", e),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_update_pointer_by_name_success() {
+        let mut mock_pointer_caching_client = MockPointerCachingClient::default();
+        let mut mock_resolver_service = MockResolverService::default();
+        
+        let pointer_name = "my_pointer_name".to_string();
+        let owner_sk_hex = "55dcbc4624699d219b8ec293339a3b81e68815397f5a502026784d8122d09fce";
+        let owner_sk = SecretKey::from_hex(owner_sk_hex).unwrap();
+        let derived_address = Client::register_key_from_name(&owner_sk, &pointer_name).public_key().to_hex();
+        
+        let content = "a40e045a6fbed33b27039aa8383c9dbf286e19a7265141c2da3085e0c8571527".to_string();
         let pointer = super::Pointer {
-            name: Some("test".to_string()),
-            content: "content".to_string(),
+            name: Some(pointer_name.clone()),
+            content: content.clone(),
             address: None,
             counter: None,
             cost: None,
         };
 
         mock_resolver_service
-            .expect_resolve_name()
-            .returning(|address| Some(address.to_string()));
+            .expect_is_mutable_address()
+            .with(eq(pointer_name.clone()))
+            .returning(|_| false);
 
-        // Empty app private key to trigger error in get_data_key
-        let config = AntTpConfig::try_parse_from(&[
-            "anttp",
-            "--app-private-key",
-            "",
-        ]).unwrap();
+        mock_resolver_service
+            .expect_is_immutable_address()
+            .returning(|_| true);
 
-        let service = PointerService::new(mock_pointer_caching_client, config, mock_resolver_service);
-        let result = service.update_pointer("some_address".to_string(), pointer, StoreType::Network, DataKey::Personal).await;
+        mock_pointer_caching_client
+            .expect_pointer_update()
+            .times(1)
+            .returning(|_, _, _, _| Ok(()));
 
-        assert!(result.is_err());
+        let service = create_test_service(mock_pointer_caching_client, mock_resolver_service);
+        let result = service.update_pointer(pointer_name.clone(), pointer, StoreType::Network, DataKey::Personal).await;
+
+        match result {
+            Ok(updated_pointer) => {
+                assert_eq!(updated_pointer.name, Some(pointer_name));
+                assert_eq!(updated_pointer.address, Some(derived_address));
+            },
+            Err(e) => panic!("Update Error: {:?}", e),
+        }
     }
 }

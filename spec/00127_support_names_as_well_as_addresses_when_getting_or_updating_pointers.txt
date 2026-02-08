@@ -1,0 +1,28 @@
+As a pointer API consumer
+I want be able to provide a pointer name or a pointer address when getting or updating pointers
+So that as an owner of a pointer I can more easily resolve the pointer, without knowing the address
+
+Given pointer_service.rs has update_pointer and get_pointer functions
+When address is not a mutable address (tested via is_mutable_address in resolver_service.rs)
+Then assume it is a pointer name
+And attempt to resolve the pointer name to the address using 'Client::register_key_from_name' (see example code below)
+
+Given pointer_service.rs update_pointer and get_pointer functions currently accept an address
+When names are also supported
+Then addresses continue to be supported, without any regressions
+
+Implementation Notes
+
+- Place any unit tests at the bottom of the same file as the associated production code
+- Increment patch version of anttp package in Cargo.toml
+- Create a copy of this issue description and save to /spec using the name of this issue as the filename (with lower underscore case, starting with the 5 char padded issue number, e.g. 00001_issue_title.txt)
+- Update pointer_service.rs unit tests
+
+Example code:
+
+```
+let secret_key = self.get_data_key(data_key)?;
+let pointer_key = Client::register_key_from_name(&secret_key, name.as_str());
+let pointer_hex = pointer_key.public_key().to_hex();
+let pointer_address = PointerAddress::from_hex(pointer_address);
+```

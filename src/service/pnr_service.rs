@@ -107,7 +107,7 @@ impl PnrService {
     pub async fn get_pnr(&self, name: String) -> Result<PnrZone, PointerError> {
         let (resolver_address, personal_pointer_address) = self.resolve_personal_address(&name).await?;
 
-        let personal_pointer = self.pointer_service.get_pointer(personal_pointer_address.clone()).await?;
+        let personal_pointer = self.pointer_service.get_pointer(personal_pointer_address.clone(), DataKey::Personal).await?;
         let pnr_zone_address = personal_pointer.content;
 
         match self.chunk_caching_client.chunk_get_internal(&ant_protocol::storage::ChunkAddress::from_hex(&pnr_zone_address)?).await {
@@ -137,7 +137,7 @@ impl PnrService {
 
     async fn resolve_personal_address(&self, name: &String) -> Result<(String, String), PointerError> {
         let resolver_address = self.pointer_service.get_resolver_address(name)?;
-        let personal_pointer_address = match self.pointer_service.get_pointer(resolver_address.clone()).await {
+        let personal_pointer_address = match self.pointer_service.get_pointer(resolver_address.clone(), DataKey::Resolver).await {
             Ok(pointer) => pointer.content,
             Err(e) => return Err(e),
         };

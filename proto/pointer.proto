@@ -31,6 +31,7 @@ message UpdatePointerRequest {
 
 message GetPointerRequest {
   string address = 1;
+  optional string data_key = 2;
 }
 
 message PointerResponse {

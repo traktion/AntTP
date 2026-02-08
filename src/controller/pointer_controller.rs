@@ -84,9 +84,10 @@ pub async fn put_pointer(
 pub async fn get_pointer(
     path: web::Path<String>,
     pointer_service: Data<PointerService>,
+    request: HttpRequest,
 ) -> Result<HttpResponse, PointerError> {
     let address = path.into_inner();
 
     debug!("Getting pointer at [{}]", address);
-    Ok(HttpResponse::Ok().json(pointer_service.get_pointer(address).await?))
+    Ok(HttpResponse::Ok().json(pointer_service.get_pointer(address, data_key(&request)).await?))
 }

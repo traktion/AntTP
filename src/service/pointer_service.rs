@@ -65,12 +65,7 @@ impl PointerService {
     pub async fn update_pointer(&self, address: String, pointer: Pointer, store_type: StoreType, data_key: DataKey) -> Result<Pointer, PointerError> {
         match pointer.name {
             Some(name) => {
-                let resolved_address = if self.resolver_service.is_mutable_address(&address) {
-                    self.resolver_service.resolve_name(&address).await.unwrap_or(address)
-                } else {
-                    let secret_key = self.get_data_key(data_key.clone())?;
-                    Client::register_key_from_name(&secret_key, address.as_str()).public_key().to_hex()
-                };
+                let resolved_address = self.resolve_address(address, data_key.clone()).await?;
 
                 let secret_key = self.get_data_key(data_key)?;
                 let pointer_key = Client::register_key_from_name(&secret_key, name.as_str());
@@ -88,6 +83,15 @@ impl PointerService {
             },
             None => Err(PointerError::CreateError(CreateError::InvalidData("Name must be provided".to_string())))
         }
+    }
+
+    async fn resolve_address(&self, address: String, data_key: DataKey) -> Result<String, PointerError> {
+        Ok(if self.resolver_service.is_mutable_address(&address) {
+            self.resolver_service.resolve_name(&address).await.unwrap_or(address)
+        } else {
+            let secret_key = self.get_data_key(data_key)?;
+            Client::register_key_from_name(&secret_key, address.as_str()).public_key().to_hex()
+        })
     }
 
     pub fn get_resolver_address(&self, name: &String) -> Result<String, CreateError> {
@@ -115,12 +119,7 @@ impl PointerService {
     }
 
     pub async fn get_pointer(&self, address: String, data_key: DataKey) -> Result<Pointer, PointerError> {
-        let resolved_address = if self.resolver_service.is_mutable_address(&address) {
-            self.resolver_service.resolve_name(&address).await.unwrap_or(address)
-        } else {
-            let secret_key = self.get_data_key(data_key)?;
-            Client::register_key_from_name(&secret_key, address.as_str()).public_key().to_hex()
-        };
+        let resolved_address = self.resolve_address(address, data_key).await?;
 
         info!("Get pointer with resolved_address [{}]", resolved_address);
         let pointer_address = PointerAddress::from_hex(resolved_address.as_str())?;

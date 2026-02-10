@@ -6,6 +6,7 @@ service PublicArchiveService {
   rpc CreatePublicArchive(CreatePublicArchiveRequest) returns (PublicArchiveResponse);
   rpc UpdatePublicArchive(UpdatePublicArchiveRequest) returns (PublicArchiveResponse);
   rpc TruncatePublicArchive(TruncatePublicArchiveRequest) returns (PublicArchiveResponse);
+  rpc PushPublicArchive(PushPublicArchiveRequest) returns (PublicArchiveResponse);
   rpc GetPublicArchive(GetPublicArchiveRequest) returns (GetPublicArchiveResponse);
 }
 
@@ -37,6 +38,11 @@ message GetPublicArchiveRequest {
   string address = 1;
   string path = 2;
   optional string store_type = 3;
+}
+
+message PushPublicArchiveRequest {
+  string address = 1;
+  optional string store_type = 2;
 }
 
 message PublicArchiveResponse {

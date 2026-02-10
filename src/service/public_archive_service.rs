@@ -97,6 +97,17 @@ impl PublicArchiveService {
         PublicArchiveService { file_service: file_client, public_archive_caching_client, public_data_caching_client }
     }
 
+    pub async fn push_public_archive(&self, address: String, evm_wallet: Wallet, store_type: StoreType) -> Result<Upload, PublicArchiveError> {
+        // Retrieve the staged archive (from cache or network)
+        let archive_address = ArchiveAddress::from_hex(address.as_str())?;
+        let public_archive = self.public_archive_caching_client.archive_get_public(archive_address).await?;
+        // Persist to target store_type (default expected to be network at call-site)
+        match self.public_archive_caching_client.archive_put_public(&public_archive, PaymentOption::Wallet(evm_wallet), store_type).await {
+            Ok(new_address) => Ok(Upload::new(Some(new_address.to_hex()))),
+            Err(e) => Err(e)
+        }
+    }
+
     pub async fn get_public_archive(&self, address: String, path: Option<String>) -> Result<PublicArchiveResponse, PublicArchiveError> {
         let res = self.get_public_archive_binary(address, path).await?;
         Ok(PublicArchiveResponse::new(res.items, BASE64_STANDARD.encode(res.content), res.address))

@@ -1,0 +1,43 @@
+Create a public archive endpoint to sync a local archive to the network
+
+As a public archive API user
+I want to be able to push local (cached) changes to Autonomi network
+So that I can use the cache as a staging area, then sync to the network when the archive is ready to share
+
+Given a public archive can be staged in disk or memory cache by posting with store-type disk or memory
+When the archive is ready to be persisted to the network
+Then it a new endpoint should be created which retrieves the archive from cache and uploads it to the network
+And the endpoint should be POST /anttp-0/public_archive/{address} in public_archive_controller.rs for REST
+And the function should be push_public_archive in public_archive_handler.rs for gRPC (in a similar style to other functions in the struct)
+And the function should be push_public_archive in public_archive_tool.rs for MCP (in a similar style to other functions in the struct)
+
+Given a public archive can be retrieved from the cache using public_archive_caching_client.archive_get_public()
+And can be persisted to the network public_archive_caching_client.archive_put_public() with store-type = network
+When the archive is persisted to the network
+Then public_archive_service.push_public_archive should be created which retrieves the archive (from cache) and puts it to the network
+
+Given an archive could be pushed from memory to disk, from memory to network, or disk to network
+When pushing an archive
+Then let store-type dictate the target, with the default remaining 'network'
+
+Given gRPC will require an updated proto file
+When adding the new push_public_archive function
+Then also add PushPublicArchiveRequest, which takes an address
+And return PublicArchiveResponse in a similar style to CreatePublicArchiveRequest
+And see the example proto below
+
+Given tarchives may share the same code being changed
+When updating public archive code
+Then if the code is shared, then update tarchive to keep them aligned
+
+Implementation Notes
+
+- Place any unit tests at the bottom of the same file as the associated production code
+- Increment patch version of anttp package in Cargo.toml
+- Create a copy of this issue description and save to /spec using the name of this issue as the filename (with lower underscore case, starting with the 5 char padded issue number, e.g. 00001_issue_title.txt)
+- Update public_archive_service.rs unit tests
+
+message PushPublicArchiveRequest {
+  string address = 1;
+  optional string store_type = 2;
+}

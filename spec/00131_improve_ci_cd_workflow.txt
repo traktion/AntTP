@@ -1,0 +1,22 @@
+As a software engineer
+I want to create a basic github CI/CD workflow to build and test the application
+So that I can have confidence in the code and a simple way to download the release binary 
+
+Given AntTP supports multiple target platforms
+When building AntFTP
+Then ensure that x86_64-unknown-linux-musl, x86_64-pc-windows-gnu and aarch64-unknown-linux-musl are built
+And user https://raw.githubusercontent.com/traktion/antftp/refs/heads/master/.github/workflows/ci.yml as a foundation to replace the existing (limited) workflow
+
+Given the test suit should be run after build is successful
+When building AntFTP
+Then run unit tests on x86_64-unknown-linux-musl build
+
+Given each build will create fresh binaries
+When completing the build process
+Then create a draft release, using notes of commits since the last non-draft release, and provide the above binaries for download
+
+Implementation Notes
+
+- Place any unit tests at the bottom of the same file as the associated production code
+- Increment patch version of anttp package in Cargo.toml
+- Create a copy of this issue description and save to /spec using the name of this issue as the filename (with lower underscore case, starting with the 5 char padded issue number, e.g. 00001_issue_title.txt)

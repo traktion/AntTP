@@ -1,0 +1,126 @@
+name: CI/CD
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+  workflow_dispatch:
+env:
+  CARGO_TERM_COLOR: always
+jobs:
+  build:
+    name: Build and Test
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        target:
+          - x86_64-unknown-linux-musl
+          - x86_64-pc-windows-gnu
+          - aarch64-unknown-linux-musl
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - name: Install Protoc and dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y protobuf-compiler cmake
+          if [[ "${{ matrix.target }}" == "x86_64-unknown-linux-musl" ]]; then
+            sudo apt-get install -y musl-tools
+          fi
+      - name: Install cross-compilation tools
+        if: matrix.target != 'x86_64-unknown-linux-musl'
+        run: |
+          if [[ "${{ matrix.target }}" == "x86_64-pc-windows-gnu" ]]; then
+            sudo apt-get install -y mingw-w64
+          elif [[ "${{ matrix.target }}" == "aarch64-unknown-linux-musl" ]]; then
+            # Using zig as a more reliable cross-compiler for musl targets
+            # This avoids dependency on external tarballs from musl.cc which might be blocked
+            sudo snap install zig --classic --beta
+            echo "ZIG_CC=zig cc -target aarch64-linux-musl" >> $GITHUB_ENV
+            echo "ZIG_AR=zig ar" >> $GITHUB_ENV
+          fi
+      - name: Setup Zig
+        if: matrix.target == 'aarch64-unknown-linux-musl'
+        uses: goto-bus-stop/setup-zig@v2
+        with:
+          zig-version: 0.12.0
+      - name: Build
+        run: |
+          if [[ "${{ matrix.target }}" == "aarch64-unknown-linux-musl" ]]; then
+            # Using cargo-zigbuild for reliable cross-compilation
+            # We install it without sudo to avoid permission issues and speed up
+            cargo install cargo-zigbuild
+            cargo zigbuild --release --target ${{ matrix.target }}
+          else
+            cargo build --release --target ${{ matrix.target }}
+          fi
+      - name: Run tests
+        if: matrix.target == 'x86_64-unknown-linux-musl'
+        run: cargo test --release --target ${{ matrix.target }}
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: anttp-${{ matrix.target }}
+          path: |
+            target/${{ matrix.target }}/release/anttp
+            target/${{ matrix.target }}/release/anttp.exe
+  release:
+    name: Create Draft Release
+    needs: build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - name: Prepare artifacts for release
+        run: |
+          mkdir release_assets
+          # Linux x86_64
+          if [ -f artifacts/anttp-x86_64-unknown-linux-musl/anttp ]; then
+            cp artifacts/anttp-x86_64-unknown-linux-musl/anttp release_assets/anttp-linux-x86_64
+          fi
+          # Windows x86_64
+          if [ -f artifacts/anttp-x86_64-pc-windows-gnu/anttp.exe ]; then
+            cp artifacts/anttp-x86_64-pc-windows-gnu/anttp.exe release_assets/anttp-windows-x86_64.exe
+          fi
+          # Linux aarch64
+          if [ -f artifacts/anttp-aarch64-unknown-linux-musl/anttp ]; then
+            cp artifacts/anttp-aarch64-unknown-linux-musl/anttp release_assets/anttp-linux-aarch64
+          fi
+      - name: Get latest non-draft release
+        id: last_release
+        run: |
+          last_tag=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          echo "last_tag=$last_tag" >> $GITHUB_OUTPUT
+      - name: Generate release notes
+        id: release_notes
+        run: |
+          if [ -z "${{ steps.last_release.outputs.last_tag }}" ]; then
+            notes=$(git log --pretty=format:"* %s (%h)")
+          else
+            notes=$(git log ${{ steps.last_release.outputs.last_tag }}..HEAD --pretty=format:"* %s (%h)")
+          fi
+          echo "notes<<EOF" >> $GITHUB_OUTPUT
+          echo "$notes" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+      - name: Create Draft Release
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: true
+          name: Release ${{ github.sha }}
+          tag_name: rolling-${{ github.sha }}
+          body: |
+            ## Changes since last release
+            ${{ steps.release_notes.outputs.notes }}
+          files: release_assets/*

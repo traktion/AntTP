@@ -207,3 +207,29 @@ pub async fn delete_public_archive(
         public_archive_service.truncate_public_archive(address, path, evm_wallet, get_store_type(&request)).await?
     ))
 }
+
+#[utoipa::path(
+    post,
+    path = "/anttp-0/public_archive/{address}",
+    responses(
+        (status = OK, description = "Public archive pushed successfully", body = Upload)
+    ),
+    params(
+        ("address" = String, Path, description = "Public archive address"),
+        ("x-store-type", Header, description = "Target store type (memory|disk|network)", example = "network"),
+    ),
+)]
+pub async fn push_public_archive(
+    path: web::Path<String>,
+    public_archive_service: Data<PublicArchiveService>,
+    evm_wallet_data: Data<EvmWallet>,
+    request: HttpRequest,
+) -> Result<HttpResponse, PublicArchiveError> {
+    let address = path.into_inner();
+    let evm_wallet = evm_wallet_data.get_ref().clone();
+
+    debug!("Pushing public archive [{}] to target store type [{:?}]", address, get_store_type(&request));
+    Ok(HttpResponse::Ok().json(
+        public_archive_service.push_public_archive(address, evm_wallet, get_store_type(&request)).await?
+    ))
+}

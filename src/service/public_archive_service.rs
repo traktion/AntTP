@@ -97,6 +97,53 @@ impl PublicArchiveService {
         PublicArchiveService { file_service: file_client, public_archive_caching_client, public_data_caching_client }
     }
 
+    /// Push the contents of a staged public archive to the target store type by iterating each file
+    /// Uses Archive::build_from_public_archive to construct the archive map and then for each file:
+    /// - fetches bytes via public_data_caching_client.data_get_public()
+    /// - uploads bytes to target via public_data_caching_client.data_put_public()
+    /// Returns the new archive address after persisting the rebuilt archive.
+    pub async fn push_public_archive(&self, address: String, evm_wallet: Wallet, store_type: StoreType) -> Result<Upload, PublicArchiveError> {
+        // Retrieve the staged archive (from cache or network)
+        let archive_address = ArchiveAddress::from_hex(address.as_str())?;
+        let public_archive = self.public_archive_caching_client.archive_get_public(archive_address).await?;
+        // Build an in-memory archive representation
+        let archive = Archive::build_from_public_archive(public_archive);
+        // Rebuild the archive by re-uploading each file to the target store type
+        let new_public_archive = self.push_public_archive_files(&archive, evm_wallet.clone(), store_type.clone()).await?;
+        // Persist the rebuilt archive to the target store type
+        match self.public_archive_caching_client.archive_put_public(&new_public_archive, PaymentOption::Wallet(evm_wallet), store_type).await {
+            Ok(new_address) => Ok(Upload::new(Some(new_address.to_hex()))),
+            Err(e) => Err(e)
+        }
+    }
+
+    /// Build a new PublicArchive by iterating the existing archive and re-uploading each file's content
+    /// to the target store type. This mirrors update_archive_recursive, but sources bytes from cache/network
+    /// via data_get_public using each file's data address.
+    async fn push_public_archive_files(&self, archive: &Archive, evm_wallet: Wallet, store_type: StoreType) -> Result<PublicArchive, PublicArchiveError> {
+        let mut new_public_archive = PublicArchive::new();
+        for (file_path_str, data_address_offset) in archive.map().iter() {
+            // Retrieve the file content from cache/network using its data address
+            let bytes = self.public_data_caching_client.data_get_public(&data_address_offset.data_address).await?;
+            // Push to the target store type (memory/disk/network)
+            let new_data_addr = self.public_data_caching_client
+                .data_put_public(bytes, PaymentOption::Wallet(evm_wallet.clone()), store_type.clone())
+                .await?;
+
+            // Reuse metadata from the existing archive (size/modified)
+            let custom_metadata = Metadata {
+                created: data_address_offset.modified, // best-effort: preserve ordering/time semantics
+                modified: data_address_offset.modified,
+                size: data_address_offset.size,
+                extra: None,
+            };
+
+            // Add to the new public archive preserving the path
+            new_public_archive.add_file(PathBuf::from(file_path_str.clone()), new_data_addr, custom_metadata);
+        }
+        Ok(new_public_archive)
+    }
+
     pub async fn get_public_archive(&self, address: String, path: Option<String>) -> Result<PublicArchiveResponse, PublicArchiveError> {
         let res = self.get_public_archive_binary(address, path).await?;
         Ok(PublicArchiveResponse::new(res.items, BASE64_STANDARD.encode(res.content), res.address))
@@ -339,6 +386,7 @@ impl PublicArchiveService {
 
 #[cfg(test)]
 mod tests {
+    use mockall::predicate::eq;
     use super::*;
     use actix_multipart::form::tempfile::TempFile;
     use std::fs::File;
@@ -698,6 +746,73 @@ mod tests {
         let wallet = Wallet::new_with_random_wallet(autonomi::Network::ArbitrumOne);
         let result = service.truncate_public_archive(addr_hex.to_string(), "dir".to_string(), wallet, StoreType::Memory).await;
         
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap().address, Some(new_archive_address.to_hex()));
+    }
+
+    #[tokio::test]
+    async fn test_push_public_archive_reuploads_files_and_persists_archive() {
+        use crate::client::MockPublicArchiveCachingClient;
+        use crate::client::MockPublicDataCachingClient;
+        use crate::service::file_service::MockFileService;
+
+        let mut mock_archive_client = MockPublicArchiveCachingClient::default();
+        let mut mock_data_client = MockPublicDataCachingClient::default();
+        let mock_file_service = MockFileService::default();
+
+        let addr_hex = "0000000000000000000000000000000000000000000000000000000000000000";
+        let archive_address = ArchiveAddress::from_hex(addr_hex).unwrap();
+        let mut public_archive = PublicArchive::new();
+
+        let file1_bytes = Bytes::from_static(b"content one");
+        let file1_addr = autonomi::data::DataAddress::new(XorName([11; 32]));
+        public_archive.add_file(PathBuf::from("a/b/file1.txt"), file1_addr, Metadata { created: 1, modified: 1, size: file1_bytes.len() as u64, extra: None });
+
+        let file2_bytes = Bytes::from_static(b"content two");
+        let file2_addr = autonomi::data::DataAddress::new(XorName([22; 32]));
+        public_archive.add_file(PathBuf::from("c/file2.txt"), file2_addr, Metadata { created: 2, modified: 2, size: file2_bytes.len() as u64, extra: None });
+
+        // When pushing, we first fetch the staged archive from cache
+        mock_archive_client
+            .expect_archive_get_public()
+            .with(eq(archive_address))
+            .times(1)
+            .returning(move |_| Ok(public_archive.clone()));
+
+        // For each file, fetch bytes via data_get_public
+        mock_data_client
+            .expect_data_get_public()
+            .with(eq(file1_addr))
+            .times(1)
+            .returning(move |_| Ok(file1_bytes.clone()));
+        mock_data_client
+            .expect_data_get_public()
+            .with(eq(file2_addr))
+            .times(1)
+            .returning(move |_| Ok(file2_bytes.clone()));
+
+        // Then upload each file's bytes to the target store type
+        mock_data_client
+            .expect_data_put_public()
+            .times(2)
+            .returning(|_, _, _| Ok(autonomi::data::DataAddress::new(XorName([9; 32]))));
+
+        // Finally, persist the rebuilt archive (once)
+        let new_archive_address = ArchiveAddress::from_hex("ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff").unwrap();
+        mock_archive_client
+            .expect_archive_put_public()
+            .times(1)
+            .returning(move |_, _, _| Ok(new_archive_address));
+
+        let service = PublicArchiveService::new(
+            mock_file_service,
+            mock_archive_client,
+            mock_data_client,
+        );
+
+        let wallet = Wallet::new_with_random_wallet(autonomi::Network::ArbitrumOne);
+        let result = service.push_public_archive(addr_hex.to_string(), wallet, StoreType::Network).await;
+
         assert!(result.is_ok());
         assert_eq!(result.unwrap().address, Some(new_archive_address.to_hex()));
     }

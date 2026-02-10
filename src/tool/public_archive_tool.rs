@@ -51,6 +51,14 @@ struct TruncatePublicArchiveRequest {
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
+struct PushPublicArchiveRequest {
+    #[schemars(description = "Address of the public archive to push from cache to target store type")]
+    address: String,
+    #[schemars(description = "Target store type: memory, disk or network (defaults to network)")]
+    store_type: String,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
 struct GetStatusPublicArchiveRequest {
     #[schemars(description = "Id of upload")]
     id: String,
@@ -114,6 +122,18 @@ impl McpTool {
         Ok(self.public_archive_service.truncate_public_archive(
             address,
             path,
+            self.evm_wallet.get_ref().clone(),
+            StoreType::from(store_type)
+        ).await?.into())
+    }
+
+    #[tool(description = "Push a staged public archive from cache to a target store type (default: network)")]
+    async fn push_public_archive(
+        &self,
+        Parameters(PushPublicArchiveRequest { address, store_type }): Parameters<PushPublicArchiveRequest>,
+    ) -> Result<CallToolResult, ErrorData> {
+        Ok(self.public_archive_service.push_public_archive(
+            address,
             self.evm_wallet.get_ref().clone(),
             StoreType::from(store_type)
         ).await?.into())

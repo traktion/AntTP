@@ -366,16 +366,8 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> io::Result<()> {
                 web::get().to(public_archive_controller::get_public_archive_root),
             )
             .route(
-                format!("{}public_archive/{{address}}", API_BASE).as_str(),
-                web::post().to(public_archive_controller::push_public_archive),
-            )
-            .route(
                 format!("{}public_archive/{{address}}/{{path:.*}}", API_BASE).as_str(),
                 web::get().to(public_archive_controller::get_public_archive),
-            )
-            .route(
-                format!("{}public_archive/{{address}}/{{path:.*}}", API_BASE).as_str(),
-                web::delete().to(public_archive_controller::delete_public_archive),
             )
             .route(
                 "/{path:.*}",
@@ -448,6 +440,14 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> io::Result<()> {
                 .route(
                     format!("{}multipart/public_archive/{{address}}/{{path:.*}}", API_BASE).as_str(),
                     web::put().to(public_archive_controller::put_public_archive),
+                )
+                .route(
+                    format!("{}public_archive/{{address}}", API_BASE).as_str(),
+                    web::post().to(public_archive_controller::push_public_archive),
+                )
+                .route(
+                    format!("{}public_archive/{{address}}/{{path:.*}}", API_BASE).as_str(),
+                    web::delete().to(public_archive_controller::delete_public_archive),
                 )
                 .route(
                     format!("{}multipart/tarchive", API_BASE).as_str(),

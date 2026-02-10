@@ -869,8 +869,32 @@
 								}
 							}
 						},
-						{
-							"name": "Delete Public Archive Path",
+ 					{
+ 						"name": "Push Public Archive",
+ 						"request": {
+ 							"method": "POST",
+ 							"header": [
+ 								{
+ 									"key": "x-store-type",
+ 									"value": "disk",
+ 									"type": "text"
+ 								}
+ 							],
+ 							"url": {
+ 								"raw": "{{base_url}}/anttp-0/public_archive/{{public_archive_address}}",
+ 								"host": [
+ 									"{{base_url}}"
+ 								],
+ 								"path": [
+ 									"anttp-0",
+ 									"public_archive",
+ 									"{{public_archive_address}}"
+ 								]
+ 							}
+ 						}
+ 					},
+ 					{
+ 						"name": "Delete Public Archive Path",
 							"event": [
 								{
 									"listen": "test",

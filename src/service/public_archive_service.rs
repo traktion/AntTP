@@ -109,7 +109,7 @@ impl PublicArchiveService {
         // Build an in-memory archive representation
         let archive = Archive::build_from_public_archive(public_archive);
         // Rebuild the archive by re-uploading each file to the target store type
-        let new_public_archive = self.push_archive_recursive(&archive, evm_wallet.clone(), store_type.clone()).await?;
+        let new_public_archive = self.push_public_archive_files(&archive, evm_wallet.clone(), store_type.clone()).await?;
         // Persist the rebuilt archive to the target store type
         match self.public_archive_caching_client.archive_put_public(&new_public_archive, PaymentOption::Wallet(evm_wallet), store_type).await {
             Ok(new_address) => Ok(Upload::new(Some(new_address.to_hex()))),
@@ -120,7 +120,7 @@ impl PublicArchiveService {
     /// Build a new PublicArchive by iterating the existing archive and re-uploading each file's content
     /// to the target store type. This mirrors update_archive_recursive, but sources bytes from cache/network
     /// via data_get_public using each file's data address.
-    async fn push_archive_recursive(&self, archive: &Archive, evm_wallet: Wallet, store_type: StoreType) -> Result<PublicArchive, PublicArchiveError> {
+    async fn push_public_archive_files(&self, archive: &Archive, evm_wallet: Wallet, store_type: StoreType) -> Result<PublicArchive, PublicArchiveError> {
         let mut new_public_archive = PublicArchive::new();
         for (file_path_str, data_address_offset) in archive.map().iter() {
             // Retrieve the file content from cache/network using its data address

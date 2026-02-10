@@ -30,6 +30,12 @@ Given tarchives may share the same code being changed
 When updating public archive code
 Then if the code is shared, then update tarchive to keep them aligned
 
+Given a public archive contains a collection of public data files
+When calling push_public_archive in public_archive_service
+Then use Archive::build_from_public_archive to build an archive
+Then step through each file in the archive and call public_data_caching_client.data_put_public() to push the file content to the store-type target
+And use update_archive_recursive() as an example to create push_archive_recursive, but using public data stored in cache at the file address
+
 Implementation Notes
 
 - Place any unit tests at the bottom of the same file as the associated production code

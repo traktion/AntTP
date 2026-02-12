@@ -7,7 +7,7 @@ description = "AntTP is an HTTP server for the Autonomi Network"
 readme = "README.md"
 repository = "https://github.com/traktion/AntTP"
 license = "GPL-3.0"
-keywords = ["autonomi", "http", "proxy", "gateway"]
+keywords = ["anttp", "autonomi", "http", "proxy", "gateway"]
 categories = ["web-programming", "web-programming::http-server", "network-programming"]
 exclude = [".github", ".gitignore", "cache/", "target/", "test/"]
 

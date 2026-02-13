@@ -1,0 +1,33 @@
+As a public data uploader
+I want to be able to push public data from memory/disk cache to network
+So that data staged in the disk cache can be synced to the target store-type (default to 'network')
+
+Given public_archive_controller.rs has a push_public_archive function which pushes an archive to a different store-type
+When pushing public data from the memory to disk, from memory to network, or from disk to network
+Then use public_archive_controller as an example to create push_public_data function in public_data_controller.rs
+And use POST `/anttp-0/public_data/{address}` as the new endpoint
+
+Given public data is data with a datamap at a single address
+When pushing public data from the cache to the network
+Then the implementation is much simpler
+And only the public data at the resolved address must be pushed to the target store-type
+And there are no archive files to iterate through or upload
+
+Given public_archive_service.rs contains push_public_archive function which contains the core logic to push/sync data
+When pushing public data to a new target-store type
+Then use public_archive_service.rs as an example to create push_public_data function
+And only get the public data with the client (self.public_data_caching_client.data_get_public)
+And push to the target store-type with the client (self.public_data_caching_client.data_put_public)
+
+Given tarchive_controller.rs has tarchive endpoints and a tarchive is essentially public data (a tar file)
+When adding push/sync support to public_data_controller.rs
+Then also add an endpoint to tarchive_controller.rs, which calls public_data_service.rs in the same was as public_data_controller.rs does
+And use POST `/anttp-0/tarchive/{address}` as the new endpoint
+
+Implementation Notes
+
+- Place any unit tests at the bottom of the same file as the associated production code
+- Increment patch version of anttp package in Cargo.toml
+- Create a copy of this issue description and save to /spec using the name of this issue as the filename (with lower underscore case, starting with the 5 char padded issue number, e.g. 00001_issue_title.txt)
+- The order of permanence for store-type is 'memory -> disk -> network' with network being the most permanent
+- Target store-type must be more permanent than the source store-type

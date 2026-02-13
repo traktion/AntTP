@@ -12,9 +12,6 @@ use tar::Builder;
 
 use crate::service::public_archive_service::{PublicArchiveForm, Upload};
 use crate::service::public_data_service::PublicDataService;
-use mockall_double::double;
-#[double]
-use crate::client::TArchiveCachingClient;
 use crate::error::tarchive_error::TarchiveError;
 use crate::error::UpdateError;
 use crate::controller::StoreType;
@@ -23,12 +20,11 @@ use crate::model::tarchive::Tarchive;
 #[derive(Debug)]
 pub struct TarchiveService {
     public_data_service: PublicDataService,
-    tarchive_caching_client: TArchiveCachingClient,
 }
 
 impl TarchiveService {
-    pub fn new(public_data_service: PublicDataService, tarchive_caching_client: TArchiveCachingClient) -> Self {
-        TarchiveService { public_data_service, tarchive_caching_client }
+    pub fn new(public_data_service: PublicDataService) -> Self {
+        TarchiveService { public_data_service }
     }
 
     pub async fn create_tarchive(&self, target_path: Option<String>, tarchive_form: MultipartForm<PublicArchiveForm>, evm_wallet: Wallet, store_type: StoreType) -> Result<Upload, TarchiveError> {
@@ -226,13 +222,12 @@ impl TarchiveService {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::client::{MockPublicDataCachingClient, MockTArchiveCachingClient};
+    use crate::client::MockPublicDataCachingClient;
     use autonomi::data::DataAddress;
     use xor_name::XorName;
     
     fn create_mock_service() -> TarchiveService {
         let mut mock_client = MockPublicDataCachingClient::default();
-        let mock_tarchive_client = MockTArchiveCachingClient::default();
 
         // Mock get_public_data_binary
         mock_client.expect_data_get_public()
@@ -243,13 +238,12 @@ mod tests {
             .returning(|_, _, _| Ok(DataAddress::new(XorName([0; 32]))));
 
         let public_data_service = PublicDataService::new(mock_client);
-        TarchiveService::new(public_data_service, mock_tarchive_client)
+        TarchiveService::new(public_data_service)
     }
 
     #[test]
     fn test_truncate_tarchive() {
         let mut mock_client = MockPublicDataCachingClient::default();
-        let mock_tarchive_client = MockTArchiveCachingClient::default();
 
         // Prepare initial tar data
         let mut initial_tar = Vec::new();
@@ -284,7 +278,7 @@ mod tests {
             .returning(|_, _, _| Ok(DataAddress::new(XorName([0; 32]))));
 
         let public_data_service = PublicDataService::new(mock_client);
-        let service = TarchiveService::new(public_data_service, mock_tarchive_client);
+        let service = TarchiveService::new(public_data_service);
 
         let wallet = Wallet::new_with_random_wallet(autonomi::Network::ArbitrumOne);
         let result = tokio::runtime::Runtime::new().unwrap().block_on(

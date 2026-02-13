@@ -48,7 +48,7 @@ use crate::client::PublicArchiveCachingClient;
 use crate::client::PublicDataCachingClient;
 #[double]
 use crate::client::StreamingClient;
-use crate::client::{ArchiveCachingClient, GraphEntryCachingClient, RegisterCachingClient, ScratchpadCachingClient, TArchiveCachingClient};
+use crate::client::{ArchiveCachingClient, GraphEntryCachingClient, RegisterCachingClient, ScratchpadCachingClient};
 use crate::client::client_harness::ClientHarness;
 use client::command::executor::Executor;
 use crate::client::command::access_checker::update_access_checker_command::UpdateAccessCheckerCommand;
@@ -122,6 +122,7 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> io::Result<()> {
             public_archive_controller::push_public_archive,
             tarchive_controller::post_tarchive,
             tarchive_controller::put_tarchive,
+            tarchive_controller::delete_tarchive,
             tarchive_controller::push_tarchive,
             public_scratchpad_controller::get_public_scratchpad,
             public_scratchpad_controller::post_public_scratchpad,
@@ -194,8 +195,6 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> io::Result<()> {
     let register_caching_client = RegisterCachingClient::new(caching_client.clone());
     let scratchpad_caching_client = ScratchpadCachingClient::new(caching_client.clone());
 
-    let tarchive_caching_client = TArchiveCachingClient::new(caching_client.clone(), streaming_client.clone());
-
     let pointer_name_resolver_data = Data::new(PointerNameResolver::new(pointer_caching_client.clone(), chunk_caching_client.clone(), ant_tp_config.get_resolver_private_key().unwrap(), ant_tp_config.cached_mutable_ttl));
 
     let bookmark_resolver_data = hydrate_bookmark_resolver(
@@ -212,7 +211,7 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> io::Result<()> {
 
     // define services
     let public_archive_service_data = Data::new(PublicArchiveService::new(FileService::new(chunk_caching_client.clone(), ant_tp_config.download_threads), public_archive_caching_client.clone(), public_data_caching_client.clone()));
-    let tarchive_service_data = Data::new(TarchiveService::new(PublicDataService::new(public_data_caching_client.clone()), tarchive_caching_client.clone()));
+    let tarchive_service_data = Data::new(TarchiveService::new(PublicDataService::new(public_data_caching_client.clone())));
     let command_service_data = Data::new(CommandService::new(command_status_data.clone()));
     let chunk_service_data = Data::new(ChunkService::new(chunk_caching_client.clone()));
     let graph_service_data = Data::new(GraphService::new(graph_entry_caching_client.clone(), ant_tp_config.clone()));

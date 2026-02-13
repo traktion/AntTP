@@ -60,7 +60,7 @@ use crate::service::bookmark_resolver::BookmarkResolver;
 use crate::service::pointer_name_resolver::PointerNameResolver;
 use crate::service::pnr_service::PnrService;
 use crate::service::key_value_service::KeyValueService;
-use crate::service::chunk_service::ChunkService;
+use crate::service::chunk_service::{Chunk, ChunkService};
 use crate::service::command_service::CommandService;
 use crate::service::file_service::FileService;
 use crate::service::graph_service::GraphService;
@@ -140,12 +140,13 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> io::Result<()> {
             pnr_controller::get_pnr,
             pnr_controller::post_pnr,
             pnr_controller::put_pnr,
+            public_data_controller::push_public_data,
             pnr_controller::patch_pnr,
             key_value_controller::post_key_value,
             key_value_controller::get_key_value
         ),
         components(
-            schemas(PublicArchiveForm, Upload, PublicArchiveResponse)
+            schemas(PublicArchiveForm, Upload, PublicArchiveResponse, Chunk)
         )
     )]
     struct ApiDoc;
@@ -492,6 +493,14 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> io::Result<()> {
                 .route(
                     format!("{}graph_entry", API_BASE).as_str(),
                     web::post().to(graph_controller::post_graph_entry)
+                )
+                .route(
+                    format!("{}public_data/{{address}}", API_BASE).as_str(),
+                    web::post().to(public_data_controller::push_public_data),
+                )
+                .route(
+                    format!("{}tarchive/{{address}}", API_BASE).as_str(),
+                    web::post().to(tarchive_controller::push_tarchive),
                 )
                 .route(
                     format!("{}binary/public_data", API_BASE).as_str(),

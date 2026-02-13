@@ -8,6 +8,33 @@ use crate::error::public_data_error::PublicDataError;
 use crate::controller::get_store_type;
 use crate::error::CreateError;
 use crate::service::public_data_service::{PublicData, PublicDataService};
+use crate::service::chunk_service::Chunk;
+
+#[utoipa::path(
+    post,
+    path = "/anttp-0/public_data/{address}",
+    responses(
+        (status = OK, description = "Public data pushed successfully", body = Chunk)
+    ),
+    params(
+        ("address" = String, Path, description = "Public data address"),
+        ("x-store-type", Header, description = "Target store type (memory|disk|network)", example = "network"),
+    ),
+)]
+pub async fn push_public_data(
+    path: web::Path<String>,
+    public_data_service: Data<PublicDataService>,
+    evm_wallet_data: Data<EvmWallet>,
+    request: HttpRequest,
+) -> Result<HttpResponse, PublicDataError> {
+    let address = path.into_inner();
+    let evm_wallet = evm_wallet_data.get_ref().clone();
+
+    debug!("Pushing public data [{}] to target store type [{:?}]", address, get_store_type(&request));
+    Ok(HttpResponse::Ok().json(
+        public_data_service.push_public_data(address, evm_wallet, get_store_type(&request)).await?
+    ))
+}
 
 #[utoipa::path(
     post,

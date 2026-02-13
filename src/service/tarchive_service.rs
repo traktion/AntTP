@@ -1,5 +1,5 @@
 use std::{env, fs, io};
-use std::fs::{create_dir, OpenOptions};
+use std::fs::create_dir;
 use std::io::Write;
 use std::path::PathBuf;
 use actix_multipart::form::MultipartForm;
@@ -40,11 +40,11 @@ impl TarchiveService {
             builder.finish()?;
         }
 
-        // Generate and append index
-        self.append_index(&tar_path)?;
+        // Generate index and create final tar
+        let final_tar_path = self.rebuild_with_index(&tar_path, &tmp_dir)?;
 
         // Upload as public data
-        let result = self.upload_tar(&tar_path, evm_wallet, store_type).await;
+        let result = self.upload_tar(&final_tar_path, evm_wallet, store_type).await;
         Self::purge_tmp_dir(&tmp_dir);
         result
     }
@@ -59,17 +59,36 @@ impl TarchiveService {
         let mut tar_file = fs::File::create(&tar_path)?;
         tar_file.write_all(&existing_data)?;
 
-        // Append new files
-        let tar_file = OpenOptions::new().append(true).read(true).open(&tar_path)?;
-        let mut builder = Builder::new(tar_file);
-        self.build_tar_from_form(&mut builder, target_path, tarchive_form)?;
-        builder.finish()?;
+        // Create a new tar by adding files from existing tar AND new files from form
+        let updated_tar_path = tmp_dir.join("updated_archive.tar");
+        {
+            let updated_tar_file = fs::File::create(&updated_tar_path)?;
+            let mut builder = Builder::new(updated_tar_file);
 
-        // Generate and append index
-        self.append_index(&tar_path)?;
+            // Add existing entries
+            let mut existing_tar_file = fs::File::open(&tar_path)?;
+            let mut archive = tar::Archive::new(&mut existing_tar_file);
+            for entry_result in archive.entries()? {
+                let mut entry = entry_result?;
+                let header = entry.header().clone();
+                let path = entry.path()?.to_path_buf();
+                // Skip existing index if it exists, it will be recreated
+                if path.to_str() == Some("archive.tar.idx") {
+                    continue;
+                }
+                builder.append_data(&mut header.clone(), path, &mut entry)?;
+            }
+
+            // Add new files from form
+            self.build_tar_from_form(&mut builder, target_path, tarchive_form)?;
+            builder.finish()?;
+        }
+
+        // Generate index and create final tar
+        let final_tar_path = self.rebuild_with_index(&updated_tar_path, &tmp_dir)?;
 
         // Upload as public data
-        let result = self.upload_tar(&tar_path, evm_wallet, store_type).await;
+        let result = self.upload_tar(&final_tar_path, evm_wallet, store_type).await;
         Self::purge_tmp_dir(&tmp_dir);
         result
     }
@@ -97,22 +116,35 @@ impl TarchiveService {
         Ok(())
     }
 
-    fn append_index(&self, tar_path: &PathBuf) -> Result<(), TarchiveError> {
+    fn rebuild_with_index(&self, tar_path: &PathBuf, tmp_dir: &PathBuf) -> Result<PathBuf, TarchiveError> {
         let index_str = {
             let mut tar_file = fs::File::open(tar_path)?;
             Tarchive::index(&mut tar_file)?
         };
 
-        let tar_file = OpenOptions::new().append(true).open(tar_path)?;
-        let mut builder = Builder::new(tar_file);
-        
+        let final_tar_path = tmp_dir.join("final_archive.tar");
+        let final_tar_file = fs::File::create(&final_tar_path)?;
+        let mut builder = Builder::new(final_tar_file);
+
+        // Copy all entries from the source tar to the new tar
+        let mut src_tar_file = fs::File::open(tar_path)?;
+        let mut archive = tar::Archive::new(&mut src_tar_file);
+        for entry_result in archive.entries()? {
+            let mut entry = entry_result?;
+            let header = entry.header().clone();
+            let path = entry.path()?.to_path_buf();
+            builder.append_data(&mut header.clone(), path, &mut entry)?;
+        }
+
+        // Add index
         let mut header = tar::Header::new_gnu();
         header.set_size(index_str.len() as u64);
         header.set_path("archive.tar.idx").unwrap();
         header.set_cksum();
         builder.append(&header, index_str.as_bytes())?;
         builder.finish()?;
-        Ok(())
+
+        Ok(final_tar_path)
     }
 
     async fn upload_tar(&self, tar_path: &PathBuf, evm_wallet: Wallet, store_type: StoreType) -> Result<Upload, TarchiveError> {
@@ -131,5 +163,61 @@ impl TarchiveService {
 
     fn purge_tmp_dir(tmp_dir: &PathBuf) {
         fs::remove_dir_all(tmp_dir.clone()).unwrap_or_else(|e| warn!("failed to delete temporary directory at [{:?}]: {}", tmp_dir, e));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::client::MockPublicDataCachingClient;
+    use autonomi::data::DataAddress;
+    use xor_name::XorName;
+    
+    fn create_mock_service() -> TarchiveService {
+        let mut mock_client = MockPublicDataCachingClient::default();
+        
+        // Mock get_public_data_binary
+        mock_client.expect_data_get_public()
+            .returning(|_| Ok(Bytes::from(vec![])));
+            
+        // Mock create_public_data
+        mock_client.expect_data_put_public()
+            .returning(|_, _, _| Ok(DataAddress::new(XorName([0; 32]))));
+
+        let public_data_service = PublicDataService::new(mock_client);
+        TarchiveService::new(public_data_service)
+    }
+
+    #[test]
+    fn test_rebuild_with_index() {
+        let service = create_mock_service();
+        let tmp_dir = TarchiveService::create_tmp_dir().unwrap();
+        let tar_path = tmp_dir.join("test.tar");
+        
+        // Create initial tar
+        {
+            let file = fs::File::create(&tar_path).unwrap();
+            let mut builder = Builder::new(file);
+            let mut header = tar::Header::new_gnu();
+            let data = b"content";
+            header.set_size(data.len() as u64);
+            header.set_path("test.txt").unwrap();
+            header.set_cksum();
+            builder.append(&header, &data[..]).unwrap();
+            builder.finish().unwrap();
+        }
+        
+        let final_tar_path = service.rebuild_with_index(&tar_path, &tmp_dir).unwrap();
+        assert!(final_tar_path.exists());
+        
+        // Verify final tar contains both file and index
+        let file = fs::File::open(final_tar_path).unwrap();
+        let mut archive = tar::Archive::new(file);
+        let entries: Vec<_> = archive.entries().unwrap().map(|e| e.unwrap().path().unwrap().to_str().unwrap().to_string()).collect();
+        
+        assert!(entries.contains(&"test.txt".to_string()));
+        assert!(entries.contains(&"archive.tar.idx".to_string()));
+        
+        TarchiveService::purge_tmp_dir(&tmp_dir);
     }
 }

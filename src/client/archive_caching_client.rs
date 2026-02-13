@@ -1,6 +1,6 @@
 use autonomi::files::archive_public::ArchiveAddress;
 use autonomi::files::PublicArchive;
-use log::{info, debug};
+use log::{info, debug, error};
 use mockall_double::double;
 use tokio::join;
 #[double]
@@ -38,18 +38,28 @@ impl ArchiveCachingClient {
                 tarchive_caching_client.get_archive_from_tar(&addr)
             );
             debug!("searching for archive or tarchive at address [{}]", local_address.to_hex());
-            match public_archive.ok() {
-                Some(bytes) => match PublicArchive::from_bytes(bytes) {
-                    Ok(public_archive) => {
+            match public_archive {
+                Ok(bytes) => match PublicArchive::from_bytes(bytes).ok() {
+                    Some(public_archive) => {
+                        debug!("found public archive at [{}]", local_address.to_hex());
                         Ok(rmp_serde::to_vec(&Archive::build_from_public_archive(public_archive)).expect("Failed to serialize public archive"))
                     },
-                    Err(err) => Err(foyer::Error::other(format!("Failed to retrieve public archive at [{}] from hybrid cache: {:?}", addr.to_hex(), err))),
-                },
-                None => match tarchive {
-                    Ok(bytes) => {
-                        Ok(rmp_serde::to_vec(&Archive::build_from_tar(&addr, bytes)).expect("Failed to serialize tarchive"))
+                    None => {
+                        match tarchive {
+                            Ok(bytes) => {
+                                debug!("found tarchive at [{}]", local_address.to_hex());
+                                Ok(rmp_serde::to_vec(&Archive::build_from_tar(&addr, bytes)).expect("Failed to serialize tarchive"))
+                            },
+                            Err(err) => {
+                                error!("Failed to retrieve tarchive at [{}] from hybrid cache: {:?}", addr.to_hex(), err);
+                                Err(foyer::Error::other(format!("Failed to retrieve tarchive at [{}] from hybrid cache: {:?}", addr.to_hex(), err)))
+                            },
+                        }
                     },
-                    Err(err) => Err(foyer::Error::other(format!("Failed to retrieve tarchive at [{}] from hybrid cache: {:?}", addr.to_hex(), err))),
+                },
+                Err(err) =>  {
+                    error!("Failed to retrieve public archive at [{}] from hybrid cache: {:?}", addr.to_hex(), err);
+                    Err(foyer::Error::other(format!("Failed to retrieve public archive at [{}] from hybrid cache: {:?}", addr.to_hex(), err)))
                 }
             }
         }).await?;

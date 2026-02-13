@@ -17,62 +17,6 @@ use crate::error::UpdateError;
 use crate::controller::StoreType;
 use crate::model::tarchive::Tarchive;
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::client::MockPublicDataCachingClient;
-    use autonomi::data::DataAddress;
-    use xor_name::XorName;
-    
-    fn create_mock_service() -> TarchiveService {
-        let mut mock_client = MockPublicDataCachingClient::default();
-        
-        // Mock get_public_data_binary
-        mock_client.expect_data_get_public()
-            .returning(|_| Ok(Bytes::from(vec![])));
-            
-        // Mock create_public_data
-        mock_client.expect_data_put_public()
-            .returning(|_, _, _| Ok(DataAddress::new(XorName([0; 32]))));
-
-        let public_data_service = PublicDataService::new(mock_client);
-        TarchiveService::new(public_data_service)
-    }
-
-    #[test]
-    fn test_rebuild_with_index() {
-        let service = create_mock_service();
-        let tmp_dir = TarchiveService::create_tmp_dir().unwrap();
-        let tar_path = tmp_dir.join("test.tar");
-        
-        // Create initial tar
-        {
-            let file = fs::File::create(&tar_path).unwrap();
-            let mut builder = Builder::new(file);
-            let mut header = tar::Header::new_gnu();
-            let data = b"content";
-            header.set_size(data.len() as u64);
-            header.set_path("test.txt").unwrap();
-            header.set_cksum();
-            builder.append(&header, &data[..]).unwrap();
-            builder.finish().unwrap();
-        }
-        
-        let final_tar_path = service.rebuild_with_index(&tar_path, &tmp_dir).unwrap();
-        assert!(final_tar_path.exists());
-        
-        // Verify final tar contains both file and index
-        let file = fs::File::open(final_tar_path).unwrap();
-        let mut archive = tar::Archive::new(file);
-        let entries: Vec<_> = archive.entries().unwrap().map(|e| e.unwrap().path().unwrap().to_str().unwrap().to_string()).collect();
-        
-        assert!(entries.contains(&"test.txt".to_string()));
-        assert!(entries.contains(&"archive.tar.idx".to_string()));
-        
-        TarchiveService::purge_tmp_dir(&tmp_dir);
-    }
-}
-
 #[derive(Debug)]
 pub struct TarchiveService {
     public_data_service: PublicDataService,
@@ -219,5 +163,61 @@ impl TarchiveService {
 
     fn purge_tmp_dir(tmp_dir: &PathBuf) {
         fs::remove_dir_all(tmp_dir.clone()).unwrap_or_else(|e| warn!("failed to delete temporary directory at [{:?}]: {}", tmp_dir, e));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::client::MockPublicDataCachingClient;
+    use autonomi::data::DataAddress;
+    use xor_name::XorName;
+    
+    fn create_mock_service() -> TarchiveService {
+        let mut mock_client = MockPublicDataCachingClient::default();
+        
+        // Mock get_public_data_binary
+        mock_client.expect_data_get_public()
+            .returning(|_| Ok(Bytes::from(vec![])));
+            
+        // Mock create_public_data
+        mock_client.expect_data_put_public()
+            .returning(|_, _, _| Ok(DataAddress::new(XorName([0; 32]))));
+
+        let public_data_service = PublicDataService::new(mock_client);
+        TarchiveService::new(public_data_service)
+    }
+
+    #[test]
+    fn test_rebuild_with_index() {
+        let service = create_mock_service();
+        let tmp_dir = TarchiveService::create_tmp_dir().unwrap();
+        let tar_path = tmp_dir.join("test.tar");
+        
+        // Create initial tar
+        {
+            let file = fs::File::create(&tar_path).unwrap();
+            let mut builder = Builder::new(file);
+            let mut header = tar::Header::new_gnu();
+            let data = b"content";
+            header.set_size(data.len() as u64);
+            header.set_path("test.txt").unwrap();
+            header.set_cksum();
+            builder.append(&header, &data[..]).unwrap();
+            builder.finish().unwrap();
+        }
+        
+        let final_tar_path = service.rebuild_with_index(&tar_path, &tmp_dir).unwrap();
+        assert!(final_tar_path.exists());
+        
+        // Verify final tar contains both file and index
+        let file = fs::File::open(final_tar_path).unwrap();
+        let mut archive = tar::Archive::new(file);
+        let entries: Vec<_> = archive.entries().unwrap().map(|e| e.unwrap().path().unwrap().to_str().unwrap().to_string()).collect();
+        
+        assert!(entries.contains(&"test.txt".to_string()));
+        assert!(entries.contains(&"archive.tar.idx".to_string()));
+        
+        TarchiveService::purge_tmp_dir(&tmp_dir);
     }
 }

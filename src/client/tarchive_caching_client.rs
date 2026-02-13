@@ -2,6 +2,7 @@ use std::cmp::min;
 use autonomi::data::DataAddress;
 use bytes::Bytes;
 use log::{debug, info};
+use mockall::mock;
 use mockall_double::double;
 use crate::client::caching_client::ARCHIVE_TAR_IDX_BYTES;
 #[double]
@@ -10,6 +11,17 @@ use crate::client::CachingClient;
 use crate::client::StreamingClient;
 use crate::client::TARCHIVE_CACHE_KEY;
 use crate::error::GetError;
+
+mock! {
+    #[derive(Debug)]
+    pub TArchiveCachingClient {
+        pub fn new(caching_client: CachingClient, streaming_client: StreamingClient) -> Self;
+        pub async fn get_archive_from_tar(&self, addr: &DataAddress) -> Result<Bytes, GetError>;
+    }
+    impl Clone for TArchiveCachingClient {
+        fn clone(&self) -> Self;
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct TArchiveCachingClient {

@@ -39,6 +39,16 @@ struct UpdateTarchiveRequest {
     store_type: String,
 }
 
+#[derive(Debug, Deserialize, JsonSchema, Serialize)]
+struct TruncateTarchiveRequest {
+    #[schemars(description = "Address of the tarchive")]
+    address: String,
+    #[schemars(description = "Path to directory or file within the archive to be deleted")]
+    path: String,
+    #[schemars(description = "Store archive on memory, disk or network")]
+    store_type: String,
+}
+
 impl From<TarchiveError> for ErrorData {
     fn from(error: TarchiveError) -> Self {
         ErrorData::new(ErrorCode::INTERNAL_ERROR, error.to_string(), None)
@@ -72,6 +82,19 @@ impl McpTool {
             address,
             path,
             tarchive_form,
+            self.evm_wallet.get_ref().clone(),
+            StoreType::from(store_type)
+        ).await?.into())
+    }
+
+    #[tool(description = "Truncate an existing tarchive (delete file or directory)")]
+    async fn truncate_tarchive(
+        &self,
+        Parameters(TruncateTarchiveRequest { address, path, store_type }): Parameters<TruncateTarchiveRequest>,
+    ) -> Result<CallToolResult, ErrorData> {
+        Ok(self.tarchive_service.truncate_tarchive(
+            address,
+            path,
             self.evm_wallet.get_ref().clone(),
             StoreType::from(store_type)
         ).await?.into())

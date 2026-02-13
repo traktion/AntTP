@@ -4,6 +4,10 @@ use tar::Archive;
 pub struct Tarchive;
 
 impl Tarchive {
+    pub fn sanitise_path(path: &str) -> String {
+        path.trim_start_matches('/').trim_end_matches('/').to_string()
+    }
+
     /// Generates a tar index string for the given tar file.
     /// The index format follows: "filename offset size"
     pub fn index<R: Read + Seek>(reader: &mut R) -> Result<String, std::io::Error> {

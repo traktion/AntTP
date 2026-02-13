@@ -12,6 +12,9 @@ use tar::Builder;
 
 use crate::service::public_archive_service::{PublicArchiveForm, Upload};
 use crate::service::public_data_service::PublicDataService;
+use mockall_double::double;
+#[double]
+use crate::client::TArchiveCachingClient;
 use crate::error::tarchive_error::TarchiveError;
 use crate::error::UpdateError;
 use crate::controller::StoreType;
@@ -20,11 +23,12 @@ use crate::model::tarchive::Tarchive;
 #[derive(Debug)]
 pub struct TarchiveService {
     public_data_service: PublicDataService,
+    tarchive_caching_client: TArchiveCachingClient,
 }
 
 impl TarchiveService {
-    pub fn new(public_data_service: PublicDataService) -> Self {
-        TarchiveService { public_data_service }
+    pub fn new(public_data_service: PublicDataService, tarchive_caching_client: TArchiveCachingClient) -> Self {
+        TarchiveService { public_data_service, tarchive_caching_client }
     }
 
     pub async fn create_tarchive(&self, target_path: Option<String>, tarchive_form: MultipartForm<PublicArchiveForm>, evm_wallet: Wallet, store_type: StoreType) -> Result<Upload, TarchiveError> {
@@ -81,6 +85,59 @@ impl TarchiveService {
 
             // Add new files from form
             self.build_tar_from_form(&mut builder, target_path, tarchive_form)?;
+            builder.finish()?;
+        }
+
+        // Generate index and create final tar
+        let final_tar_path = self.rebuild_with_index(&updated_tar_path, &tmp_dir)?;
+
+        // Upload as public data
+        let result = self.upload_tar(&final_tar_path, evm_wallet, store_type).await;
+        Self::purge_tmp_dir(&tmp_dir);
+        result
+    }
+
+    pub async fn truncate_tarchive(&self, address: String, path: String, evm_wallet: Wallet, store_type: StoreType) -> Result<Upload, TarchiveError> {
+        info!("Truncating tarchive at address [{}] with path [{}]", address, path);
+        let tmp_dir = Self::create_tmp_dir()?;
+        let tar_path = tmp_dir.join("archive.tar");
+
+        // Download existing tar
+        let existing_data = self.public_data_service.get_public_data_binary(address).await?;
+        let mut tar_file = fs::File::create(&tar_path)?;
+        tar_file.write_all(&existing_data)?;
+
+        // Create a new tar by adding files from existing tar, omitting files at path
+        let updated_tar_path = tmp_dir.join("updated_archive.tar");
+        {
+            let updated_tar_file = fs::File::create(&updated_tar_path)?;
+            let mut builder = Builder::new(updated_tar_file);
+
+            let sanitised_delete_path = Tarchive::sanitise_path(&path);
+            let delete_prefix = format!("{}/", sanitised_delete_path);
+
+            // Add existing entries
+            let mut existing_tar_file = fs::File::open(&tar_path)?;
+            let mut archive = tar::Archive::new(&mut existing_tar_file);
+            for entry_result in archive.entries()? {
+                let mut entry = entry_result?;
+                let header = entry.header().clone();
+                let entry_path = entry.path()?.to_path_buf();
+                let entry_path_str = entry_path.to_str().unwrap_or_default();
+
+                // Skip existing index
+                if entry_path_str == "archive.tar.idx" {
+                    continue;
+                }
+
+                // Skip files at delete path
+                if entry_path_str == sanitised_delete_path || entry_path_str.starts_with(&delete_prefix) {
+                    info!("Skipping file [{}] from truncated tarchive", entry_path_str);
+                    continue;
+                }
+
+                builder.append_data(&mut header.clone(), entry_path, &mut entry)?;
+            }
             builder.finish()?;
         }
 
@@ -169,23 +226,72 @@ impl TarchiveService {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::client::MockPublicDataCachingClient;
+    use crate::client::{MockPublicDataCachingClient, MockTArchiveCachingClient};
     use autonomi::data::DataAddress;
     use xor_name::XorName;
     
     fn create_mock_service() -> TarchiveService {
         let mut mock_client = MockPublicDataCachingClient::default();
-        
+        let mock_tarchive_client = MockTArchiveCachingClient::default();
+
         // Mock get_public_data_binary
         mock_client.expect_data_get_public()
             .returning(|_| Ok(Bytes::from(vec![])));
-            
+
         // Mock create_public_data
         mock_client.expect_data_put_public()
             .returning(|_, _, _| Ok(DataAddress::new(XorName([0; 32]))));
 
         let public_data_service = PublicDataService::new(mock_client);
-        TarchiveService::new(public_data_service)
+        TarchiveService::new(public_data_service, mock_tarchive_client)
+    }
+
+    #[test]
+    fn test_truncate_tarchive() {
+        let mut mock_client = MockPublicDataCachingClient::default();
+        let mock_tarchive_client = MockTArchiveCachingClient::default();
+
+        // Prepare initial tar data
+        let mut initial_tar = Vec::new();
+        {
+            let mut builder = Builder::new(&mut initial_tar);
+            let data = b"content1";
+            let mut header = tar::Header::new_gnu();
+            header.set_size(data.len() as u64);
+            header.set_path("keep.txt").unwrap();
+            header.set_cksum();
+            builder.append(&header, &data[..]).unwrap();
+
+            let data2 = b"content2";
+            let mut header2 = tar::Header::new_gnu();
+            header2.set_size(data2.len() as u64);
+            header2.set_path("delete.txt").unwrap();
+            header2.set_cksum();
+            builder.append(&header2, &data2[..]).unwrap();
+
+            builder.finish().unwrap();
+        }
+
+        let initial_tar_bytes = Bytes::from(initial_tar);
+        let get_tar_bytes = initial_tar_bytes.clone();
+        mock_client.expect_data_get_public()
+            .returning(move |_| Ok(get_tar_bytes.clone()));
+
+        let xor_name = XorName::from_content(b"test");
+        let address = DataAddress::new(xor_name).to_hex();
+
+        mock_client.expect_data_put_public()
+            .returning(|_, _, _| Ok(DataAddress::new(XorName([0; 32]))));
+
+        let public_data_service = PublicDataService::new(mock_client);
+        let service = TarchiveService::new(public_data_service, mock_tarchive_client);
+
+        let wallet = Wallet::new_with_random_wallet(autonomi::Network::ArbitrumOne);
+        let result = tokio::runtime::Runtime::new().unwrap().block_on(
+            service.truncate_tarchive(address, "delete.txt".to_string(), wallet, StoreType::Memory)
+        ).unwrap();
+
+        assert!(result.address.is_some());
     }
 
     #[test]

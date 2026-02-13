@@ -7,7 +7,7 @@ pub mod error;
 pub mod tool;
 pub mod grpc;
 
-use crate::controller::{key_value_controller, pnr_controller, chunk_controller, command_controller, connect_controller, file_controller, graph_controller, pointer_controller, private_scratchpad_controller, public_archive_controller, tarchive_controller, public_data_controller, public_scratchpad_controller, register_controller};
+use crate::controller::*;
 use actix_files::Files;
 use actix_web::dev::ServerHandle;
 use actix_web::web::Data;
@@ -122,6 +122,7 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> io::Result<()> {
             public_archive_controller::push_public_archive,
             tarchive_controller::post_tarchive,
             tarchive_controller::put_tarchive,
+            tarchive_controller::delete_tarchive,
             tarchive_controller::push_tarchive,
             public_scratchpad_controller::get_public_scratchpad,
             public_scratchpad_controller::post_public_scratchpad,
@@ -466,6 +467,10 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> io::Result<()> {
                 .route(
                     format!("{}multipart/tarchive/{{address}}/{{path:.*}}", API_BASE).as_str(),
                     web::put().to(tarchive_controller::put_tarchive),
+                )
+                .route(
+                    format!("{}tarchive/{{address}}/{{path:.*}}", API_BASE).as_str(),
+                    web::delete().to(tarchive_controller::delete_tarchive),
                 )
                 .route(
                     format!("{}public_scratchpad", API_BASE).as_str(),

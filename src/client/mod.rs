@@ -29,7 +29,7 @@ pub use graph_entry_caching_client::GraphEntryCachingClient;
 pub use pointer_caching_client::{PointerCachingClient, MockPointerCachingClient};
 pub use register_caching_client::{RegisterCachingClient, MockRegisterCachingClient};
 pub use public_archive_caching_client::{PublicArchiveCachingClient, MockPublicArchiveCachingClient};
-pub use tarchive_caching_client::TArchiveCachingClient;
+pub use tarchive_caching_client::{TArchiveCachingClient, MockTArchiveCachingClient};
 pub use archive_caching_client::ArchiveCachingClient;
 pub use public_data_caching_client::{PublicDataCachingClient, MockPublicDataCachingClient};
 pub use streaming_client::{StreamingClient, MockStreamingClient};

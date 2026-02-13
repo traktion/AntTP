@@ -15,7 +15,7 @@ pub mod tarchive_proto {
 
 use tarchive_proto::tarchive_service_server::TarchiveService as TarchiveServiceTrait;
 pub use tarchive_proto::tarchive_service_server::TarchiveServiceServer;
-use tarchive_proto::{CreateTarchiveRequest, UpdateTarchiveRequest, TarchiveResponse, File as ProtoFile};
+use tarchive_proto::{CreateTarchiveRequest, UpdateTarchiveRequest, TruncateTarchiveRequest, TarchiveResponse, File as ProtoFile};
 
 pub struct TarchiveHandler {
     tarchive_service: Data<TarchiveService>,
@@ -92,6 +92,22 @@ impl TarchiveServiceTrait for TarchiveHandler {
             req.address,
             req.path,
             tarchive_form,
+            self.evm_wallet.get_ref().clone(),
+            StoreType::from(req.store_type.unwrap_or_default())
+        ).await?;
+
+        Ok(Response::new(TarchiveResponse::from(result)))
+    }
+
+    async fn truncate_tarchive(
+        &self,
+        request: Request<TruncateTarchiveRequest>,
+    ) -> Result<Response<TarchiveResponse>, Status> {
+        let req = request.into_inner();
+        
+        let result = self.tarchive_service.truncate_tarchive(
+            req.address,
+            req.path,
             self.evm_wallet.get_ref().clone(),
             StoreType::from(req.store_type.unwrap_or_default())
         ).await?;

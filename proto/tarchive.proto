@@ -5,6 +5,7 @@ package tarchive;
 service TarchiveService {
   rpc CreateTarchive(CreateTarchiveRequest) returns (TarchiveResponse);
   rpc UpdateTarchive(UpdateTarchiveRequest) returns (TarchiveResponse);
+  rpc TruncateTarchive(TruncateTarchiveRequest) returns (TarchiveResponse);
 }
 
 message File {
@@ -23,6 +24,12 @@ message UpdateTarchiveRequest {
   repeated File files = 2;
   optional string path = 3;
   optional string store_type = 4;
+}
+
+message TruncateTarchiveRequest {
+  string address = 1;
+  string path = 2;
+  optional string store_type = 3;
 }
 
 message TarchiveResponse {

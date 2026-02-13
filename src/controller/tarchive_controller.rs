@@ -10,6 +10,35 @@ use crate::error::tarchive_error::TarchiveError;
 use crate::controller::get_store_type;
 
 #[utoipa::path(
+    delete,
+    path = "/anttp-0/tarchive/{address}/{path}",
+    responses(
+        (status = OK, description = "Tarchive truncated successfully", body = Upload)
+    ),
+    params(
+        ("address" = String, Path, description = "Tarchive address"),
+        ("path" = String, Path, description = "Path to directory or file within the archive to be deleted"),
+        ("x-store-type", Header, description = "Only persist to cache and do not publish (memory|disk|none)",
+        example = "memory"),
+    ),
+)]
+pub async fn delete_tarchive(
+    path_params: web::Path<(String, String)>,
+    tarchive_service: Data<TarchiveService>,
+    evm_wallet_data: Data<EvmWallet>,
+    request: HttpRequest,
+) -> Result<HttpResponse, TarchiveError> {
+    let (address, mut path) = path_params.into_inner();
+    path = path.replace("%2F", "/");
+    let evm_wallet = evm_wallet_data.get_ref().clone();
+
+    debug!("Truncating tarchive at address [{}] and path [{}]", address, path);
+    Ok(HttpResponse::Ok().json(
+        tarchive_service.truncate_tarchive(address, path, evm_wallet, get_store_type(&request)).await?
+    ))
+}
+
+#[utoipa::path(
     post,
     path = "/anttp-0/tarchive/{address}",
     responses(

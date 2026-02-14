@@ -3,7 +3,7 @@ use actix_web::{web, HttpRequest, HttpResponse};
 use actix_web::web::Data;
 use ant_evm::EvmWallet;
 use log::debug;
-use crate::service::public_archive_service::{PublicArchiveForm, Upload};
+use crate::service::public_archive_service::{PublicArchiveForm, Upload, ArchiveResponse};
 use crate::service::tarchive_service::TarchiveService;
 use crate::service::public_data_service::PublicDataService;
 use crate::error::tarchive_error::TarchiveError;
@@ -189,5 +189,49 @@ pub async fn put_tarchive(
     debug!("Updating [{}] tarchive from multipart PUT at path [{}] with store type [{:?}]", address, path, get_store_type(&request));
     Ok(HttpResponse::Ok().json(
         tarchive_service.update_tarchive(address, Some(path), tarchive_form, evm_wallet, get_store_type(&request)).await?
+    ))
+}
+
+#[utoipa::path(
+    get,
+    path = "/anttp-0/tarchive/{address}",
+    responses(
+        (status = OK, description = "Tarchive retrieved successfully", body = ArchiveResponse)
+    ),
+    params(
+        ("address" = String, Path, description = "Tarchive address"),
+    ),
+)]
+pub async fn get_tarchive_root(
+    path_params: web::Path<String>,
+    tarchive_service: Data<TarchiveService>,
+) -> Result<HttpResponse, TarchiveError> {
+    let address = path_params.into_inner();
+    debug!("Getting tarchive root for address [{}]", address);
+    Ok(HttpResponse::Ok().json(
+        tarchive_service.get_tarchive(address, None).await?
+    ))
+}
+
+#[utoipa::path(
+    get,
+    path = "/anttp-0/tarchive/{address}/{path}",
+    responses(
+        (status = OK, description = "Tarchive retrieved successfully", body = ArchiveResponse)
+    ),
+    params(
+        ("address" = String, Path, description = "Tarchive address"),
+        ("path" = String, Path, description = "Path to directory or file within the archive"),
+    ),
+)]
+pub async fn get_tarchive(
+    path_params: web::Path<(String, String)>,
+    tarchive_service: Data<TarchiveService>,
+) -> Result<HttpResponse, TarchiveError> {
+    let (address, mut path) = path_params.into_inner();
+    path = path.replace("%2F", "/");
+    debug!("Getting tarchive for address [{}] and path [{}]", address, path);
+    Ok(HttpResponse::Ok().json(
+        tarchive_service.get_tarchive(address, Some(path)).await?
     ))
 }

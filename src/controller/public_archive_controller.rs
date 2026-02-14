@@ -3,7 +3,7 @@ use actix_web::{web, HttpRequest, HttpResponse};
 use actix_web::web::Data;
 use ant_evm::EvmWallet;
 use log::debug;
-use crate::service::public_archive_service::{PublicArchiveForm, PublicArchiveService, Upload, PublicArchiveResponse};
+use crate::service::public_archive_service::{PublicArchiveForm, PublicArchiveService, Upload, ArchiveResponse};
 use crate::error::public_archive_error::PublicArchiveError;
 use crate::controller::get_store_type;
 
@@ -15,7 +15,7 @@ use crate::controller::get_store_type;
         content_type = "multipart/form-data"
     ),
     responses(
-        (status = CREATED, description = "Public archive created successfully", body = PublicArchiveResponse)
+        (status = CREATED, description = "Public archive created successfully", body = ArchiveResponse)
     ),
     params(
         ("x-store-type", Header, description = "Only persist to cache and do not publish (memory|disk|none)",
@@ -44,7 +44,7 @@ pub async fn post_public_archive_root(
         content_type = "multipart/form-data"
     ),
     responses(
-        (status = CREATED, description = "Public archive created successfully", body = PublicArchiveResponse)
+        (status = CREATED, description = "Public archive created successfully", body = ArchiveResponse)
     ),
     params(
         ("path" = String, Path, description = "Target path (directory) for all uploads"),
@@ -77,7 +77,7 @@ pub async fn post_public_archive(
         content_type = "multipart/form-data"
     ),
     responses(
-        (status = OK, description = "Public archive updated successfully", body = PublicArchiveResponse)
+        (status = OK, description = "Public archive updated successfully", body = ArchiveResponse)
     ),
     params(
         ("address" = String, Path, description = "Public archive address"),
@@ -109,7 +109,7 @@ pub async fn put_public_archive_root(
         content_type = "multipart/form-data"
     ),
     responses(
-        (status = OK, description = "Public archive updated successfully", body = PublicArchiveResponse)
+        (status = OK, description = "Public archive updated successfully", body = ArchiveResponse)
     ),
     params(
         ("address" = String, Path, description = "Public archive address"),
@@ -139,7 +139,7 @@ pub async fn put_public_archive(
     get,
     path = "/anttp-0/public_archive/{address}",
     responses(
-        (status = OK, description = "Public archive retrieved successfully", body = PublicArchiveResponse)
+        (status = OK, description = "Public archive retrieved successfully", body = ArchiveResponse)
     ),
     params(
         ("address" = String, Path, description = "Public archive address"),
@@ -160,7 +160,7 @@ pub async fn get_public_archive_root(
     get,
     path = "/anttp-0/public_archive/{address}/{path}",
     responses(
-        (status = OK, description = "Public archive retrieved successfully", body = PublicArchiveResponse)
+        (status = OK, description = "Public archive retrieved successfully", body = ArchiveResponse)
     ),
     params(
         ("address" = String, Path, description = "Public archive address"),

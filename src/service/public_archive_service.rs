@@ -58,29 +58,29 @@ impl Upload {
 }
 
 #[derive(Serialize, Deserialize, ToSchema, Debug, Clone, PartialEq)]
-pub struct PublicArchiveResponse {
+pub struct ArchiveResponse {
     pub items: Vec<PathDetail>,
     pub content: String,
     pub address: String,
 }
 
-impl PublicArchiveResponse {
+impl ArchiveResponse {
     pub fn new(items: Vec<PathDetail>, content: String, address: String) -> Self {
-        PublicArchiveResponse { items, content, address }
+        ArchiveResponse { items, content, address }
     }
 }
 
 #[derive(Serialize, Deserialize, ToSchema, Debug, Clone, PartialEq)]
-pub struct PublicArchiveRaw {
+pub struct ArchiveRaw {
     pub items: Vec<PathDetail>,
     #[schema(value_type = String, format = Binary)]
     pub content: Bytes,
     pub address: String,
 }
 
-impl PublicArchiveRaw {
+impl ArchiveRaw {
     pub fn new(items: Vec<PathDetail>, content: Bytes, address: String) -> Self {
-        PublicArchiveRaw { items, content, address }
+        ArchiveRaw { items, content, address }
     }
 }
 
@@ -144,12 +144,12 @@ impl PublicArchiveService {
         Ok(new_public_archive)
     }
 
-    pub async fn get_public_archive(&self, address: String, path: Option<String>) -> Result<PublicArchiveResponse, PublicArchiveError> {
+    pub async fn get_public_archive(&self, address: String, path: Option<String>) -> Result<ArchiveResponse, PublicArchiveError> {
         let res = self.get_public_archive_binary(address, path).await?;
-        Ok(PublicArchiveResponse::new(res.items, BASE64_STANDARD.encode(res.content), res.address))
+        Ok(ArchiveResponse::new(res.items, BASE64_STANDARD.encode(res.content), res.address))
     }
 
-    pub async fn get_public_archive_binary(&self, address: String, path: Option<String>) -> Result<PublicArchiveRaw, PublicArchiveError> {
+    pub async fn get_public_archive_binary(&self, address: String, path: Option<String>) -> Result<ArchiveRaw, PublicArchiveError> {
         let archive_address = ArchiveAddress::from_hex(address.as_str())?;
         let public_archive = self.public_archive_caching_client.archive_get_public(archive_address).await?;
         let archive = Archive::build_from_public_archive(public_archive);
@@ -159,12 +159,12 @@ impl PublicArchiveService {
             Some(data_address_offset) => {
                 debug!("download file from public archive at [{}]", path);
                 let bytes = self.public_data_caching_client.data_get_public(&data_address_offset.data_address).await?;
-                Ok(PublicArchiveRaw::new(vec![], bytes, address))
+                Ok(ArchiveRaw::new(vec![], bytes, address))
             }
             None => {
                 debug!("download directory from public archive at [{}]", path);
                 let path_details = archive.list_dir(path);
-                Ok(PublicArchiveRaw::new(path_details, Bytes::new(), address))
+                Ok(ArchiveRaw::new(path_details, Bytes::new(), address))
             }
         }
     }
@@ -208,13 +208,13 @@ impl PublicArchiveService {
         }
     }
 
-    pub async fn create_public_archive(&self, target_path: Option<String>, public_archive_form: MultipartForm<PublicArchiveForm>, evm_wallet: Wallet, store_type: StoreType) -> Result<PublicArchiveResponse, PublicArchiveError> {
+    pub async fn create_public_archive(&self, target_path: Option<String>, public_archive_form: MultipartForm<PublicArchiveForm>, evm_wallet: Wallet, store_type: StoreType) -> Result<ArchiveResponse, PublicArchiveError> {
         info!("Uploading new public archive to the network");
         let upload = self.update_public_archive_common(target_path.clone(), public_archive_form, evm_wallet, &mut PublicArchive::new(), store_type).await?;
         self.get_public_archive(upload.address.unwrap_or_default(), target_path).await
     }
 
-    pub async fn update_public_archive(&self, address: String, target_path: Option<String>, public_archive_form: MultipartForm<PublicArchiveForm>, evm_wallet: Wallet, store_type: StoreType) -> Result<PublicArchiveResponse, PublicArchiveError> {
+    pub async fn update_public_archive(&self, address: String, target_path: Option<String>, public_archive_form: MultipartForm<PublicArchiveForm>, evm_wallet: Wallet, store_type: StoreType) -> Result<ArchiveResponse, PublicArchiveError> {
         let public_archive_data = self.public_archive_caching_client.archive_get_public(ArchiveAddress::from_hex(address.as_str())?).await?;
         let archive = Archive::build_from_public_archive(public_archive_data.clone());
 

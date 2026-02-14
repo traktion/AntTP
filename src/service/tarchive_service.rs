@@ -5,26 +5,59 @@ use std::path::PathBuf;
 use actix_multipart::form::MultipartForm;
 use actix_web::web::Bytes;
 use autonomi::Wallet;
-use log::{info, warn};
+use log::{debug, info, warn};
 use sanitize_filename::sanitize;
 use uuid::Uuid;
 use tar::Builder;
+use base64::Engine;
+use base64::prelude::BASE64_STANDARD;
+use autonomi::data::DataAddress;
 
-use crate::service::public_archive_service::{PublicArchiveForm, Upload};
+use crate::service::public_archive_service::{PublicArchiveForm, Upload, ArchiveResponse, ArchiveRaw};
 use crate::service::public_data_service::PublicDataService;
+use crate::service::file_service::FileService;
 use crate::error::tarchive_error::TarchiveError;
 use crate::error::UpdateError;
 use crate::controller::StoreType;
 use crate::model::tarchive::Tarchive;
+use crate::model::archive::Archive;
 
 #[derive(Debug)]
 pub struct TarchiveService {
     public_data_service: PublicDataService,
+    file_service: FileService,
 }
 
 impl TarchiveService {
-    pub fn new(public_data_service: PublicDataService) -> Self {
-        TarchiveService { public_data_service }
+    pub fn new(public_data_service: PublicDataService, file_service: FileService) -> Self {
+        TarchiveService { public_data_service, file_service }
+    }
+
+    pub async fn get_tarchive(&self, address: String, path: Option<String>) -> Result<ArchiveResponse, TarchiveError> {
+        let res = self.get_tarchive_binary(address, path).await?;
+        Ok(ArchiveResponse::new(res.items, BASE64_STANDARD.encode(res.content), res.address))
+    }
+
+    pub async fn get_tarchive_binary(&self, address: String, path: Option<String>) -> Result<ArchiveRaw, TarchiveError> {
+        let data_address = DataAddress::from_hex(address.as_str())
+            .map_err(|e| TarchiveError::GetError(crate::error::GetError::BadAddress(e.to_string())))?;
+
+        let bytes = self.public_data_service.get_public_data_binary(address.clone()).await?;
+        let archive = Archive::build_from_tar(&data_address, bytes);
+        let path = path.unwrap_or_default();
+
+        match archive.find_file(&path) {
+            Some(data_address_offset) => {
+                debug!("download file from tarchive at [{}]", path);
+                let bytes = self.file_service.download_data_bytes(*data_address_offset.data_address.xorname(), data_address_offset.offset, data_address_offset.size).await?;
+                Ok(ArchiveRaw::new(vec![], bytes.into(), address))
+            }
+            None => {
+                debug!("download directory from tarchive at [{}]", path);
+                let path_details = archive.list_dir(path);
+                Ok(ArchiveRaw::new(path_details, Bytes::new(), address))
+            }
+        }
     }
 
     pub async fn create_tarchive(&self, target_path: Option<String>, tarchive_form: MultipartForm<PublicArchiveForm>, evm_wallet: Wallet, store_type: StoreType) -> Result<Upload, TarchiveError> {
@@ -222,12 +255,13 @@ impl TarchiveService {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::client::MockPublicDataCachingClient;
+    use crate::client::{MockPublicDataCachingClient, MockChunkCachingClient};
     use autonomi::data::DataAddress;
     use xor_name::XorName;
     
     fn create_mock_service() -> TarchiveService {
         let mut mock_client = MockPublicDataCachingClient::default();
+        let mut mock_chunk_client = MockChunkCachingClient::default();
 
         // Mock get_public_data_binary
         mock_client.expect_data_get_public()
@@ -238,7 +272,8 @@ mod tests {
             .returning(|_, _, _| Ok(DataAddress::new(XorName([0; 32]))));
 
         let public_data_service = PublicDataService::new(mock_client);
-        TarchiveService::new(public_data_service)
+        let file_service = FileService::new(mock_chunk_client, 1);
+        TarchiveService::new(public_data_service, file_service)
     }
 
     #[test]
@@ -278,7 +313,9 @@ mod tests {
             .returning(|_, _, _| Ok(DataAddress::new(XorName([0; 32]))));
 
         let public_data_service = PublicDataService::new(mock_client);
-        let service = TarchiveService::new(public_data_service);
+        let mock_chunk_client = MockChunkCachingClient::default();
+        let file_service = FileService::new(mock_chunk_client, 1);
+        let service = TarchiveService::new(public_data_service, file_service);
 
         let wallet = Wallet::new_with_random_wallet(autonomi::Network::ArbitrumOne);
         let result = tokio::runtime::Runtime::new().unwrap().block_on(
@@ -286,6 +323,73 @@ mod tests {
         ).unwrap();
 
         assert!(result.address.is_some());
+    }
+
+    #[test]
+    fn test_get_tarchive_directory_listing() {
+        let mut mock_client = MockPublicDataCachingClient::default();
+        let mut mock_chunk_client = MockChunkCachingClient::default();
+
+        // Prepare index data
+        let index_data = "file1.txt 512 11\n";
+
+        mock_client.expect_data_get_public()
+            .returning(move |_| Ok(Bytes::from(index_data)));
+
+        let public_data_service = PublicDataService::new(mock_client);
+        let file_service = FileService::new(mock_chunk_client, 1);
+        let service = TarchiveService::new(public_data_service, file_service);
+
+        let xor_name = XorName::from_content(b"test");
+        let address = DataAddress::new(xor_name).to_hex();
+
+        let result = tokio::runtime::Runtime::new().unwrap().block_on(
+            service.get_tarchive(address, None)
+        ).unwrap();
+
+        assert_eq!(result.items.len(), 1);
+        assert_eq!(result.items[0].display, "file1.txt");
+        assert!(result.content.is_empty());
+    }
+
+    #[test]
+    fn test_get_tarchive_file() {
+        let mut mock_client = MockPublicDataCachingClient::default();
+        let mut mock_chunk_client = MockChunkCachingClient::default();
+
+        // Prepare index data
+        let index_data = "file1.txt 512 8\n";
+
+        mock_client.expect_data_get_public()
+            .returning(move |_| Ok(Bytes::from(index_data)));
+
+        // Mock chunk_get_internal for download_data_bytes
+        mock_chunk_client.expect_chunk_get_internal()
+            .returning(|_| Ok(autonomi::Chunk::new(Bytes::from(b"content1".to_vec()))));
+
+        mock_chunk_client.expect_clone()
+            .returning(|| {
+                let mut m = MockChunkCachingClient::default();
+                m.expect_chunk_get_internal()
+                    .returning(|_| Ok(autonomi::Chunk::new(Bytes::from(b"content1".to_vec()))));
+                m.expect_clone()
+                    .returning(|| MockChunkCachingClient::default());
+                m
+            });
+
+        let public_data_service = PublicDataService::new(mock_client);
+        let file_service = FileService::new(mock_chunk_client, 1);
+        let service = TarchiveService::new(public_data_service, file_service);
+
+        let xor_name = XorName::from_content(b"test");
+        let address = DataAddress::new(xor_name).to_hex();
+
+        let result = tokio::runtime::Runtime::new().unwrap().block_on(
+            service.get_tarchive(address, Some("file1.txt".to_string()))
+        ).unwrap();
+
+        assert!(result.items.is_empty());
+        assert_eq!(BASE64_STANDARD.decode(result.content).unwrap(), b"content1");
     }
 
     #[test]

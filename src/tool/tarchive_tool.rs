@@ -49,6 +49,15 @@ struct TruncateTarchiveRequest {
     store_type: String,
 }
 
+#[derive(Debug, Deserialize, JsonSchema, Serialize)]
+struct GetTarchiveRequest {
+    #[schemars(description = "Address of the tarchive")]
+    address: String,
+    #[schemars(description = "Optional path to directory or file within the archive")]
+    path: Option<String>,
+}
+
+
 impl From<TarchiveError> for ErrorData {
     fn from(error: TarchiveError) -> Self {
         ErrorData::new(ErrorCode::INTERNAL_ERROR, error.to_string(), None)
@@ -97,6 +106,17 @@ impl McpTool {
             path,
             self.evm_wallet.get_ref().clone(),
             StoreType::from(store_type)
+        ).await?.into())
+    }
+
+    #[tool(description = "List files or get content from a tarchive")]
+    async fn get_tarchive(
+        &self,
+        Parameters(GetTarchiveRequest { address, path }): Parameters<GetTarchiveRequest>,
+    ) -> Result<CallToolResult, ErrorData> {
+        Ok(self.tarchive_service.get_tarchive(
+            address,
+            path
         ).await?.into())
     }
 

@@ -47,8 +47,8 @@ impl PublicArchiveHandler {
     }
 }
 
-impl From<crate::service::public_archive_service::PublicArchiveResponse> for PublicArchiveResponse {
-    fn from(res: crate::service::public_archive_service::PublicArchiveResponse) -> Self {
+impl From<crate::service::public_archive_service::ArchiveResponse> for PublicArchiveResponse {
+    fn from(res: crate::service::public_archive_service::ArchiveResponse) -> Self {
         PublicArchiveResponse {
             address: Some(res.address),
         }

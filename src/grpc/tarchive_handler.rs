@@ -15,7 +15,7 @@ pub mod tarchive_proto {
 
 use tarchive_proto::tarchive_service_server::TarchiveService as TarchiveServiceTrait;
 pub use tarchive_proto::tarchive_service_server::TarchiveServiceServer;
-use tarchive_proto::{CreateTarchiveRequest, UpdateTarchiveRequest, TruncateTarchiveRequest, TarchiveResponse, File as ProtoFile};
+use tarchive_proto::{CreateTarchiveRequest, UpdateTarchiveRequest, TruncateTarchiveRequest, TarchiveResponse, File as ProtoFile, GetTarchiveRequest, GetTarchiveResponse, Item};
 
 pub struct TarchiveHandler {
     tarchive_service: Data<TarchiveService>,
@@ -113,6 +113,27 @@ impl TarchiveServiceTrait for TarchiveHandler {
         ).await?;
 
         Ok(Response::new(TarchiveResponse::from(result)))
+    }
+
+    async fn get_tarchive(
+        &self,
+        request: Request<GetTarchiveRequest>,
+    ) -> Result<Response<GetTarchiveResponse>, Status> {
+        let req = request.into_inner();
+        let result = self.tarchive_service.get_tarchive_binary(req.address, Some(req.path)).await?;
+
+        let items: Vec<Item> = result.items.into_iter().map(|pd| Item {
+            name: pd.display,
+            modified: pd.modified,
+            size: pd.size,
+            r#type: format!("{:?}", pd.path_type),
+        }).collect();
+
+        Ok(Response::new(GetTarchiveResponse {
+            address: Some(result.address),
+            items,
+            content: Some(result.content.into()),
+        }))
     }
 }
 

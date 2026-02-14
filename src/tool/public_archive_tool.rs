@@ -15,7 +15,7 @@ use serde::Deserialize;
 use serde_json::json;
 use crate::controller::StoreType;
 use crate::error::public_archive_error::PublicArchiveError;
-use crate::service::public_archive_service::{PublicArchiveForm, Upload, PublicArchiveResponse};
+use crate::service::public_archive_service::{PublicArchiveForm, Upload, ArchiveResponse};
 use crate::tool::McpTool;
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -64,8 +64,8 @@ struct GetStatusPublicArchiveRequest {
     id: String,
 }
 
-impl From<PublicArchiveResponse> for CallToolResult {
-    fn from(res: PublicArchiveResponse) -> CallToolResult {
+impl From<ArchiveResponse> for CallToolResult {
+    fn from(res: ArchiveResponse) -> CallToolResult {
         CallToolResult::structured(json!(res))
     }
 }

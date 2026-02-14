@@ -6,6 +6,7 @@ service TarchiveService {
   rpc CreateTarchive(CreateTarchiveRequest) returns (TarchiveResponse);
   rpc UpdateTarchive(UpdateTarchiveRequest) returns (TarchiveResponse);
   rpc TruncateTarchive(TruncateTarchiveRequest) returns (TarchiveResponse);
+  rpc GetTarchive(GetTarchiveRequest) returns (GetTarchiveResponse);
 }
 
 message File {
@@ -34,4 +35,22 @@ message TruncateTarchiveRequest {
 
 message TarchiveResponse {
   optional string address = 1;
+}
+
+message GetTarchiveRequest {
+  string address = 1;
+  string path = 2;
+}
+
+message GetTarchiveResponse {
+  optional string address = 1;
+  repeated Item items = 2;
+  optional bytes content = 3;
+}
+
+message Item {
+  string name = 1;
+  uint64 modified = 2;
+  uint64 size = 3;
+  string type = 4;
 }

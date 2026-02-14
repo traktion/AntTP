@@ -45,6 +45,8 @@ struct TruncateTarchiveRequest {
     address: String,
     #[schemars(description = "The path within the tarchive to truncate (all files under this path will be removed)")]
     path: String,
+    #[schemars(description = "Store archive on memory, disk or network")]
+    store_type: String,
 }
 
 #[derive(Debug, Deserialize, JsonSchema, Serialize)]
@@ -113,13 +115,13 @@ impl McpTool {
     #[tool(description = "Truncate an existing tarchive (delete file or directory)")]
     async fn truncate_tarchive(
         &self,
-        Parameters(TruncateTarchiveRequest { address, path }): Parameters<TruncateTarchiveRequest>,
+        Parameters(TruncateTarchiveRequest { address, path, store_type }): Parameters<TruncateTarchiveRequest>,
     ) -> Result<CallToolResult, ErrorData> {
         Ok(self.tarchive_service.truncate_tarchive(
             address,
             path,
             self.evm_wallet.get_ref().clone(),
-            StoreType::Network
+            StoreType::from(store_type)
         ).await?.into())
     }
 
@@ -225,6 +227,20 @@ mod tests {
         assert_eq!(deserialized.store_type, "disk");
         assert_eq!(deserialized.files.get("test2.txt").unwrap(), "VXBkYXRlZA==");
         assert_eq!(deserialized.path, Some("secret".to_string()));
+    }
+
+    #[tokio::test]
+    async fn test_truncate_tarchive_request_serialization() {
+        let request = TruncateTarchiveRequest {
+            address: "0x123".to_string(),
+            path: "folder/".to_string(),
+            store_type: "memory".to_string(),
+        };
+        let json = serde_json::to_string(&request).unwrap();
+        let deserialized: TruncateTarchiveRequest = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.address, "0x123");
+        assert_eq!(deserialized.path, "folder/");
+        assert_eq!(deserialized.store_type, "memory");
     }
 
     #[tokio::test]

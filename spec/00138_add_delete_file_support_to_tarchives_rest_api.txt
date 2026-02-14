@@ -27,3 +27,4 @@ Implementation Notes
 - Do not attempt to clone or mock other *_service.rs code
 - Mock TArchiveCachingClient using mockall !mock annotation to improve testing of tarchive_service.rs
 - Update swagger documentation for the new endpoint
+- Update get_tarchive_binary in tarchive_service.rs to call tarchive_caching_client.get_archive_from_tar instead of public_data_service.get_public_data_binary, so that only the tar index is retrieved to build the archive from tar.

@@ -47,6 +47,8 @@ use crate::client::PublicArchiveCachingClient;
 #[double]
 use crate::client::PublicDataCachingClient;
 #[double]
+use crate::client::TArchiveCachingClient;
+#[double]
 use crate::client::StreamingClient;
 use crate::client::{ArchiveCachingClient, GraphEntryCachingClient, RegisterCachingClient, ScratchpadCachingClient};
 use crate::client::client_harness::ClientHarness;
@@ -193,6 +195,7 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> io::Result<()> {
     let graph_entry_caching_client = GraphEntryCachingClient::new(caching_client.clone());
     let pointer_caching_client = PointerCachingClient::new(caching_client.clone());
     let public_archive_caching_client = PublicArchiveCachingClient::new(caching_client.clone(), streaming_client.clone());
+    let tarchive_caching_client = TArchiveCachingClient::new(caching_client.clone(), streaming_client.clone());
     let public_data_caching_client = PublicDataCachingClient::new(caching_client.clone(), streaming_client.clone());
     let register_caching_client = RegisterCachingClient::new(caching_client.clone());
     let scratchpad_caching_client = ScratchpadCachingClient::new(caching_client.clone());
@@ -213,7 +216,11 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> io::Result<()> {
 
     // define services
     let public_archive_service_data = Data::new(PublicArchiveService::new(FileService::new(chunk_caching_client.clone(), ant_tp_config.download_threads), public_archive_caching_client.clone(), public_data_caching_client.clone()));
-    let tarchive_service_data = Data::new(TarchiveService::new(PublicDataService::new(public_data_caching_client.clone()), FileService::new(chunk_caching_client.clone(), ant_tp_config.download_threads)));
+    let tarchive_service_data = Data::new(TarchiveService::new(
+        PublicDataService::new(public_data_caching_client.clone()),
+        tarchive_caching_client.clone(),
+        FileService::new(chunk_caching_client.clone(), ant_tp_config.download_threads)
+    ));
     let command_service_data = Data::new(CommandService::new(command_status_data.clone()));
     let chunk_service_data = Data::new(ChunkService::new(chunk_caching_client.clone()));
     let graph_service_data = Data::new(GraphService::new(graph_entry_caching_client.clone(), ant_tp_config.clone()));
@@ -373,6 +380,14 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> io::Result<()> {
             .route(
                 format!("{}public_archive/{{address}}/{{path:.*}}", API_BASE).as_str(),
                 web::get().to(public_archive_controller::get_public_archive),
+            )
+            .route(
+                format!("{}tarchive/{{address}}", API_BASE).as_str(),
+                web::get().to(tarchive_controller::get_tarchive_root),
+            )
+            .route(
+                format!("{}tarchive/{{address}}/{{path:.*}}", API_BASE).as_str(),
+                web::get().to(tarchive_controller::get_tarchive),
             )
             .route(
                 "/{path:.*}",

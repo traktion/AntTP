@@ -3,9 +3,21 @@ use actix_web::{web, web::Data, HttpRequest, HttpResponse};
 use ant_evm::EvmWallet;
 use crate::controller::get_store_type;
 use crate::error::archive_error::ArchiveError;
-use crate::service::archive_service::{ArchiveForm, ArchiveService, ArchiveType};
+use crate::service::archive_service::{ArchiveForm, ArchiveResponse, ArchiveService, ArchiveType, Upload};
 
 /// GET /api/v1/archive/{type}/{address}
+#[utoipa::path(
+    get,
+    path = "/api/v1/archive/{type}/{address}",
+    responses(
+        (status = OK, description = "Archive retrieved successfully", body = ArchiveResponse),
+        (status = NOT_FOUND, description = "Archive not found")
+    ),
+    params(
+        ("type" = ArchiveType, Path, description = "Archive type: public or tarchive"),
+        ("address" = String, Path, description = "Archive address")
+    )
+)]
 pub async fn get_archive_root(
     path_params: web::Path<(ArchiveType, String)>,
     archive_service: Data<ArchiveService>,
@@ -16,6 +28,19 @@ pub async fn get_archive_root(
 }
 
 /// GET /api/v1/archive/{type}/{address}/{path}
+#[utoipa::path(
+    get,
+    path = "/api/v1/archive/{type}/{address}/{path}",
+    responses(
+        (status = OK, description = "Archive content retrieved successfully", body = ArchiveResponse),
+        (status = NOT_FOUND, description = "Archive or path not found")
+    ),
+    params(
+        ("type" = ArchiveType, Path, description = "Archive type: public or tarchive"),
+        ("address" = String, Path, description = "Archive address"),
+        ("path" = String, Path, description = "Path within the archive")
+    )
+)]
 pub async fn get_archive(
     path_params: web::Path<(ArchiveType, String, String)>,
     archive_service: Data<ArchiveService>,
@@ -26,6 +51,19 @@ pub async fn get_archive(
 }
 
 /// PUT /api/v1/multipart/archive/{type}/{address}
+#[utoipa::path(
+    put,
+    path = "/api/v1/multipart/archive/{type}/{address}",
+    request_body(content = ArchiveForm, content_type = "multipart/form-data"),
+    responses(
+        (status = OK, description = "Archive updated successfully", body = ArchiveResponse)
+    ),
+    params(
+        ("type" = ArchiveType, Path, description = "Archive type: public or tarchive"),
+        ("address" = String, Path, description = "Archive address"),
+        ("x-store-type" = Option<String>, Header, description = "Store type: memory, disk or network")
+    )
+)]
 pub async fn put_archive_root(
     path_params: web::Path<(ArchiveType, String)>,
     archive_form: MultipartForm<ArchiveForm>,
@@ -49,6 +87,20 @@ pub async fn put_archive_root(
 }
 
 /// PUT /api/v1/multipart/archive/{type}/{address}/{path}
+#[utoipa::path(
+    put,
+    path = "/api/v1/multipart/archive/{type}/{address}/{path}",
+    request_body(content = ArchiveForm, content_type = "multipart/form-data"),
+    responses(
+        (status = OK, description = "Archive updated successfully", body = ArchiveResponse)
+    ),
+    params(
+        ("type" = ArchiveType, Path, description = "Archive type: public or tarchive"),
+        ("address" = String, Path, description = "Archive address"),
+        ("path" = String, Path, description = "Target path within the archive"),
+        ("x-store-type" = Option<String>, Header, description = "Store type: memory, disk or network")
+    )
+)]
 pub async fn put_archive(
     path_params: web::Path<(ArchiveType, String, String)>,
     archive_form: MultipartForm<ArchiveForm>,
@@ -72,6 +124,19 @@ pub async fn put_archive(
 }
 
 /// DELETE /api/v1/archive/{type}/{address}/{path}
+#[utoipa::path(
+    delete,
+    path = "/api/v1/archive/{type}/{address}/{path}",
+    responses(
+        (status = OK, description = "Archive truncated successfully", body = Upload)
+    ),
+    params(
+        ("type" = ArchiveType, Path, description = "Archive type: public or tarchive"),
+        ("address" = String, Path, description = "Archive address"),
+        ("path" = String, Path, description = "Path to truncate"),
+        ("x-store-type" = Option<String>, Header, description = "Store type: memory, disk or network")
+    )
+)]
 pub async fn delete_archive(
     path_params: web::Path<(ArchiveType, String, String)>,
     archive_service: Data<ArchiveService>,
@@ -93,6 +158,18 @@ pub async fn delete_archive(
 }
 
 /// POST /api/v1/archive/{type}/{address} (push)
+#[utoipa::path(
+    post,
+    path = "/api/v1/archive/{type}/{address}",
+    responses(
+        (status = OK, description = "Archive pushed successfully", body = Upload)
+    ),
+    params(
+        ("type" = ArchiveType, Path, description = "Archive type: public or tarchive"),
+        ("address" = String, Path, description = "Archive address"),
+        ("x-store-type" = Option<String>, Header, description = "Store type: memory, disk or network")
+    )
+)]
 pub async fn push_archive(
     path_params: web::Path<(ArchiveType, String)>,
     archive_service: Data<ArchiveService>,

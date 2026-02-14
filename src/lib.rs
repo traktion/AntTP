@@ -68,7 +68,7 @@ use crate::service::file_service::FileService;
 use crate::service::graph_service::GraphService;
 use crate::service::pointer_service::PointerService;
 use crate::service::public_archive_service::{PublicArchiveForm, PublicArchiveService, Upload, ArchiveResponse};
-use crate::service::archive_service::{ArchiveService};
+use crate::service::archive_service::{ArchiveService, ArchiveType, ArchiveForm};
 use crate::service::tarchive_service::TarchiveService;
 use crate::service::public_data_service::PublicDataService;
 use crate::service::register_service::RegisterService;
@@ -119,6 +119,12 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> io::Result<()> {
             pointer_controller::get_pointer,
             pointer_controller::post_pointer,
             pointer_controller::put_pointer,
+            archive_controller::get_archive,
+            archive_controller::get_archive_root,
+            archive_controller::put_archive,
+            archive_controller::put_archive_root,
+            archive_controller::delete_archive,
+            archive_controller::push_archive,
             public_archive_controller::get_public_archive,
             public_archive_controller::get_public_archive_root,
             public_archive_controller::post_public_archive,
@@ -155,7 +161,7 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> io::Result<()> {
             key_value_controller::get_key_value
         ),
         components(
-            schemas(PublicArchiveForm, Upload, ArchiveResponse, Chunk)
+            schemas(PublicArchiveForm, ArchiveForm, Upload, ArchiveResponse, Chunk, ArchiveType)
         )
     )]
     struct ApiDoc;

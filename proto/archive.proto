@@ -28,31 +28,27 @@ message CreateArchiveRequest {
 }
 
 message UpdateArchiveRequest {
-  ArchiveType archive_type = 1;
-  string address = 2;
-  repeated File files = 3;
-  optional string path = 4;
-  optional string store_type = 5;
-}
-
-message TruncateArchiveRequest {
-  ArchiveType archive_type = 1;
-  string address = 2;
-  string path = 3;
-  optional string store_type = 4;
-}
-
-message GetArchiveRequest {
-  ArchiveType archive_type = 1;
-  string address = 2;
+  string address = 1;
+  repeated File files = 2;
   optional string path = 3;
   optional string store_type = 4;
 }
 
-message PushArchiveRequest {
-  ArchiveType archive_type = 1;
-  string address = 2;
+message TruncateArchiveRequest {
+  string address = 1;
+  string path = 2;
   optional string store_type = 3;
+}
+
+message GetArchiveRequest {
+  string address = 1;
+  optional string path = 2;
+  optional string store_type = 3;
+}
+
+message PushArchiveRequest {
+  string address = 1;
+  optional string store_type = 2;
 }
 
 message ArchiveResponse {

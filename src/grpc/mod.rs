@@ -1,4 +1,6 @@
 #[cfg(not(grpc_disabled))]
+pub mod archive_handler;
+#[cfg(not(grpc_disabled))]
 pub mod pointer_handler;
 #[cfg(not(grpc_disabled))]
 pub mod register_handler;

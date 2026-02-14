@@ -223,7 +223,7 @@ mod tests {
         map.insert("sub/test.txt".to_string(), file3.clone());
         vec.push(file3);
 
-        Archive::new(map, vec)
+        Archive::new(map, vec, crate::model::archive::ArchiveType::Public)
     }
 
     fn create_resolved_address(file_path: &str) -> ResolvedAddress {

@@ -158,7 +158,7 @@ mod tests {
 
     #[test]
     fn test_render_empty_archive() {
-        let archive = Archive::new(HashMap::new(), vec![]);
+        let archive = Archive::new(HashMap::new(), vec![], crate::model::archive::ArchiveType::Public);
         let output = HtmlDirectoryRenderer::render(&archive, "test/".to_string());
         assert!(output.contains("Index of /test/"));
         assert!(output.contains("<table>"));
@@ -174,7 +174,7 @@ mod tests {
 
     #[test]
     fn test_visited_links_css() {
-        let archive = Archive::new(HashMap::new(), vec![]);
+        let archive = Archive::new(HashMap::new(), vec![], crate::model::archive::ArchiveType::Public);
         let output = HtmlDirectoryRenderer::render(&archive, "".to_string());
         assert!(output.contains("a:visited {"));
         assert!(output.contains("color: #551A8B;"));

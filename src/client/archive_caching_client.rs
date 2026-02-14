@@ -1,6 +1,6 @@
 use autonomi::files::archive_public::ArchiveAddress;
 use autonomi::files::PublicArchive;
-use log::{info, debug, error};
+use log::{info, debug, error, warn};
 use mockall_double::double;
 use tokio::join;
 #[double]
@@ -29,7 +29,8 @@ impl ArchiveCachingClient {
         let local_caching_client = self.caching_client.clone();
         let local_address = addr.clone();
         let local_streaming_client = self.streaming_client.clone();
-        let cache_entry = self.caching_client.get_hybrid_cache().get_ref().fetch(format!("{}{}", ARCHIVE_CACHE_KEY, local_address.to_hex()), || async move {
+        let cache_key = format!("{}{}", ARCHIVE_CACHE_KEY, local_address.to_hex());
+        let cache_entry = self.caching_client.get_hybrid_cache().get_ref().fetch(cache_key.clone(), || async move {
             // todo: can these be injected?
             let public_archive_caching_client = PublicArchiveCachingClient::new(local_caching_client.clone(), local_streaming_client.clone());
             let tarchive_caching_client = TArchiveCachingClient::new(local_caching_client.clone(), local_streaming_client.clone());
@@ -64,6 +65,13 @@ impl ArchiveCachingClient {
             }
         }).await?;
         info!("retrieved archive for [{}] from hybrid cache", addr.to_hex());
-        Ok(rmp_serde::from_slice(cache_entry.value())?)
+        match rmp_serde::from_slice(cache_entry.value()) {
+            Ok(archive) => Ok(archive),
+            Err(err) => {
+                warn!("Failed to deserialize archive for [{}] from hybrid cache: {:?}. Evicting and retrying...", addr.to_hex(), err);
+                self.caching_client.get_hybrid_cache().get_ref().remove(&cache_key);
+                Box::pin(self.archive_get(addr)).await
+            }
+        }
     }
 }

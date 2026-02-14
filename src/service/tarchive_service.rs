@@ -25,7 +25,7 @@ use crate::controller::StoreType;
 use crate::model::tarchive::Tarchive;
 use crate::model::archive::Archive;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct TarchiveService {
     public_data_service: PublicDataService,
     tarchive_caching_client: TArchiveCachingClient,

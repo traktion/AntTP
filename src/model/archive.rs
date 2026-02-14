@@ -4,12 +4,21 @@ use autonomi::files::PublicArchive;
 use bytes::Bytes;
 use log::{debug, error};
 use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 use crate::model::path_detail::{PathDetail, PathDetailType};
+
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, ToSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum ArchiveType {
+    Public,
+    Tarchive,
+}
 
 #[derive(Clone,Serialize,Deserialize)]
 pub struct Archive {
     data_address_offsets_map: HashMap<String, DataAddressOffset>,
     data_address_offsets_vec: Vec<DataAddressOffset>,
+    pub archive_type: ArchiveType,
 }
 
 #[derive(Clone,Debug,Serialize,Deserialize)]
@@ -22,8 +31,8 @@ pub struct DataAddressOffset {
 }
 
 impl Archive {
-    pub fn new(data_address_offsets_map: HashMap<String, DataAddressOffset>, data_address_offsets_vec: Vec<DataAddressOffset>) -> Self {
-        Archive { data_address_offsets_map, data_address_offsets_vec }
+    pub fn new(data_address_offsets_map: HashMap<String, DataAddressOffset>, data_address_offsets_vec: Vec<DataAddressOffset>, archive_type: ArchiveType) -> Self {
+        Archive { data_address_offsets_map, data_address_offsets_vec, archive_type }
     }
 
     pub fn build_from_tar(tar_data_addr: &DataAddress, data: Bytes) -> Self {
@@ -70,7 +79,7 @@ impl Archive {
             }
         }
         debug!("data_address_offsets size [{}]", data_address_offsets_map.len());
-        Archive::new(data_address_offsets_map, data_address_offsets_vec)
+        Archive::new(data_address_offsets_map, data_address_offsets_vec, ArchiveType::Tarchive)
     }
 
     pub fn sanitise_path(path: &str) -> String {
@@ -105,7 +114,7 @@ impl Archive {
             );
             data_address_offsets_vec.push(data_address_offset);
         }
-        Archive::new(data_address_offsets_map, data_address_offsets_vec)
+        Archive::new(data_address_offsets_map, data_address_offsets_vec, ArchiveType::Public)
     }
 
     pub fn find_file(&self, search_key: &String) -> Option<&DataAddressOffset> {
@@ -221,6 +230,7 @@ mod tests {
         let archive = Archive::build_from_tar(&addr, data);
         
         assert_eq!(archive.map().len(), 2);
+        assert!(matches!(archive.archive_type, ArchiveType::Tarchive));
         assert!(archive.find_file(&"file1.txt".to_string()).is_some());
         assert!(archive.find_file(&"folder/file2.txt".to_string()).is_some());
         

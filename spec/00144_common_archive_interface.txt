@@ -1,0 +1,46 @@
+As a public archive and tarchive API consumer
+I want a single endpoint for handling both public archive and tarchive operations
+So that it is simpler to integrate both archive types without having to work with two separate (but near identical) interfaces
+
+Given public_archive_controller.rs and tarchive_controller.rs both exist and are very similar
+When refactoring code to provide a single controller for both public archives and tarchives
+Then create archive_controller.rs, merge the code from public_archive_controller.rs and tarchive_controller.rs
+And use naming that pivots around 'archive' rather than 'public archive' or 'tarchive'
+And don't migrate post_public_archive or post_tarchive, as their URLs dictate the type of archive to create
+
+Given public_archive_service.rs and tarchive_service.rs provide similar features and interfaces, but distinct implementations
+When refactoring merge public archive and tarchive logic
+Then create archive_service.rs, that depends on public_archive_service.rs and tarchive_service.rs
+And provides common 'archive' named functions, which are provided an archive type enum
+And these new functions will call existing public_archive_service.rs and tarchive_service.rs functions depending on archive type
+And any common data types will be moved to archive_service.rs (e.g. ArchiveRaw and ArchiveResponse)
+
+Given public_archive.proto and tarchive.proto share a lot of similar code
+When refactoring code to provide a single archive service (archive_service.rs)
+Then combine these protos into archive.proto
+And include archive type in CreateTarchive(CreateTarchiveRequest) / CreatePublicArchive(CreatePublicArchiveRequest)
+And include the archive type in the archive_service.rs calls
+And refactor the naming to use 'Archive' instead of 'PublicArchive' or 'Tarchive', i.e. CreateArchive, UpdateArchive, TruncateArchive, PushArchive, GetArchive, etc.
+And combine public_archive_handler.rs and tarchive_handler.rs to archive_handler.rs
+
+Given public_archive_tool.rs and tarchive_tool.rs share similar logic and interfaces
+When refactoring merge public archive and tarchive logic
+Then merge public_archive_tool.rs and tarchive_tool.rs and create archive_tool.rs
+And include the archive type in the archive_service.rs calls
+And refactor the naming of tool functions to use 'Archive' instead of create_tarchive/create_public_archive, update_tarchive/update_public_archive, truncate_tarchive/truncate_public_archive, etc.
+
+Given archive_caching_client.archive_get can derive the archive type from the address
+When updating archive_service.rs to choose whether to use public_archive_service or tarchive_service
+Then use archive_caching_client.archive_get() to retrieve the Archive type
+And update Archive struct archive.rs to set archive_type, based on whether it was created through build_from_tar or build_from_public_archive
+And migrate archive_service.ArchiveType to archive.rs
+And ensure archive_controller.rs is agnostic about archive type by not including the 'type' path parameter
+
+Implementation Notes
+
+- Place any unit tests at the bottom of the same file as the associated production code
+- Increment patch version of anttp package in Cargo.toml
+- Create a copy of this issue description and save to /spec using the name of this issue as the filename (with lower underscore case, starting with the 5 char padded issue number, e.g. 00001_issue_title.txt)
+- Integrate support with MCP tools and gRPC if necessary
+- Update utoipa annotations in /src/lib to remove migrated endpoints and include new endpoints
+- Update postman collection to remove migrated endpoints and include new endpoints and run newman tests

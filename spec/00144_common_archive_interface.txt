@@ -12,13 +12,13 @@ Architectural Changes:
 
 2. HTTP Controller:
    - A new `ArchiveController` in `src/controller/archive_controller.rs` will handle unified routes:
-     - GET /api/v1/archive/{type}/{address}
-     - GET /api/v1/archive/{type}/{address}/{path}
-     - PUT /api/v1/multipart/archive/{type}/{address}
-     - PUT /api/v1/multipart/archive/{type}/{address}/{path}
-     - DELETE /api/v1/archive/{type}/{address}/{path}
-     - POST /api/v1/archive/{type}/{address} (push)
-   - Specific creation endpoints (POST /api/v1/multipart/public_archive and POST /api/v1/multipart/tarchive) remain separate.
+     - GET /anttp-0/archive/{address}
+     - GET /anttp-0/archive/{address}/{path}
+     - PUT /anttp-0/multipart/archive/{address}
+     - PUT /anttp-0/multipart/archive/{address}/{path}
+     - DELETE /anttp-0/archive/{address}/{path}
+     - POST /anttp-0/archive/{address} (push)
+   - Specific creation endpoints (POST /anttp-0/multipart/public_archive and POST /anttp-0/multipart/tarchive) remain separate.
 
 3. gRPC:
    - `proto/public_archive.proto` and `proto/tarchive.proto` will be consolidated into `proto/archive.proto`.

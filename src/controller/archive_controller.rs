@@ -5,10 +5,10 @@ use crate::controller::get_store_type;
 use crate::error::archive_error::ArchiveError;
 use crate::service::archive_service::{ArchiveForm, ArchiveResponse, ArchiveService, Upload};
 
-/// GET /api/v1/archive/{address}
+/// GET /anttp-0/archive/{address}
 #[utoipa::path(
     get,
-    path = "/api/v1/archive/{address}",
+    path = "/anttp-0/archive/{address}",
     responses(
         (status = OK, description = "Archive retrieved successfully", body = ArchiveResponse),
         (status = NOT_FOUND, description = "Archive not found")
@@ -26,10 +26,10 @@ pub async fn get_archive_root(
     Ok(HttpResponse::Ok().json(res))
 }
 
-/// GET /api/v1/archive/{address}/{path}
+/// GET /anttp-0/archive/{address}/{path}
 #[utoipa::path(
     get,
-    path = "/api/v1/archive/{address}/{path}",
+    path = "/anttp-0/archive/{address}/{path}",
     responses(
         (status = OK, description = "Archive content retrieved successfully", body = ArchiveResponse),
         (status = NOT_FOUND, description = "Archive or path not found")
@@ -48,10 +48,10 @@ pub async fn get_archive(
     Ok(HttpResponse::Ok().json(res))
 }
 
-/// PUT /api/v1/multipart/archive/{address}
+/// PUT /anttp-0/multipart/archive/{address}
 #[utoipa::path(
     put,
-    path = "/api/v1/multipart/archive/{address}",
+    path = "/anttp-0/multipart/archive/{address}",
     request_body(content = ArchiveForm, content_type = "multipart/form-data"),
     responses(
         (status = OK, description = "Archive updated successfully", body = ArchiveResponse)
@@ -82,10 +82,10 @@ pub async fn put_archive_root(
     Ok(HttpResponse::Ok().json(res))
 }
 
-/// PUT /api/v1/multipart/archive/{address}/{path}
+/// PUT /anttp-0/multipart/archive/{address}/{path}
 #[utoipa::path(
     put,
-    path = "/api/v1/multipart/archive/{address}/{path}",
+    path = "/anttp-0/multipart/archive/{address}/{path}",
     request_body(content = ArchiveForm, content_type = "multipart/form-data"),
     responses(
         (status = OK, description = "Archive updated successfully", body = ArchiveResponse)
@@ -117,10 +117,10 @@ pub async fn put_archive(
     Ok(HttpResponse::Ok().json(res))
 }
 
-/// DELETE /api/v1/archive/{address}/{path}
+/// DELETE /anttp-0/archive/{address}/{path}
 #[utoipa::path(
     delete,
-    path = "/api/v1/archive/{address}/{path}",
+    path = "/anttp-0/archive/{address}/{path}",
     responses(
         (status = OK, description = "Archive truncated successfully", body = Upload)
     ),
@@ -149,10 +149,10 @@ pub async fn delete_archive(
     Ok(HttpResponse::Ok().json(res))
 }
 
-/// POST /api/v1/archive/{address} (push)
+/// POST /anttp-0/archive/{address} (push)
 #[utoipa::path(
     post,
-    path = "/api/v1/archive/{address}",
+    path = "/anttp-0/archive/{address}",
     responses(
         (status = OK, description = "Archive pushed successfully", body = Upload)
     ),

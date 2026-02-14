@@ -146,9 +146,7 @@ impl ArchiveService {
         let archive = self.archive_caching_client.archive_get(archive_address).await?;
         match archive.archive_type {
             ArchiveType::Public => self.public_archive_service.push_public_archive(address, wallet, store_type).await.map(|u| Upload { address: u.address }).map_err(ArchiveError::from),
-            ArchiveType::Tarchive => {
-                 Err(ArchiveError::NotImplemented("Push for Tarchive not yet implemented in ArchiveService".to_string()))
-            }
+            ArchiveType::Tarchive => self.tarchive_service.push_tarchive(address, wallet, store_type).await.map(|u| Upload { address: u.address }).map_err(ArchiveError::from),
         }
     }
 

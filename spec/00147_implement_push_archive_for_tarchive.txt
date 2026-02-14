@@ -1,0 +1,19 @@
+As an archive API consumer
+I want to be able to push tarchives to a target store-type
+So that the archive API has full support for both public archives and archives
+
+Given public_archive_service.rs already implements push_public_archive
+When adding push support for tarchives
+Then add push_tarchive function to tarchive_service.rs with the same signature as public_archive_service.rs
+And call public_data_service.push_public_data() to push the data
+
+Given tarchive_controller.rs already calls public_data_service.push_public_data directly
+When adding push support to tarchive_service.rs
+Then update tarchive_controller.rs to call push_tarchive in tarchive_service.rs instead
+And use tarchive_controller.rs push_archive as an example of how to call public_data_service.push_public_data 
+
+Implementation Notes
+
+- Place any unit tests at the bottom of the same file as the associated production code
+- Increment patch version of anttp package in Cargo.toml
+- Create a copy of this issue description and save to /spec using the name of this issue as the filename (with lower underscore case, starting with the 5 char padded issue number, e.g. 00001_issue_title.txt)

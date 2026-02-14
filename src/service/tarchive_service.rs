@@ -86,6 +86,11 @@ impl TarchiveService {
         result
     }
 
+    pub async fn push_tarchive(&self, address: String, evm_wallet: Wallet, store_type: StoreType) -> Result<Upload, TarchiveError> {
+        Ok(self.public_data_service.push_public_data(address, evm_wallet, store_type).await
+            .map(|chunk| Upload::new(chunk.address))?)
+    }
+
     pub async fn update_tarchive(&self, address: String, target_path: Option<String>, tarchive_form: MultipartForm<PublicArchiveForm>, evm_wallet: Wallet, store_type: StoreType) -> Result<Upload, TarchiveError> {
         info!("Updating tarchive at address [{}]", address);
         let tmp_dir = Self::create_tmp_dir()?;
@@ -360,6 +365,37 @@ mod tests {
         assert_eq!(result.items.len(), 1);
         assert_eq!(result.items[0].display, "file1.txt");
         assert!(result.content.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_push_tarchive_success() {
+        let mut mock_client = MockPublicDataCachingClient::default();
+        let xor_name = XorName::from_content(b"test");
+        let data_address = DataAddress::new(xor_name);
+        let expected_hex = data_address.to_hex();
+        let bytes = Bytes::from("test tar data");
+
+        let get_bytes = bytes.clone();
+        mock_client
+            .expect_data_get_public()
+            .returning(move |_| Ok(get_bytes.clone()));
+
+        mock_client
+            .expect_data_put_public()
+            .returning(move |_, _, _| Ok(data_address));
+
+        let public_data_service = PublicDataService::new(mock_client);
+        let mock_chunk_client = MockChunkCachingClient::default();
+        let mock_tarchive_client = MockTArchiveCachingClient::default();
+        let file_service = FileService::new(mock_chunk_client, 1);
+        let service = TarchiveService::new(public_data_service, mock_tarchive_client, file_service);
+        
+        let wallet = Wallet::new_with_random_wallet(autonomi::Network::ArbitrumOne);
+
+        let result = service.push_tarchive(expected_hex.clone(), wallet, StoreType::Network).await;
+        assert!(result.is_ok());
+        let upload = result.unwrap();
+        assert_eq!(upload.address, Some(expected_hex));
     }
 
     #[test]

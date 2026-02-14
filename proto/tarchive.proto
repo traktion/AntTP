@@ -6,7 +6,9 @@ service TarchiveService {
   rpc CreateTarchive(CreateTarchiveRequest) returns (TarchiveResponse);
   rpc UpdateTarchive(UpdateTarchiveRequest) returns (TarchiveResponse);
   rpc TruncateTarchive(TruncateTarchiveRequest) returns (TarchiveResponse);
+  rpc ListTarchive(ListTarchiveRequest) returns (ListTarchiveResponse);
   rpc GetTarchive(GetTarchiveRequest) returns (GetTarchiveResponse);
+  rpc PushTarchive(PushTarchiveRequest) returns (TarchiveResponse);
 }
 
 message File {
@@ -39,13 +41,28 @@ message TarchiveResponse {
 
 message GetTarchiveRequest {
   string address = 1;
-  string path = 2;
+  optional string path = 2;
 }
 
 message GetTarchiveResponse {
   optional string address = 1;
+  optional bytes content = 2;
+  repeated Item items = 3;
+}
+
+message ListTarchiveRequest {
+  string address = 1;
+  optional string path = 2;
+}
+
+message ListTarchiveResponse {
+  string address = 1;
   repeated Item items = 2;
-  optional bytes content = 3;
+}
+
+message PushTarchiveRequest {
+  string address = 1;
+  optional string store_type = 2;
 }
 
 message Item {

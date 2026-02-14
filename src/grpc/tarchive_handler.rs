@@ -15,16 +15,18 @@ pub mod tarchive_proto {
 
 use tarchive_proto::tarchive_service_server::TarchiveService as TarchiveServiceTrait;
 pub use tarchive_proto::tarchive_service_server::TarchiveServiceServer;
-use tarchive_proto::{CreateTarchiveRequest, UpdateTarchiveRequest, TruncateTarchiveRequest, TarchiveResponse, File as ProtoFile, GetTarchiveRequest, GetTarchiveResponse, Item};
+use tarchive_proto::{CreateTarchiveRequest, UpdateTarchiveRequest, TruncateTarchiveRequest, TarchiveResponse, File as ProtoFile, GetTarchiveRequest, GetTarchiveResponse, Item, ListTarchiveRequest, ListTarchiveResponse, PushTarchiveRequest};
+use crate::service::public_data_service::PublicDataService;
 
 pub struct TarchiveHandler {
     tarchive_service: Data<TarchiveService>,
+    public_data_service: Data<PublicDataService>,
     evm_wallet: Data<EvmWallet>,
 }
 
 impl TarchiveHandler {
-    pub fn new(tarchive_service: Data<TarchiveService>, evm_wallet: Data<EvmWallet>) -> Self {
-        Self { tarchive_service, evm_wallet }
+    pub fn new(tarchive_service: Data<TarchiveService>, public_data_service: Data<PublicDataService>, evm_wallet: Data<EvmWallet>) -> Self {
+        Self { tarchive_service, public_data_service, evm_wallet }
     }
 
     fn map_to_multipart_form(&self, files: Vec<ProtoFile>) -> Result<MultipartForm<PublicArchiveForm>, Status> {
@@ -120,7 +122,7 @@ impl TarchiveServiceTrait for TarchiveHandler {
         request: Request<GetTarchiveRequest>,
     ) -> Result<Response<GetTarchiveResponse>, Status> {
         let req = request.into_inner();
-        let result = self.tarchive_service.get_tarchive_binary(req.address, Some(req.path)).await?;
+        let result = self.tarchive_service.get_tarchive_binary(req.address, req.path).await?;
 
         let items: Vec<Item> = result.items.into_iter().map(|pd| Item {
             name: pd.display,
@@ -133,6 +135,42 @@ impl TarchiveServiceTrait for TarchiveHandler {
             address: Some(result.address),
             items,
             content: Some(result.content.into()),
+        }))
+    }
+
+    async fn list_tarchive(
+        &self,
+        request: Request<ListTarchiveRequest>,
+    ) -> Result<Response<ListTarchiveResponse>, Status> {
+        let req = request.into_inner();
+        let result = self.tarchive_service.get_tarchive(req.address, req.path).await?;
+
+        let items: Vec<Item> = result.items.into_iter().map(|pd| Item {
+            name: pd.display,
+            modified: pd.modified,
+            size: pd.size,
+            r#type: format!("{:?}", pd.path_type),
+        }).collect();
+
+        Ok(Response::new(ListTarchiveResponse {
+            address: result.address,
+            items,
+        }))
+    }
+
+    async fn push_tarchive(
+        &self,
+        request: Request<PushTarchiveRequest>,
+    ) -> Result<Response<TarchiveResponse>, Status> {
+        let req = request.into_inner();
+        let result = self.public_data_service.push_public_data(
+            req.address,
+            self.evm_wallet.get_ref().clone(),
+            StoreType::from(req.store_type.unwrap_or_else(|| "network".to_string()))
+        ).await.map_err(|e| Status::internal(e.to_string()))?;
+
+        Ok(Response::new(TarchiveResponse {
+            address: result.address,
         }))
     }
 }

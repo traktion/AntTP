@@ -41,20 +41,36 @@ struct UpdateTarchiveRequest {
 
 #[derive(Debug, Deserialize, JsonSchema, Serialize)]
 struct TruncateTarchiveRequest {
-    #[schemars(description = "Address of the tarchive")]
+    #[schemars(description = "Hex-encoded data address of the tarchive to truncate")]
     address: String,
-    #[schemars(description = "Path to directory or file within the archive to be deleted")]
+    #[schemars(description = "The path within the tarchive to truncate (all files under this path will be removed)")]
     path: String,
     #[schemars(description = "Store archive on memory, disk or network")]
     store_type: String,
 }
 
 #[derive(Debug, Deserialize, JsonSchema, Serialize)]
-struct GetTarchiveRequest {
-    #[schemars(description = "Address of the tarchive")]
+struct ListTarchiveRequest {
+    #[schemars(description = "Hex-encoded data address of the tarchive to list")]
     address: String,
-    #[schemars(description = "Optional path to directory or file within the archive")]
+    #[schemars(description = "Optional path within the tarchive to list (e.g. 'folder/')")]
     path: Option<String>,
+}
+
+#[derive(Debug, Deserialize, JsonSchema, Serialize)]
+struct GetTarchiveRequest {
+    #[schemars(description = "Hex-encoded data address of the tarchive to retrieve")]
+    address: String,
+    #[schemars(description = "Path within the tarchive to a specific file to retrieve")]
+    path: String,
+}
+
+#[derive(Debug, Deserialize, JsonSchema, Serialize)]
+struct PushTarchiveRequest {
+    #[schemars(description = "Hex-encoded data address of the tarchive to push")]
+    address: String,
+    #[schemars(description = "Store archive on memory, disk or network")]
+    store_type: String,
 }
 
 
@@ -109,14 +125,44 @@ impl McpTool {
         ).await?.into())
     }
 
-    #[tool(description = "List files or get content from a tarchive")]
-    async fn get_tarchive(
+    #[tool(description = "List files in a tarchive")]
+    async fn list_tarchive(
         &self,
-        Parameters(GetTarchiveRequest { address, path }): Parameters<GetTarchiveRequest>,
+        Parameters(ListTarchiveRequest { address, path }): Parameters<ListTarchiveRequest>,
     ) -> Result<CallToolResult, ErrorData> {
         Ok(self.tarchive_service.get_tarchive(
             address,
             path
+        ).await?.into())
+    }
+
+    #[tool(description = "Get content of a file from a tarchive")]
+    async fn get_tarchive(
+        &self,
+        Parameters(GetTarchiveRequest { address, path }): Parameters<GetTarchiveRequest>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let result = self.tarchive_service.get_tarchive_binary(
+            address,
+            Some(path)
+        ).await?;
+        
+        Ok(CallToolResult::success(vec![rmcp::model::Content::text(format!(
+            "File content for {} in {}:\n\n{}",
+            result.address,
+            result.items.first().map(|i| i.display.as_str()).unwrap_or("unknown"),
+            String::from_utf8_lossy(&result.content)
+        ))]))
+    }
+
+    #[tool(description = "Push a tarchive to the network")]
+    async fn push_tarchive(
+        &self,
+        Parameters(PushTarchiveRequest { address, store_type }): Parameters<PushTarchiveRequest>,
+    ) -> Result<CallToolResult, ErrorData> {
+        Ok(self.public_data_service.push_public_data(
+            address,
+            self.evm_wallet.get_ref().clone(),
+            StoreType::from(store_type)
         ).await?.into())
     }
 
@@ -181,5 +227,55 @@ mod tests {
         assert_eq!(deserialized.store_type, "disk");
         assert_eq!(deserialized.files.get("test2.txt").unwrap(), "VXBkYXRlZA==");
         assert_eq!(deserialized.path, Some("secret".to_string()));
+    }
+
+    #[tokio::test]
+    async fn test_truncate_tarchive_request_serialization() {
+        let request = TruncateTarchiveRequest {
+            address: "0x123".to_string(),
+            path: "folder/".to_string(),
+            store_type: "memory".to_string(),
+        };
+        let json = serde_json::to_string(&request).unwrap();
+        let deserialized: TruncateTarchiveRequest = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.address, "0x123");
+        assert_eq!(deserialized.path, "folder/");
+        assert_eq!(deserialized.store_type, "memory");
+    }
+
+    #[tokio::test]
+    async fn test_list_tarchive_request_serialization() {
+        let request = ListTarchiveRequest {
+            address: "0x123".to_string(),
+            path: Some("folder/".to_string()),
+        };
+        let json = serde_json::to_string(&request).unwrap();
+        let deserialized: ListTarchiveRequest = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.address, "0x123");
+        assert_eq!(deserialized.path, Some("folder/".to_string()));
+    }
+
+    #[tokio::test]
+    async fn test_get_tarchive_request_serialization() {
+        let request = GetTarchiveRequest {
+            address: "0x123".to_string(),
+            path: "file.txt".to_string(),
+        };
+        let json = serde_json::to_string(&request).unwrap();
+        let deserialized: GetTarchiveRequest = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.address, "0x123");
+        assert_eq!(deserialized.path, "file.txt");
+    }
+
+    #[tokio::test]
+    async fn test_push_tarchive_request_serialization() {
+        let request = PushTarchiveRequest {
+            address: "0x123".to_string(),
+            store_type: "network".to_string(),
+        };
+        let json = serde_json::to_string(&request).unwrap();
+        let deserialized: PushTarchiveRequest = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.address, "0x123");
+        assert_eq!(deserialized.store_type, "network");
     }
 }

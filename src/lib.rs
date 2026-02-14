@@ -263,7 +263,7 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> io::Result<()> {
         let pnr_handler = PnrHandler::new(pnr_service_data.clone(), evm_wallet_data.clone());
         let public_data_handler = PublicDataHandler::new(public_data_service_data.clone(), evm_wallet_data.clone());
         let public_archive_handler = PublicArchiveHandler::new(public_archive_service_data.clone(), evm_wallet_data.clone());
-        let tarchive_handler = TarchiveHandler::new(tarchive_service_data.clone(), evm_wallet_data.clone());
+        let tarchive_handler = TarchiveHandler::new(tarchive_service_data.clone(), public_data_service_data.clone(), evm_wallet_data.clone());
         let private_scratchpad_handler = PrivateScratchpadHandler::new(scratchpad_service_data.clone(), evm_wallet_data.clone());
         let public_scratchpad_handler = PublicScratchpadHandler::new(scratchpad_service_data.clone(), evm_wallet_data.clone());
 

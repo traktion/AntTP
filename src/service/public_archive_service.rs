@@ -630,7 +630,7 @@ mod tests {
         let mock_file_service = MockFileService::default();
 
         let xor_name = XorName([0; 32]);
-        let archive = Archive::new(std::collections::HashMap::new(), Vec::new());
+        let archive = Archive::new(std::collections::HashMap::new(), Vec::new(), crate::model::archive::ArchiveType::Public);
         
         let resolved_address = ResolvedAddress::new(
             true,

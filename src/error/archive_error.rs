@@ -1,4 +1,5 @@
 use autonomi::client::ConnectError;
+use autonomi::AddressParseError;
 use thiserror::Error;
 use serde::Serialize;
 use actix_http::StatusCode;
@@ -18,6 +19,12 @@ pub enum ArchiveError {
     GetError(GetError),
     #[error("not implemented: {0}")]
     NotImplemented(String),
+}
+
+impl From<AddressParseError> for ArchiveError {
+    fn from(value: AddressParseError) -> Self {
+        Self::GetError(value.into())
+    }
 }
 
 impl From<PublicArchiveError> for ArchiveError {

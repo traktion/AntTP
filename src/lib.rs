@@ -68,7 +68,8 @@ use crate::service::file_service::FileService;
 use crate::service::graph_service::GraphService;
 use crate::service::pointer_service::PointerService;
 use crate::service::public_archive_service::{PublicArchiveForm, PublicArchiveService, Upload, ArchiveResponse};
-use crate::service::archive_service::{ArchiveService, ArchiveType, ArchiveForm};
+use crate::service::archive_service::{ArchiveService, ArchiveForm};
+use crate::model::archive::ArchiveType;
 use crate::service::tarchive_service::TarchiveService;
 use crate::service::public_data_service::PublicDataService;
 use crate::service::register_service::RegisterService;
@@ -237,7 +238,7 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> io::Result<()> {
     let public_data_service_data = Data::new(PublicDataService::new(public_data_caching_client.clone()));
     let register_service_data = Data::new(RegisterService::new(register_caching_client.clone(), ant_tp_config.clone(), resolver_service_data.get_ref().clone()));
     let scratchpad_service_data = Data::new(ScratchpadService::new(scratchpad_caching_client.clone(), ant_tp_config.clone()));
-    let archive_service_data = Data::new(ArchiveService::new(public_archive_service_data.get_ref().clone(), tarchive_service_data.get_ref().clone()));
+    let archive_service_data = Data::new(ArchiveService::new(public_archive_service_data.get_ref().clone(), tarchive_service_data.get_ref().clone(), archive_caching_client.clone()));
     let pnr_service_data = Data::new(PnrService::new(chunk_caching_client.clone(), pointer_service_data.clone()));
     let key_value_service_data = Data::new(KeyValueService::new(public_data_service_data.clone(), pnr_service_data.clone()));
 
@@ -387,11 +388,11 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> io::Result<()> {
                 web::get().to(key_value_controller::get_key_value)
             )
             .route(
-                format!("{}archive/{{type}}/{{address}}", API_BASE).as_str(),
+                format!("{}archive/{{address}}", API_BASE).as_str(),
                 web::get().to(archive_controller::get_archive_root),
             )
             .route(
-                format!("{}archive/{{type}}/{{address}}/{{path:.*}}", API_BASE).as_str(),
+                format!("{}archive/{{address}}/{{path:.*}}", API_BASE).as_str(),
                 web::get().to(archive_controller::get_archive),
             )
             .route(
@@ -468,19 +469,19 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> io::Result<()> {
                     web::put().to(pointer_controller::put_pointer),
                 )
                 .route(
-                    format!("{}multipart/archive/{{type}}/{{address}}", API_BASE).as_str(),
+                    format!("{}multipart/archive/{{address}}", API_BASE).as_str(),
                     web::put().to(archive_controller::put_archive_root),
                 )
                 .route(
-                    format!("{}multipart/archive/{{type}}/{{address}}/{{path:.*}}", API_BASE).as_str(),
+                    format!("{}multipart/archive/{{address}}/{{path:.*}}", API_BASE).as_str(),
                     web::put().to(archive_controller::put_archive),
                 )
                 .route(
-                    format!("{}archive/{{type}}/{{address}}/{{path:.*}}", API_BASE).as_str(),
+                    format!("{}archive/{{address}}/{{path:.*}}", API_BASE).as_str(),
                     web::delete().to(archive_controller::delete_archive),
                 )
                 .route(
-                    format!("{}archive/{{type}}/{{address}}", API_BASE).as_str(),
+                    format!("{}archive/{{address}}", API_BASE).as_str(),
                     web::post().to(archive_controller::push_archive),
                 )
                 .route(

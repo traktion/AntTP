@@ -13,7 +13,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 use crate::controller::StoreType;
 use crate::error::archive_error::ArchiveError;
-use crate::service::archive_service::{ArchiveForm, ArchiveResponse, ArchiveType, Upload, ArchiveRaw};
+use crate::service::archive_service::{ArchiveForm, ArchiveResponse, Upload, ArchiveRaw};
+use crate::model::archive::ArchiveType;
 use crate::tool::McpTool;
 
 #[derive(Debug, Deserialize, JsonSchema, Serialize)]
@@ -135,55 +136,48 @@ impl McpTool {
     #[tool(description = "Update an existing archive")]
     async fn update_archive(
         &self,
-        Parameters(UpdateArchiveRequest { archive_type, address, files, path, store_type }): Parameters<UpdateArchiveRequest>,
+        Parameters(UpdateArchiveRequest { address, files, path, store_type, .. }): Parameters<UpdateArchiveRequest>,
     ) -> Result<CallToolResult, ErrorData> {
         let archive_form = self.map_to_archive_multipart_form(files)?;
-        let atype = self.parse_archive_type(&archive_type)?;
         Ok(self.archive_service.update_archive(
             address,
             path,
             archive_form,
             self.evm_wallet.get_ref().clone(),
             StoreType::from(store_type),
-            atype
         ).await?.into())
     }
 
     #[tool(description = "Truncate an archive (delete file or directory)")]
     async fn truncate_archive(
         &self,
-        Parameters(TruncateArchiveRequest { archive_type, address, path, store_type }): Parameters<TruncateArchiveRequest>,
+        Parameters(TruncateArchiveRequest { address, path, store_type, .. }): Parameters<TruncateArchiveRequest>,
     ) -> Result<CallToolResult, ErrorData> {
-        let atype = self.parse_archive_type(&archive_type)?;
         Ok(self.archive_service.truncate_archive(
             address,
             path,
             self.evm_wallet.get_ref().clone(),
             StoreType::from(store_type),
-            atype
         ).await?.into())
     }
 
     #[tool(description = "Get a file from an archive")]
     async fn get_archive(
         &self,
-        Parameters(GetArchiveRequest { archive_type, address, path }): Parameters<GetArchiveRequest>,
+        Parameters(GetArchiveRequest { address, path, .. }): Parameters<GetArchiveRequest>,
     ) -> Result<CallToolResult, ErrorData> {
-        let atype = self.parse_archive_type(&archive_type)?;
-        Ok(self.archive_service.get_archive_binary(address, Some(path), atype).await?.into())
+        Ok(self.archive_service.get_archive_binary(address, Some(path)).await?.into())
     }
 
     #[tool(description = "Push a staged archive from cache to a target store type (default: network)")]
     async fn push_archive(
         &self,
-        Parameters(PushArchiveRequest { archive_type, address, store_type }): Parameters<PushArchiveRequest>,
+        Parameters(PushArchiveRequest { address, store_type, .. }): Parameters<PushArchiveRequest>,
     ) -> Result<CallToolResult, ErrorData> {
-        let atype = self.parse_archive_type(&archive_type)?;
         Ok(self.archive_service.push_archive(
             address,
             self.evm_wallet.get_ref().clone(),
             StoreType::from(store_type),
-            atype
         ).await?.into())
     }
 

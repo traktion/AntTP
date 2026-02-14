@@ -56,29 +56,30 @@ impl ArchiveRaw {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, Copy, ToSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum ArchiveType {
-    Public,
-    Tarchive,
-}
+pub use crate::model::archive::ArchiveType;
+use crate::client::ArchiveCachingClient;
+use autonomi::files::archive_public::ArchiveAddress;
 
 #[derive(Debug, Clone)]
 pub struct ArchiveService {
     public_archive_service: PublicArchiveService,
     tarchive_service: TarchiveService,
+    archive_caching_client: ArchiveCachingClient,
 }
 
 impl ArchiveService {
-    pub fn new(public_archive_service: PublicArchiveService, tarchive_service: TarchiveService) -> Self {
+    pub fn new(public_archive_service: PublicArchiveService, tarchive_service: TarchiveService, archive_caching_client: ArchiveCachingClient) -> Self {
         Self {
             public_archive_service,
             tarchive_service,
+            archive_caching_client,
         }
     }
 
-    pub async fn get_archive(&self, address: String, path: Option<String>, archive_type: ArchiveType) -> Result<ArchiveResponse, ArchiveError> {
-        match archive_type {
+    pub async fn get_archive(&self, address: String, path: Option<String>) -> Result<ArchiveResponse, ArchiveError> {
+        let archive_address = ArchiveAddress::from_hex(address.as_str())?;
+        let archive = self.archive_caching_client.archive_get(archive_address).await?;
+        match archive.archive_type {
             ArchiveType::Public => self.public_archive_service.get_public_archive(address, path).await
                 .map(|res| ArchiveResponse::new(res.items, res.content, res.address))
                 .map_err(ArchiveError::from),
@@ -88,8 +89,10 @@ impl ArchiveService {
         }
     }
 
-    pub async fn get_archive_binary(&self, address: String, path: Option<String>, archive_type: ArchiveType) -> Result<ArchiveRaw, ArchiveError> {
-        match archive_type {
+    pub async fn get_archive_binary(&self, address: String, path: Option<String>) -> Result<ArchiveRaw, ArchiveError> {
+        let archive_address = ArchiveAddress::from_hex(address.as_str())?;
+        let archive = self.archive_caching_client.archive_get(archive_address).await?;
+        match archive.archive_type {
             ArchiveType::Public => self.public_archive_service.get_public_archive_binary(address, path).await
                 .map(|res| ArchiveRaw::new(res.items, res.content, res.address))
                 .map_err(ArchiveError::from),
@@ -106,11 +109,12 @@ impl ArchiveService {
         form: MultipartForm<ArchiveForm>,
         wallet: Wallet,
         store_type: StoreType,
-        archive_type: ArchiveType,
     ) -> Result<ArchiveResponse, ArchiveError> {
+        let archive_address = ArchiveAddress::from_hex(address.as_str())?;
+        let archive = self.archive_caching_client.archive_get(archive_address).await?;
         let files = form.into_inner().files;
         
-        match archive_type {
+        match archive.archive_type {
             ArchiveType::Public => {
                 use crate::service::public_archive_service::PublicArchiveForm;
                 let public_form = MultipartForm(PublicArchiveForm { files });
@@ -128,21 +132,21 @@ impl ArchiveService {
         }
     }
 
-    pub async fn truncate_archive(&self, address: String, path: String, wallet: Wallet, store_type: StoreType, archive_type: ArchiveType) -> Result<Upload, ArchiveError> {
-        match archive_type {
+    pub async fn truncate_archive(&self, address: String, path: String, wallet: Wallet, store_type: StoreType) -> Result<Upload, ArchiveError> {
+        let archive_address = ArchiveAddress::from_hex(address.as_str())?;
+        let archive = self.archive_caching_client.archive_get(archive_address).await?;
+        match archive.archive_type {
             ArchiveType::Public => self.public_archive_service.truncate_public_archive(address, path, wallet, store_type).await.map(|u| Upload { address: u.address }).map_err(ArchiveError::from),
             ArchiveType::Tarchive => self.tarchive_service.truncate_tarchive(address, path, wallet, store_type).await.map(|u| Upload { address: u.address }).map_err(ArchiveError::from),
         }
     }
 
-    pub async fn push_archive(&self, address: String, wallet: Wallet, store_type: StoreType, archive_type: ArchiveType) -> Result<Upload, ArchiveError> {
-        match archive_type {
+    pub async fn push_archive(&self, address: String, wallet: Wallet, store_type: StoreType) -> Result<Upload, ArchiveError> {
+        let archive_address = ArchiveAddress::from_hex(address.as_str())?;
+        let archive = self.archive_caching_client.archive_get(archive_address).await?;
+        match archive.archive_type {
             ArchiveType::Public => self.public_archive_service.push_public_archive(address, wallet, store_type).await.map(|u| Upload { address: u.address }).map_err(ArchiveError::from),
             ArchiveType::Tarchive => {
-                 // Actually Tarchive can also be pushed, but it currently uses PublicDataService directly.
-                 // We could potentially implement it by using public_archive_service if it supports it, 
-                 // but tarchive is a tar file stored as public data.
-                 // For now, keep it as error or implement if needed.
                  Err(ArchiveError::NotImplemented("Push for Tarchive not yet implemented in ArchiveService".to_string()))
             }
         }

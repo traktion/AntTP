@@ -4,7 +4,8 @@ use ant_evm::EvmWallet;
 use actix_multipart::form::tempfile::TempFile;
 use actix_multipart::form::MultipartForm;
 use std::io::Write;
-use crate::service::archive_service::{ArchiveForm, ArchiveService, ArchiveType as ServiceArchiveType, ArchiveResponse as ServiceArchiveResponse, ArchiveRaw as ServiceArchiveRaw, Upload as ServiceUpload};
+use crate::service::archive_service::{ArchiveForm, ArchiveService, ArchiveResponse as ServiceArchiveResponse, ArchiveRaw as ServiceArchiveRaw, Upload as ServiceUpload};
+use crate::model::archive::ArchiveType as ServiceArchiveType;
 use crate::controller::StoreType;
 use crate::error::archive_error::ArchiveError;
 
@@ -134,7 +135,6 @@ impl ArchiveServiceTrait for ArchiveHandler {
     ) -> Result<Response<ArchiveResponse>, Status> {
         let req = request.into_inner();
         let archive_form = self.map_to_multipart_form(req.files)?;
-        let archive_type = Self::map_archive_type(req.archive_type as i32);
 
         let result = self.archive_service.update_archive(
             req.address,
@@ -142,7 +142,6 @@ impl ArchiveServiceTrait for ArchiveHandler {
             archive_form,
             self.evm_wallet.get_ref().clone(),
             StoreType::from(req.store_type.unwrap_or_default()),
-            archive_type
         ).await?;
 
         Ok(Response::new(ArchiveResponse::from(result)))
@@ -153,14 +152,12 @@ impl ArchiveServiceTrait for ArchiveHandler {
         request: Request<TruncateArchiveRequest>,
     ) -> Result<Response<ArchiveResponse>, Status> {
         let req = request.into_inner();
-        let archive_type = Self::map_archive_type(req.archive_type as i32);
 
         let result = self.archive_service.truncate_archive(
             req.address,
             req.path,
             self.evm_wallet.get_ref().clone(),
             StoreType::from(req.store_type.unwrap_or_default()),
-            archive_type
         ).await?;
 
         Ok(Response::new(ArchiveResponse::from(result)))
@@ -171,9 +168,8 @@ impl ArchiveServiceTrait for ArchiveHandler {
         request: Request<GetArchiveRequest>,
     ) -> Result<Response<ArchiveResponse>, Status> {
         let req = request.into_inner();
-        let archive_type = Self::map_archive_type(req.archive_type as i32);
 
-        let result = self.archive_service.get_archive_binary(req.address, req.path, archive_type).await?;
+        let result = self.archive_service.get_archive_binary(req.address, req.path).await?;
 
         Ok(Response::new(ArchiveResponse::from(result)))
     }
@@ -183,13 +179,11 @@ impl ArchiveServiceTrait for ArchiveHandler {
         request: Request<PushArchiveRequest>,
     ) -> Result<Response<ArchiveResponse>, Status> {
         let req = request.into_inner();
-        let archive_type = Self::map_archive_type(req.archive_type as i32);
 
         let result = self.archive_service.push_archive(
             req.address,
             self.evm_wallet.get_ref().clone(),
             StoreType::from(req.store_type.unwrap_or_else(|| "network".to_string())),
-            archive_type
         ).await?;
 
         Ok(Response::new(ArchiveResponse::from(result)))

@@ -645,14 +645,14 @@
 								"method": "GET",
 								"header": [],
 								"url": {
-									"raw": "{{base_url}}/anttp-0/archive/public/{{public_archive_address}}",
+									"raw": "{{base_url}}/anttp-0/archive/{{public_archive_address}}",
 									"host": [
 										"{{base_url}}"
 									],
 									"path": [
 										"anttp-0",
 										"archive",
-										"public",
+										
 										"{{public_archive_address}}"
 									]
 								}
@@ -664,14 +664,14 @@
 								"method": "GET",
 								"header": [],
 								"url": {
-									"raw": "{{base_url}}/anttp-0/archive/tarchive/{{tarchive_address}}",
+									"raw": "{{base_url}}/anttp-0/archive/{{tarchive_address}}",
 									"host": [
 										"{{base_url}}"
 									],
 									"path": [
 										"anttp-0",
 										"archive",
-										"tarchive",
+										
 										"{{tarchive_address}}"
 									]
 								}
@@ -700,7 +700,7 @@
 									]
 								},
 								"url": {
-									"raw": "{{base_url}}/anttp-0/multipart/archive/public/{{public_archive_address}}",
+									"raw": "{{base_url}}/anttp-0/multipart/archive/{{public_archive_address}}",
 									"host": [
 										"{{base_url}}"
 									],
@@ -708,7 +708,7 @@
 										"anttp-0",
 										"multipart",
 										"archive",
-										"public",
+										
 										"{{public_archive_address}}"
 									]
 								}

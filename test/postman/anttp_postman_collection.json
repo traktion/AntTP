@@ -637,6 +637,86 @@
 					]
 				},
 				{
+					"name": "Archive",
+					"item": [
+						{
+							"name": "Get Public Archive Root Unified",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/anttp-0/archive/public/{{public_archive_address}}",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"anttp-0",
+										"archive",
+										"public",
+										"{{public_archive_address}}"
+									]
+								}
+							}
+						},
+						{
+							"name": "Get Tarchive Root Unified",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/anttp-0/archive/tarchive/{{tarchive_address}}",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"anttp-0",
+										"archive",
+										"tarchive",
+										"{{tarchive_address}}"
+									]
+								}
+							}
+						},
+						{
+							"name": "Update Public Archive Unified",
+							"request": {
+								"method": "PUT",
+								"header": [
+									{
+										"key": "x-store-type",
+										"value": "memory",
+										"type": "text"
+									}
+								],
+								"body": {
+									"mode": "formdata",
+									"formdata": [
+										{
+											"key": "files",
+											"type": "text",
+											"value": "updated content",
+											"contentType": "text/plain"
+										}
+									]
+								},
+								"url": {
+									"raw": "{{base_url}}/anttp-0/multipart/archive/public/{{public_archive_address}}",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"anttp-0",
+										"multipart",
+										"archive",
+										"public",
+										"{{public_archive_address}}"
+									]
+								}
+							}
+						}
+					]
+				},
+				{
 					"name": "Public Archive",
 					"item": [
 						{

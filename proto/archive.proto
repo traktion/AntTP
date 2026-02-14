@@ -1,0 +1,69 @@
+syntax = "proto3";
+
+package archive;
+
+service ArchiveService {
+  rpc CreateArchive(CreateArchiveRequest) returns (ArchiveResponse);
+  rpc UpdateArchive(UpdateArchiveRequest) returns (ArchiveResponse);
+  rpc TruncateArchive(TruncateArchiveRequest) returns (ArchiveResponse);
+  rpc GetArchive(GetArchiveRequest) returns (ArchiveResponse);
+  rpc PushArchive(PushArchiveRequest) returns (ArchiveResponse);
+}
+
+enum ArchiveType {
+  PUBLIC = 0;
+  TARCHIVE = 1;
+}
+
+message File {
+  string name = 1;
+  bytes content = 2;
+}
+
+message CreateArchiveRequest {
+  ArchiveType archive_type = 1;
+  repeated File files = 2;
+  optional string path = 3;
+  optional string store_type = 4;
+}
+
+message UpdateArchiveRequest {
+  ArchiveType archive_type = 1;
+  string address = 2;
+  repeated File files = 3;
+  optional string path = 4;
+  optional string store_type = 5;
+}
+
+message TruncateArchiveRequest {
+  ArchiveType archive_type = 1;
+  string address = 2;
+  string path = 3;
+  optional string store_type = 4;
+}
+
+message GetArchiveRequest {
+  ArchiveType archive_type = 1;
+  string address = 2;
+  optional string path = 3;
+  optional string store_type = 4;
+}
+
+message PushArchiveRequest {
+  ArchiveType archive_type = 1;
+  string address = 2;
+  optional string store_type = 3;
+}
+
+message ArchiveResponse {
+  optional string address = 1;
+  repeated Item items = 2;
+  optional bytes content = 3;
+}
+
+message Item {
+  string name = 1;
+  uint64 modified = 2;
+  uint64 size = 3;
+  string type = 4;
+}

@@ -7,6 +7,7 @@ use crate::service::register_service::RegisterService;
 use crate::service::graph_service::GraphService;
 use crate::service::public_archive_service::PublicArchiveService;
 use crate::service::scratchpad_service::ScratchpadService;
+use crate::service::archive_service::ArchiveService;
 use crate::service::tarchive_service::TarchiveService;
 use actix_web::web::Data;
 use ant_evm::EvmWallet;
@@ -15,6 +16,7 @@ use rmcp::model::{ServerCapabilities, ServerInfo};
 use rmcp::{tool_handler, ServerHandler};
 
 
+pub mod archive_tool;
 pub mod pnr_tool;
 pub mod chunk_tool;
 pub mod command_tool;
@@ -37,6 +39,7 @@ pub struct McpTool {
     register_service: Data<RegisterService>,
     graph_service: Data<GraphService>,
     public_archive_service: Data<PublicArchiveService>,
+    archive_service: Data<ArchiveService>,
     scratchpad_service: Data<ScratchpadService>,
     tarchive_service: Data<TarchiveService>,
     evm_wallet: Data<EvmWallet>,
@@ -53,6 +56,7 @@ impl McpTool {
         register_service: Data<RegisterService>,
         graph_service: Data<GraphService>,
         public_archive_service: Data<PublicArchiveService>,
+        archive_service: Data<ArchiveService>,
         scratchpad_service: Data<ScratchpadService>,
         tarchive_service: Data<TarchiveService>,
         evm_wallet: Data<EvmWallet>
@@ -66,6 +70,7 @@ impl McpTool {
             register_service,
             graph_service,
             public_archive_service,
+            archive_service,
             scratchpad_service,
             tarchive_service,
             evm_wallet,
@@ -77,6 +82,7 @@ impl McpTool {
                 + Self::register_tool_router()
                 + Self::graph_tool_router()
                 + Self::public_archive_tool_router()
+                + Self::archive_tool_router()
                 + Self::public_scratchpad_tool_router()
                 + Self::private_scratchpad_tool_router()
                 + Self::tarchive_tool_router()

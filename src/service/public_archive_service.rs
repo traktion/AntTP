@@ -84,7 +84,7 @@ impl ArchiveRaw {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct PublicArchiveService {
     file_service: FileService,
     public_archive_caching_client: PublicArchiveCachingClient,

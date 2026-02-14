@@ -1,5 +1,6 @@
 use actix_web::HttpRequest;
 
+pub mod archive_controller;
 pub mod pointer_controller;
 pub mod register_controller;
 pub mod file_controller;

@@ -68,12 +68,15 @@ use crate::service::file_service::FileService;
 use crate::service::graph_service::GraphService;
 use crate::service::pointer_service::PointerService;
 use crate::service::public_archive_service::{PublicArchiveForm, PublicArchiveService, Upload, ArchiveResponse};
+use crate::service::archive_service::{ArchiveService};
 use crate::service::tarchive_service::TarchiveService;
 use crate::service::public_data_service::PublicDataService;
 use crate::service::register_service::RegisterService;
 use crate::service::resolver_service::ResolverService;
 use crate::service::scratchpad_service::ScratchpadService;
 use crate::tool::McpTool;
+#[cfg(not(grpc_disabled))]
+use crate::grpc::archive_handler::{ArchiveHandler, ArchiveServiceServer};
 #[cfg(not(grpc_disabled))]
 use crate::grpc::pointer_handler::{PointerHandler, PointerServiceServer};
 #[cfg(not(grpc_disabled))]
@@ -228,6 +231,7 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> io::Result<()> {
     let public_data_service_data = Data::new(PublicDataService::new(public_data_caching_client.clone()));
     let register_service_data = Data::new(RegisterService::new(register_caching_client.clone(), ant_tp_config.clone(), resolver_service_data.get_ref().clone()));
     let scratchpad_service_data = Data::new(ScratchpadService::new(scratchpad_caching_client.clone(), ant_tp_config.clone()));
+    let archive_service_data = Data::new(ArchiveService::new(public_archive_service_data.get_ref().clone(), tarchive_service_data.get_ref().clone()));
     let pnr_service_data = Data::new(PnrService::new(chunk_caching_client.clone(), pointer_service_data.clone()));
     let key_value_service_data = Data::new(KeyValueService::new(public_data_service_data.clone(), pnr_service_data.clone()));
 
@@ -241,6 +245,7 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> io::Result<()> {
         register_service_data.clone(),
         graph_service_data.clone(),
         public_archive_service_data.clone(),
+        archive_service_data.clone(),
         scratchpad_service_data.clone(),
         tarchive_service_data.clone(),
         evm_wallet_data.clone()
@@ -263,6 +268,7 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> io::Result<()> {
         let pnr_handler = PnrHandler::new(pnr_service_data.clone(), evm_wallet_data.clone());
         let public_data_handler = PublicDataHandler::new(public_data_service_data.clone(), evm_wallet_data.clone());
         let public_archive_handler = PublicArchiveHandler::new(public_archive_service_data.clone(), evm_wallet_data.clone());
+        let archive_handler = ArchiveHandler::new(archive_service_data.clone(), evm_wallet_data.clone());
         let tarchive_handler = TarchiveHandler::new(tarchive_service_data.clone(), public_data_service_data.clone(), evm_wallet_data.clone());
         let private_scratchpad_handler = PrivateScratchpadHandler::new(scratchpad_service_data.clone(), evm_wallet_data.clone());
         let public_scratchpad_handler = PublicScratchpadHandler::new(scratchpad_service_data.clone(), evm_wallet_data.clone());
@@ -284,6 +290,7 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> io::Result<()> {
                 .add_service(PnrServiceServer::new(pnr_handler))
                 .add_service(PublicServiceServer::new(public_data_handler))
                 .add_service(PublicArchiveServiceServer::new(public_archive_handler))
+                .add_service(ArchiveServiceServer::new(archive_handler))
                 .add_service(TarchiveServiceServer::new(tarchive_handler))
                 .add_service(PrivateScratchpadServiceServer::new(private_scratchpad_handler))
                 .add_service(PublicScratchpadServiceServer::new(public_scratchpad_handler))
@@ -374,6 +381,14 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> io::Result<()> {
                 web::get().to(key_value_controller::get_key_value)
             )
             .route(
+                format!("{}archive/{{type}}/{{address}}", API_BASE).as_str(),
+                web::get().to(archive_controller::get_archive_root),
+            )
+            .route(
+                format!("{}archive/{{type}}/{{address}}/{{path:.*}}", API_BASE).as_str(),
+                web::get().to(archive_controller::get_archive),
+            )
+            .route(
                 format!("{}public_archive/{{address}}", API_BASE).as_str(),
                 web::get().to(public_archive_controller::get_public_archive_root),
             )
@@ -412,6 +427,7 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> io::Result<()> {
             .app_data(pointer_service_data.clone())
             .app_data(public_archive_service_data.clone())
             .app_data(tarchive_service_data.clone())
+            .app_data(archive_service_data.clone())
             .app_data(public_data_service_data.clone())
             .app_data(register_service_data.clone())
             .app_data(resolver_service_data.clone())
@@ -444,6 +460,22 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> io::Result<()> {
                 .route(
                     format!("{}pointer/{{address}}", API_BASE).as_str(),
                     web::put().to(pointer_controller::put_pointer),
+                )
+                .route(
+                    format!("{}multipart/archive/{{type}}/{{address}}", API_BASE).as_str(),
+                    web::put().to(archive_controller::put_archive_root),
+                )
+                .route(
+                    format!("{}multipart/archive/{{type}}/{{address}}/{{path:.*}}", API_BASE).as_str(),
+                    web::put().to(archive_controller::put_archive),
+                )
+                .route(
+                    format!("{}archive/{{type}}/{{address}}/{{path:.*}}", API_BASE).as_str(),
+                    web::delete().to(archive_controller::delete_archive),
+                )
+                .route(
+                    format!("{}archive/{{type}}/{{address}}", API_BASE).as_str(),
+                    web::post().to(archive_controller::push_archive),
                 )
                 .route(
                     format!("{}multipart/public_archive", API_BASE).as_str(),

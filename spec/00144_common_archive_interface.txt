@@ -1,0 +1,34 @@
+Specification for Issue #144: Common Archive Interface
+
+Objective:
+Refactor the Public Archive and Tarchive interfaces into a unified "Archive" interface across Service, HTTP, gRPC, and Tooling layers to reduce code duplication and provide a more consistent API for clients.
+
+Architectural Changes:
+
+1. Service Layer:
+   - A new `ArchiveService` will be introduced in `src/service/archive_service.rs`.
+   - It will use an `ArchiveType` enum (Public, Tarchive) to delegate operations to either `PublicArchiveService` or `TarchiveService`.
+   - Common data structures like `Upload`, `ArchiveResponse`, `ArchiveRaw`, and `ArchiveForm` (renamed from `PublicArchiveForm`) will be moved to `archive_service.rs`.
+
+2. HTTP Controller:
+   - A new `ArchiveController` in `src/controller/archive_controller.rs` will handle unified routes:
+     - GET /api/v1/archive/{type}/{address}
+     - GET /api/v1/archive/{type}/{address}/{path}
+     - PUT /api/v1/multipart/archive/{type}/{address}
+     - PUT /api/v1/multipart/archive/{type}/{address}/{path}
+     - DELETE /api/v1/archive/{type}/{address}/{path}
+     - POST /api/v1/archive/{type}/{address} (push)
+   - Specific creation endpoints (POST /api/v1/multipart/public_archive and POST /api/v1/multipart/tarchive) remain separate.
+
+3. gRPC:
+   - `proto/public_archive.proto` and `proto/tarchive.proto` will be consolidated into `proto/archive.proto`.
+   - A unified `ArchiveHandler` in `src/grpc/archive_handler.rs` will implement the gRPC service.
+
+4. Tooling (MCP):
+   - A unified `ArchiveTool` in `src/tool/archive_tool.rs` will replace the separate archive tools.
+
+Migration Strategy:
+- Implement new unified services and controllers.
+- Register new routes and handlers.
+- Deprecate/Remove old redundant code once the new interface is verified.
+- Update Postman collections and tests to use the new endpoints.

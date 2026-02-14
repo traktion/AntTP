@@ -5,7 +5,6 @@ use ant_evm::EvmWallet;
 use log::debug;
 use crate::service::public_archive_service::{PublicArchiveForm, Upload, ArchiveResponse};
 use crate::service::tarchive_service::TarchiveService;
-use crate::service::public_data_service::PublicDataService;
 use crate::error::tarchive_error::TarchiveError;
 use crate::controller::get_store_type;
 
@@ -51,7 +50,7 @@ pub async fn delete_tarchive(
 )]
 pub async fn push_tarchive(
     path: web::Path<String>,
-    public_data_service: Data<PublicDataService>,
+    tarchive_service: Data<TarchiveService>,
     evm_wallet_data: Data<EvmWallet>,
     request: HttpRequest,
 ) -> Result<HttpResponse, TarchiveError> {
@@ -60,7 +59,7 @@ pub async fn push_tarchive(
 
     debug!("Pushing tarchive [{}] to target store type [{:?}]", address, get_store_type(&request));
     Ok(HttpResponse::Ok().json(
-        public_data_service.push_public_data(address, evm_wallet, get_store_type(&request)).await?
+        tarchive_service.push_tarchive(address, evm_wallet, get_store_type(&request)).await?
     ))
 }
 

@@ -1,0 +1,18 @@
+As an public data API consumer
+I want to be able to provide the unresolved name or address to the chunk endpoints
+So that I can easily interact with the chunk endpoints without having to resolve the target address beforehand
+
+Given the 'resolve_name' function in resolver_service.rs can accept any source name or address as an input and output the target address
+When push_public_data or get_public_data_binary functions in public_data_service.rs are called with an 'address' argument
+Then include ResolverService in the PublicDataService struct
+And update code that instantiates PublicDataService to provide Resolver service as a dependency
+And firstly call the 'resolve_name' function in resolver_service.rs and attempt to resolve the address
+And use the resolved address, instead of the original address, for the rest of the function 
+
+Implementation Notes
+
+- Place any unit tests at the bottom of the same file as the associated production code
+- Increment patch version of anttp package in Cargo.toml
+- Create a copy of this issue description and save to /spec using the name of this issue as the filename (with lower underscore case, starting with the 5 char padded issue number, e.g. 00001_issue_title.txt)
+- Update unit tests to validate the changes
+- Do NOT create any new mocks

@@ -159,7 +159,8 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> io::Result<()> {
             pnr_controller::put_pnr,
             pnr_controller::patch_pnr,
             key_value_controller::post_key_value,
-            key_value_controller::get_key_value
+            key_value_controller::get_key_value,
+            resolver_controller::resolve
         ),
         components(
             schemas(PublicArchiveForm, ArchiveForm, Upload, ArchiveResponse, Chunk, ArchiveType)
@@ -391,6 +392,10 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> io::Result<()> {
             .route(
                 format!("{}key_value/{{bucket}}/{{object}}", API_BASE).as_str(),
                 web::get().to(key_value_controller::get_key_value)
+            )
+            .route(
+                format!("{}resolve/{{name}}", API_BASE).as_str(),
+                web::get().to(resolver_controller::resolve)
             )
             .route(
                 format!("{}archive/{{address}}", API_BASE).as_str(),

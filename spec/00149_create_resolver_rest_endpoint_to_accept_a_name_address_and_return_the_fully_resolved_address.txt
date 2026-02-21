@@ -10,11 +10,25 @@ And the endpoint should be GET /anttp-0/resolve/{name}, where {name} can be a so
 And the endpoint will only return a successful 200 response with the resolved target address or a 404 if it could not be found
 And update the utoipa annotation to reflect the above
 
-Given the 'resolve' function in resolver_service.rs can accept any source name or address as an input and output the target address
+Given resolver_service.rs only returns a string as a response
+When adding the resolver endpoint
+Then create a new Resolve struct in /src/model/resolve.rs (defined below)
+And add resolve_name_item in resolver_service.rs, which calls resolve_name, but returns 'Option', populating Resolve.name=name (passed in) and Resolve.content=resolved_address.address.
+And update resolver_controller.rs to return body = Resolve instead of String (for utopia annotation).
+
+```
+#[derive(Serialize, Deserialize, ToSchema)]
+pub struct Resolve {
+    pub name: String,
+    pub content: String,
+}
+```
+
+Given the 'resolve_name_item' function in resolver_service.rs can accept any source name or address as an input and output Resolve instance
 When adding the resolver endpoint
 Then ensure the 'resolve' function in resolve_controller.rs accepts `resolver_service: Data` as an argument
-And calls the 'resolve_name' function in resolver_service.rs and attempt to resolve the address
-And returns the resolved target address to the consumer
+And calls the 'resolve_name_item' function in resolver_service.rs and attempt to resolve the address
+And returns the Resolve instance containing the source name and target address to the consumer
 And update /src/lib.rs utoipa annotation to include the new controller and endpoint
 And add a route to resolve in resolver_controller.rs
 

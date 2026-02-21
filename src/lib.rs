@@ -70,6 +70,7 @@ use crate::service::pointer_service::PointerService;
 use crate::service::public_archive_service::{PublicArchiveForm, PublicArchiveService, Upload, ArchiveResponse};
 use crate::service::archive_service::{ArchiveService, ArchiveForm};
 use crate::model::archive::ArchiveType;
+use crate::model::resolve::Resolve;
 use crate::service::tarchive_service::TarchiveService;
 use crate::service::public_data_service::PublicDataService;
 use crate::service::register_service::RegisterService;
@@ -163,7 +164,7 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> io::Result<()> {
             resolver_controller::resolve
         ),
         components(
-            schemas(PublicArchiveForm, ArchiveForm, Upload, ArchiveResponse, Chunk, ArchiveType)
+            schemas(PublicArchiveForm, ArchiveForm, Upload, ArchiveResponse, Chunk, ArchiveType, Resolve)
         )
     )]
     struct ApiDoc;
@@ -394,10 +395,6 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> io::Result<()> {
                 web::get().to(key_value_controller::get_key_value)
             )
             .route(
-                format!("{}resolve/{{name}}", API_BASE).as_str(),
-                web::get().to(resolver_controller::resolve)
-            )
-            .route(
                 format!("{}archive/{{address}}", API_BASE).as_str(),
                 web::get().to(archive_controller::get_archive_root),
             )
@@ -420,6 +417,10 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> io::Result<()> {
             .route(
                 format!("{}tarchive/{{address}}/{{path:.*}}", API_BASE).as_str(),
                 web::get().to(tarchive_controller::get_tarchive),
+            )
+            .route(
+                format!("{}resolve/{{name}}", API_BASE).as_str(),
+                web::get().to(resolver_controller::resolve)
             )
             .route(
                 "/{path:.*}",

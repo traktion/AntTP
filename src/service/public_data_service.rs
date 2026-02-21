@@ -11,6 +11,8 @@ use crate::client::PublicDataCachingClient;
 use crate::error::GetError;
 use crate::controller::StoreType;
 use crate::error::public_data_error::PublicDataError;
+#[double]
+use crate::service::resolver_service::ResolverService;
 use crate::service::chunk_service::Chunk;
 
 #[derive(Serialize, Deserialize, ToSchema)]
@@ -21,12 +23,13 @@ pub struct PublicData {
 
 #[derive(Debug, Clone)]
 pub struct PublicDataService {
-    public_data_caching_client: PublicDataCachingClient
+    public_data_caching_client: PublicDataCachingClient,
+    resolver_service: ResolverService
 }
 
 impl PublicDataService {
-    pub fn new(public_data_caching_client: PublicDataCachingClient) -> Self {
-        Self { public_data_caching_client }
+    pub fn new(public_data_caching_client: PublicDataCachingClient, resolver_service: ResolverService) -> Self {
+        Self { public_data_caching_client, resolver_service }
     }
 
     pub async fn create_public_data(&self, bytes: Bytes, evm_wallet: Wallet, store_type: StoreType) -> Result<Chunk, PublicDataError> {
@@ -36,7 +39,8 @@ impl PublicDataService {
     }
 
     pub async fn push_public_data(&self, address: String, evm_wallet: Wallet, store_type: StoreType) -> Result<Chunk, PublicDataError> {
-        let data_address = match DataAddress::from_hex(address.as_str()) {
+        let resolved_address = self.resolver_service.resolve_name(&address).await.unwrap_or(address);
+        let data_address = match DataAddress::from_hex(resolved_address.as_str()) {
             Ok(data_address) => data_address,
             Err(e) => return Err(PublicDataError::GetError(GetError::BadAddress(e.to_string())))
         };
@@ -48,7 +52,8 @@ impl PublicDataService {
     }
 
     pub async fn get_public_data_binary(&self, address: String) -> Result<Bytes, PublicDataError> {
-        match DataAddress::from_hex(address.as_str()) {
+        let resolved_address = self.resolver_service.resolve_name(&address).await.unwrap_or(address);
+        match DataAddress::from_hex(resolved_address.as_str()) {
             Ok(data_address) => self.public_data_caching_client.data_get_public(&data_address).await,
             Err(e) => Err(PublicDataError::GetError(GetError::BadAddress(e.to_string())))
         }
@@ -59,12 +64,16 @@ impl PublicDataService {
 mod tests {
     use super::*;
     use crate::client::MockPublicDataCachingClient;
+    use crate::service::resolver_service::MockResolverService;
     use autonomi::data::DataAddress;
     use autonomi::Wallet;
     use xor_name::XorName;
 
     fn create_test_service(mock_client: MockPublicDataCachingClient) -> PublicDataService {
-        PublicDataService::new(mock_client)
+        let mut mock_resolver = MockResolverService::default();
+        mock_resolver.expect_resolve_name()
+            .returning(|address| Some(address.clone()));
+        PublicDataService::new(mock_client, mock_resolver)
     }
 
     #[tokio::test]

@@ -1,0 +1,40 @@
+As a REST API consumer
+I want to be able to resolve a source name or address from a resolver endpoint
+So that I can easily discover a target address without knowing additional details about the source name/address
+
+Given pointer_controller.rs already exist and define a similar pattern
+When adding the resolver REST endpoint
+Then add /src/controller/resolver_controller.rs based on /scr/controller/pointer_controller.rs
+And only add a function called 'resolve' similar to the get_pointer function, but without the PointerError requirement
+And the endpoint should be GET /anttp-0/resolve/{name}, where {name} can be a source name or address
+And the endpoint will only return a successful 200 response with the resolved target address or a 404 if it could not be found
+And update the utoipa annotation to reflect the above
+
+Given resolver_service.rs only returns a string as a response
+When adding the resolver endpoint
+Then create a new Resolve struct in /src/model/resolve.rs (defined below)
+And add resolve_name_item in resolver_service.rs, which calls resolve_name, but returns 'Option', populating Resolve.name=name (passed in) and Resolve.content=resolved_address.address.
+And update resolver_controller.rs to return body = Resolve instead of String (for utopia annotation).
+
+```
+#[derive(Serialize, Deserialize, ToSchema)]
+pub struct Resolve {
+    pub name: String,
+    pub content: String,
+}
+```
+
+Given the 'resolve_name_item' function in resolver_service.rs can accept any source name or address as an input and output Resolve instance
+When adding the resolver endpoint
+Then ensure the 'resolve' function in resolve_controller.rs accepts `resolver_service: Data` as an argument
+And calls the 'resolve_name_item' function in resolver_service.rs and attempt to resolve the address
+And returns the Resolve instance containing the source name and target address to the consumer
+And update /src/lib.rs utoipa annotation to include the new controller and endpoint
+And add a route to resolve in resolver_controller.rs
+
+Implementation Notes
+
+- Place any unit tests at the bottom of the same file as the associated production code
+- Increment patch version of anttp package in Cargo.toml
+- Create a copy of this issue description and save to /spec using the name of this issue as the filename (with lower underscore case, starting with the 5 char padded issue number, e.g. 00149_issue_title.txt)
+- Update unit tests to reflect the above

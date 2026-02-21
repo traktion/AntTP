@@ -12,6 +12,7 @@ use crate::client::PointerCachingClient;
 use crate::client::ArchiveCachingClient;
 use crate::client::RegisterCachingClient;
 use crate::model::archive::Archive;
+use crate::model::resolve::Resolve;
 use crate::service::access_checker::AccessChecker;
 use crate::service::pointer_name_resolver::PointerNameResolver;
 use crate::service::bookmark_resolver::BookmarkResolver;
@@ -250,6 +251,13 @@ impl ResolverService {
         }
     }
 
+    pub async fn resolve_name_item(&self, name: &String) -> Option<Resolve> {
+        self.resolve_name(name).await.map(|resolved_address| Resolve {
+            name: name.clone(),
+            content: resolved_address,
+        })
+    }
+
     fn assign_path_parts(&self, path_parts: &Vec<String>) -> (String, String, String) {
         if path_parts.len() > 1 {
             (path_parts[0].to_string(), path_parts[1].to_string(), path_parts[1..].join("/").to_string())
@@ -297,5 +305,15 @@ impl ResolverService {
             || self.is_mutable_address(address)
             || self.is_bookmark(address).await
             || self.pointer_name_resolver.is_resolved(address).await
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_example() {
+        assert!(true);
     }
 }

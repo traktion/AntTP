@@ -232,7 +232,7 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> io::Result<()> {
         FileService::new(chunk_caching_client.clone(), ant_tp_config.download_threads)
     ));
     let command_service_data = Data::new(CommandService::new(command_status_data.clone()));
-    let chunk_service_data = Data::new(ChunkService::new(chunk_caching_client.clone()));
+    let chunk_service_data = Data::new(ChunkService::new(chunk_caching_client.clone(), resolver_service_data.get_ref().clone()));
     let graph_service_data = Data::new(GraphService::new(graph_entry_caching_client.clone(), ant_tp_config.clone()));
     let pointer_service_data = Data::new(PointerService::new(pointer_caching_client.clone(), ant_tp_config.clone(), resolver_service_data.get_ref().clone()));
     let public_data_service_data = Data::new(PublicDataService::new(public_data_caching_client.clone()));

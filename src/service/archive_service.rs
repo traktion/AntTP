@@ -2,6 +2,7 @@ use autonomi::Wallet;
 use crate::controller::StoreType;
 use crate::service::public_archive_service::PublicArchiveService;
 use crate::service::tarchive_service::TarchiveService;
+use crate::service::resolver_service::ResolverService;
 use actix_multipart::form::MultipartForm;
 use actix_multipart::form::tempfile::TempFile;
 use bytes::Bytes;
@@ -64,19 +65,22 @@ use autonomi::files::archive_public::ArchiveAddress;
 pub struct ArchiveService {
     public_archive_service: PublicArchiveService,
     tarchive_service: TarchiveService,
+    resolver_service: ResolverService,
     archive_caching_client: ArchiveCachingClient,
 }
 
 impl ArchiveService {
-    pub fn new(public_archive_service: PublicArchiveService, tarchive_service: TarchiveService, archive_caching_client: ArchiveCachingClient) -> Self {
+    pub fn new(public_archive_service: PublicArchiveService, tarchive_service: TarchiveService, resolver_service: ResolverService, archive_caching_client: ArchiveCachingClient) -> Self {
         Self {
             public_archive_service,
             tarchive_service,
+            resolver_service,
             archive_caching_client,
         }
     }
 
     pub async fn get_archive(&self, address: String, path: Option<String>) -> Result<ArchiveResponse, ArchiveError> {
+        let address = self.resolver_service.resolve_name(&address).await.unwrap_or(address);
         let archive_address = ArchiveAddress::from_hex(address.as_str())?;
         let archive = self.archive_caching_client.archive_get(archive_address).await?;
         match archive.archive_type {
@@ -90,6 +94,7 @@ impl ArchiveService {
     }
 
     pub async fn get_archive_binary(&self, address: String, path: Option<String>) -> Result<ArchiveRaw, ArchiveError> {
+        let address = self.resolver_service.resolve_name(&address).await.unwrap_or(address);
         let archive_address = ArchiveAddress::from_hex(address.as_str())?;
         let archive = self.archive_caching_client.archive_get(archive_address).await?;
         match archive.archive_type {
@@ -110,6 +115,7 @@ impl ArchiveService {
         wallet: Wallet,
         store_type: StoreType,
     ) -> Result<ArchiveResponse, ArchiveError> {
+        let address = self.resolver_service.resolve_name(&address).await.unwrap_or(address);
         let archive_address = ArchiveAddress::from_hex(address.as_str())?;
         let archive = self.archive_caching_client.archive_get(archive_address).await?;
         let files = form.into_inner().files;
@@ -133,6 +139,7 @@ impl ArchiveService {
     }
 
     pub async fn truncate_archive(&self, address: String, path: String, wallet: Wallet, store_type: StoreType) -> Result<Upload, ArchiveError> {
+        let address = self.resolver_service.resolve_name(&address).await.unwrap_or(address);
         let archive_address = ArchiveAddress::from_hex(address.as_str())?;
         let archive = self.archive_caching_client.archive_get(archive_address).await?;
         match archive.archive_type {
@@ -142,6 +149,7 @@ impl ArchiveService {
     }
 
     pub async fn push_archive(&self, address: String, wallet: Wallet, store_type: StoreType) -> Result<Upload, ArchiveError> {
+        let address = self.resolver_service.resolve_name(&address).await.unwrap_or(address);
         let archive_address = ArchiveAddress::from_hex(address.as_str())?;
         let archive = self.archive_caching_client.archive_get(archive_address).await?;
         match archive.archive_type {

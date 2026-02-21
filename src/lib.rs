@@ -238,7 +238,12 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> io::Result<()> {
     let public_data_service_data = Data::new(PublicDataService::new(public_data_caching_client.clone()));
     let register_service_data = Data::new(RegisterService::new(register_caching_client.clone(), ant_tp_config.clone(), resolver_service_data.get_ref().clone()));
     let scratchpad_service_data = Data::new(ScratchpadService::new(scratchpad_caching_client.clone(), ant_tp_config.clone()));
-    let archive_service_data = Data::new(ArchiveService::new(public_archive_service_data.get_ref().clone(), tarchive_service_data.get_ref().clone(), archive_caching_client.clone()));
+    let archive_service_data = Data::new(ArchiveService::new(
+        public_archive_service_data.get_ref().clone(),
+        tarchive_service_data.get_ref().clone(),
+        resolver_service_data.get_ref().clone(),
+        archive_caching_client.clone()
+    ));
     let pnr_service_data = Data::new(PnrService::new(chunk_caching_client.clone(), pointer_service_data.clone()));
     let key_value_service_data = Data::new(KeyValueService::new(public_data_service_data.clone(), pnr_service_data.clone()));
 

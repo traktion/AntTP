@@ -1,0 +1,24 @@
+Create resolver MCP endpoint to accept a name/address and return the fully resolved address
+
+As a MCP tool API consumer
+I want to be able to resolve a source name or address from a resolver endpoint
+So that I can easily discover a target address without knowing additional details about the source name/address
+
+Given pointer_tool.rs already exist and define a similar pattern
+When adding the resolver MCP tool
+Then add /src/tool/resolver_tool.rs based on /scr/tool/pointer_tool.rs
+And only add a function called 'resolve' similar to the get_pointer function, but without the PointerError requirement
+
+Given the 'resolve' function in resolver_service.rs can accept any source name or address as an input and output the target address
+When adding the resolver endpoint
+Then ensure /src/tool/mod.rs includes `resolver_service: Data<ResolverService>` in McpTool struct
+And 'resolve' function in resolve_tool.rs calls the 'resolve_name' function in resolver_service.rs to attempt to resolve the address
+And return the resolved target address to the consumer
+And update /src/lib.rs to provide the McpTool struct dependency
+
+Implementation Notes
+
+- Place any unit tests at the bottom of the same file as the associated production code
+- Increment patch version of anttp package in Cargo.toml
+- Create a copy of this issue description and save to /spec using the name of this issue as the filename (with lower underscore case, starting with the 5 char padded issue number, e.g. 00001_issue_title.txt)
+- Update unit tests to validate the changes

@@ -13,7 +13,9 @@ use crate::client::ChunkCachingClient;
 use crate::client::CachingClient;
 #[double]
 use crate::client::StreamingClient;
-use crate::client::{RegisterCachingClient, ArchiveCachingClient};
+#[double]
+use crate::client::RegisterCachingClient;
+use crate::client::ArchiveCachingClient;
 use mockall_double::double;
 use crate::client::command::error::CommandError;
 use crate::client::command::Command;

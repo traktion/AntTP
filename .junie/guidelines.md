@@ -32,6 +32,11 @@ mod tests {
 }
 ```
 
+- If a mock must be created, then define it with 'mock!' macro, with '#[derive(Debug)]', and do not attempt to use '#[automock]' on a struct impl.
+- If a mock must be used, use `#[double]` macro to to include the mock or real implementation, depending on context (don't use elaborate #[cfg(test)] combinations).
+
+#[double]
+
 #### Integration & Performance Tests
 Located in the `test/` directory:
 - **Postman**: `test/postman` contains collections for Newman-based testing for REST HTTP endpoints.

@@ -6,10 +6,12 @@ use autonomi::data::DataAddress;
 use autonomi::files::archive_public::ArchiveAddress;
 use autonomi::register::{RegisterAddress};
 use log::{debug, error, info};
+use mockall::mock;
 use xor_name::XorName;
 #[double]
 use crate::client::PointerCachingClient;
 use crate::client::ArchiveCachingClient;
+#[double]
 use crate::client::RegisterCachingClient;
 use crate::model::archive::Archive;
 use crate::model::resolve::Resolve;
@@ -59,18 +61,17 @@ impl ResolverService {
     }
 }
 
-#[cfg(test)]
-mockall::mock! {
+mock! {
     #[derive(Debug)]
     pub ResolverService {
         pub fn new(archive_caching_client: ArchiveCachingClient,
-                   pointer_caching_client: PointerCachingClient,
-                   register_caching_client: RegisterCachingClient,
-                   access_checker: Data<tokio::sync::Mutex<AccessChecker>>,
-                   bookmark_resolver: Data<tokio::sync::Mutex<BookmarkResolver>>,
-                   pointer_name_resolver: Data<PointerNameResolver>,
-                   ttl_default: u64,
-        ) -> Self;
+               pointer_caching_client: PointerCachingClient,
+               register_caching_client: RegisterCachingClient,
+               access_checker: Data<tokio::sync::Mutex<AccessChecker>>,
+               bookmark_resolver: Data<tokio::sync::Mutex<BookmarkResolver>>,
+               pointer_name_resolver: Data<PointerNameResolver>,
+               ttl_default: u64,
+        ) -> ResolverService;
         pub async fn resolve(&self,
                              hostname: &str,
                              path: &str,

@@ -70,9 +70,7 @@ mod tests {
     use xor_name::XorName;
 
     fn create_test_service(mock_client: MockPublicDataCachingClient) -> PublicDataService {
-        let mut mock_resolver = MockResolverService::default();
-        mock_resolver.expect_resolve_name()
-            .returning(|address| Some(address.clone()));
+        let mock_resolver = MockResolverService::default();
         PublicDataService::new(mock_client, mock_resolver)
     }
 

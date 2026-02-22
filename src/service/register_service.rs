@@ -64,7 +64,7 @@ impl RegisterService {
             Some(name) => {
                 let app_secret_key = self.ant_tp_config.get_app_private_key()?;
                 let register_key = Client::register_key_from_name(&app_secret_key, name.as_str());
-                let resolved_address = self.resolver_service.resolve_bookmark(&address).await.unwrap_or(address);
+                let resolved_address = self.resolver_service.resolve_name(&address).await.unwrap_or(address);
                 if resolved_address.clone() != register_key.public_key().to_hex() {
                     warn!("Address [{}] is not derived from name [{}].", resolved_address.clone(), name);
                     return Err(UpdateError::NotDerivedAddress(
@@ -84,7 +84,7 @@ impl RegisterService {
     }
 
     pub async fn get_register(&self, address: String) -> Result<Register, RegisterError> {
-        let resolved_address = self.resolver_service.resolve_bookmark(&address).await.unwrap_or(address);
+        let resolved_address = self.resolver_service.resolve_name(&address).await.unwrap_or(address);
         match RegisterAddress::from_hex(resolved_address.as_str()) { // todo: create autonomi PR to change to ParseAddressError
             Ok(register_address) => {
                 let content = self.register_caching_client.register_get(&register_address).await?;
@@ -95,7 +95,7 @@ impl RegisterService {
     }
 
     pub async fn get_register_history(&self, address: String) -> Result<Vec<Register>, RegisterError> {
-        let resolved_address = self.resolver_service.resolve_bookmark(&address).await.unwrap_or(address);
+        let resolved_address = self.resolver_service.resolve_name(&address).await.unwrap_or(address);
         match RegisterAddress::from_hex(resolved_address.as_str()) { // todo: create autonomi PR to change to ParseAddressError
             Ok(register_address) => {
                 let content_vec = self.register_caching_client.register_history(&register_address).await?.collect().await?;
@@ -195,7 +195,7 @@ mod tests {
         let register = Register::new(Some(name.clone()), content_hex.clone(), None);
 
         mock_resolver
-            .expect_resolve_bookmark()
+            .expect_resolve_name()
             .with(eq(address.clone()))
             .times(1)
             .returning(move |addr| Some(addr.to_string()));
@@ -226,7 +226,7 @@ mod tests {
         let register = Register::new(Some(name), "content".to_string(), None);
 
         mock_resolver
-            .expect_resolve_bookmark()
+            .expect_resolve_name()
             .returning(move |addr| Some(addr.to_string()));
 
         let service = create_test_service(mock_client, mock_resolver);
@@ -252,7 +252,7 @@ mod tests {
         let address_hex = register_address.to_hex();
 
         mock_resolver
-            .expect_resolve_bookmark()
+            .expect_resolve_name()
             .returning(move |addr| Some(addr.to_string()));
 
         mock_client
@@ -277,7 +277,7 @@ mod tests {
         let bad_address = "invalid".to_string();
 
         mock_resolver
-            .expect_resolve_bookmark()
+            .expect_resolve_name()
             .returning(move |addr| Some(addr.to_string()));
 
         let service = create_test_service(mock_client, mock_resolver);

@@ -153,6 +153,13 @@ mod tests {
     use crate::client::scratchpad_caching_client::MockScratchpadCachingClient;
     use crate::service::resolver_service::MockResolverService;
 
+    fn setup_mock_resolver() -> MockResolverService {
+        let mut mock = MockResolverService::default();
+        mock.expect_clone().returning(setup_mock_resolver);
+        mock.expect_resolve_name().returning(|address| Some(address.clone()));
+        mock
+    }
+
     fn create_test_service(mock_client: MockScratchpadCachingClient, mock_resolver: MockResolverService) -> ScratchpadService {
         use clap::Parser;
         let ant_tp_config = AntTpConfig::parse_from(&[
@@ -167,7 +174,7 @@ mod tests {
     #[tokio::test]
     async fn test_create_scratchpad_success() {
         let mut mock_client = MockScratchpadCachingClient::default();
-        let mock_resolver = MockResolverService::default();
+        let mock_resolver = setup_mock_resolver();
         let evm_wallet = Wallet::new_with_random_wallet(autonomi::Network::ArbitrumOne);
 
         let name = "test_scratchpad".to_string();
@@ -194,7 +201,7 @@ mod tests {
     #[tokio::test]
     async fn test_get_scratchpad_success() {
         let mut mock_client = MockScratchpadCachingClient::default();
-        let mut mock_resolver = MockResolverService::default();
+        let mut mock_resolver = setup_mock_resolver();
 
         let name = "test_scratchpad".to_string();
         let app_secret_key = autonomi::SecretKey::from_hex("0000000000000000000000000000000000000000000000000000000000000001").unwrap();
@@ -202,11 +209,12 @@ mod tests {
         let address = autonomi::ScratchpadAddress::new(scratchpad_key.public_key());
         let address_hex = address.to_hex();
 
-        mock_resolver
-            .expect_resolve_name()
-            .with(eq(address_hex.clone()))
-            .times(1)
-            .returning(move |addr| Some(addr.to_string()));
+        // Expectation already set in setup_mock_resolver, but we can override if needed
+        // mock_resolver
+        //     .expect_resolve_name()
+        //     .with(eq(address_hex.clone()))
+        //     .times(1)
+        //     .returning(move |addr| Some(addr.to_string()));
 
         let content = Bytes::from("test content");
         let scratchpad = autonomi::Scratchpad::new(&scratchpad_key, 1, &content, 0);

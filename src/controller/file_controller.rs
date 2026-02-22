@@ -303,9 +303,10 @@ mod tests {
         let mut mock_streaming_client = MockStreamingClient::default();
         mock_streaming_client.expect_clone().returning(MockStreamingClient::default);
 
-        let resolver_service = Data::new(MockResolverService::default());
+        let mut mock_resolver = MockResolverService::default();
+        mock_resolver.expect_resolve().returning(|_, _, _| None);
 
-        (resolver_service, caching_client, Data::new(mock_streaming_client), Data::new(config))
+        (Data::new(mock_resolver), caching_client, Data::new(mock_streaming_client), Data::new(config))
     }
 
     #[actix_web::test]

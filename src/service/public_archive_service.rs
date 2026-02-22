@@ -397,6 +397,13 @@ mod tests {
     use mockall::predicate::eq;
     use super::*;
     use crate::service::resolver_service::MockResolverService;
+
+    fn setup_mock_resolver() -> MockResolverService {
+        let mut mock = MockResolverService::default();
+        mock.expect_clone().returning(setup_mock_resolver);
+        mock.expect_resolve_name().returning(|address| Some(address.clone()));
+        mock
+    }
     use actix_multipart::form::tempfile::TempFile;
     use std::fs::File;
     use std::io::{Read, Write};
@@ -539,7 +546,7 @@ mod tests {
             mock_file_service,
             mock_archive_client,
             mock_data_client,
-            MockResolverService::default(),
+            setup_mock_resolver(),
         );
 
         let result = service.get_public_archive(addr_hex.to_string(), None).await;
@@ -586,7 +593,7 @@ mod tests {
             mock_file_service,
             mock_archive_client,
             mock_data_client,
-            MockResolverService::default(),
+            setup_mock_resolver(),
         );
 
         let result = service.get_public_archive(addr_hex.to_string(), Some("test.txt".to_string())).await;
@@ -621,7 +628,7 @@ mod tests {
             mock_file_service,
             mock_archive_client,
             mock_data_client,
-            MockResolverService::default(),
+            setup_mock_resolver(),
         );
 
         let result = service.get_public_archive(addr_hex.to_string(), Some("missing.txt".to_string())).await;
@@ -701,7 +708,7 @@ mod tests {
             mock_file_service,
             mock_archive_client,
             mock_data_client,
-            MockResolverService::default(),
+            setup_mock_resolver(),
         );
 
         let result = service.get_data(&request, archive_info).await;
@@ -755,7 +762,7 @@ mod tests {
             mock_file_service,
             mock_archive_client,
             mock_data_client,
-            MockResolverService::default(),
+            setup_mock_resolver(),
         );
 
         let wallet = Wallet::new_with_random_wallet(autonomi::Network::ArbitrumOne);
@@ -823,7 +830,7 @@ mod tests {
             mock_file_service,
             mock_archive_client,
             mock_data_client,
-            MockResolverService::default(),
+            setup_mock_resolver(),
         );
 
         let wallet = Wallet::new_with_random_wallet(autonomi::Network::ArbitrumOne);

@@ -13,12 +13,39 @@ use crate::client::command::register::update_register_command::UpdateRegisterCom
 use crate::controller::StoreType;
 use crate::error::register_error::RegisterError;
 
+use mockall::mock;
+
 #[derive(Debug, Clone)]
 pub struct RegisterCachingClient {
     caching_client: CachingClient,
 }
 
-#[mockall::automock]
+mock! {
+    #[derive(Debug)]
+    pub RegisterCachingClient {
+        pub fn new(caching_client: CachingClient) -> Self;
+        pub async fn register_create(
+            &self,
+            owner: &SecretKey,
+            register_value: RegisterValue,
+            payment_option: PaymentOption,
+            store_type: StoreType,
+        ) -> Result<RegisterAddress, RegisterError>;
+        pub async fn register_update(
+            &self,
+            owner: &SecretKey,
+            register_value: RegisterValue,
+            payment_option: PaymentOption,
+            store_type: StoreType,
+        ) -> Result<(), RegisterError>;
+        pub async fn register_get(&self, address: &RegisterAddress) -> Result<RegisterValue, RegisterError>;
+        pub async fn register_history(&self, addr: &RegisterAddress) -> Result<RegisterHistory, RegisterError>;
+    }
+    impl Clone for RegisterCachingClient {
+        fn clone(&self) -> Self;
+    }
+}
+
 impl RegisterCachingClient {
     pub fn new(caching_client: CachingClient) -> Self {
         Self { caching_client }

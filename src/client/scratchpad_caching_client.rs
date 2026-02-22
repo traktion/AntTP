@@ -15,9 +15,53 @@ use crate::client::command::scratchpad::update_public_scratchpad_command::Update
 use crate::controller::StoreType;
 use crate::error::scratchpad_error::ScratchpadError;
 
+use mockall::mock;
+
 #[derive(Debug, Clone)]
 pub struct ScratchpadCachingClient {
     caching_client: CachingClient,
+}
+
+mock! {
+    #[derive(Debug)]
+    pub ScratchpadCachingClient {
+        pub fn new(caching_client: CachingClient) -> Self;
+        pub async fn scratchpad_create(
+            &self,
+            owner: &SecretKey,
+            content_type: u64,
+            data: &Bytes,
+            payment_option: PaymentOption,
+            store_type: StoreType,
+        ) -> Result<ScratchpadAddress, ScratchpadError>;
+        pub async fn scratchpad_update(
+            &self,
+            owner: &SecretKey,
+            content_type: u64,
+            data: &Bytes,
+            store_type: StoreType,
+        ) -> Result<(), ScratchpadError>;
+        pub async fn scratchpad_create_public(
+            &self,
+            owner: &SecretKey,
+            content_type: u64,
+            data: &Bytes,
+            payment_option: PaymentOption,
+            store_type: StoreType,
+        ) -> Result<ScratchpadAddress, ScratchpadError>;
+        pub async fn scratchpad_update_public(
+            &self,
+            owner: &SecretKey,
+            content_type: u64,
+            data: &Bytes,
+            payment_option: PaymentOption,
+            store_type: StoreType,
+        ) -> Result<(), ScratchpadError>;
+        pub async fn scratchpad_get(&self, address: &ScratchpadAddress) -> Result<autonomi::Scratchpad, ScratchpadError>;
+    }
+    impl Clone for ScratchpadCachingClient {
+        fn clone(&self) -> Self;
+    }
 }
 
 impl ScratchpadCachingClient {

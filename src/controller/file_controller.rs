@@ -24,7 +24,9 @@ use crate::service::archive_helper::{ArchiveAction, ArchiveHelper, ArchiveInfo};
 use crate::service::file_service::FileService;
 use crate::service::file_service::{RangeProps};
 use crate::service::header_builder::HeaderBuilder;
-use crate::service::resolver_service::{ResolvedAddress, ResolverService};
+#[double]
+use crate::service::resolver_service::ResolverService;
+use crate::service::resolver_service::ResolvedAddress;
 
 pub async fn get_public_data(
     request: HttpRequest,
@@ -79,7 +81,7 @@ async fn fetch_public_data(
                 let public_archive_caching_client = PublicArchiveCachingClient::new(caching_client.clone(), streaming_client.clone());
                 let public_data_caching_client = PublicDataCachingClient::new(caching_client.clone(), streaming_client.clone());
                 let file_service = FileService::new(chunk_caching_client, ant_tp_config.download_threads);
-                let public_archive_service = PublicArchiveService::new(file_service, public_archive_caching_client, public_data_caching_client);
+                let public_archive_service = PublicArchiveService::new(file_service, public_archive_caching_client, public_data_caching_client, resolver_service.get_ref().clone());
                 let archive_info = public_archive_service.get_archive_info(&resolved_address, &request).await;
 
                 match archive_info.action {
@@ -243,6 +245,7 @@ mod tests {
 
     use crate::error::pointer_error::PointerError;
     use crate::error::GetError;
+    use crate::service::resolver_service::MockResolverService;
 
     async fn create_test_data() -> (Data<ResolverService>, Data<CachingClient>, Data<MockStreamingClient>, Data<AntTpConfig>) {
         let config = AntTpConfig::parse_from(vec!["anttp"]);
@@ -300,17 +303,10 @@ mod tests {
         let mut mock_streaming_client = MockStreamingClient::default();
         mock_streaming_client.expect_clone().returning(MockStreamingClient::default);
 
-        let resolver_service = Data::new(ResolverService::new(
-            crate::client::ArchiveCachingClient::new(caching_client.get_ref().clone(), mock_streaming_client.clone()),
-            mock_pointer_caching_client,
-            crate::client::RegisterCachingClient::new(caching_client.get_ref().clone()),
-            access_checker,
-            bookmark_resolver,
-            pointer_name_resolver,
-            1,
-        ));
+        let mut mock_resolver = MockResolverService::default();
+        mock_resolver.expect_resolve().returning(|_, _, _| None);
 
-        (resolver_service, caching_client, Data::new(mock_streaming_client), Data::new(config))
+        (Data::new(mock_resolver), caching_client, Data::new(mock_streaming_client), Data::new(config))
     }
 
     #[actix_web::test]

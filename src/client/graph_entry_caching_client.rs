@@ -11,9 +11,32 @@ use crate::client::command::graph::get_graph_entry_command::GetGraphEntryCommand
 use crate::error::graph_error::GraphError;
 use crate::controller::StoreType;
 
+
+use mockall::mock;
+
 #[derive(Debug, Clone)]
 pub struct GraphEntryCachingClient {
     caching_client: CachingClient,
+}
+
+mock! {
+    #[derive(Debug)]
+    pub GraphEntryCachingClient {
+        pub fn new(caching_client: CachingClient) -> Self;
+        pub async fn graph_entry_put(
+            &self,
+            graph_entry: GraphEntry,
+            payment_option: PaymentOption,
+            store_type: StoreType,
+        ) -> Result<GraphEntryAddress, GraphError>;
+        pub async fn graph_entry_get(
+            &self,
+            address: &GraphEntryAddress,
+        ) -> Result<GraphEntry, GraphError>;
+    }
+    impl Clone for GraphEntryCachingClient {
+        fn clone(&self) -> Self;
+    }
 }
 
 impl GraphEntryCachingClient {

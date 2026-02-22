@@ -24,6 +24,8 @@ use crate::client::PublicDataCachingClient;
 #[double]
 use crate::service::file_service::FileService;
 use crate::service::file_service::RangeProps;
+#[double]
+use crate::service::resolver_service::ResolverService;
 use crate::service::resolver_service::ResolvedAddress;
 use sanitize_filename::sanitize;
 use serde::{Deserialize, Serialize};
@@ -89,12 +91,13 @@ pub struct PublicArchiveService {
     file_service: FileService,
     public_archive_caching_client: PublicArchiveCachingClient,
     public_data_caching_client: PublicDataCachingClient,
+    resolver_service: ResolverService,
 }
 
 impl PublicArchiveService {
     
-    pub fn new(file_client: FileService, public_archive_caching_client: PublicArchiveCachingClient, public_data_caching_client: PublicDataCachingClient) -> Self {
-        PublicArchiveService { file_service: file_client, public_archive_caching_client, public_data_caching_client }
+    pub fn new(file_client: FileService, public_archive_caching_client: PublicArchiveCachingClient, public_data_caching_client: PublicDataCachingClient, resolver_service: ResolverService) -> Self {
+        PublicArchiveService { file_service: file_client, public_archive_caching_client, public_data_caching_client, resolver_service }
     }
 
     /// Push the contents of a staged public archive to the target store type by iterating each file
@@ -103,8 +106,9 @@ impl PublicArchiveService {
     /// - uploads bytes to target via public_data_caching_client.data_put_public()
     /// Returns the new archive address after persisting the rebuilt archive.
     pub async fn push_public_archive(&self, address: String, evm_wallet: Wallet, store_type: StoreType) -> Result<Upload, PublicArchiveError> {
+        let resolved_address = self.resolver_service.resolve_name(&address).await.unwrap_or(address);
         // Retrieve the staged archive (from cache or network)
-        let archive_address = ArchiveAddress::from_hex(address.as_str())?;
+        let archive_address = ArchiveAddress::from_hex(resolved_address.as_str())?;
         let public_archive = self.public_archive_caching_client.archive_get_public(archive_address).await?;
         // Build an in-memory archive representation
         let archive = Archive::build_from_public_archive(public_archive);
@@ -145,12 +149,14 @@ impl PublicArchiveService {
     }
 
     pub async fn get_public_archive(&self, address: String, path: Option<String>) -> Result<ArchiveResponse, PublicArchiveError> {
-        let res = self.get_public_archive_binary(address, path).await?;
+        let resolved_address = self.resolver_service.resolve_name(&address).await.unwrap_or(address);
+        let res = self.get_public_archive_binary(resolved_address, path).await?;
         Ok(ArchiveResponse::new(res.items, BASE64_STANDARD.encode(res.content), res.address))
     }
 
     pub async fn get_public_archive_binary(&self, address: String, path: Option<String>) -> Result<ArchiveRaw, PublicArchiveError> {
-        let archive_address = ArchiveAddress::from_hex(address.as_str())?;
+        let resolved_address = self.resolver_service.resolve_name(&address).await.unwrap_or(address);
+        let archive_address = ArchiveAddress::from_hex(resolved_address.as_str())?;
         let public_archive = self.public_archive_caching_client.archive_get_public(archive_address).await?;
         let archive = Archive::build_from_public_archive(public_archive);
         let path = path.unwrap_or_default();
@@ -159,12 +165,12 @@ impl PublicArchiveService {
             Some(data_address_offset) => {
                 debug!("download file from public archive at [{}]", path);
                 let bytes = self.public_data_caching_client.data_get_public(&data_address_offset.data_address).await?;
-                Ok(ArchiveRaw::new(vec![], bytes, address))
+                Ok(ArchiveRaw::new(vec![], bytes, resolved_address))
             }
             None => {
                 debug!("download directory from public archive at [{}]", path);
                 let path_details = archive.list_dir(path);
-                Ok(ArchiveRaw::new(path_details, Bytes::new(), address))
+                Ok(ArchiveRaw::new(path_details, Bytes::new(), resolved_address))
             }
         }
     }
@@ -215,7 +221,8 @@ impl PublicArchiveService {
     }
 
     pub async fn update_public_archive(&self, address: String, target_path: Option<String>, public_archive_form: MultipartForm<PublicArchiveForm>, evm_wallet: Wallet, store_type: StoreType) -> Result<ArchiveResponse, PublicArchiveError> {
-        let public_archive_data = self.public_archive_caching_client.archive_get_public(ArchiveAddress::from_hex(address.as_str())?).await?;
+        let resolved_address = self.resolver_service.resolve_name(&address).await.unwrap_or(address);
+        let public_archive_data = self.public_archive_caching_client.archive_get_public(ArchiveAddress::from_hex(resolved_address.as_str())?).await?;
         let archive = Archive::build_from_public_archive(public_archive_data.clone());
 
         if let Some(target_path_str) = &target_path {
@@ -231,7 +238,8 @@ impl PublicArchiveService {
     }
 
     pub async fn truncate_public_archive(&self, address: String, path: String, evm_wallet: Wallet, store_type: StoreType) -> Result<Upload, PublicArchiveError> {
-        let archive_address = ArchiveAddress::from_hex(address.as_str())?;
+        let resolved_address = self.resolver_service.resolve_name(&address).await.unwrap_or(address);
+        let archive_address = ArchiveAddress::from_hex(resolved_address.as_str())?;
         let public_archive = self.public_archive_caching_client.archive_get_public(archive_address).await?;
         let archive = Archive::build_from_public_archive(public_archive);
 
@@ -388,6 +396,14 @@ impl PublicArchiveService {
 mod tests {
     use mockall::predicate::eq;
     use super::*;
+    use crate::service::resolver_service::MockResolverService;
+
+    fn setup_mock_resolver() -> MockResolverService {
+        let mut mock = MockResolverService::default();
+        mock.expect_clone().returning(setup_mock_resolver);
+        mock.expect_resolve_name().returning(|address| Some(address.clone()));
+        mock
+    }
     use actix_multipart::form::tempfile::TempFile;
     use std::fs::File;
     use std::io::{Read, Write};
@@ -530,6 +546,7 @@ mod tests {
             mock_file_service,
             mock_archive_client,
             mock_data_client,
+            setup_mock_resolver(),
         );
 
         let result = service.get_public_archive(addr_hex.to_string(), None).await;
@@ -576,6 +593,7 @@ mod tests {
             mock_file_service,
             mock_archive_client,
             mock_data_client,
+            setup_mock_resolver(),
         );
 
         let result = service.get_public_archive(addr_hex.to_string(), Some("test.txt".to_string())).await;
@@ -610,6 +628,7 @@ mod tests {
             mock_file_service,
             mock_archive_client,
             mock_data_client,
+            setup_mock_resolver(),
         );
 
         let result = service.get_public_archive(addr_hex.to_string(), Some("missing.txt".to_string())).await;
@@ -652,6 +671,7 @@ mod tests {
             mock_file_service,
             mock_archive_client,
             mock_data_client,
+            MockResolverService::default(),
         );
 
         let info = service.get_archive_info(&resolved_address, &request).await;
@@ -688,6 +708,7 @@ mod tests {
             mock_file_service,
             mock_archive_client,
             mock_data_client,
+            setup_mock_resolver(),
         );
 
         let result = service.get_data(&request, archive_info).await;
@@ -741,6 +762,7 @@ mod tests {
             mock_file_service,
             mock_archive_client,
             mock_data_client,
+            setup_mock_resolver(),
         );
 
         let wallet = Wallet::new_with_random_wallet(autonomi::Network::ArbitrumOne);
@@ -808,6 +830,7 @@ mod tests {
             mock_file_service,
             mock_archive_client,
             mock_data_client,
+            setup_mock_resolver(),
         );
 
         let wallet = Wallet::new_with_random_wallet(autonomi::Network::ArbitrumOne);

@@ -227,19 +227,25 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> io::Result<()> {
     Runner::new().add(Box::new(caching_client_data.get_ref().clone())).run().await;
 
     // define services
-    let public_archive_service_data = Data::new(PublicArchiveService::new(FileService::new(chunk_caching_client.clone(), ant_tp_config.download_threads), public_archive_caching_client.clone(), public_data_caching_client.clone()));
+    let public_archive_service_data = Data::new(PublicArchiveService::new(
+        FileService::new(chunk_caching_client.clone(), ant_tp_config.download_threads),
+        public_archive_caching_client.clone(),
+        public_data_caching_client.clone(),
+        resolver_service_data.get_ref().clone()
+    ));
     let tarchive_service_data = Data::new(TarchiveService::new(
         PublicDataService::new(public_data_caching_client.clone(), resolver_service_data.get_ref().clone()),
         tarchive_caching_client.clone(),
-        FileService::new(chunk_caching_client.clone(), ant_tp_config.download_threads)
+        FileService::new(chunk_caching_client.clone(), ant_tp_config.download_threads),
+        resolver_service_data.get_ref().clone()
     ));
     let command_service_data = Data::new(CommandService::new(command_status_data.clone()));
     let chunk_service_data = Data::new(ChunkService::new(chunk_caching_client.clone(), resolver_service_data.get_ref().clone()));
-    let graph_service_data = Data::new(GraphService::new(graph_entry_caching_client.clone(), ant_tp_config.clone()));
+    let graph_service_data = Data::new(GraphService::new(graph_entry_caching_client.clone(), ant_tp_config.clone(), resolver_service_data.get_ref().clone()));
     let pointer_service_data = Data::new(PointerService::new(pointer_caching_client.clone(), ant_tp_config.clone(), resolver_service_data.get_ref().clone()));
     let public_data_service_data = Data::new(PublicDataService::new(public_data_caching_client.clone(), resolver_service_data.get_ref().clone()));
     let register_service_data = Data::new(RegisterService::new(register_caching_client.clone(), ant_tp_config.clone(), resolver_service_data.get_ref().clone()));
-    let scratchpad_service_data = Data::new(ScratchpadService::new(scratchpad_caching_client.clone(), ant_tp_config.clone()));
+    let scratchpad_service_data = Data::new(ScratchpadService::new(scratchpad_caching_client.clone(), ant_tp_config.clone(), resolver_service_data.get_ref().clone()));
     let archive_service_data = Data::new(ArchiveService::new(
         public_archive_service_data.get_ref().clone(),
         tarchive_service_data.get_ref().clone(),

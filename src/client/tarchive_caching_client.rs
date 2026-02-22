@@ -12,6 +12,12 @@ use crate::client::StreamingClient;
 use crate::client::TARCHIVE_CACHE_KEY;
 use crate::error::GetError;
 
+#[derive(Debug, Clone)]
+pub struct TArchiveCachingClient {
+    caching_client: CachingClient,
+    streaming_client: StreamingClient
+}
+
 mock! {
     #[derive(Debug)]
     pub TArchiveCachingClient {
@@ -21,12 +27,6 @@ mock! {
     impl Clone for TArchiveCachingClient {
         fn clone(&self) -> Self;
     }
-}
-
-#[derive(Debug, Clone)]
-pub struct TArchiveCachingClient {
-    caching_client: CachingClient,
-    streaming_client: StreamingClient
 }
 
 impl TArchiveCachingClient {

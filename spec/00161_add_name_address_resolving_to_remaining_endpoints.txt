@@ -1,0 +1,38 @@
+As an graph, public archive, tarchive, private scratchpad, public scratchpad and register API consumer
+I want to be able to provide the unresolved name or address to the endpoints
+So that I can easily interact with the endpoints without having to resolve the target address beforehand
+
+Given the 'resolve_name' function in resolver_service.rs can accept any source name or address as an input and output the target address
+When get_graph_entry function in graph_service.rs are called with an 'address' argument
+Then include ResolverService in the GraphService struct
+And update code that instantiates GraphService to provide Resolver service as a dependency
+And firstly call the 'resolve_name' function in resolver_service.rs and attempt to resolve the address
+And use the resolved address, instead of the original address, for the rest of the function
+
+Given the 'resolve_name' function in resolver_service.rs can accept any source name or address as an input and output the target address
+When push_public_archive, get_public_archive_binary, update_public_archive, truncate_public_archive functions in public_archive_service.rs are called with an 'address' argument
+Then include ResolverService in the PublicArchiveService struct
+And update code that instantiates PublicArchiveService to provide Resolver service as a dependency
+And firstly call the 'resolve_name' function in resolver_service.rs and attempt to resolve the address
+And use the resolved address, instead of the original address, for the rest of the function
+
+Given the 'resolve_name' function in resolver_service.rs can accept any source name or address as an input and output the target address
+When get_tarchive_binary, push_tarchive, update_tarchive, truncate_tarchive functions in tarchive_service.rs are called with an 'address' argument
+Then include ResolverService in the TarchiveService struct
+And update code that instantiates TarchiveService to provide Resolver service as a dependency
+And firstly call the 'resolve_name' function in resolver_service.rs and attempt to resolve the address
+And use the resolved address, instead of the original address, for the rest of the function
+
+Given the 'resolve_name' function in resolver_service.rs can accept any source name or address as an input and output the target address
+When get_scratchpad, update_scratchpad functions in scratchpad_service.rs are called with an 'address' argument
+Then include ResolverService in the ScratchpadService struct
+And update code that instantiates ScratchpadService to provide Resolver service as a dependency
+And firstly call the 'resolve_name' function in resolver_service.rs and attempt to resolve the address
+And use the resolved address, instead of the original address, for the rest of the function
+
+Given the 'resolve_name' function in resolver_service.rs can accept any source name or address as an input and output the target address
+When get_register, get_register_history, update_register functions in register_service.rs are called with an 'address' argument
+Then include ResolverService in the RegisterService struct
+And update code that instantiates RegisterService to provide Resolver service as a dependency
+And firstly call the 'resolve_name' function in resolver_service.rs and attempt to resolve the address
+And use the resolved address, instead of the original address, for the rest of the function

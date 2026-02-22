@@ -18,7 +18,9 @@ use crate::service::public_data_service::PublicDataService;
 use crate::service::file_service::FileService;
 use mockall_double::double;
 #[double]
-use crate::client::TArchiveCachingClient;
+use crate::client::tarchive_caching_client::TArchiveCachingClient;
+#[double]
+use crate::service::resolver_service::ResolverService;
 use crate::error::tarchive_error::TarchiveError;
 use crate::error::UpdateError;
 use crate::controller::StoreType;
@@ -30,20 +32,23 @@ pub struct TarchiveService {
     public_data_service: PublicDataService,
     tarchive_caching_client: TArchiveCachingClient,
     file_service: FileService,
+    resolver_service: ResolverService,
 }
 
 impl TarchiveService {
-    pub fn new(public_data_service: PublicDataService, tarchive_caching_client: TArchiveCachingClient, file_service: FileService) -> Self {
-        TarchiveService { public_data_service, tarchive_caching_client, file_service }
+    pub fn new(public_data_service: PublicDataService, tarchive_caching_client: TArchiveCachingClient, file_service: FileService, resolver_service: ResolverService) -> Self {
+        TarchiveService { public_data_service, tarchive_caching_client, file_service, resolver_service }
     }
 
     pub async fn get_tarchive(&self, address: String, path: Option<String>) -> Result<ArchiveResponse, TarchiveError> {
-        let res = self.get_tarchive_binary(address, path).await?;
+        let resolved_address = self.resolver_service.resolve_name(&address).await.unwrap_or(address);
+        let res = self.get_tarchive_binary(resolved_address, path).await?;
         Ok(ArchiveResponse::new(res.items, BASE64_STANDARD.encode(res.content), res.address))
     }
 
     pub async fn get_tarchive_binary(&self, address: String, path: Option<String>) -> Result<ArchiveRaw, TarchiveError> {
-        let data_address = DataAddress::from_hex(address.as_str())
+        let resolved_address = self.resolver_service.resolve_name(&address).await.unwrap_or(address);
+        let data_address = DataAddress::from_hex(resolved_address.as_str())
             .map_err(|e| TarchiveError::GetError(crate::error::GetError::BadAddress(e.to_string())))?;
 
         let bytes = self.tarchive_caching_client.get_archive_from_tar(&data_address).await?;
@@ -54,12 +59,12 @@ impl TarchiveService {
             Some(data_address_offset) => {
                 debug!("download file from tarchive at [{}]", path);
                 let bytes = self.file_service.download_data_bytes(*data_address_offset.data_address.xorname(), data_address_offset.offset, data_address_offset.size).await?;
-                Ok(ArchiveRaw::new(vec![], bytes.into(), address))
+                Ok(ArchiveRaw::new(vec![], bytes.into(), resolved_address))
             }
             None => {
                 debug!("download directory from tarchive at [{}]", path);
                 let path_details = archive.list_dir(path);
-                Ok(ArchiveRaw::new(path_details, Bytes::new(), address))
+                Ok(ArchiveRaw::new(path_details, Bytes::new(), resolved_address))
             }
         }
     }
@@ -87,17 +92,19 @@ impl TarchiveService {
     }
 
     pub async fn push_tarchive(&self, address: String, evm_wallet: Wallet, store_type: StoreType) -> Result<Upload, TarchiveError> {
-        Ok(self.public_data_service.push_public_data(address, evm_wallet, store_type).await
+        let resolved_address = self.resolver_service.resolve_name(&address).await.unwrap_or(address);
+        Ok(self.public_data_service.push_public_data(resolved_address, evm_wallet, store_type).await
             .map(|chunk| Upload::new(chunk.address))?)
     }
 
     pub async fn update_tarchive(&self, address: String, target_path: Option<String>, tarchive_form: MultipartForm<PublicArchiveForm>, evm_wallet: Wallet, store_type: StoreType) -> Result<Upload, TarchiveError> {
-        info!("Updating tarchive at address [{}]", address);
+        let resolved_address = self.resolver_service.resolve_name(&address).await.unwrap_or(address);
+        info!("Updating tarchive at address [{}]", resolved_address);
         let tmp_dir = Self::create_tmp_dir()?;
         let tar_path = tmp_dir.join("archive.tar");
 
         // Download existing tar
-        let existing_data = self.public_data_service.get_public_data_binary(address).await?;
+        let existing_data = self.public_data_service.get_public_data_binary(resolved_address).await?;
         let mut tar_file = fs::File::create(&tar_path)?;
         tar_file.write_all(&existing_data)?;
 
@@ -136,12 +143,13 @@ impl TarchiveService {
     }
 
     pub async fn truncate_tarchive(&self, address: String, path: String, evm_wallet: Wallet, store_type: StoreType) -> Result<Upload, TarchiveError> {
-        info!("Truncating tarchive at address [{}] with path [{}]", address, path);
+        let resolved_address = self.resolver_service.resolve_name(&address).await.unwrap_or(address);
+        info!("Truncating tarchive at address [{}]", resolved_address);
         let tmp_dir = Self::create_tmp_dir()?;
         let tar_path = tmp_dir.join("archive.tar");
 
         // Download existing tar
-        let existing_data = self.public_data_service.get_public_data_binary(address).await?;
+        let existing_data = self.public_data_service.get_public_data_binary(resolved_address).await?;
         let mut tar_file = fs::File::create(&tar_path)?;
         tar_file.write_all(&existing_data)?;
 
@@ -264,34 +272,31 @@ impl TarchiveService {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::client::{MockPublicDataCachingClient, MockChunkCachingClient, MockTArchiveCachingClient};
     use crate::service::resolver_service::MockResolverService;
+    use crate::client::{MockPublicDataCachingClient, MockChunkCachingClient, MockTArchiveCachingClient};
     use autonomi::data::DataAddress;
     use xor_name::XorName;
-    
+
     fn create_mock_service() -> TarchiveService {
-        let mut mock_client = MockPublicDataCachingClient::default();
-        let mut mock_chunk_client = MockChunkCachingClient::default();
-        let mut mock_tarchive_client = MockTArchiveCachingClient::default();
+        let mock_client = MockPublicDataCachingClient::default();
+        let mock_chunk_client = MockChunkCachingClient::default();
+        let mock_tarchive_client = MockTArchiveCachingClient::default();
         let mut mock_resolver = MockResolverService::default();
 
         mock_resolver.expect_resolve_name()
             .returning(|address| Some(address.clone()));
+        mock_resolver.expect_clone()
+            .returning(|| {
+                let mut m = MockResolverService::default();
+                m.expect_resolve_name()
+                    .returning(|address| Some(address.clone()));
+                m
+            });
 
-        // Mock get_public_data_binary
-        mock_client.expect_data_get_public()
-            .returning(|_| Ok(Bytes::from(vec![])));
-
-        // Mock create_public_data
-        mock_client.expect_data_put_public()
-            .returning(|_, _, _| Ok(DataAddress::new(XorName([0; 32]))));
-        
-        mock_tarchive_client.expect_get_archive_from_tar()
-            .returning(|_| Ok(Bytes::from(vec![])));
-
-        let public_data_service = PublicDataService::new(mock_client, mock_resolver);
+        let public_data_service = PublicDataService::new(mock_client, mock_resolver.clone());
         let file_service = FileService::new(mock_chunk_client, 1);
-        TarchiveService::new(public_data_service, mock_tarchive_client, file_service)
+
+        TarchiveService::new(public_data_service, mock_tarchive_client, file_service, mock_resolver)
     }
 
     #[test]
@@ -333,12 +338,19 @@ mod tests {
         let mut mock_resolver = MockResolverService::default();
         mock_resolver.expect_resolve_name()
             .returning(|address| Some(address.clone()));
+        mock_resolver.expect_clone()
+            .returning(|| {
+                let mut m = MockResolverService::default();
+                m.expect_resolve_name()
+                    .returning(|address| Some(address.clone()));
+                m
+            });
 
-        let public_data_service = PublicDataService::new(mock_client, mock_resolver);
+        let public_data_service = PublicDataService::new(mock_client, mock_resolver.clone());
         let mock_chunk_client = MockChunkCachingClient::default();
         let mock_tarchive_client = MockTArchiveCachingClient::default();
         let file_service = FileService::new(mock_chunk_client, 1);
-        let service = TarchiveService::new(public_data_service, mock_tarchive_client, file_service);
+        let service = TarchiveService::new(public_data_service, mock_tarchive_client, file_service, mock_resolver);
 
         let wallet = Wallet::new_with_random_wallet(autonomi::Network::ArbitrumOne);
         let result = tokio::runtime::Runtime::new().unwrap().block_on(
@@ -363,10 +375,17 @@ mod tests {
         let mut mock_resolver = MockResolverService::default();
         mock_resolver.expect_resolve_name()
             .returning(|address| Some(address.clone()));
+        mock_resolver.expect_clone()
+            .returning(|| {
+                let mut m = MockResolverService::default();
+                m.expect_resolve_name()
+                    .returning(|address| Some(address.clone()));
+                m
+            });
 
-        let public_data_service = PublicDataService::new(mock_client, mock_resolver);
+        let public_data_service = PublicDataService::new(mock_client, mock_resolver.clone());
         let file_service = FileService::new(mock_chunk_client, 1);
-        let service = TarchiveService::new(public_data_service, mock_tarchive_client, file_service);
+        let service = TarchiveService::new(public_data_service, mock_tarchive_client, file_service, mock_resolver);
 
         let xor_name = XorName::from_content(b"test");
         let address = DataAddress::new(xor_name).to_hex();
@@ -400,12 +419,19 @@ mod tests {
         let mut mock_resolver = MockResolverService::default();
         mock_resolver.expect_resolve_name()
             .returning(|address| Some(address.clone()));
+        mock_resolver.expect_clone()
+            .returning(|| {
+                let mut m = MockResolverService::default();
+                m.expect_resolve_name()
+                    .returning(|address| Some(address.clone()));
+                m
+            });
 
-        let public_data_service = PublicDataService::new(mock_client, mock_resolver);
+        let public_data_service = PublicDataService::new(mock_client, mock_resolver.clone());
         let mock_chunk_client = MockChunkCachingClient::default();
         let mock_tarchive_client = MockTArchiveCachingClient::default();
         let file_service = FileService::new(mock_chunk_client, 1);
-        let service = TarchiveService::new(public_data_service, mock_tarchive_client, file_service);
+        let service = TarchiveService::new(public_data_service, mock_tarchive_client, file_service, mock_resolver);
         
         let wallet = Wallet::new_with_random_wallet(autonomi::Network::ArbitrumOne);
 
@@ -444,10 +470,17 @@ mod tests {
         let mut mock_resolver = MockResolverService::default();
         mock_resolver.expect_resolve_name()
             .returning(|address| Some(address.clone()));
+        mock_resolver.expect_clone()
+            .returning(|| {
+                let mut m = MockResolverService::default();
+                m.expect_resolve_name()
+                    .returning(|address| Some(address.clone()));
+                m
+            });
 
-        let public_data_service = PublicDataService::new(mock_client, mock_resolver);
+        let public_data_service = PublicDataService::new(mock_client, mock_resolver.clone());
         let file_service = FileService::new(mock_chunk_client, 1);
-        let service = TarchiveService::new(public_data_service, mock_tarchive_client, file_service);
+        let service = TarchiveService::new(public_data_service, mock_tarchive_client, file_service, mock_resolver);
 
         let xor_name = XorName::from_content(b"test");
         let address = DataAddress::new(xor_name).to_hex();

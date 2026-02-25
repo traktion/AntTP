@@ -101,6 +101,8 @@ use crate::grpc::tarchive_handler::{TarchiveHandler, TarchiveServiceServer};
 use crate::grpc::private_scratchpad_handler::{PrivateScratchpadHandler, PrivateScratchpadServiceServer};
 #[cfg(not(grpc_disabled))]
 use crate::grpc::public_scratchpad_handler::{PublicScratchpadHandler, PublicScratchpadServiceServer};
+#[cfg(not(grpc_disabled))]
+use crate::grpc::resolver_handler::{ResolverHandler, ResolverServiceServer};
 
 static ACTIX_SERVER_HANDLE: Lazy<Mutex<Option<ServerHandle>>> = Lazy::new(|| Mutex::new(None));
 #[cfg(not(grpc_disabled))]
@@ -293,6 +295,7 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> io::Result<()> {
         let tarchive_handler = TarchiveHandler::new(tarchive_service_data.clone(), public_data_service_data.clone(), evm_wallet_data.clone());
         let private_scratchpad_handler = PrivateScratchpadHandler::new(scratchpad_service_data.clone(), evm_wallet_data.clone());
         let public_scratchpad_handler = PublicScratchpadHandler::new(scratchpad_service_data.clone(), evm_wallet_data.clone());
+        let resolver_handler = ResolverHandler::new(resolver_service_data.clone());
 
         let (tx, rx) = oneshot::channel::<()>();
         {
@@ -315,6 +318,7 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> io::Result<()> {
                 .add_service(TarchiveServiceServer::new(tarchive_handler))
                 .add_service(PrivateScratchpadServiceServer::new(private_scratchpad_handler))
                 .add_service(PublicScratchpadServiceServer::new(public_scratchpad_handler))
+                .add_service(ResolverServiceServer::new(resolver_handler))
                 .serve_with_shutdown(grpc_listen_address, async {
                     rx.await.ok();
                 })

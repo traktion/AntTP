@@ -22,3 +22,5 @@ pub mod tarchive_handler;
 pub mod private_scratchpad_handler;
 #[cfg(not(grpc_disabled))]
 pub mod public_scratchpad_handler;
+#[cfg(not(grpc_disabled))]
+pub mod resolver_handler;

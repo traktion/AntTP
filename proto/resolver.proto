@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+package resolver;
+
+service ResolverService {
+  rpc Resolve(ResolverRequest) returns (ResolverResponse);
+}
+
+message ResolverRequest {
+  string address = 1;
+}
+
+message ResolverResponse {
+  string address = 1;
+  string content = 2;
+}

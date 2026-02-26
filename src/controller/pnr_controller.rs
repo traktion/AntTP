@@ -4,7 +4,7 @@ use ant_evm::EvmWallet;
 use log::debug;
 use crate::controller::get_store_type;
 use crate::error::pointer_error::PointerError;
-use crate::model::pnr::PnrZone;
+use crate::model::pnr::{PnrZone, PnrRecord};
 use crate::service::pnr_service::PnrService;
 
 #[utoipa::path(
@@ -116,5 +116,37 @@ pub async fn get_pnr(
     debug!("Getting PNR zone");
     Ok(HttpResponse::Ok().json(
         pnr_service.get_pnr(name).await?
+    ))
+}
+
+#[utoipa::path(
+    put,
+    path = "/anttp-0/pnr/{name}/{record}",
+    params(
+        ("name", description = "PNR zone name"),
+        ("record", description = "PNR record key"),
+        ("x-store-type", Header, description = "Only persist to cache and do not publish (memory|disk|none)",
+        example = "memory"),
+    ),
+    request_body(
+        content = PnrRecord
+    ),
+    responses(
+        (status = OK, description = "PNR record added/updated successfully", body = PnrZone),
+        (status = BAD_REQUEST, description = "PNR record body was invalid")
+    ),
+)]
+pub async fn put_pnr_record(
+    path: web::Path<(String, String)>,
+    pnr_service: Data<PnrService>,
+    evm_wallet_data: Data<EvmWallet>,
+    pnr_record: web::Json<PnrRecord>,
+    request: HttpRequest,
+) -> Result<HttpResponse, PointerError> {
+    let (name, record_key) = path.into_inner();
+
+    debug!("Updating PNR record {} in zone {}", record_key, name);
+    Ok(HttpResponse::Ok().json(
+        pnr_service.update_pnr_record(name, record_key, pnr_record.into_inner(), evm_wallet_data.get_ref().clone(), get_store_type(&request)).await?
     ))
 }

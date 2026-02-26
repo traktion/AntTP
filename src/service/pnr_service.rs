@@ -2,7 +2,7 @@ use crate::client::ChunkCachingClient;
 use crate::controller::{StoreType, DataKey};
 use crate::error::pointer_error::PointerError;
 use crate::error::CreateError;
-use crate::model::pnr::PnrZone;
+use crate::model::pnr::{PnrZone, PnrRecord};
 use crate::service::pointer_service::{Pointer, PointerService};
 use crate::error::UpdateError;
 use actix_web::web::Data;
@@ -135,6 +135,14 @@ impl PnrService {
         self.update_pnr(name, existing_pnr_zone, evm_wallet, store_type).await
     }
 
+    pub async fn update_pnr_record(&self, name: String, record_key: String, record: PnrRecord, evm_wallet: Wallet, store_type: StoreType) -> Result<PnrZone, PointerError> {
+        let mut existing_pnr_zone = self.get_pnr(name.clone()).await?;
+
+        existing_pnr_zone.records.insert(record_key, record);
+
+        self.update_pnr(name, existing_pnr_zone, evm_wallet, store_type).await
+    }
+
     async fn resolve_personal_address(&self, name: &String) -> Result<(String, String), PointerError> {
         let resolver_address = self.pointer_service.get_resolver_address(name)?;
         let personal_pointer_address = match self.pointer_service.get_pointer(resolver_address.clone(), DataKey::Resolver).await {
@@ -175,5 +183,24 @@ mod tests {
         assert!(matches!(merged_records.get("old").unwrap().record_type, PnrRecordType::X));
         assert_eq!(merged_records.get("keep").unwrap().address, "addr2");
         assert_eq!(merged_records.get("new").unwrap().address, "addr4");
+    }
+
+    #[tokio::test]
+    async fn test_update_pnr_record_logic() {
+        let mut existing_records = HashMap::new();
+        existing_records.insert("keep".to_string(), PnrRecord::new("addr1".to_string(), PnrRecordType::A, 60));
+        existing_records.insert("update".to_string(), PnrRecord::new("addr2".to_string(), PnrRecordType::A, 60));
+
+        let new_record = PnrRecord::new("addr3".to_string(), PnrRecordType::X, 120);
+
+        // Simulate merging logic from update_pnr_record
+        let mut merged_records = existing_records;
+        merged_records.insert("update".to_string(), new_record);
+
+        assert_eq!(merged_records.len(), 2);
+        assert_eq!(merged_records.get("update").unwrap().address, "addr3");
+        assert_eq!(merged_records.get("update").unwrap().ttl, 120);
+        assert!(matches!(merged_records.get("update").unwrap().record_type, PnrRecordType::X));
+        assert_eq!(merged_records.get("keep").unwrap().address, "addr1");
     }
 }

@@ -1,0 +1,30 @@
+As a PNR REST API consumer
+I want to be able to easily add or update individual PNR Records within a PNR Zone
+So that I don't have to provide a full PNR Record with all the PNR zones every time I make a modification
+
+Given pnr_controller.rs provides PNR operations
+When adding or updating a PNR Record
+Then add a REST endpoint for PUT /anttp-0/pnr/{name}/{record} to add or update PNR Records (with key {name}) on an existing PNR Zone (with key {record})
+And update utoipa annotations to the new controller endpoint
+And provide a body as shown in the example below (an individual PNR Record):
+
+```
+{
+  "address": "string",
+  "record_type": "A",
+  "ttl": 9007199254740991
+}
+```
+
+Given pnr_service.rs performs changes to PNR zones and records
+When adding an PNR record to an existing PNR zone
+Then use append_pnr function in pnr_service.rs as an example to create update_pnr_record function, which takes a PnrRecord instead of PnrZone
+And then calls update_pnr with the updated record
+
+Implementation Notes
+
+- Place any unit tests at the bottom of the same file as the associated production code
+- Increment patch version of anttp package in Cargo.toml
+- Create a copy of this issue description and save to /spec using the name of this issue as the filename (with lower underscore case, starting with the 5 char padded issue number, e.g. 00001_issue_title.txt)
+- Update unit tests to validate the changes
+- Update lib.rs with the new PNR endpoint and update the utoipa annotations

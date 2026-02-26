@@ -158,6 +158,7 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> io::Result<()> {
             pnr_controller::get_pnr,
             pnr_controller::post_pnr,
             pnr_controller::put_pnr,
+            pnr_controller::put_pnr_record,
             pnr_controller::patch_pnr,
             key_value_controller::post_key_value,
             key_value_controller::get_key_value,
@@ -597,6 +598,10 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> io::Result<()> {
                 .route(
                     format!("{}pnr/{{name}}", API_BASE).as_str(),
                     web::patch().to(pnr_controller::patch_pnr)
+                )
+                .route(
+                    format!("{}pnr/{{name}}/{{record}}", API_BASE).as_str(),
+                    web::put().to(pnr_controller::put_pnr_record)
                 )
         };
 

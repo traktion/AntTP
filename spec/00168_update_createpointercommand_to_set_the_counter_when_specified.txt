@@ -15,3 +15,7 @@ Implementation Notes
 - Increment patch version of anttp package in Cargo.toml
 - Create a copy of this issue description and save to /spec using the name of this issue as the filename (with lower underscore case, starting with the 5 char padded issue number, e.g. 00001_issue_title.txt)
 - Update unit tests to validate the changes
+
+Amendments
+
+- update update_pointer_command.rs to also populate properties with counter (when it is provided), in the same way as create_pointer_command.rs

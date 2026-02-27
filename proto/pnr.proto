@@ -5,6 +5,7 @@ package pnr;
 service PnrService {
   rpc CreatePnr(CreatePnrRequest) returns (PnrResponse);
   rpc UpdatePnr(UpdatePnrRequest) returns (PnrResponse);
+  rpc UpdatePnrRecord(UpdatePnrRecordRequest) returns (PnrResponse);
   rpc GetPnr(GetPnrRequest) returns (PnrResponse);
 }
 
@@ -35,6 +36,13 @@ message UpdatePnrRequest {
   string name = 1;
   PnrZone pnr_zone = 2;
   optional string store_type = 3;
+}
+
+message UpdatePnrRecordRequest {
+  string name = 1;
+  string record = 2;
+  PnrRecord pnr_record = 3;
+  optional string store_type = 4;
 }
 
 message GetPnrRequest {

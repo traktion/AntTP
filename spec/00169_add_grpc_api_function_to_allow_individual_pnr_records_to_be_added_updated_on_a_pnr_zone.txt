@@ -1,0 +1,31 @@
+As a PNR gRPC API consumer
+I want to be able to easily add or update individual PNR Records within a PNR Zone
+So that I don't have to provide a full PNR Record with all the PNR zones every time I make a modification
+
+Given pnr_handler.rs provides PNR operations
+When adding or updating a PNR Record
+Then add an UpdatePnrRecord RPC to add or update PNR Records (with key {record}) on an existing PNR Zone (with key {name})
+And update pnr.proto in a similar way to the example below:
+
+```
+rpc UpdatePnrRecord(UpdatePnrRecordRequest) returns (PnrResponse);
+
+message UpdatePnrRecordRequest {
+  string name = 1;
+  string record = 2;
+  PnrRecord pnr_record = 3;
+  optional string store_type = 4;
+}
+```
+
+Given pnr_service.rs performs changes to PNR zones and records
+When adding an PNR record to an existing PNR zone
+Then use update_pnr_record function in pnr_service.rs to add/update the PNR record
+
+Implementation Notes
+
+- Place any unit tests at the bottom of the same file as the associated production code
+- Increment patch version of anttp package in Cargo.toml
+- Create a copy of this issue description and save to /spec using the name of this issue as the filename (with lower underscore case, starting with the 5 char padded issue number, e.g. 00001_issue_title.txt)
+- Update unit tests to validate the changes
+- Update lib.rs with the new PNR function if needed

@@ -37,6 +37,22 @@ struct UpdatePnrRequest {
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
+struct UpdatePnrRecordRequest {
+    #[schemars(description = "Existing name of the PNR zone to update")]
+    name: String,
+    #[schemars(description = "Name of the PNR record to add/update")]
+    record: String,
+    #[schemars(description = "Target address of the PNR record")]
+    address: String,
+    #[schemars(description = "Time To Live (TTL) for the PNR record (default: 60)")]
+    ttl: u64,
+    #[schemars(description = "Type of the PNR record (A or X) (default: X)")]
+    record_type: Option<String>,
+    #[schemars(description = "Store PNR zone on memory, disk or network")]
+    store_type: String,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
 struct GetPnrRequest {
     #[schemars(description = "Name of the PNR zone")]
     name: String,
@@ -99,6 +115,22 @@ impl McpTool {
         ).await?.into())
     }
 
+    #[tool(description = "Update or add PNR record to an existing PNR zone")]
+    async fn update_pnr_record(
+        &self,
+        Parameters(UpdatePnrRecordRequest { name, record, address, ttl, record_type, store_type }): Parameters<UpdatePnrRecordRequest>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let ttl_or_default = if ttl == 0 { 60 } else { ttl };
+        let record_type = match record_type.as_deref() {
+            Some("A") => PnrRecordType::A,
+            _ => PnrRecordType::X,
+        };
+        let pnr_record = PnrRecord::new(address, record_type, ttl_or_default);
+        Ok(self.pnr_service.update_pnr_record(
+            name, record, pnr_record, self.evm_wallet.get_ref().clone(), StoreType::from(store_type)
+        ).await?.into())
+    }
+
     #[tool(description = "Get PNR zone by name")]
     async fn get_pnr_zone(
         &self,
@@ -133,6 +165,25 @@ mod tests {
         assert_eq!(request.name, "test_pnr");
         assert_eq!(request.address, "0x123");
         assert_eq!(request.ttl, 60);
+        assert_eq!(request.store_type, "memory");
+    }
+
+    #[tokio::test]
+    async fn test_update_pnr_record_request_serialization() {
+        let json = r#"{
+            "name": "test_pnr",
+            "record": "www",
+            "address": "0x123",
+            "ttl": 60,
+            "record_type": "A",
+            "store_type": "memory"
+        }"#;
+        let request: UpdatePnrRecordRequest = serde_json::from_str(json).unwrap();
+        assert_eq!(request.name, "test_pnr");
+        assert_eq!(request.record, "www");
+        assert_eq!(request.address, "0x123");
+        assert_eq!(request.ttl, 60);
+        assert_eq!(request.record_type, Some("A".to_string()));
         assert_eq!(request.store_type, "memory");
     }
 

@@ -1,10 +1,10 @@
 use crate::client::ChunkCachingClient;
-use crate::controller::{StoreType, DataKey};
+use crate::controller::{DataKey, StoreType};
 use crate::error::pointer_error::PointerError;
 use crate::error::CreateError;
-use crate::model::pnr::PnrZone;
-use crate::service::pointer_service::{Pointer, PointerService};
 use crate::error::UpdateError;
+use crate::model::pnr::{PnrRecord, PnrZone};
+use crate::service::pointer_service::{Pointer, PointerService};
 use actix_web::web::Data;
 use ant_protocol::storage::Chunk;
 use autonomi::client::payment::PaymentOption;
@@ -22,12 +22,14 @@ impl PnrService {
         Self { chunk_caching_client, pointer_service }
     }
 
-    pub async fn create_pnr(&self, pnr_zone: PnrZone, evm_wallet: Wallet, store_type: StoreType) -> Result<PnrZone, PointerError> {
+    pub async fn create_pnr(&self, mut pnr_zone: PnrZone, evm_wallet: Wallet, store_type: StoreType) -> Result<PnrZone, PointerError> {
         /*
         1. Create chunk containing PNR zone (container for records)
         2. Create mutable personal pointer to above chunk
         3. Create immutable (TTL=MAX) resolver pointer to personal pointer
+        4. Trim whitespace from PNR zone name
          */
+        pnr_zone.name = pnr_zone.name.trim().to_string();
         match self.chunk_caching_client.chunk_put(
             &Chunk::new(Bytes::from(serde_json::to_vec(&pnr_zone).unwrap())),
             PaymentOption::from(&evm_wallet),
@@ -45,7 +47,7 @@ impl PnrService {
                 {
                     Ok(personal_pointer_result) => {
                         let resolver_pointer_request = Pointer::new(
-                            Some(pnr_zone.name.clone()), personal_pointer_result.address.clone().unwrap(), None, None, None,
+                            Some(pnr_zone.name.clone()), personal_pointer_result.address.clone().unwrap(), None, Some(u64::MAX), None,
                         );
                         match self.pointer_service.create_pointer(
                             resolver_pointer_request,
@@ -71,7 +73,10 @@ impl PnrService {
         }
     }
 
-    pub async fn update_pnr(&self, name: String, pnr_zone: PnrZone, evm_wallet: Wallet, store_type: StoreType) -> Result<PnrZone, PointerError> {
+    pub async fn update_pnr(&self, name: String, mut pnr_zone: PnrZone, evm_wallet: Wallet, store_type: StoreType) -> Result<PnrZone, PointerError> {
+        let name = name.trim().to_string();
+        pnr_zone.name = pnr_zone.name.trim().to_string();
+
         let (resolver_address, personal_pointer_address) = self.resolve_personal_address(&name).await?;
 
         match self.chunk_caching_client.chunk_put(
@@ -105,6 +110,7 @@ impl PnrService {
     }
 
     pub async fn get_pnr(&self, name: String) -> Result<PnrZone, PointerError> {
+        let name = name.trim().to_string();
         let (resolver_address, personal_pointer_address) = self.resolve_personal_address(&name).await?;
 
         let personal_pointer = self.pointer_service.get_pointer(personal_pointer_address.clone(), DataKey::Personal).await?;
@@ -125,12 +131,26 @@ impl PnrService {
         }
     }
 
-    pub async fn append_pnr(&self, name: String, pnr_zone: PnrZone, evm_wallet: Wallet, store_type: StoreType) -> Result<PnrZone, PointerError> {
+    pub async fn append_pnr(&self, name: String, mut pnr_zone: PnrZone, evm_wallet: Wallet, store_type: StoreType) -> Result<PnrZone, PointerError> {
+        let name = name.trim().to_string();
+        pnr_zone.name = pnr_zone.name.trim().to_string();
+
         let mut existing_pnr_zone = self.get_pnr(name.clone()).await?;
 
         for (key, record) in pnr_zone.records {
-            existing_pnr_zone.records.insert(key, record);
+            existing_pnr_zone.records.insert(key.trim().to_string(), record);
         }
+
+        self.update_pnr(name, existing_pnr_zone, evm_wallet, store_type).await
+    }
+
+    pub async fn update_pnr_record(&self, name: String, record_key: String, record: PnrRecord, evm_wallet: Wallet, store_type: StoreType) -> Result<PnrZone, PointerError> {
+        let name = name.trim().to_string();
+        let record_key = record_key.trim().to_string();
+
+        let mut existing_pnr_zone = self.get_pnr(name.clone()).await?;
+
+        existing_pnr_zone.records.insert(record_key, record);
 
         self.update_pnr(name, existing_pnr_zone, evm_wallet, store_type).await
     }
@@ -175,5 +195,24 @@ mod tests {
         assert!(matches!(merged_records.get("old").unwrap().record_type, PnrRecordType::X));
         assert_eq!(merged_records.get("keep").unwrap().address, "addr2");
         assert_eq!(merged_records.get("new").unwrap().address, "addr4");
+    }
+
+    #[tokio::test]
+    async fn test_update_pnr_record_logic() {
+        let mut existing_records = HashMap::new();
+        existing_records.insert("keep".to_string(), PnrRecord::new("addr1".to_string(), PnrRecordType::A, 60));
+        existing_records.insert("update".to_string(), PnrRecord::new("addr2".to_string(), PnrRecordType::A, 60));
+
+        let new_record = PnrRecord::new("addr3".to_string(), PnrRecordType::X, 120);
+
+        // Simulate merging logic from update_pnr_record
+        let mut merged_records = existing_records;
+        merged_records.insert("update".to_string(), new_record);
+
+        assert_eq!(merged_records.len(), 2);
+        assert_eq!(merged_records.get("update").unwrap().address, "addr3");
+        assert_eq!(merged_records.get("update").unwrap().ttl, 120);
+        assert!(matches!(merged_records.get("update").unwrap().record_type, PnrRecordType::X));
+        assert_eq!(merged_records.get("keep").unwrap().address, "addr1");
     }
 }

@@ -2,7 +2,7 @@ use tonic::{Request, Response, Status};
 use actix_web::web::Data;
 use ant_evm::EvmWallet;
 use crate::service::graph_service::{GraphEntry as ServiceGraphEntry, GraphDescendants as ServiceGraphDescendants, GraphService};
-use crate::controller::StoreType;
+use crate::controller::{DataKey, StoreType};
 use crate::error::graph_error::GraphError;
 
 pub mod graph_proto {
@@ -26,14 +26,14 @@ impl GraphHandler {
 
 impl From<GraphDescendants> for ServiceGraphDescendants {
     fn from(d: GraphDescendants) -> Self {
-        ServiceGraphDescendants::new(d.public_key, d.content)
+        ServiceGraphDescendants::new(d.key, d.content)
     }
 }
 
 impl From<ServiceGraphDescendants> for GraphDescendants {
     fn from(d: ServiceGraphDescendants) -> Self {
         GraphDescendants {
-            public_key: d.public_key,
+            key: d.key,
             content: d.content,
         }
     }
@@ -82,6 +82,7 @@ impl GraphServiceTrait for GraphHandler {
             ServiceGraphEntry::from(graph_entry),
             self.evm_wallet.get_ref().clone(),
             StoreType::from(req.store_type.unwrap_or_default()),
+            DataKey::from(req.data_key.unwrap_or_default()),
         ).await?;
 
         Ok(Response::new(GraphResponse {
@@ -94,7 +95,7 @@ impl GraphServiceTrait for GraphHandler {
         request: Request<GetGraphEntryRequest>,
     ) -> Result<Response<GraphResponse>, Status> {
         let req = request.into_inner();
-        let result = self.graph_service.get_graph_entry(req.address).await?;
+        let result = self.graph_service.get_graph_entry(req.address, DataKey::from(req.data_key.unwrap_or_default())).await?;
 
         Ok(Response::new(GraphResponse {
             graph_entry: Some(GraphEntry::from(result)),
@@ -111,15 +112,15 @@ mod tests {
     #[test]
     fn test_graph_descendants_mapping() {
         let proto = GraphDescendants {
-            public_key: "key".to_string(),
+            key: "key".to_string(),
             content: "content".to_string(),
         };
         let service = ServiceGraphDescendants::from(proto.clone());
-        assert_eq!(service.public_key, "key");
+        assert_eq!(service.key, "key");
         assert_eq!(service.content, "content");
 
         let proto_back = GraphDescendants::from(service);
-        assert_eq!(proto_back.public_key, "key");
+        assert_eq!(proto_back.key, "key");
         assert_eq!(proto_back.content, "content");
     }
 
@@ -131,7 +132,7 @@ mod tests {
             address: Some("address".to_string()),
             parents: vec!["parent1".to_string()],
             descendants: vec![GraphDescendants {
-                public_key: "key".to_string(),
+                key: "key".to_string(),
                 content: "content".to_string(),
             }],
         };

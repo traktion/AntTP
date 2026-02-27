@@ -8,7 +8,7 @@ service GraphService {
 }
 
 message GraphDescendants {
-  string public_key = 1;
+  string key = 1;
   string content = 2;
 }
 
@@ -23,10 +23,12 @@ message GraphEntry {
 message CreateGraphEntryRequest {
   GraphEntry graph_entry = 1;
   optional string store_type = 2;
+  optional string data_key = 3;
 }
 
 message GetGraphEntryRequest {
   string address = 1;
+  optional string data_key = 2;
 }
 
 message GraphResponse {

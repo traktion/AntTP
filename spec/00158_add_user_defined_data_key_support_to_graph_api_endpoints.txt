@@ -1,0 +1,31 @@
+As a graph entry API consumer
+I want to be able to set the data key for all graph endpoints (REST, MCP and gRPC)
+So that I can easily create a graph entry based on a different/shared key
+
+Given pointer_controller.rs and pointer_service.rs already support data_key
+When adding data key support to graph_controller.rs and graph_service.rs
+Then user pointer_controller.rs and pointer_service.rs as an example
+
+Given pointer_handler.rs and pointer_tool.rs already support data_key
+When adding data key support to graph_handler.rs and graph_tool.rs
+Then use pointer_handler.rs and pointer_tool.rs as examples for adding data_key
+
+Given pointer.proto already supports data_key
+When adding data key support to graph.proto
+Then user pointer.proto as an example for adding data_key
+
+Given graph_service.rs contains GraphDescendants struct
+When adding data key support
+Then also rename GraphDescendants.public_key to GraphDescendants.key to make usage clearer
+
+Given graph_service.rs contains get_graph_entry function
+When getting a graph entry
+Then call Client::register_key_from_name to resolve the graph key from the address provided
+And proved GraphEntryAddress::from_hex the resolved value so that the entry can be easily resolved from the name it was created with
+
+Implementation Notes
+
+- Place any unit tests at the bottom of the same file as the associated production code
+- Increment patch version of anttp package in Cargo.toml
+- Create a copy of this issue description and save to /spec using the name of this issue as the filename (with lower underscore case, starting with the 5 char padded issue number, e.g. 00001_issue_title.txt)
+- Update unit tests to validate the changes

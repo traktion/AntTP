@@ -133,12 +133,9 @@ impl GraphService {
     }
 
     pub async fn resolve_address(&self, address: String, data_key: DataKey) -> Result<String, GraphError> {
-        Ok(if self.resolver_service.is_immutable_address(&address) {
-            self.resolver_service.resolve_name(&address).await.unwrap_or(address)
-        } else {
-            let secret_key = self.get_secret_key(data_key)?;
-            Client::register_key_from_name(&secret_key, address.as_str()).public_key().to_hex()
-        })
+        let address = self.resolver_service.resolve_name(&address).await.unwrap_or(address);
+        let secret_key = self.get_secret_key(data_key)?;
+        Ok(Client::register_key_from_name(&secret_key, address.as_str()).public_key().to_hex())
     }
 
     fn get_graph_key(&self, name: &str, data_key: DataKey) -> Result<autonomi::SecretKey, CreateError> {
@@ -212,20 +209,15 @@ mod tests {
         let mut mock_resolver = MockResolverService::default();
 
         let app_secret_key = autonomi::SecretKey::from_hex("0000000000000000000000000000000000000000000000000000000000000001").unwrap();
-        let graph_address = GraphEntryAddress::new(app_secret_key.public_key());
-        let address_hex = graph_address.to_hex();
-
-        mock_resolver
-            .expect_is_immutable_address()
-            .with(eq(address_hex.clone()))
-            .times(1)
-            .returning(|_| true);
+        let address_hex = "test_graph".to_string();
+        let resolved_address_hex = autonomi::Client::register_key_from_name(&app_secret_key, "test_graph").public_key().to_hex();
+        let graph_address = GraphEntryAddress::from_hex(&resolved_address_hex).unwrap();
 
         mock_resolver
             .expect_resolve_name()
             .with(eq(address_hex.clone()))
             .times(1)
-            .returning(move |addr| Some(addr.to_string()));
+            .returning(|_| None);
 
         let content = [1u8; 32];
         let graph_entry_data = autonomi::graph::GraphEntry::new(&app_secret_key, vec![], autonomi::graph::GraphContent::from(content), vec![]);

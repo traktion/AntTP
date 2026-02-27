@@ -1,0 +1,17 @@
+Update CreatePointerCommand to set the counter when specified
+
+As a Pointer API consumer
+I want to be able to create pointers with a target counter number (when specified)
+So that I don't have to create a pointer with a default counter
+
+Given UpdatePointerCommand execute function has an example of calling pointer_update_from with a counter
+When creating a pointer with a target counter
+Then implement a call to pointer_update_from with the counter specified, after the existing call to pointer_create
+And only call pointer_update_from when the pointer counter has been provided
+
+Implementation Notes
+
+- Place any unit tests at the bottom of the same file as the associated production code
+- Increment patch version of anttp package in Cargo.toml
+- Create a copy of this issue description and save to /spec using the name of this issue as the filename (with lower underscore case, starting with the 5 char padded issue number, e.g. 00001_issue_title.txt)
+- Update unit tests to validate the changes

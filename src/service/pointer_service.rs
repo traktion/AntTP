@@ -9,7 +9,7 @@ use crate::service::get_secret_key;
 use crate::service::resolver_service::ResolverService;
 use autonomi::client::payment::PaymentOption;
 use autonomi::pointer::PointerTarget;
-use autonomi::{ChunkAddress, Client, PointerAddress, SecretKey, Wallet};
+use autonomi::{ChunkAddress, Client, PointerAddress, Wallet};
 use log::{info, warn};
 use mockall_double::double;
 use serde::{Deserialize, Serialize};
@@ -126,6 +126,7 @@ mod tests {
     use crate::service::resolver_service::MockResolverService;
     use clap::Parser;
     use mockall::predicate::*;
+    use autonomi::SecretKey;
 
     fn create_test_service(
         mock_pointer_caching_client: MockPointerCachingClient,

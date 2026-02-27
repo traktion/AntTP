@@ -6,6 +6,7 @@ use log::{info, warn};
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 use mockall_double::double;
+use crate::service::get_secret_key;
 #[double]
 use crate::service::resolver_service::ResolverService;
 #[double]
@@ -134,24 +135,13 @@ impl GraphService {
 
     pub async fn resolve_address(&self, address: String, data_key: DataKey) -> Result<String, GraphError> {
         let address = self.resolver_service.resolve_name(&address).await.unwrap_or(address);
-        let secret_key = self.get_secret_key(data_key)?;
+        let secret_key = get_secret_key(&self.ant_tp_config, data_key)?;
         Ok(Client::register_key_from_name(&secret_key, address.as_str()).public_key().to_hex())
     }
 
     fn get_graph_key(&self, name: &str, data_key: DataKey) -> Result<autonomi::SecretKey, CreateError> {
-        let secret_key = self.get_secret_key(data_key)?;
+        let secret_key = get_secret_key(&self.ant_tp_config, data_key)?;
         Ok(Client::register_key_from_name(&secret_key, name))
-    }
-
-    fn get_secret_key(&self, data_key: DataKey) -> Result<autonomi::SecretKey, CreateError> {
-        match data_key {
-            DataKey::Resolver => self.ant_tp_config.get_resolver_private_key(),
-            DataKey::Personal => self.ant_tp_config.get_app_private_key(),
-            DataKey::Custom(key) => match autonomi::SecretKey::from_hex(&key.as_str()) {
-                Ok(secret_key) => Ok(secret_key),
-                Err(e) => Err(CreateError::DataKeyMissing(e.to_string()))
-            }
-        }
     }
 }
 

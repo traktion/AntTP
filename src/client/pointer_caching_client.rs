@@ -68,7 +68,7 @@ impl PointerCachingClient {
 
         if store_type == StoreType::Network {
             let command = Box::new(
-                CreatePointerCommand::new(self.caching_client.get_client_harness().clone(), owner.clone(), target, payment_option)
+                CreatePointerCommand::new(self.caching_client.get_client_harness().clone(), owner.clone(), target, counter, payment_option)
             );
             self.caching_client.send_create_command(command).await?;
         }

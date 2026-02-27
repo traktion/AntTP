@@ -11,7 +11,7 @@ pub mod pnr_proto {
 
 use pnr_proto::pnr_service_server::PnrService as PnrServiceTrait;
 pub use pnr_proto::pnr_service_server::PnrServiceServer;
-use pnr_proto::{PnrZone, PnrRecord, PnrRecordType, PnrResponse, CreatePnrRequest, UpdatePnrRequest, GetPnrRequest};
+use pnr_proto::{PnrZone, PnrRecord, PnrRecordType, PnrResponse, CreatePnrRequest, UpdatePnrRequest, UpdatePnrRecordRequest, GetPnrRequest};
 
 pub struct PnrHandler {
     pnr_service: Data<PnrService>,
@@ -137,6 +137,26 @@ impl PnrServiceTrait for PnrHandler {
             pnr_zone: Some(PnrZone::from(result)),
         }))
     }
+
+    async fn update_pnr_record(
+        &self,
+        request: Request<UpdatePnrRecordRequest>,
+    ) -> Result<Response<PnrResponse>, Status> {
+        let req = request.into_inner();
+        let pnr_record = req.pnr_record.ok_or_else(|| Status::invalid_argument("PnrRecord is required"))?;
+
+        let result = self.pnr_service.update_pnr_record(
+            req.name,
+            req.record,
+            ServicePnrRecord::from(pnr_record),
+            self.evm_wallet.get_ref().clone(),
+            StoreType::from(req.store_type.unwrap_or_default()),
+        ).await?;
+
+        Ok(Response::new(PnrResponse {
+            pnr_zone: Some(PnrZone::from(result)),
+        }))
+    }
 }
 
 #[cfg(test)]
@@ -194,5 +214,23 @@ mod tests {
             name: "example.com".to_string(),
         };
         assert_eq!(req.name, "example.com");
+    }
+
+    #[tokio::test]
+    async fn test_update_pnr_record_request_mapping() {
+        let req = UpdatePnrRecordRequest {
+            name: "example.com".to_string(),
+            record: "www".to_string(),
+            pnr_record: Some(PnrRecord {
+                address: "address1".to_string(),
+                record_type: PnrRecordType::A as i32,
+                ttl: 3600,
+            }),
+            store_type: Some("memory".to_string()),
+        };
+        assert_eq!(req.name, "example.com");
+        assert_eq!(req.record, "www");
+        assert_eq!(req.pnr_record.unwrap().address, "address1");
+        assert_eq!(req.store_type.unwrap(), "memory");
     }
 }

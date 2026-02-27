@@ -28,3 +28,7 @@ Implementation Notes
 - Create a copy of this issue description and save to /spec using the name of this issue as the filename (with lower underscore case, starting with the 5 char padded issue number, e.g. 00001_issue_title.txt)
 - Update unit tests to validate the changes
 - Update lib.rs with the new PNR endpoint and update the utoipa annotations
+
+Amendments
+
+- update pnr_service to trim whitespace from name and record_key variables

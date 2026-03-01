@@ -165,7 +165,9 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> io::Result<()> {
             pnr_controller::put_pnr_record,
             pnr_controller::patch_pnr,
             key_value_controller::post_key_value,
+            key_value_controller::post_key_value_binary,
             key_value_controller::get_key_value,
+            key_value_controller::get_key_value_binary,
             resolver_controller::resolve
         ),
         components(
@@ -404,12 +406,12 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> io::Result<()> {
                 web::get().to(command_controller::get_commands)
             )
             .route(
-                format!("{}key_value", API_BASE).as_str(),
-                web::post().to(key_value_controller::post_key_value)
-            )
-            .route(
                 format!("{}key_value/{{bucket}}/{{object}}", API_BASE).as_str(),
                 web::get().to(key_value_controller::get_key_value)
+            )
+            .route(
+                format!("{}binary/key_value/{{bucket}}/{{object}}", API_BASE).as_str(),
+                web::get().to(key_value_controller::get_key_value_binary)
             )
             .route(
                 format!("{}archive/{{address}}", API_BASE).as_str(),
@@ -480,6 +482,14 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> io::Result<()> {
                     );
             }
             app = app
+                .route(
+                    format!("{}key_value/{{bucket}}/{{object}}", API_BASE).as_str(),
+                    web::post().to(key_value_controller::post_key_value)
+                )
+                .route(
+                    format!("{}binary/key_value/{{bucket}}/{{object}}", API_BASE).as_str(),
+                    web::post().to(key_value_controller::post_key_value_binary)
+                )
                 .route(
                     format!("{}chunk", API_BASE).as_str(),
                     web::post().to(chunk_controller::post_chunk),

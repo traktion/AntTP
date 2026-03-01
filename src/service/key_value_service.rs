@@ -4,13 +4,41 @@ use autonomi::Wallet;
 use base64::Engine;
 use base64::prelude::BASE64_STANDARD;
 use bytes::Bytes;
+use mockall::mock;
 use crate::controller::StoreType;
 use crate::error::public_data_error::PublicDataError;
 use crate::model::key_value::KeyValue;
 use crate::model::pnr::{PnrRecord, PnrRecordType, PnrZone};
 use crate::service::pnr_service::PnrService;
 use crate::service::public_data_service::PublicDataService;
-use mockall::mock;
+
+mock! {
+    #[derive(Debug)]
+    pub KeyValueService {
+        pub fn new(public_data_service: Data<PublicDataService>, pnr_service: Data<PnrService>) -> Self;
+        pub async fn create_key_value(
+            &self,
+            bucket: String,
+            object: String,
+            key_value: KeyValue,
+            evm_wallet: Wallet,
+            store_type: StoreType,
+        ) -> Result<KeyValue, PublicDataError>;
+        pub async fn create_key_value_binary(
+            &self,
+            bucket: String,
+            object: String,
+            content: Bytes,
+            evm_wallet: Wallet,
+            store_type: StoreType,
+        ) -> Result<(), PublicDataError>;
+        pub async fn get_key_value(&self, bucket: String, object: String) -> Result<KeyValue, PublicDataError>;
+        pub async fn get_key_value_binary(&self, bucket: String, object: String) -> Result<Bytes, PublicDataError>;
+    }
+    impl Clone for KeyValueService {
+        fn clone(&self) -> Self;
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct KeyValueService {
@@ -27,6 +55,8 @@ impl KeyValueService {
     }
     pub async fn create_key_value(
         &self,
+        bucket: String,
+        object: String,
         key_value: KeyValue,
         evm_wallet: Wallet,
         store_type: StoreType,
@@ -36,8 +66,8 @@ impl KeyValueService {
             .map_err(|e| PublicDataError::GetError(crate::error::GetError::Decode(e.to_string())))?;
 
         self.create_key_value_binary(
-            key_value.bucket.clone(),
-            key_value.object.clone(),
+            bucket,
+            object,
             Bytes::from(decoded_content),
             evm_wallet,
             store_type,
@@ -91,7 +121,7 @@ impl KeyValueService {
         let content_bytes = self.get_key_value_binary(bucket.clone(), object.clone()).await?;
         let content = BASE64_STANDARD.encode(content_bytes);
 
-        Ok(KeyValue::new(bucket, object, content))
+        Ok(KeyValue::new(content))
     }
 
     pub async fn get_key_value_binary(&self, bucket: String, object: String) -> Result<Bytes, PublicDataError> {

@@ -2,13 +2,11 @@ use actix_http::header;
 use actix_web::{web, HttpRequest, HttpResponse};
 use actix_web::http::header::{ContentLength, ContentType};
 use actix_web::web::{Data, Payload};
-use mockall_double::double;
 use ant_evm::EvmWallet;
 use log::debug;
 use crate::controller::get_store_type;
 use crate::error::public_data_error::PublicDataError;
 use crate::model::key_value::KeyValue;
-#[double]
 use crate::service::key_value_service::KeyValueService;
 
 #[utoipa::path(
@@ -37,12 +35,10 @@ pub async fn post_key_value(
 ) -> Result<HttpResponse, PublicDataError> {
     let (bucket, object) = path.into_inner();
     debug!("Creating new key/value at [{}/{}]", bucket, object);
-    let mut kv = key_value.into_inner();
-    kv.bucket = bucket;
-    kv.object = object;
+    let kv = key_value.into_inner();
 
     Ok(HttpResponse::Created().json(
-        key_value_service.create_key_value(kv, evm_wallet_data.get_ref().clone(), get_store_type(&request)).await?
+        key_value_service.create_key_value(bucket, object, kv, evm_wallet_data.get_ref().clone(), get_store_type(&request)).await?
     ))
 }
 

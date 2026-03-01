@@ -41,9 +41,11 @@ impl McpTool {
         &self,
         Parameters(McpCreateKeyValueRequest { bucket, object, content }): Parameters<McpCreateKeyValueRequest>,
     ) -> Result<CallToolResult, ErrorData> {
-        let key_value = KeyValue::new(bucket.clone(), object.clone(), content);
+        let key_value = KeyValue::new(content);
         
         self.key_value_service.create_key_value(
+            bucket.clone(),
+            object.clone(),
             key_value,
             self.evm_wallet.get_ref().clone(),
             crate::controller::StoreType::Network,

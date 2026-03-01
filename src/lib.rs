@@ -103,6 +103,8 @@ use crate::grpc::private_scratchpad_handler::{PrivateScratchpadHandler, PrivateS
 use crate::grpc::public_scratchpad_handler::{PublicScratchpadHandler, PublicScratchpadServiceServer};
 #[cfg(not(grpc_disabled))]
 use crate::grpc::resolver_handler::{ResolverHandler, ResolverServiceServer};
+#[cfg(not(grpc_disabled))]
+use crate::grpc::key_value_handler::{KeyValueHandler, KeyValueServiceServer};
 
 static ACTIX_SERVER_HANDLE: Lazy<Mutex<Option<ServerHandle>>> = Lazy::new(|| Mutex::new(None));
 #[cfg(not(grpc_disabled))]
@@ -272,6 +274,7 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> io::Result<()> {
         scratchpad_service_data.clone(),
         tarchive_service_data.clone(),
         resolver_service_data.clone(),
+        key_value_service_data.clone(),
         evm_wallet_data.clone()
     );
     let mcp_tool_service = StreamableHttpService::builder()
@@ -297,6 +300,7 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> io::Result<()> {
         let private_scratchpad_handler = PrivateScratchpadHandler::new(scratchpad_service_data.clone(), evm_wallet_data.clone());
         let public_scratchpad_handler = PublicScratchpadHandler::new(scratchpad_service_data.clone(), evm_wallet_data.clone());
         let resolver_handler = ResolverHandler::new(resolver_service_data.clone());
+        let key_value_handler = KeyValueHandler::new(key_value_service_data.clone(), evm_wallet_data.clone());
 
         let (tx, rx) = oneshot::channel::<()>();
         {
@@ -320,6 +324,7 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> io::Result<()> {
                 .add_service(PrivateScratchpadServiceServer::new(private_scratchpad_handler))
                 .add_service(PublicScratchpadServiceServer::new(public_scratchpad_handler))
                 .add_service(ResolverServiceServer::new(resolver_handler))
+                .add_service(KeyValueServiceServer::new(key_value_handler))
                 .serve_with_shutdown(grpc_listen_address, async {
                     rx.await.ok();
                 })

@@ -24,3 +24,5 @@ pub mod private_scratchpad_handler;
 pub mod public_scratchpad_handler;
 #[cfg(not(grpc_disabled))]
 pub mod resolver_handler;
+#[cfg(not(grpc_disabled))]
+pub mod key_value_handler;

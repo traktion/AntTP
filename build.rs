@@ -21,6 +21,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             tonic_build::compile_protos("proto/public_scratchpad.proto")?;
             tonic_build::compile_protos("proto/scratchpad.proto")?;
             tonic_build::compile_protos("proto/resolver.proto")?;
+            tonic_build::compile_protos("proto/key_value.proto")?;
         } else {
             println!("cargo:warning=protoc not found, disabling gRPC support");
             println!("cargo:rustc-cfg=grpc_disabled");

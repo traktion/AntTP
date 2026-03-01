@@ -10,6 +10,7 @@ use ant_protocol::storage::Chunk;
 use autonomi::client::payment::PaymentOption;
 use autonomi::Wallet;
 use bytes::Bytes;
+use mockall::automock;
 
 #[derive(Debug, Clone)]
 pub struct PnrService {
@@ -17,6 +18,7 @@ pub struct PnrService {
     pointer_service: Data<PointerService>
 }
 
+#[automock]
 impl PnrService {
     pub fn new(chunk_caching_client: ChunkCachingClient, pointer_service: Data<PointerService>) -> Self {
         Self { chunk_caching_client, pointer_service }

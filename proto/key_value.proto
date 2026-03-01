@@ -1,0 +1,30 @@
+syntax = "proto3";
+
+package key_value;
+
+service KeyValueService {
+  rpc CreateKeyValue(CreateKeyValueRequest) returns (KeyValueResponse);
+  rpc GetKeyValue(GetKeyValueRequest) returns (GetKeyValueBinaryResponse);
+}
+
+message CreateKeyValueRequest {
+  string bucket = 1;
+  string object = 2;
+  bytes content = 3;
+}
+
+message GetKeyValueRequest {
+  string bucket = 1;
+  string object = 2;
+}
+
+message KeyValueResponse {
+  string bucket = 1;
+  string object = 2;
+}
+
+message GetKeyValueBinaryResponse {
+  string bucket = 1;
+  string object = 2;
+  bytes content = 3;
+}

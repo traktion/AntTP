@@ -14,6 +14,7 @@ use crate::error::public_data_error::PublicDataError;
 #[double]
 use crate::service::resolver_service::ResolverService;
 use crate::service::chunk_service::Chunk;
+use mockall::automock;
 
 #[derive(Serialize, Deserialize, ToSchema)]
 pub struct PublicData {
@@ -27,6 +28,7 @@ pub struct PublicDataService {
     resolver_service: ResolverService
 }
 
+#[automock]
 impl PublicDataService {
     pub fn new(public_data_caching_client: PublicDataCachingClient, resolver_service: ResolverService) -> Self {
         Self { public_data_caching_client, resolver_service }

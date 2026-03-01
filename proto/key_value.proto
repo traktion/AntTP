@@ -4,7 +4,7 @@ package key_value;
 
 service KeyValueService {
   rpc CreateKeyValue(CreateKeyValueRequest) returns (KeyValueResponse);
-  rpc GetKeyValue(GetKeyValueRequest) returns (GetKeyValueResponse);
+  rpc GetKeyValue(GetKeyValueRequest) returns (GetKeyValueBinaryResponse);
 }
 
 message CreateKeyValueRequest {
@@ -23,7 +23,7 @@ message KeyValueResponse {
   string object = 2;
 }
 
-message GetKeyValueResponse {
+message GetKeyValueBinaryResponse {
   string bucket = 1;
   string object = 2;
   bytes content = 3;

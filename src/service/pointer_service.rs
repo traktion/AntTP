@@ -4,11 +4,12 @@ use crate::config::anttp_config::AntTpConfig;
 use crate::controller::{DataKey, StoreType};
 use crate::error::pointer_error::PointerError;
 use crate::error::{CreateError, UpdateError};
+use crate::service::get_secret_key;
 #[double]
 use crate::service::resolver_service::ResolverService;
 use autonomi::client::payment::PaymentOption;
 use autonomi::pointer::PointerTarget;
-use autonomi::{ChunkAddress, Client, PointerAddress, SecretKey, Wallet};
+use autonomi::{ChunkAddress, Client, PointerAddress, Wallet};
 use log::{info, warn};
 use mockall_double::double;
 use serde::{Deserialize, Serialize};
@@ -47,7 +48,7 @@ impl PointerService {
     pub async fn create_pointer(&self, pointer: Pointer, evm_wallet: Wallet, store_type: StoreType, data_key: DataKey) -> Result<Pointer, PointerError> {
         match pointer.name {
             Some(name) => {
-                let secret_key = self.get_data_key(data_key)?;
+                let secret_key = get_secret_key(&self.ant_tp_config, data_key)?;
                 let pointer_key = Client::register_key_from_name(&secret_key, name.as_str());
 
                 let pointer_target = self.get_pointer_target(&pointer.content)?;
@@ -67,7 +68,7 @@ impl PointerService {
             Some(name) => {
                 let resolved_address = self.resolve_address(address, data_key.clone()).await?;
 
-                let secret_key = self.get_data_key(data_key)?;
+                let secret_key = get_secret_key(&self.ant_tp_config, data_key)?;
                 let pointer_key = Client::register_key_from_name(&secret_key, name.as_str());
                 if resolved_address.clone() != pointer_key.public_key().to_hex() {
                     warn!("Address [{}] is not derived from name [{}].", resolved_address.clone(), name);
@@ -89,25 +90,14 @@ impl PointerService {
         Ok(if self.resolver_service.is_mutable_address(&address) {
             self.resolver_service.resolve_name(&address).await.unwrap_or(address)
         } else {
-            let secret_key = self.get_data_key(data_key)?;
+            let secret_key = get_secret_key(&self.ant_tp_config, data_key)?;
             Client::register_key_from_name(&secret_key, address.as_str()).public_key().to_hex()
         })
     }
 
     pub fn get_resolver_address(&self, name: &String) -> Result<String, CreateError> {
-        let secret_key = self.get_data_key(DataKey::Resolver)?;
+        let secret_key = get_secret_key(&self.ant_tp_config, DataKey::Resolver)?;
         Ok(Client::register_key_from_name(&secret_key, name.as_str()).public_key().to_hex())
-    }
-
-    fn get_data_key(&self, data_key: DataKey) -> Result<SecretKey, CreateError> {
-        match data_key {
-            DataKey::Resolver => self.ant_tp_config.get_resolver_private_key(),
-            DataKey::Personal => self.ant_tp_config.get_app_private_key(),
-            DataKey::Custom(key) => match SecretKey::from_hex(&key.as_str()) {
-                Ok(secret_key) => Ok(secret_key),
-                Err(e) => Err(CreateError::DataKeyMissing(e.to_string()))
-            }
-        }
     }
 
     fn get_pointer_target(&self, content: &String) -> Result<PointerTarget, PointerError> {
@@ -136,6 +126,7 @@ mod tests {
     use crate::service::resolver_service::MockResolverService;
     use clap::Parser;
     use mockall::predicate::*;
+    use autonomi::SecretKey;
 
     fn create_test_service(
         mock_pointer_caching_client: MockPointerCachingClient,
@@ -371,25 +362,25 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_get_data_key_custom_success() {
+    async fn test_get_secret_key_custom_success() {
         let mock_pointer_caching_client = MockPointerCachingClient::default();
         let mock_resolver_service = MockResolverService::default();
         let custom_key_hex = "55dcbc4624699d219b8ec293339a3b81e68815397f5a502026784d8122d09fce";
         
         let service = create_test_service(mock_pointer_caching_client, mock_resolver_service);
-        let result = service.get_data_key(DataKey::Custom(custom_key_hex.to_string()));
+        let result = get_secret_key(&service.ant_tp_config, DataKey::Custom(custom_key_hex.to_string()));
         
         assert_eq!(result.unwrap().to_hex(), custom_key_hex);
     }
 
     #[tokio::test]
-    async fn test_get_data_key_custom_invalid_error() {
+    async fn test_get_secret_key_custom_invalid_error() {
         let mock_pointer_caching_client = MockPointerCachingClient::default();
         let mock_resolver_service = MockResolverService::default();
         let invalid_key_hex = "invalid_hex";
         
         let service = create_test_service(mock_pointer_caching_client, mock_resolver_service);
-        let result = service.get_data_key(DataKey::Custom(invalid_key_hex.to_string()));
+        let result = get_secret_key(&service.ant_tp_config, DataKey::Custom(invalid_key_hex.to_string()));
         
         assert!(result.is_err());
     }

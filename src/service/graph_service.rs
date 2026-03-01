@@ -6,13 +6,14 @@ use log::{info, warn};
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 use mockall_double::double;
+use crate::service::get_secret_key;
 #[double]
 use crate::service::resolver_service::ResolverService;
 #[double]
 use crate::client::graph_entry_caching_client::GraphEntryCachingClient;
 use crate::error::graph_error::GraphError;
 use crate::config::anttp_config::AntTpConfig;
-use crate::controller::StoreType;
+use crate::controller::{DataKey, StoreType};
 use crate::error::CreateError;
 
 #[derive(Serialize, Deserialize, ToSchema, Debug, PartialEq)]
@@ -27,7 +28,7 @@ pub struct GraphEntry {
 
 #[derive(Serialize, Deserialize, ToSchema, Clone, Debug, PartialEq)]
 pub struct GraphDescendants {
-    pub public_key: String,
+    pub key: String,
     pub content: String,
 }
 
@@ -38,8 +39,8 @@ impl GraphEntry {
 }
 
 impl GraphDescendants {
-    pub fn new(public_key: String, content: String) -> Self {
-        GraphDescendants{public_key, content}
+    pub fn new(key: String, content: String) -> Self {
+        GraphDescendants{key, content}
     }
 }
 
@@ -56,11 +57,10 @@ impl GraphService {
         GraphService { graph_entry_caching_client, ant_tp_config, resolver_service }
     }
 
-    pub async fn create_graph_entry(&self, graph: GraphEntry, evm_wallet: Wallet, store_type: StoreType) -> Result<GraphEntry, GraphError> {
+    pub async fn create_graph_entry(&self, graph: GraphEntry, evm_wallet: Wallet, store_type: StoreType, data_key: DataKey) -> Result<GraphEntry, GraphError> {
         match graph.name {
             Some(name) => {
-                let app_secret_key = self.ant_tp_config.get_app_private_key()?;
-                let graph_key = Client::register_key_from_name(&app_secret_key, name.as_str());
+                let graph_key = self.get_graph_key(name.as_str(), data_key)?;
 
                 let mut data_errors = vec![];
                 let mut graph_parents = vec![];
@@ -76,14 +76,14 @@ impl GraphService {
                 let mut graph_descendants = vec![];
                 if let Some(descendants) = &graph.descendants {
                     for d in descendants {
-                        match PublicKey::from_hex(d.public_key.as_str()) {
+                        match PublicKey::from_hex(d.key.as_str()) {
                             Ok(key) => {
                                 match GraphContent::from_hex(d.content.clone()) {
                                     Ok(content) => graph_descendants.push((key, content)),
                                     Err(_) => data_errors.push(format!("content is not a valid hex: {}", d.content))
                                 }
                             }
-                            Err(_) => data_errors.push(format!("public_key is not a public key: {}", d.public_key))
+                            Err(_) => data_errors.push(format!("key is not a public key: {}", d.key))
                         }
                     }
                 }
@@ -105,8 +105,8 @@ impl GraphService {
         }
     }
 
-    pub async fn get_graph_entry(&self, address: String) -> Result<GraphEntry, GraphError> {
-        let resolved_address = self.resolver_service.resolve_name(&address).await.unwrap_or(address);
+    pub async fn get_graph_entry(&self, address: String, data_key: DataKey) -> Result<GraphEntry, GraphError> {
+        let resolved_address = self.resolve_address(address, data_key).await?;
         let graph_entry_address = GraphEntryAddress::from_hex(resolved_address.as_str())?;
         match self.graph_entry_caching_client.graph_entry_get(&graph_entry_address).await {
             Ok(graph_entry) => {
@@ -131,6 +131,17 @@ impl GraphService {
                 Err(e)
             }
         }
+    }
+
+    pub async fn resolve_address(&self, address: String, data_key: DataKey) -> Result<String, GraphError> {
+        let address = self.resolver_service.resolve_name(&address).await.unwrap_or(address);
+        let secret_key = get_secret_key(&self.ant_tp_config, data_key)?;
+        Ok(Client::register_key_from_name(&secret_key, address.as_str()).public_key().to_hex())
+    }
+
+    fn get_graph_key(&self, name: &str, data_key: DataKey) -> Result<autonomi::SecretKey, CreateError> {
+        let secret_key = get_secret_key(&self.ant_tp_config, data_key)?;
+        Ok(Client::register_key_from_name(&secret_key, name))
     }
 }
 
@@ -173,7 +184,7 @@ mod tests {
             .returning(move |_, _, _| Ok(expected_address));
 
         let service = create_test_service(mock_client, mock_resolver);
-        let result = service.create_graph_entry(graph_entry, evm_wallet, StoreType::Network).await;
+        let result = service.create_graph_entry(graph_entry, evm_wallet, StoreType::Network, DataKey::Personal).await;
 
         if let Err(ref e) = result {
             println!("Error: {:?}", e);
@@ -188,14 +199,15 @@ mod tests {
         let mut mock_resolver = MockResolverService::default();
 
         let app_secret_key = autonomi::SecretKey::from_hex("0000000000000000000000000000000000000000000000000000000000000001").unwrap();
-        let graph_address = GraphEntryAddress::new(app_secret_key.public_key());
-        let address_hex = graph_address.to_hex();
+        let address_hex = "test_graph".to_string();
+        let resolved_address_hex = autonomi::Client::register_key_from_name(&app_secret_key, "test_graph").public_key().to_hex();
+        let graph_address = GraphEntryAddress::from_hex(&resolved_address_hex).unwrap();
 
         mock_resolver
             .expect_resolve_name()
             .with(eq(address_hex.clone()))
             .times(1)
-            .returning(move |addr| Some(addr.to_string()));
+            .returning(|_| None);
 
         let content = [1u8; 32];
         let graph_entry_data = autonomi::graph::GraphEntry::new(&app_secret_key, vec![], autonomi::graph::GraphContent::from(content), vec![]);
@@ -207,7 +219,7 @@ mod tests {
             .returning(move |_| Ok(graph_entry_data.clone()));
 
         let service = create_test_service(mock_client, mock_resolver);
-        let result = service.get_graph_entry(address_hex).await;
+        let result = service.get_graph_entry(address_hex, DataKey::Personal).await;
 
         assert!(result.is_ok());
         assert_eq!(result.unwrap().content, hex::encode(content));

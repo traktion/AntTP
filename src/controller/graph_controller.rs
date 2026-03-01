@@ -3,7 +3,7 @@ use actix_web::web::Data;
 use ant_evm::EvmWallet;
 use log::debug;
 use crate::error::graph_error::GraphError;
-use crate::controller::get_store_type;
+use crate::controller::{get_store_type, data_key};
 use crate::service::graph_service::{GraphEntry, GraphService};
 
 #[utoipa::path(
@@ -19,6 +19,8 @@ use crate::service::graph_service::{GraphEntry, GraphService};
     params(
         ("x-store-type", Header, description = "Only persist to cache and do not publish (memory|disk|none)",
         example = "memory"),
+        ("x-data-key", Header, description = "Private key used to create mutable data (personal|resolver|'custom')",
+        example = "personal"),
     ),
 )]
 pub async fn post_graph_entry(
@@ -29,7 +31,7 @@ pub async fn post_graph_entry(
 ) -> Result<HttpResponse, GraphError> {
     debug!("Creating new graph entry");
     Ok(HttpResponse::Created().json(
-        graph_service.create_graph_entry(graph_entry.into_inner(), evm_wallet_data.get_ref().clone(), get_store_type(&request)).await?
+        graph_service.create_graph_entry(graph_entry.into_inner(), evm_wallet_data.get_ref().clone(), get_store_type(&request), data_key(&request)).await?
     ))
 }
 
@@ -42,13 +44,16 @@ pub async fn post_graph_entry(
     ),
     params(
         ("address" = String, Path, description = "Graph entry address"),
+        ("x-data-key", Header, description = "Private key used to create mutable data (personal|resolver|'custom')",
+        example = "personal"),
     )
 )]
 pub async fn get_graph_entry(
     path: web::Path<String>,
     graph_service: Data<GraphService>,
+    request: HttpRequest,
 ) -> Result<HttpResponse, GraphError> {
     let address = path.into_inner();
     debug!("Getting graph entry at [{}]", address);
-    Ok(HttpResponse::Ok().json(graph_service.get_graph_entry(address).await?))
+    Ok(HttpResponse::Ok().json(graph_service.get_graph_entry(address, data_key(&request)).await?))
 }

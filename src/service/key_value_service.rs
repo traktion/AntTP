@@ -10,6 +10,7 @@ use crate::model::key_value::KeyValue;
 use crate::model::pnr::{PnrRecord, PnrRecordType, PnrZone};
 use crate::service::pnr_service::PnrService;
 use crate::service::public_data_service::PublicDataService;
+use mockall::mock;
 
 #[derive(Debug, Clone)]
 pub struct KeyValueService {
@@ -24,7 +25,6 @@ impl KeyValueService {
             pnr_service,
         }
     }
-
     pub async fn create_key_value(
         &self,
         key_value: KeyValue,

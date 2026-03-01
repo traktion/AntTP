@@ -1,0 +1,26 @@
+As a key value REST endpoint consumer
+I want to be call key/value binary endpoints which accept/return raw binary
+So that I can easily embed binary responses without having to parse JSON or base64 decode
+And easily submit binary data directly 
+
+Given key_value_controller.rs already exists and supports the non-binary GET /anttp-0/key_value/{bucket}/{object} endpoint
+When adding the binary GET endpoint
+Then add GET /anttp-0/binary/key_value/{bucket}/{object} endpoint which returns the raw binary data as 'application/octet-stream' instead of a JSON document
+And see chunk_controller.rs and chunk_service.rs as examples for GET /anttp-0/binary/chunk/{address}
+
+Given key_value_controller.rs already exists and supports the non-binary POST /anttp-0/key_value endpoint
+When adding the binary POST endpoint
+Then add POST /anttp-0/binary/key_value/{bucket}/{object} endpoint which accepts raw binary as 'application/octet-stream' data instead of a JSON document
+And see chunk_controller.rs and chunk_service.rs as examples for POST /anttp-0/binary/chunk and GET /anttp-0/binary/chunk/{address}
+
+Given key_value_controller.rs already exists and supports the non-binary POST /anttp-0/key_value endpoint
+When adding the binary POST endpoint
+Then change the endpoint of POST /anttp-0/key_value to POST /anttp-0/key_value/{bucket}/{object} to be consistent with the binary POST version and GET endpoint path
+
+Implementation Notes
+
+- Place any unit tests at the bottom of the same file as the associated production code
+- Increment patch version of anttp package in Cargo.toml
+- Create a copy of this issue description and save to /spec using the name of this issue as the filename (with lower underscore case, starting with the 5 char padded issue number, e.g. 00178_add_a_binary_rest_endpoints_for_key_value.txt)
+- Update unit tests to validate the changes
+- Update newman tests to reflect the changes

@@ -11,7 +11,7 @@ pub mod key_value_proto {
 
 use key_value_proto::key_value_service_server::KeyValueService as KeyValueServiceTrait;
 pub use key_value_proto::key_value_service_server::KeyValueServiceServer;
-use key_value_proto::{CreateKeyValueRequest, GetKeyValueRequest, KeyValueResponse, GetKeyValueBinaryResponse};
+use key_value_proto::{CreateKeyValueRequest, GetKeyValueRequest, KeyValueResponse, GetKeyValueResponse};
 use crate::error::public_data_error::PublicDataError;
 
 pub struct KeyValueHandler {
@@ -54,7 +54,7 @@ impl KeyValueServiceTrait for KeyValueHandler {
     async fn get_key_value(
         &self,
         request: Request<GetKeyValueRequest>,
-    ) -> Result<Response<GetKeyValueBinaryResponse>, Status> {
+    ) -> Result<Response<GetKeyValueResponse>, Status> {
         let req = request.into_inner();
         
         let content = self.key_value_service.get_key_value_binary(
@@ -62,7 +62,7 @@ impl KeyValueServiceTrait for KeyValueHandler {
             req.object.clone(),
         ).await.map_err(to_status)?;
 
-        Ok(Response::new(GetKeyValueBinaryResponse {
+        Ok(Response::new(GetKeyValueResponse {
             bucket: req.bucket,
             object: req.object,
             content: content.to_vec(),

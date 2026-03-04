@@ -30,6 +30,7 @@ use mockall_double::double;
 use rmcp_actix_web::transport::{StreamableHttpService};
 use rmcp::transport::streamable_http_server::session::local::LocalSessionManager;
 use tokio::sync::mpsc::Sender;
+#[cfg(not(grpc_disabled))]
 use tokio::sync::oneshot;
 use tokio::sync::Mutex;
 #[cfg(not(grpc_disabled))]

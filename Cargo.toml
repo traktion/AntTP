@@ -59,8 +59,8 @@ rustls = { version = "0.23.35", default-features = false, features = ["ring"] }
 rustls-pemfile = "2.2.0"
 rcgen = "0.14.5"
 futures-core = "0.3.31"
-rmcp = { version = "0.12.0", features = ["transport-streamable-http-server-session"] }
-rmcp-actix-web = "0.9.1"
+rmcp = { version = "=0.12.0", features = ["transport-streamable-http-server-session"] }
+rmcp-actix-web = "=0.9.4"
 schemars = "0.9.0"
 mockall = "0.14"
 mockall_double = "0.3"

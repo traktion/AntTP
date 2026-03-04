@@ -123,7 +123,12 @@ impl HtmlDirectoryRenderer {
             };
 
             output.push_str("                <tr>\n");
-            output.push_str(&format!("                    <td><a href=\"/{}\">{} {}</a></td>\n", path_detail.path, icon, path_detail.display));
+            let display_path = if path_detail.path == "../" {
+                "../".to_string()
+            } else {
+                path_detail.display.clone()
+            };
+            output.push_str(&format!("                    <td><a href=\"{}\">{} {}</a></td>\n", display_path, icon, path_detail.display));
             output.push_str(&format!("                    <td class=\"mtime\">{}</td>\n", mtime_iso));
             output.push_str(&format!("                    <td class=\"size\">{}</td>\n", format_size(path_detail.size)));
             output.push_str("                </tr>\n");
@@ -162,6 +167,50 @@ mod tests {
         let output = HtmlDirectoryRenderer::render(&archive, "test/".to_string());
         assert!(output.contains("Index of /test/"));
         assert!(output.contains("<table>"));
+    }
+
+    #[test]
+    fn test_render_relative_links() {
+        use crate::model::archive::{ArchiveType, DataAddressOffset};
+        use autonomi::data::DataAddress;
+        use xor_name::XorName;
+        
+        let mut map = HashMap::new();
+        let addr = DataAddress::new(XorName::default());
+        
+        // Root file
+        map.insert("file1.txt".to_string(), DataAddressOffset {
+            path: "file1.txt".to_string(),
+            data_address: addr.clone(),
+            offset: 0,
+            size: 100,
+            modified: 0,
+        });
+        
+        // Subdirectory file
+        map.insert("dir1/file2.txt".to_string(), DataAddressOffset {
+            path: "dir1/file2.txt".to_string(),
+            data_address: addr.clone(),
+            offset: 0,
+            size: 200,
+            modified: 0,
+        });
+
+        let vec = map.values().cloned().collect();
+        let archive = Archive::new(map, vec, ArchiveType::Public);
+
+        // Test root listing
+        let output_root = HtmlDirectoryRenderer::render(&archive, "".to_string());
+        assert!(output_root.contains("href=\"file1.txt\""));
+        assert!(output_root.contains("href=\"dir1/\""));
+        assert!(!output_root.contains("href=\"/file1.txt\""));
+        assert!(!output_root.contains("href=\"/dir1/\""));
+
+        // Test subdirectory listing
+        let output_dir = HtmlDirectoryRenderer::render(&archive, "dir1".to_string());
+        assert!(output_dir.contains("href=\"../\""));
+        assert!(output_dir.contains("href=\"file2.txt\""));
+        assert!(!output_dir.contains("href=\"/dir1/file2.txt\""));
     }
 
     #[test]

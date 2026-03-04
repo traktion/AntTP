@@ -1309,13 +1309,50 @@
 									}
 								},
 								"url": {
-									"raw": "{{base_url}}/anttp-0/key_value",
+									"raw": "{{base_url}}/anttp-0/key_value/test_bucket/test_object",
 									"host": [
 										"{{base_url}}"
 									],
 									"path": [
 										"anttp-0",
-										"key_value"
+										"key_value",
+										"test_bucket",
+										"test_object"
+									]
+								}
+							}
+						},
+						{
+							"name": "Create Key/Value Binary",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "x-store-type",
+										"value": "memory",
+										"type": "text"
+									},
+									{
+										"key": "Content-Type",
+										"value": "application/octet-stream",
+										"type": "text"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "Binary content here"
+								},
+								"url": {
+									"raw": "{{base_url}}/anttp-0/binary/key_value/test_bucket/test_object_binary",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"anttp-0",
+										"binary",
+										"key_value",
+										"test_bucket",
+										"test_object_binary"
 									]
 								}
 							}
@@ -1332,6 +1369,26 @@
 									],
 									"path": [
 										"anttp-0",
+										"key_value",
+										"test_bucket",
+										"test_object"
+									]
+								}
+							}
+						},
+						{
+							"name": "Get Key/Value Binary",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/anttp-0/binary/key_value/test_bucket/test_object",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"anttp-0",
+										"binary",
 										"key_value",
 										"test_bucket",
 										"test_object"

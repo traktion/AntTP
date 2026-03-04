@@ -54,3 +54,8 @@ Implementation Notes
 - Increment patch version of anttp package in Cargo.toml
 - Create a copy of this issue description and save to /spec using the name of this issue as the filename (with lower underscore case, starting with the 5 char padded issue number, e.g. 00001_issue_title.txt)
 - Update unit tests to validate the changes
+
+Amendments
+
+- Rename GetKeyValueBinaryResponse to GetKeyValueResponse in key_value.proto and update related code
+- Update key_value_tool.rs to call get_key_value and create_key_value, rather than the binary versions. Use BASE64_STANDARD.decode and BASE64_STANDARD.encode respectively. See public_data_tool.rs as an example.

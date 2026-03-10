@@ -147,29 +147,6 @@ pub async fn get_pnr(
 }
 
 #[utoipa::path(
-    get,
-    path = "/anttp-0/pnr/immutable/{name}",
-    params(
-        ("name", description = "PNR name"),
-    ),
-    responses(
-        (status = OK, description = "Immutable PNR zone retrieved successfully", body = PnrZone),
-        (status = NOT_FOUND, description = "Immutable PNR zone not found")
-    ),
-)]
-pub async fn get_immutable_pnr(
-    path: web::Path<String>,
-    pnr_service: Data<PnrService>,
-) -> Result<HttpResponse, PointerError> {
-    let name = path.into_inner();
-
-    debug!("Getting immutable PNR zone");
-    Ok(HttpResponse::Ok().json(
-        pnr_service.get_immutable_pnr(name).await?
-    ))
-}
-
-#[utoipa::path(
     put,
     path = "/anttp-0/pnr/{name}/{record}",
     params(

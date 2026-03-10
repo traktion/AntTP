@@ -192,10 +192,6 @@ impl PnrService {
         }
     }
 
-    pub async fn get_immutable_pnr(&self, name: String) -> Result<PnrZone, PointerError> {
-        self.get_pnr(name).await
-    }
-
     pub async fn append_pnr(&self, name: String, mut pnr_zone: PnrZone, evm_wallet: Wallet, store_type: StoreType) -> Result<PnrZone, PointerError> {
         let name = name.trim().to_string();
         pnr_zone.name = pnr_zone.name.trim().to_string();

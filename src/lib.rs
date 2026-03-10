@@ -161,7 +161,6 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> io::Result<()> {
             public_data_controller::push_public_data,
             command_controller::get_commands,
             pnr_controller::get_pnr,
-            pnr_controller::get_immutable_pnr,
             pnr_controller::post_pnr,
             pnr_controller::post_immutable_pnr,
             pnr_controller::put_pnr,
@@ -399,10 +398,6 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> io::Result<()> {
             .route(
                 format!("{}pnr/{{name}}", API_BASE).as_str(),
                 web::get().to(pnr_controller::get_pnr)
-            )
-            .route(
-                format!("{}pnr/immutable/{{name}}", API_BASE).as_str(),
-                web::get().to(pnr_controller::get_immutable_pnr)
             )
             .route(
                 format!("{}binary/public_data/{{address}}", API_BASE).as_str(),

@@ -1282,6 +1282,39 @@
 									]
 								}
 							}
+						},
+						{
+							"name": "Create Immutable PNR",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "x-store-type",
+										"value": "memory",
+										"type": "text"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"name\": \"test_immutable_pnr\",\n    \"records\": {}\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{base_url}}/anttp-0/pnr/immutable",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"anttp-0",
+										"pnr",
+										"immutable"
+									]
+								}
+							}
 						}
 					]
 				},

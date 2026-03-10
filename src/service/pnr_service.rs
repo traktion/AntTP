@@ -75,6 +75,43 @@ impl PnrService {
         }
     }
 
+    pub async fn create_immutable_pnr(&self, mut pnr_zone: PnrZone, evm_wallet: Wallet, store_type: StoreType) -> Result<PnrZone, PointerError> {
+        /*
+        1. Create chunk containing PNR zone (container for records)
+        2. Create immutable (TTL=MAX) resolver pointer to chunk directly
+        3. Trim whitespace from PNR zone name
+         */
+        pnr_zone.name = pnr_zone.name.trim().to_string();
+        match self.chunk_caching_client.chunk_put(
+            &Chunk::new(Bytes::from(serde_json::to_vec(&pnr_zone).unwrap())),
+            PaymentOption::from(&evm_wallet),
+            store_type.clone()
+        ).await {
+            Ok(chunk) => {
+                let resolver_pointer_request = Pointer::new(
+                    Some(pnr_zone.name.clone()), chunk.to_hex(), None, Some(u64::MAX), None,
+                );
+                match self.pointer_service.create_pointer(
+                    resolver_pointer_request,
+                    evm_wallet,
+                    store_type,
+                    DataKey::Resolver).await
+                {
+                    Ok(resolver_pointer_result) => {
+                        Ok(PnrZone::new(
+                            pnr_zone.name.clone(),
+                            pnr_zone.records.clone(),
+                            resolver_pointer_result.address.clone(),
+                            None,
+                        ))
+                    },
+                    Err(e) => Err(e),
+                }
+            },
+            Err(e) => Err(PointerError::CreateError(CreateError::InvalidData(e.to_string())))
+        }
+    }
+
     pub async fn update_pnr(&self, name: String, mut pnr_zone: PnrZone, evm_wallet: Wallet, store_type: StoreType) -> Result<PnrZone, PointerError> {
         let name = name.trim().to_string();
         pnr_zone.name = pnr_zone.name.trim().to_string();

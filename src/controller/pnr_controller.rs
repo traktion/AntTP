@@ -35,6 +35,33 @@ pub async fn post_pnr(
 }
 
 #[utoipa::path(
+    post,
+    path = "/anttp-0/pnr/immutable",
+    request_body(
+        content = PnrZone
+    ),
+    responses(
+        (status = CREATED, description = "Immutable PNR zone created successfully", body = PnrZone),
+        (status = BAD_REQUEST, description = "PNR zone body was invalid")
+    ),
+    params(
+        ("x-store-type", Header, description = "Only persist to cache and do not publish (memory|disk|none)",
+        example = "memory"),
+    ),
+)]
+pub async fn post_immutable_pnr(
+    pnr_service: Data<PnrService>,
+    evm_wallet_data: Data<EvmWallet>,
+    pnr_zone: web::Json<PnrZone>,
+    request: HttpRequest,
+) -> Result<HttpResponse, PointerError> {
+    debug!("Creating new immutable PNR zone");
+    Ok(HttpResponse::Created().json(
+        pnr_service.create_immutable_pnr(pnr_zone.into_inner(), evm_wallet_data.get_ref().clone(), get_store_type(&request)).await?
+    ))
+}
+
+#[utoipa::path(
     put,
     path = "/anttp-0/pnr/{name}",
     params(

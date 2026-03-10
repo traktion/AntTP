@@ -27,6 +27,12 @@ Given immutable PNRs cannot be changed
 When defining endpoints for immutable PNRs
 Then only POST and GET will be supported (as PUT/PATCH are for mutable data only)
 
+Given PNR zones should only resolve to immutable addresses
+When creating an immutable PNR
+Then all address values in PnrRecords must be immutable addresses
+And immutable addresses are hex strings that are exactly 64 characters long
+And ChunkAddress::from_hex can validate they are valid
+
 Implementation Notes
 
 - Place any unit tests at the bottom of the same file as the associated production code

@@ -9,7 +9,6 @@ use ant_protocol::storage::{Chunk, ChunkAddress};
 use autonomi::client::payment::PaymentOption;
 use autonomi::Wallet;
 use bytes::Bytes;
-use mockall::automock;
 
 use std::collections::HashMap;
 
@@ -31,7 +30,6 @@ pub struct PnrService {
     pointer_service: Data<PointerService>
 }
 
-#[automock]
 impl PnrService {
     pub fn new(chunk_caching_client: ChunkCachingClient, pointer_service: Data<PointerService>) -> Self {
         Self { chunk_caching_client, pointer_service }
@@ -180,6 +178,28 @@ impl PnrService {
                     pnr_zone.records,
                     Some(resolver_address),
                     Some(personal_pointer_address),
+                ))
+            },
+            Err(e) => Err(PointerError::UpdateError(UpdateError::InvalidData(e.to_string())))
+        }
+    }
+
+    pub async fn get_immutable_pnr(&self, name: String) -> Result<PnrZone, PointerError> {
+        let name = name.trim().to_string();
+        let resolver_address = self.pointer_service.get_resolver_address(&name)?;
+
+        let resolver_pointer = self.pointer_service.get_pointer(resolver_address.clone(), DataKey::Resolver).await?;
+        let pnr_zone_address = resolver_pointer.content;
+
+        match self.chunk_caching_client.chunk_get_internal(&ant_protocol::storage::ChunkAddress::from_hex(&pnr_zone_address)?).await {
+            Ok(chunk) => {
+                let pnr_zone: PnrZone = serde_json::from_slice(chunk.value.as_ref())
+                    .map_err(|e| PointerError::UpdateError(UpdateError::InvalidData(e.to_string())))?;
+                Ok(PnrZone::new(
+                    name,
+                    pnr_zone.records,
+                    Some(resolver_address),
+                    None,
                 ))
             },
             Err(e) => Err(PointerError::UpdateError(UpdateError::InvalidData(e.to_string())))

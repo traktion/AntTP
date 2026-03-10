@@ -1,16 +1,29 @@
 use crate::client::ChunkCachingClient;
 use crate::controller::{DataKey, StoreType};
 use crate::error::pointer_error::PointerError;
-use crate::error::CreateError;
-use crate::error::UpdateError;
+use crate::error::{CreateError, UpdateError};
 use crate::model::pnr::{PnrRecord, PnrZone};
 use crate::service::pointer_service::{Pointer, PointerService};
 use actix_web::web::Data;
-use ant_protocol::storage::Chunk;
+use ant_protocol::storage::{Chunk, ChunkAddress};
 use autonomi::client::payment::PaymentOption;
 use autonomi::Wallet;
 use bytes::Bytes;
 use mockall::automock;
+
+use std::collections::HashMap;
+
+fn validate_immutable_addresses(records: &HashMap<String, PnrRecord>) -> Result<(), PointerError> {
+    for (key, record) in records {
+        if record.address.len() != 64 || ChunkAddress::from_hex(&record.address).is_err() {
+            return Err(PointerError::CreateError(CreateError::InvalidData(format!(
+                "Invalid immutable address for record '{}': address must be a 64-character hex string",
+                key
+            ))));
+        }
+    }
+    Ok(())
+}
 
 #[derive(Debug, Clone)]
 pub struct PnrService {
@@ -67,6 +80,46 @@ impl PnrService {
                             },
                             Err(e) => Err(e),
                         }
+                    },
+                    Err(e) => Err(e),
+                }
+            },
+            Err(e) => Err(PointerError::CreateError(CreateError::InvalidData(e.to_string())))
+        }
+    }
+
+    pub async fn create_immutable_pnr(&self, mut pnr_zone: PnrZone, evm_wallet: Wallet, store_type: StoreType) -> Result<PnrZone, PointerError> {
+        /*
+        1. Create chunk containing PNR zone (container for records)
+        2. Create immutable (TTL=MAX) resolver pointer to chunk directly
+        3. Trim whitespace from PNR zone name
+        4. Validate all record addresses are immutable XOR addresses (64-character hex strings)
+         */
+        pnr_zone.name = pnr_zone.name.trim().to_string();
+        validate_immutable_addresses(&pnr_zone.records)?;
+
+        match self.chunk_caching_client.chunk_put(
+            &Chunk::new(Bytes::from(serde_json::to_vec(&pnr_zone).unwrap())),
+            PaymentOption::from(&evm_wallet),
+            store_type.clone()
+        ).await {
+            Ok(chunk) => {
+                let resolver_pointer_request = Pointer::new(
+                    Some(pnr_zone.name.clone()), chunk.to_hex(), None, Some(u64::MAX), None,
+                );
+                match self.pointer_service.create_pointer(
+                    resolver_pointer_request,
+                    evm_wallet,
+                    store_type,
+                    DataKey::Resolver).await
+                {
+                    Ok(resolver_pointer_result) => {
+                        Ok(PnrZone::new(
+                            pnr_zone.name.clone(),
+                            pnr_zone.records.clone(),
+                            resolver_pointer_result.address.clone(),
+                            None,
+                        ))
                     },
                     Err(e) => Err(e),
                 }
@@ -138,6 +191,11 @@ impl PnrService {
         pnr_zone.name = pnr_zone.name.trim().to_string();
 
         let mut existing_pnr_zone = self.get_pnr(name.clone()).await?;
+
+        // If the existing zone is immutable (no personal pointer), we shouldn't be able to append to it
+        // but get_pnr will fail or return personal_address as None.
+        // The issue only mentions validation when creating an immutable PNR.
+        // However, if an immutable PNR zone chunk is retrieved and used here, we should still be careful.
 
         for (key, record) in pnr_zone.records {
             existing_pnr_zone.records.insert(key.trim().to_string(), record);
@@ -216,5 +274,24 @@ mod tests {
         assert_eq!(merged_records.get("update").unwrap().ttl, 120);
         assert!(matches!(merged_records.get("update").unwrap().record_type, PnrRecordType::X));
         assert_eq!(merged_records.get("keep").unwrap().address, "addr1");
+    }
+
+    #[test]
+    fn test_validate_immutable_addresses() {
+        use super::*;
+        use crate::model::pnr::{PnrRecord, PnrRecordType};
+        use std::collections::HashMap;
+
+        let mut valid_records = HashMap::new();
+        valid_records.insert("valid".to_string(), PnrRecord::new("a".repeat(64), PnrRecordType::A, 60));
+        assert!(validate_immutable_addresses(&valid_records).is_ok());
+
+        let mut too_short = HashMap::new();
+        too_short.insert("invalid".to_string(), PnrRecord::new("a".repeat(63), PnrRecordType::A, 60));
+        assert!(validate_immutable_addresses(&too_short).is_err());
+
+        let mut non_hex = HashMap::new();
+        non_hex.insert("invalid".to_string(), PnrRecord::new("g".repeat(64), PnrRecordType::A, 60));
+        assert!(validate_immutable_addresses(&non_hex).is_err());
     }
 }

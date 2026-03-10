@@ -1,0 +1,25 @@
+As a PNR user
+I want to be able to retrieve immutable PNRs 
+So that I can retrieve an existing PNR Record to see what names and addresses are specified
+
+Given pnr_service.rs already exists and is used for creating, updating and getting mutable PNRs
+When retrieving immutable PNRs
+Then use get_pnr function in pnr_service.rs as an example for creating an get_immutable_pnr function
+And only get the Resolver pointer (but not the Personal pointer) and the PNR zone chunk
+And get the content of Resolver pointer to get the PNR zone chunk directly
+And review create_immutable_pnr function to understand the relationship between the Resolver pointer and the PNR zone chunk
+
+Given pnr_controller.rs already exists and is used for creating, updating and getting mutable PNRs
+When retrieving immutable PNRs
+Then use get_pnr function in pnr_controller.rs as an example for creating get_immutable_pnr
+And return the same PnrZone struct as the body
+And update lib.rs to add the endpoint where uploads_disabled is true
+And use GET /anttp-0/pnr/immutable/{name} as the path
+
+Implementation Notes
+
+- Place any unit tests at the bottom of the same file as the associated production code
+- Increment patch version of anttp package in Cargo.toml
+- Create a copy of this issue description and save to /spec using the name of this issue as the filename (with lower underscore case, starting with the 5 char padded issue number, e.g. 00001_issue_title.txt)
+- Update unit tests to validate the changes
+- Update newman tests to reflect the changes

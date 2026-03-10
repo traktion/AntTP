@@ -130,7 +130,11 @@ impl PnrService {
         let name = name.trim().to_string();
         pnr_zone.name = pnr_zone.name.trim().to_string();
 
-        let (resolver_address, personal_pointer_address) = self.resolve_personal_address(&name).await?;
+        let (resolver_address, personal_pointer_address, is_immutable) = self.resolve_pnr_address(&name).await?;
+
+        if is_immutable {
+            return Err(PointerError::UpdateError(UpdateError::InvalidData("Cannot update an immutable PNR zone".to_string())));
+        }
 
         match self.chunk_caching_client.chunk_put(
             &Chunk::new(Bytes::from(serde_json::to_vec(&pnr_zone).unwrap())),
@@ -164,10 +168,14 @@ impl PnrService {
 
     pub async fn get_pnr(&self, name: String) -> Result<PnrZone, PointerError> {
         let name = name.trim().to_string();
-        let (resolver_address, personal_pointer_address) = self.resolve_personal_address(&name).await?;
+        let (resolver_address, content_address, is_immutable) = self.resolve_pnr_address(&name).await?;
 
-        let personal_pointer = self.pointer_service.get_pointer(personal_pointer_address.clone(), DataKey::Personal).await?;
-        let pnr_zone_address = personal_pointer.content;
+        let pnr_zone_address = if is_immutable {
+            content_address.clone()
+        } else {
+            let personal_pointer = self.pointer_service.get_pointer(content_address.clone(), DataKey::Personal).await?;
+            personal_pointer.content
+        };
 
         match self.chunk_caching_client.chunk_get_internal(&ant_protocol::storage::ChunkAddress::from_hex(&pnr_zone_address)?).await {
             Ok(chunk) => {
@@ -177,7 +185,7 @@ impl PnrService {
                     name,
                     pnr_zone.records,
                     Some(resolver_address),
-                    Some(personal_pointer_address),
+                    if is_immutable { None } else { Some(content_address) },
                 ))
             },
             Err(e) => Err(PointerError::UpdateError(UpdateError::InvalidData(e.to_string())))
@@ -185,25 +193,7 @@ impl PnrService {
     }
 
     pub async fn get_immutable_pnr(&self, name: String) -> Result<PnrZone, PointerError> {
-        let name = name.trim().to_string();
-        let resolver_address = self.pointer_service.get_resolver_address(&name)?;
-
-        let resolver_pointer = self.pointer_service.get_pointer(resolver_address.clone(), DataKey::Resolver).await?;
-        let pnr_zone_address = resolver_pointer.content;
-
-        match self.chunk_caching_client.chunk_get_internal(&ant_protocol::storage::ChunkAddress::from_hex(&pnr_zone_address)?).await {
-            Ok(chunk) => {
-                let pnr_zone: PnrZone = serde_json::from_slice(chunk.value.as_ref())
-                    .map_err(|e| PointerError::UpdateError(UpdateError::InvalidData(e.to_string())))?;
-                Ok(PnrZone::new(
-                    name,
-                    pnr_zone.records,
-                    Some(resolver_address),
-                    None,
-                ))
-            },
-            Err(e) => Err(PointerError::UpdateError(UpdateError::InvalidData(e.to_string())))
-        }
+        self.get_pnr(name).await
     }
 
     pub async fn append_pnr(&self, name: String, mut pnr_zone: PnrZone, evm_wallet: Wallet, store_type: StoreType) -> Result<PnrZone, PointerError> {
@@ -235,13 +225,14 @@ impl PnrService {
         self.update_pnr(name, existing_pnr_zone, evm_wallet, store_type).await
     }
 
-    async fn resolve_personal_address(&self, name: &String) -> Result<(String, String), PointerError> {
+    async fn resolve_pnr_address(&self, name: &String) -> Result<(String, String, bool), PointerError> {
         let resolver_address = self.pointer_service.get_resolver_address(name)?;
-        let personal_pointer_address = match self.pointer_service.get_pointer(resolver_address.clone(), DataKey::Resolver).await {
-            Ok(pointer) => pointer.content,
-            Err(e) => return Err(e),
-        };
-        Ok((resolver_address, personal_pointer_address))
+        let resolver_pointer = self.pointer_service.get_pointer(resolver_address.clone(), DataKey::Resolver).await?;
+        
+        let content_address = resolver_pointer.content;
+        let is_immutable = ChunkAddress::from_hex(&content_address).is_ok();
+        
+        Ok((resolver_address, content_address, is_immutable))
     }
 }
 

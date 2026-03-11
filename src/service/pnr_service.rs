@@ -23,7 +23,7 @@ impl PnrService {
         Self { chunk_caching_client, pointer_service }
     }
 
-    pub async fn create_pnr(&self, mut pnr_zone: PnrZone, evm_wallet: Wallet, store_type: StoreType) -> Result<PnrZone, PointerError> {
+    pub async fn create_mutable_pnr(&self, mut pnr_zone: PnrZone, evm_wallet: Wallet, store_type: StoreType) -> Result<PnrZone, PointerError> {
         /*
         1. Create chunk containing PNR zone (container for records)
         2. Create mutable personal pointer to above chunk

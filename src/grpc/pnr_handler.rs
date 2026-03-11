@@ -96,11 +96,19 @@ impl PnrServiceTrait for PnrHandler {
         let req = request.into_inner();
         let pnr_zone = req.pnr_zone.ok_or_else(|| Status::invalid_argument("PnrZone is required"))?;
 
-        let result = self.pnr_service.create_pnr(
-            ServicePnrZone::from(pnr_zone),
-            self.evm_wallet.get_ref().clone(),
-            StoreType::from(req.store_type.unwrap_or_default()),
-        ).await?;
+        let result = if req.is_immutable {
+            self.pnr_service.create_immutable_pnr(
+                ServicePnrZone::from(pnr_zone),
+                self.evm_wallet.get_ref().clone(),
+                StoreType::from(req.store_type.unwrap_or_default()),
+            ).await?
+        } else {
+            self.pnr_service.create_mutable_pnr(
+                ServicePnrZone::from(pnr_zone),
+                self.evm_wallet.get_ref().clone(),
+                StoreType::from(req.store_type.unwrap_or_default()),
+            ).await?
+        };
 
         Ok(Response::new(PnrResponse {
             pnr_zone: Some(PnrZone::from(result)),
@@ -166,7 +174,24 @@ mod tests {
     use crate::model::pnr::{PnrZone as ServicePnrZone, PnrRecord as ServicePnrRecord, PnrRecordType as ServicePnrRecordType};
 
     #[tokio::test]
-    async fn test_create_pnr() {
+    async fn test_create_pnr_request_mapping() {
+        let req = CreatePnrRequest {
+            pnr_zone: Some(PnrZone {
+                name: "example.com".to_string(),
+                records: HashMap::new(),
+                resolver_address: None,
+                personal_address: None,
+            }),
+            store_type: Some("memory".to_string()),
+            is_immutable: true,
+        };
+        assert_eq!(req.pnr_zone.unwrap().name, "example.com");
+        assert_eq!(req.store_type.unwrap(), "memory");
+        assert!(req.is_immutable);
+    }
+
+    #[tokio::test]
+    async fn test_create_pnr_records_mapping() {
         let proto_record = PnrRecord {
             address: "address1".to_string(),
             record_type: PnrRecordType::A as i32,

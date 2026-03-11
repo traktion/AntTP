@@ -22,7 +22,7 @@ use crate::service::pnr_service::PnrService;
         example = "memory"),
     ),
 )]
-pub async fn post_pnr(
+pub async fn post_mutable_pnr(
     pnr_service: Data<PnrService>,
     evm_wallet_data: Data<EvmWallet>,
     pnr_zone: web::Json<PnrZone>,
@@ -30,7 +30,7 @@ pub async fn post_pnr(
 ) -> Result<HttpResponse, PointerError> {
     debug!("Creating new mutable PNR zone");
     Ok(HttpResponse::Created().json(
-        pnr_service.create_pnr(pnr_zone.into_inner(), evm_wallet_data.get_ref().clone(), get_store_type(&request)).await?
+        pnr_service.create_mutable_pnr(pnr_zone.into_inner(), evm_wallet_data.get_ref().clone(), get_store_type(&request)).await?
     ))
 }
 

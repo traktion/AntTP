@@ -22,7 +22,7 @@ use crate::service::pnr_service::PnrService;
         example = "memory"),
     ),
 )]
-pub async fn post_pnr(
+pub async fn post_mutable_pnr(
     pnr_service: Data<PnrService>,
     evm_wallet_data: Data<EvmWallet>,
     pnr_zone: web::Json<PnrZone>,

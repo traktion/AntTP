@@ -10,19 +10,7 @@ use autonomi::client::payment::PaymentOption;
 use autonomi::Wallet;
 use bytes::Bytes;
 
-use std::collections::HashMap;
-
-fn validate_immutable_addresses(records: &HashMap<String, PnrRecord>) -> Result<(), PointerError> {
-    for (key, record) in records {
-        if record.address.len() != 64 || ChunkAddress::from_hex(&record.address).is_err() {
-            return Err(PointerError::CreateError(CreateError::InvalidData(format!(
-                "Invalid immutable address for record '{}': address must be a 64-character hex string",
-                key
-            ))));
-        }
-    }
-    Ok(())
-}
+use crate::service::{validate_immutable_address, validate_immutable_addresses};
 
 #[derive(Debug, Clone)]
 pub struct PnrService {
@@ -184,8 +172,8 @@ impl PnrService {
 
                 if is_immutable {
                     pnr_zone.records.retain(|key, record| {
-                        if record.address.len() != 64 || ChunkAddress::from_hex(&record.address).is_err() {
-                            log::warn!("Removing invalid immutable address for record '{}' in immutable PNR zone '{}'", key, name);
+                        if let Err(e) = validate_immutable_address(&record.address) {
+                            log::warn!("Removing invalid immutable address for record '{}' in immutable PNR zone '{}': {}", key, name, e);
                             false
                         } else {
                             true
@@ -279,6 +267,7 @@ mod tests {
 
     #[test]
     fn test_validate_immutable_addresses_get_pnr() {
+        use super::*;
         let mut records = HashMap::new();
         // Valid 64-char hex address
         let valid_addr = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef".to_string();
@@ -288,11 +277,7 @@ mod tests {
 
         // Simulate the retain logic in get_pnr
         records.retain(|_, record| {
-            if record.address.len() != 64 || ChunkAddress::from_hex(&record.address).is_err() {
-                false
-            } else {
-                true
-            }
+            validate_immutable_address(&record.address).is_ok()
         });
 
         assert_eq!(records.len(), 1);

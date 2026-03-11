@@ -1,0 +1,25 @@
+As an AntTP user
+I want to be able safely resolve immutable PNRs
+So that the data immutable PNRs resolve to cannot be changed after it has been created 
+
+Given immutable PNRs should not return any PNR zones with mutable addresses
+When resolving a PNR record with resolve_pointer in pointer_name_resolver.rs
+And iteration == 0 and pointer.target == PointerTarget::ChunkAddress
+Then the resolved PNR record is immutable
+And resolve_pointer should be updated to return an 'isImmutable' boolean in the result
+And pointer_name_resolver.resolve() must then validate that each ResolvedRecord.address is an immutable address
+And if invalid then pointer_name_resolver.resolve() must return 'None'.
+
+Given validate_immutable_addresses function already exists in pnr_service.rs
+When refactoring to make this function accessible across structs
+Then move validate_immutable_addresses to /src/service/mod.rs
+And split it into two (validate_immutable_addresses and validate_immutable_address) to allow individual or multiple address strings to be validated
+And then update pointer_name_resolver.resolve() to call validate_immutable_address to validate addresses
+And then update pnr_service.get_pnr() to call validate_immutable_address to validate addresses.
+
+Implementation Notes
+
+- Place any unit tests at the bottom of the same file as the associated production code
+- Increment patch version of anttp package in Cargo.toml
+- Create a copy of this issue description and save to /spec using the name of this issue as the filename (with lower underscore case, starting with the 5 char padded issue number, e.g. 00001_issue_title.txt)
+- Update unit tests to validate the changes

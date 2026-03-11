@@ -9,7 +9,7 @@ use crate::service::pnr_service::PnrService;
 
 #[utoipa::path(
     post,
-    path = "/anttp-0/pnr",
+    path = "/anttp-0/pnr/mutable",
     request_body(
         content = PnrZone
     ),
@@ -28,7 +28,7 @@ pub async fn post_pnr(
     pnr_zone: web::Json<PnrZone>,
     request: HttpRequest,
 ) -> Result<HttpResponse, PointerError> {
-    debug!("Creating new PNR zone");
+    debug!("Creating new mutable PNR zone");
     Ok(HttpResponse::Created().json(
         pnr_service.create_pnr(pnr_zone.into_inner(), evm_wallet_data.get_ref().clone(), get_store_type(&request)).await?
     ))

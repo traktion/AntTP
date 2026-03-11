@@ -1168,7 +1168,7 @@
 					"name": "PNR",
 					"item": [
 						{
-							"name": "Create PNR",
+							"name": "Create Mutable PNR",
 							"request": {
 								"method": "POST",
 								"header": [
@@ -1188,13 +1188,14 @@
 									}
 								},
 								"url": {
-									"raw": "{{base_url}}/anttp-0/pnr",
+									"raw": "{{base_url}}/anttp-0/pnr/mutable",
 									"host": [
 										"{{base_url}}"
 									],
 									"path": [
 										"anttp-0",
-										"pnr"
+										"pnr",
+										"mutable"
 									]
 								}
 							}

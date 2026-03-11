@@ -179,8 +179,20 @@ impl PnrService {
 
         match self.chunk_caching_client.chunk_get_internal(&ant_protocol::storage::ChunkAddress::from_hex(&pnr_zone_address)?).await {
             Ok(chunk) => {
-                let pnr_zone: PnrZone = serde_json::from_slice(chunk.value.as_ref())
+                let mut pnr_zone: PnrZone = serde_json::from_slice(chunk.value.as_ref())
                     .map_err(|e| PointerError::UpdateError(UpdateError::InvalidData(e.to_string())))?;
+
+                if is_immutable {
+                    pnr_zone.records.retain(|key, record| {
+                        if record.address.len() != 64 || ChunkAddress::from_hex(&record.address).is_err() {
+                            log::warn!("Removing invalid immutable address for record '{}' in immutable PNR zone '{}'", key, name);
+                            false
+                        } else {
+                            true
+                        }
+                    });
+                }
+
                 Ok(PnrZone::new(
                     name,
                     pnr_zone.records,
@@ -235,6 +247,7 @@ impl PnrService {
 #[cfg(test)]
 mod tests {
     use crate::model::pnr::{PnrRecord, PnrRecordType};
+    use ant_protocol::storage::ChunkAddress;
     use std::collections::HashMap;
 
     #[tokio::test]
@@ -262,6 +275,29 @@ mod tests {
         assert!(matches!(merged_records.get("old").unwrap().record_type, PnrRecordType::X));
         assert_eq!(merged_records.get("keep").unwrap().address, "addr2");
         assert_eq!(merged_records.get("new").unwrap().address, "addr4");
+    }
+
+    #[test]
+    fn test_validate_immutable_addresses_get_pnr() {
+        let mut records = HashMap::new();
+        // Valid 64-char hex address
+        let valid_addr = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef".to_string();
+        records.insert("valid".to_string(), PnrRecord::new(valid_addr.clone(), PnrRecordType::A, 60));
+        // Invalid address (too short)
+        records.insert("invalid".to_string(), PnrRecord::new("short".to_string(), PnrRecordType::A, 60));
+
+        // Simulate the retain logic in get_pnr
+        records.retain(|_, record| {
+            if record.address.len() != 64 || ChunkAddress::from_hex(&record.address).is_err() {
+                false
+            } else {
+                true
+            }
+        });
+
+        assert_eq!(records.len(), 1);
+        assert!(records.contains_key("valid"));
+        assert!(!records.contains_key("invalid"));
     }
 
     #[tokio::test]

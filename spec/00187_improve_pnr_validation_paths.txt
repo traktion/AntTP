@@ -1,0 +1,20 @@
+As a PNR user
+I want to be able to create mutable PNRs using a similar path to immutable PNRs
+So that there isn't confusion/conflicts with paths
+
+Given immutable PNRs can be created with a POST to /anttp-0/pnr/immutable
+When creating a mutable PNR
+Then for consistency, the POST should be to /anttp-0/pnr/mutable, not /anttp-0/pnr
+
+Given immutable PNRs should not return any PNR zones with mutable addresses
+When returning an immutable PNR record from get_pnr in pnr_service.rs
+Then all PNR record addresses should be validated with validate_immutable_addresses
+And if any are invalid, they should be removed from the PNR zone struct before returning
+
+Implementation Notes
+
+- Place any unit tests at the bottom of the same file as the associated production code
+- Increment patch version of anttp package in Cargo.toml
+- Create a copy of this issue description and save to /spec using the name of this issue as the filename (with lower underscore case, starting with the 5 char padded issue number, e.g. 00001_issue_title.txt)
+- Update unit tests to validate the changes
+- Update newman tests to reflect the changes

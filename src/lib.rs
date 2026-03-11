@@ -609,7 +609,7 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> io::Result<()> {
                     web::post().to(public_data_controller::post_public_data)
                 )
                 .route(
-                    format!("{}pnr", API_BASE).as_str(),
+                    format!("{}pnr/mutable", API_BASE).as_str(),
                     web::post().to(pnr_controller::post_pnr)
                 )
                 .route(

@@ -22,7 +22,11 @@ pub mod key_value_service;
 use crate::config::anttp_config::AntTpConfig;
 use crate::controller::DataKey;
 use crate::error::CreateError;
+use crate::error::pointer_error::PointerError;
+use crate::model::pnr::PnrRecord;
+use ant_protocol::storage::ChunkAddress;
 use autonomi::SecretKey;
+use std::collections::HashMap;
 
 pub fn get_secret_key(ant_tp_config: &AntTpConfig, data_key: DataKey) -> Result<SecretKey, CreateError> {
     match data_key {
@@ -33,4 +37,26 @@ pub fn get_secret_key(ant_tp_config: &AntTpConfig, data_key: DataKey) -> Result<
             Err(e) => Err(CreateError::DataKeyMissing(e.to_string()))
         }
     }
+}
+
+pub fn validate_immutable_address(address: &str) -> Result<(), PointerError> {
+    if address.len() != 64 || ChunkAddress::from_hex(address).is_err() {
+        return Err(PointerError::CreateError(CreateError::InvalidData(format!(
+            "Invalid immutable address: address must be a 64-character hex string, got '{}'",
+            address
+        ))));
+    }
+    Ok(())
+}
+
+pub fn validate_immutable_addresses(records: &HashMap<String, PnrRecord>) -> Result<(), PointerError> {
+    for (key, record) in records {
+        if let Err(e) = validate_immutable_address(&record.address) {
+            return Err(PointerError::CreateError(CreateError::InvalidData(format!(
+                "Invalid immutable address for record '{}': {}",
+                key, e
+            ))));
+        }
+    }
+    Ok(())
 }

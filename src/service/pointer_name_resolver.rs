@@ -10,6 +10,7 @@ use crate::client::PointerCachingClient;
 use crate::error::GetError;
 use crate::error::pointer_error::PointerError;
 use crate::model::pnr::PnrZone;
+use crate::service::validate_immutable_address;
 use mockall_double::double;
 
 static PUBLIC_SUFFIX_LIST: Lazy<HashSet<&'static str>> = Lazy::new(|| {
@@ -170,15 +171,28 @@ impl PointerNameResolver {
         debug!("found: zone_name={}, pointer_key={}, public_key={}", zone_name, pointer_key.to_hex(), &pointer_key.public_key().to_hex());
 
         match self.resolve_pointer(&pointer_key.public_key().to_hex(), 0).await.ok() {
-            Some(pointer) => match self.resolve_map(&pointer.target().to_hex(), &sub_name).await {
+            Some((pointer, is_immutable)) => match self.resolve_map(&pointer.target().to_hex(), &sub_name).await {
                 Some(resolved_record) => {
+                    if is_immutable {
+                        if let Err(e) = validate_immutable_address(&resolved_record.address) {
+                            warn!("Removing invalid immutable address for record in immutable PNR zone '{}': {}", name, e);
+                            return None;
+                        }
+                    }
                     // use resolved record TTL to update TTLs for cache
                     self.update_pointer_ttls(&pointer_key.public_key().to_hex(), resolved_record.ttl, 0).await.ok()?;
                     Some(resolved_record) // return map target
                 },
                 None => {
                     if sub_name.is_empty() {
-                        Some(ResolvedRecord::new(pointer.target().to_hex(), self.ttl_default)) // return pointer target if no sub-name
+                        let address = pointer.target().to_hex();
+                        if is_immutable {
+                            if let Err(e) = validate_immutable_address(&address) {
+                                warn!("Removing invalid immutable address for immutable PNR zone '{}': {}", name, e);
+                                return None;
+                            }
+                        }
+                        Some(ResolvedRecord::new(address, self.ttl_default)) // return pointer target if no sub-name
                     } else {
                         None
                     }
@@ -188,7 +202,7 @@ impl PointerNameResolver {
         }
     }
 
-    async fn resolve_pointer(&self, address: &String, iteration: usize) -> Result<Pointer, PointerError> {
+    async fn resolve_pointer(&self, address: &String, iteration: usize) -> Result<(Pointer, bool), PointerError> {
         debug!("resolve_pointer: address={}, iteration={}", address, iteration);
         if iteration > 10 {
             error!("cyclic reference loop - resolve aborting");
@@ -196,9 +210,15 @@ impl PointerNameResolver {
         } else {
             match PointerAddress::from_hex(address) {
                 Ok(pointer_address) => match self.pointer_caching_client.pointer_get(&pointer_address).await {
-                    Ok(pointer) => match pointer.target() {
-                        PointerTarget::ChunkAddress(_) => Ok(pointer),
-                        _ => Box::pin(self.resolve_pointer(&pointer.target().to_hex(), iteration + 1)).await,
+                    Ok(pointer) => {
+                        let is_immutable = iteration == 0 && matches!(pointer.target(), PointerTarget::ChunkAddress(_));
+                        match pointer.target() {
+                            PointerTarget::ChunkAddress(_) => Ok((pointer, is_immutable)),
+                            _ => {
+                                let (p, _) = Box::pin(self.resolve_pointer(&pointer.target().to_hex(), iteration + 1)).await?;
+                                Ok((p, is_immutable))
+                            }
+                        }
                     }
                     Err(_) => Err(PointerError::GetError(GetError::RecordNotFound(format!("Not found: {}", address))))
                 }
@@ -395,7 +415,8 @@ mod tests {
             .returning(|_, _| Ok(Pointer::new(&SecretKey::random(), 0, PointerTarget::ChunkAddress(ChunkAddress::from_hex("a40e045a6fbed33b27039aa8383c9dbf286e19a7265141c2da3085e0c8571527").unwrap()))));
 
         let mut records = HashMap::new();
-        records.insert("sub".to_string(), PnrRecord::new("address123".to_string(), PnrRecordType::A, 100));
+        let valid_address = "b40e045a6fbed33b27039aa8383c9dbf286e19a7265141c2da3085e0c8571527".to_string();
+        records.insert("sub".to_string(), PnrRecord::new(valid_address.clone(), PnrRecordType::A, 100));
         let pnr_zone = PnrZone::new("testname".to_string(), records, None, None);
         let pnr_zone_bytes = serde_json::to_vec(&pnr_zone).unwrap();
 
@@ -408,7 +429,7 @@ mod tests {
 
         assert!(result.is_some());
         let record = result.unwrap();
-        assert_eq!(record.address, "address123");
+        assert_eq!(record.address, valid_address);
         assert_eq!(record.ttl, 100);
     }
 
@@ -548,5 +569,91 @@ mod tests {
         // This should hit the 10 iteration limit
         let result = resolver.resolve_pointer(&addr1.to_hex(), 0).await;
         assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_resolve_immutable_validation_fail() {
+        let mut mock_pointer_caching_client = MockPointerCachingClient::default();
+        let mut mock_chunk_caching_client = MockChunkCachingClient::default();
+        
+        // Invalid 64-char hex address (contains 'g')
+        let invalid_addr = "g".repeat(64);
+        let target_chunk_address = ChunkAddress::from_hex("a40e045a6fbed33b27039aa8383c9dbf286e19a7265141c2da3085e0c8571527").unwrap();
+        
+        let pointer = Pointer::new(&SecretKey::random(), 0, PointerTarget::ChunkAddress(target_chunk_address));
+        
+        mock_pointer_caching_client
+            .expect_pointer_get()
+            .returning(move |_| Ok(pointer.clone()));
+
+        // resolve_map returns a record with an invalid address
+        let mut records = HashMap::new();
+        records.insert("".to_string(), PnrRecord::new(invalid_addr, PnrRecordType::A, 60));
+        let pnr_zone = PnrZone::new("testname".to_string(), records, None, None);
+        let chunk = Chunk::new(Bytes::from(serde_json::to_vec(&pnr_zone).unwrap()));
+
+        mock_chunk_caching_client
+            .expect_chunk_get_internal()
+            .returning(move |_| Ok(chunk.clone()));
+
+        let resolver = create_test_resolver(mock_pointer_caching_client, mock_chunk_caching_client);
+        let result = resolver.resolve(&"testname".to_string()).await;
+
+        assert!(result.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_resolve_immutable_direct_validation_fail() {
+        let mut mock_pointer_caching_client = MockPointerCachingClient::default();
+        let mut mock_chunk_caching_client = MockChunkCachingClient::default();
+        
+        let target_chunk_address = ChunkAddress::from_hex("a40e045a6fbed33b27039aa8383c9dbf286e19a7265141c2da3085e0c8571527").unwrap();
+        let sk1 = SecretKey::random();
+        let sk2 = SecretKey::random();
+        
+        // Use fixed resolver SK to match name
+        let resolver_sk = SecretKey::from_hex("55dcbc4624699d219b8ec293339a3b81e68815397f5a502026784d8122d09fce").unwrap();
+        let name = "testname";
+        let expected_pointer_key = Client::register_key_from_name(&resolver_sk, name);
+        let expected_addr = PointerAddress::from_hex(&expected_pointer_key.public_key().to_hex()).unwrap();
+
+        let addr2 = PointerAddress::from_hex(&sk2.public_key().to_hex()).unwrap();
+        
+        let p1 = Pointer::new(&expected_pointer_key, 0, PointerTarget::PointerAddress(addr2));
+        let p2 = Pointer::new(&sk2, 0, PointerTarget::ChunkAddress(target_chunk_address));
+
+        let p1_clone = p1.clone();
+        let p2_clone = p2.clone();
+
+        mock_pointer_caching_client
+            .expect_pointer_get()
+            .returning(move |addr: &PointerAddress| {
+                if addr.to_hex() == expected_addr.to_hex() {
+                    Ok(p1_clone.clone())
+                } else {
+                    Ok(p2_clone.clone())
+                }
+            });
+
+        mock_pointer_caching_client
+            .expect_pointer_update_ttl()
+            .returning(|_, _| Ok(Pointer::new(&SecretKey::random(), 0, PointerTarget::ChunkAddress(ChunkAddress::from_hex("a40e045a6fbed33b27039aa8383c9dbf286e19a7265141c2da3085e0c8571527").unwrap()))));
+
+        // Mock resolve_map to return a record with "invalid" address
+        let mut records = HashMap::new();
+        records.insert("sub".to_string(), PnrRecord::new("invalid".to_string(), PnrRecordType::A, 60));
+        let pnr_zone = PnrZone::new("testname".to_string(), records, None, None);
+        let chunk = Chunk::new(Bytes::from(serde_json::to_vec(&pnr_zone).unwrap()));
+
+        mock_chunk_caching_client
+            .expect_chunk_get_internal()
+            .returning(move |_| Ok(chunk.clone()));
+
+        // If it's NOT immutable (chain of pointers), it should NOT fail validation (because it doesn't run it)
+        let resolver = PointerNameResolver::new(mock_pointer_caching_client, mock_chunk_caching_client, resolver_sk, 3600);
+        let result = resolver.resolve(&"sub.testname".to_string()).await;
+
+        assert!(result.is_some());
+        assert_eq!(result.unwrap().address, "invalid");
     }
 }

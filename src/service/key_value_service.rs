@@ -109,7 +109,7 @@ impl KeyValueService {
             Err(_) => {
                 // If append fails (e.g. not found), try to create it
                 self.pnr_service
-                    .create_pnr(pnr_zone, evm_wallet, store_type)
+                    .create_mutable_pnr(pnr_zone, evm_wallet, store_type)
                     .await
                     .map_err(|e| PublicDataError::GetError(crate::error::GetError::RecordNotFound(e.to_string())))?;
                 Ok(())

@@ -93,7 +93,7 @@ impl McpTool {
             None,
             None
         );
-        Ok(self.pnr_service.create_pnr(
+        Ok(self.pnr_service.create_mutable_pnr(
             pnr_zone, self.evm_wallet.get_ref().clone(), StoreType::from(store_type)
         ).await?.into())
     }

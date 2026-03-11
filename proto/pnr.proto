@@ -30,6 +30,7 @@ enum PnrRecordType {
 message CreatePnrRequest {
   PnrZone pnr_zone = 1;
   optional string store_type = 2;
+  bool is_immutable = 3;
 }
 
 message UpdatePnrRequest {

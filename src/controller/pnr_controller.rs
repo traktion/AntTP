@@ -30,7 +30,7 @@ pub async fn post_pnr(
 ) -> Result<HttpResponse, PointerError> {
     debug!("Creating new mutable PNR zone");
     Ok(HttpResponse::Created().json(
-        pnr_service.create_pnr(pnr_zone.into_inner(), evm_wallet_data.get_ref().clone(), get_store_type(&request)).await?
+        pnr_service.create_mutable_pnr(pnr_zone.into_inner(), evm_wallet_data.get_ref().clone(), get_store_type(&request)).await?
     ))
 }
 

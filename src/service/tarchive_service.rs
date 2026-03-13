@@ -15,6 +15,7 @@ use autonomi::data::DataAddress;
 
 use crate::service::public_archive_service::{PublicArchiveForm, Upload, ArchiveResponse, ArchiveRaw};
 use crate::service::public_data_service::PublicDataService;
+#[double]
 use crate::service::file_service::FileService;
 use mockall_double::double;
 #[double]
@@ -273,13 +274,20 @@ impl TarchiveService {
 mod tests {
     use super::*;
     use crate::service::resolver_service::MockResolverService;
+    use crate::service::file_service::MockFileService;
     use crate::client::{MockPublicDataCachingClient, MockChunkCachingClient, MockTArchiveCachingClient};
     use autonomi::data::DataAddress;
     use xor_name::XorName;
 
     fn create_mock_service() -> TarchiveService {
         let mock_client = MockPublicDataCachingClient::default();
-        let mock_chunk_client = MockChunkCachingClient::default();
+        let mut mock_chunk_client = MockChunkCachingClient::default();
+        mock_chunk_client.expect_clone()
+            .returning(|| {
+                let mut m = MockChunkCachingClient::default();
+                m.expect_clone().returning(MockChunkCachingClient::default);
+                m
+            });
         let mock_tarchive_client = MockTArchiveCachingClient::default();
         let mut mock_resolver = MockResolverService::default();
 
@@ -294,7 +302,8 @@ mod tests {
             });
 
         let public_data_service = PublicDataService::new(mock_client, mock_resolver.clone());
-        let file_service = FileService::new(mock_chunk_client, 1);
+        let mut file_service = MockFileService::default();
+        file_service.expect_clone().returning(MockFileService::default);
 
         TarchiveService::new(public_data_service, mock_tarchive_client, file_service, mock_resolver)
     }
@@ -347,9 +356,10 @@ mod tests {
             });
 
         let public_data_service = PublicDataService::new(mock_client, mock_resolver.clone());
-        let mock_chunk_client = MockChunkCachingClient::default();
         let mock_tarchive_client = MockTArchiveCachingClient::default();
-        let file_service = FileService::new(mock_chunk_client, 1);
+        let mut file_service = MockFileService::default();
+        file_service.expect_clone().returning(MockFileService::default);
+
         let service = TarchiveService::new(public_data_service, mock_tarchive_client, file_service, mock_resolver);
 
         let wallet = Wallet::new_with_random_wallet(autonomi::Network::ArbitrumOne);
@@ -363,7 +373,6 @@ mod tests {
     #[test]
     fn test_get_tarchive_directory_listing() {
         let mut mock_client = MockPublicDataCachingClient::default();
-        let mut mock_chunk_client = MockChunkCachingClient::default();
         let mut mock_tarchive_client = MockTArchiveCachingClient::default();
 
         // Prepare index data
@@ -384,7 +393,9 @@ mod tests {
             });
 
         let public_data_service = PublicDataService::new(mock_client, mock_resolver.clone());
-        let file_service = FileService::new(mock_chunk_client, 1);
+        let mut file_service = MockFileService::default();
+        file_service.expect_clone().returning(MockFileService::default);
+
         let service = TarchiveService::new(public_data_service, mock_tarchive_client, file_service, mock_resolver);
 
         let xor_name = XorName::from_content(b"test");
@@ -428,9 +439,9 @@ mod tests {
             });
 
         let public_data_service = PublicDataService::new(mock_client, mock_resolver.clone());
-        let mock_chunk_client = MockChunkCachingClient::default();
+        let mut file_service = MockFileService::default();
+        file_service.expect_clone().returning(MockFileService::default);
         let mock_tarchive_client = MockTArchiveCachingClient::default();
-        let file_service = FileService::new(mock_chunk_client, 1);
         let service = TarchiveService::new(public_data_service, mock_tarchive_client, file_service, mock_resolver);
         
         let wallet = Wallet::new_with_random_wallet(autonomi::Network::ArbitrumOne);
@@ -444,7 +455,6 @@ mod tests {
     #[test]
     fn test_get_tarchive_file() {
         let mut mock_client = MockPublicDataCachingClient::default();
-        let mut mock_chunk_client = MockChunkCachingClient::default();
         let mut mock_tarchive_client = MockTArchiveCachingClient::default();
 
         // Prepare index data
@@ -452,20 +462,6 @@ mod tests {
 
         mock_tarchive_client.expect_get_archive_from_tar()
             .returning(move |_| Ok(Bytes::from(index_data)));
-
-        // Mock chunk_get_internal for download_data_bytes
-        mock_chunk_client.expect_chunk_get_internal()
-            .returning(|_| Ok(autonomi::Chunk::new(Bytes::from(b"content1".to_vec()))));
-
-        mock_chunk_client.expect_clone()
-            .returning(|| {
-                let mut m = MockChunkCachingClient::default();
-                m.expect_chunk_get_internal()
-                    .returning(|_| Ok(autonomi::Chunk::new(Bytes::from(b"content1".to_vec()))));
-                m.expect_clone()
-                    .returning(|| MockChunkCachingClient::default());
-                m
-            });
 
         let mut mock_resolver = MockResolverService::default();
         mock_resolver.expect_resolve_name()
@@ -479,7 +475,12 @@ mod tests {
             });
 
         let public_data_service = PublicDataService::new(mock_client, mock_resolver.clone());
-        let file_service = FileService::new(mock_chunk_client, 1);
+        let mut file_service = MockFileService::default();
+        file_service.expect_clone().returning(MockFileService::default);
+        
+        file_service.expect_download_data_bytes()
+            .returning(|_, _, _| Ok(bytes::BytesMut::from(b"content1".as_slice())));
+
         let service = TarchiveService::new(public_data_service, mock_tarchive_client, file_service, mock_resolver);
 
         let xor_name = XorName::from_content(b"test");

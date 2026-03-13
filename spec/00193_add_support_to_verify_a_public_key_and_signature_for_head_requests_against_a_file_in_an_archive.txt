@@ -1,0 +1,33 @@
+As an AntTP user
+I want to be able to provide a 3rd party public key and a digital signature
+So that I can verify that the owner of the public key has signed the associated data
+
+Given AntTP supports HEAD operations on files within archives to retrieve meta data in response headers
+When a HEAD operation is made with the request headers 'x-signature' (populated with a base64 encoded public key)
+And 'x-public-key' (populated with a base64 encoded public key)
+Then retrieve and base64 decode the value of the 'x-signer-public-key' header as signer_public_key (as bytes) 
+And retrieve and base64 decode the value of the 'x-data-signature' header as data_signature (as bytes)
+And get_data_archive function in file_controller.rs must be passed signer_public_key and data_signature
+And get_archive_binary in archive_service.rs be called to retrieve the bytes for the file in the archive
+And then signer_public_key must be used to instantiate a 'blsttc' PublicKey (from bytes)
+And then data_signature must be used to instantiate a 'blsttc' Signature (from bytes)
+And then the blsttc PublicKey and Signature must be used to 'verify' the contents of file in the archive
+And then return a response with headers 'x-data-signature-verified' (containing a boolean value to reflect the result of 'verify')
+
+Given get_archive_binary in archive_service.rs returns all the bytes for a given path in an archive (at address)
+When retrieving the bytes for a file in an archive
+Then call get_archive_binary to get bytes and return them to the caller
+
+Given verifying signatures will be required on other endpoints too
+When updating get_data_archive in file_controller.rs with the verification logic
+Then extract this new logic into /src/service/signature_service.rs
+And define a new SignatureService struct to contain the functions
+And include a 'verify' function for the new logic
+
+Implementation Notes
+
+- Place any unit tests at the bottom of the same file as the associated production code
+- Increment patch version of anttp package in Cargo.toml
+- Create a copy of this issue description and save to /spec using the name of this issue as the filename (with lower underscore case, starting with the 5 char padded issue number, e.g. 00001_issue_title.txt)
+- Update unit tests to validate the changes
+- Don't create any new mocks!

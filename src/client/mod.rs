@@ -24,12 +24,12 @@ pub mod streaming_client;
 
 pub use self::caching_client::*;
 pub use chunk_caching_client::{ChunkCachingClient, MockChunkCachingClient};
-pub use scratchpad_caching_client::ScratchpadCachingClient;
-pub use graph_entry_caching_client::GraphEntryCachingClient;
+pub use scratchpad_caching_client::{ScratchpadCachingClient, MockScratchpadCachingClient};
+pub use graph_entry_caching_client::{GraphEntryCachingClient, MockGraphEntryCachingClient};
 pub use pointer_caching_client::{PointerCachingClient, MockPointerCachingClient};
 pub use register_caching_client::{RegisterCachingClient, MockRegisterCachingClient};
 pub use public_archive_caching_client::{PublicArchiveCachingClient, MockPublicArchiveCachingClient};
 pub use tarchive_caching_client::{TArchiveCachingClient, MockTArchiveCachingClient};
-pub use archive_caching_client::ArchiveCachingClient;
+pub use archive_caching_client::{ArchiveCachingClient, MockArchiveCachingClient};
 pub use public_data_caching_client::{PublicDataCachingClient, MockPublicDataCachingClient};
 pub use streaming_client::{StreamingClient, MockStreamingClient};

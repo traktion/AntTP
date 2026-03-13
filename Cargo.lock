@@ -1186,7 +1186,7 @@ dependencies = [
 
 [[package]]
 name = "anttp"
-version = "0.25.17"
+version = "0.25.18"
 dependencies = [
  "actix-files",
  "actix-http",
@@ -1200,6 +1200,7 @@ dependencies = [
  "async_job",
  "autonomi",
  "base64 0.22.1",
+ "blsttc",
  "bytes",
  "chrono",
  "chunk-streamer",

@@ -27,6 +27,14 @@ use crate::service::header_builder::HeaderBuilder;
 #[double]
 use crate::service::resolver_service::ResolverService;
 use crate::service::resolver_service::ResolvedAddress;
+use crate::service::archive_service::ArchiveService;
+use crate::service::signature_service::SignatureService;
+#[double]
+use crate::client::ArchiveCachingClient;
+#[double]
+use crate::client::TArchiveCachingClient;
+use crate::service::public_data_service::PublicDataService;
+use crate::service::tarchive_service::TarchiveService;
 
 pub async fn get_public_data(
     request: HttpRequest,
@@ -81,11 +89,24 @@ async fn fetch_public_data(
                 let public_archive_caching_client = PublicArchiveCachingClient::new(caching_client.clone(), streaming_client.clone());
                 let public_data_caching_client = PublicDataCachingClient::new(caching_client.clone(), streaming_client.clone());
                 let file_service = FileService::new(chunk_caching_client, ant_tp_config.download_threads);
-                let public_archive_service = PublicArchiveService::new(file_service, public_archive_caching_client, public_data_caching_client, resolver_service.get_ref().clone());
+                let public_archive_service = PublicArchiveService::new(file_service.clone(), public_archive_caching_client, public_data_caching_client.clone(), resolver_service.get_ref().clone());
+
                 let archive_info = public_archive_service.get_archive_info(&resolved_address, &request).await;
 
                 match archive_info.action {
-                    ArchiveAction::Data => get_data_archive(&request, &resolved_address, &header_builder, public_archive_service, archive_info, has_body).await,
+                    ArchiveAction::Data => {
+                        let signature_verified = verify_signature(
+                            &request,
+                            &has_body,
+                            &resolved_address,
+                            &archive_info,
+                            &caching_client,
+                            &streaming_client,
+                            &resolver_service,
+                            &file_service
+                        ).await;
+                        get_data_archive(&request, &resolved_address, &header_builder, public_archive_service, archive_info, signature_verified, has_body).await
+                    },
                     ArchiveAction::Redirect => Ok(build_moved_permanently_response(&request.path(), &header_builder)),
                     ArchiveAction::Listing  => Ok(build_list_files_response(&request, &resolved_address, &header_builder, has_body)),
                     ArchiveAction::NotFound => Err(GetError::RecordNotFound(format!("File not found: {}", request.full_url())).into()),
@@ -99,6 +120,41 @@ async fn fetch_public_data(
         },
         None => Err(GetError::RecordNotFound(format!("File not found: {}", request.full_url())).into())
     }
+}
+
+async fn verify_signature(
+    request: &HttpRequest,
+    has_body: &bool,
+    resolved_address: &ResolvedAddress,
+    archive_info: &ArchiveInfo,
+    caching_client: &CachingClient,
+    streaming_client: &StreamingClient,
+    resolver_service: &Data<ResolverService>,
+    file_service: &FileService
+) -> Option<bool> {
+    // todo: change to verify signature of an XorName (hash) rather than the content
+    if !*has_body {
+        if let (Some(signer_public_key_b64), Some(data_signature_b64)) = (request.headers().get("x-signer-public-key"), request.headers().get("x-data-signature")) {
+            if let (Ok(signer_public_key_str), Ok(data_signature_str)) = (signer_public_key_b64.to_str(), data_signature_b64.to_str()) {
+                if let (Some(signer_public_key_bytes), Some(data_signature_bytes)) = (SignatureService::decode_base64(signer_public_key_str), SignatureService::decode_base64(data_signature_str)) {
+                    let public_archive_caching_client = PublicArchiveCachingClient::new(caching_client.clone(), streaming_client.clone());
+                    let public_data_caching_client = PublicDataCachingClient::new(caching_client.clone(), streaming_client.clone());
+                    let archive_caching_client = ArchiveCachingClient::new(caching_client.clone(), streaming_client.clone());
+                    let tarchive_caching_client = TArchiveCachingClient::new(caching_client.clone(), streaming_client.clone());
+                    let public_archive_service = PublicArchiveService::new(file_service.clone(), public_archive_caching_client, public_data_caching_client.clone(), resolver_service.get_ref().clone());
+                    let public_data_service = PublicDataService::new(public_data_caching_client, resolver_service.get_ref().clone());
+                    let tarchive_service = TarchiveService::new(public_data_service, tarchive_caching_client, file_service.clone(), resolver_service.get_ref().clone());
+                    let archive_service = ArchiveService::new(public_archive_service, tarchive_service, resolver_service.get_ref().clone(), archive_caching_client);
+
+                    if let Ok(archive_raw) = archive_service.get_archive_binary(format!("{:x}", resolved_address.xor_name), Some(archive_info.path_string.clone())).await {
+                        let signature_service = SignatureService;
+                        return Some(signature_service.verify(&signer_public_key_bytes, &data_signature_bytes, &archive_raw.content));
+                    }
+                }
+            }
+        }
+    }
+    None
 }
 
 fn build_not_modified_response(resolved_address: &ResolvedAddress, header_builder: &HeaderBuilder) -> HttpResponse {
@@ -144,7 +200,7 @@ fn build_list_files_response(request: &HttpRequest, resolved_address: &ResolvedA
     }
 }
 
-fn update_partial_content_response(builder: &mut HttpResponseBuilder, resolved_address: &ResolvedAddress, header_builder: &HeaderBuilder, range_props: &RangeProps, modified_time: Option<u64>) {
+fn update_partial_content_response(builder: &mut HttpResponseBuilder, resolved_address: &ResolvedAddress, header_builder: &HeaderBuilder, range_props: &RangeProps, modified_time: Option<u64>, signature_verified: Option<bool>) {
     builder
         .insert_header(header_builder.build_content_range_header(range_props.range_from().unwrap(), range_props.range_to().unwrap(), range_props.content_length()))
         .insert_header(header_builder.build_accept_ranges_header())
@@ -154,12 +210,15 @@ fn update_partial_content_response(builder: &mut HttpResponseBuilder, resolved_a
         .insert_header(header_builder.build_cors_header())
         .insert_header(header_builder.build_server_header())
         .insert_header(header_builder.build_content_type_header(range_props.extension()));
-    if modified_time.is_some() {
-        builder.insert_header(header_builder.build_last_modified_header(modified_time.unwrap()));
+    if let Some(modified_time) = modified_time {
+        builder.insert_header(header_builder.build_last_modified_header(modified_time));
+    }
+    if let Some(verified) = signature_verified {
+        builder.insert_header(("x-data-signature-verified", verified.to_string()));
     }
 }
 
-fn update_full_content_response(builder: &mut HttpResponseBuilder, resolved_address: &ResolvedAddress, header_builder: &HeaderBuilder, range_props: &RangeProps, modified_time: Option<u64>) {
+fn update_full_content_response(builder: &mut HttpResponseBuilder, resolved_address: &ResolvedAddress, header_builder: &HeaderBuilder, range_props: &RangeProps, modified_time: Option<u64>, signature_verified: Option<bool>) {
     builder
         .insert_header(header_builder.build_content_length_header(range_props.content_length()))
         .insert_header(header_builder.build_cache_control_header(resolved_address.is_resolved_from_mutable))
@@ -168,16 +227,20 @@ fn update_full_content_response(builder: &mut HttpResponseBuilder, resolved_addr
         .insert_header(header_builder.build_cors_header())
         .insert_header(header_builder.build_server_header())
         .insert_header(header_builder.build_content_type_header(range_props.extension()));
-    if modified_time.is_some() {
-        builder.insert_header(header_builder.build_last_modified_header(modified_time.unwrap()));
+    if let Some(modified_time) = modified_time {
+        builder.insert_header(header_builder.build_last_modified_header(modified_time));
+    }
+    if let Some(verified) = signature_verified {
+        builder.insert_header(("x-data-signature-verified", verified.to_string()));
     }
 }
 
-async fn get_data_archive(request: &HttpRequest, resolved_address: &ResolvedAddress, header_builder: &HeaderBuilder, public_archive_service: PublicArchiveService, archive_info: ArchiveInfo, has_body: bool) -> Result<HttpResponse, ChunkError> {
+async fn get_data_archive(request: &HttpRequest, resolved_address: &ResolvedAddress, header_builder: &HeaderBuilder, public_archive_service: PublicArchiveService, archive_info: ArchiveInfo, signature_verified: Option<bool>, has_body: bool) -> Result<HttpResponse, ChunkError> {
     let (chunk_receiver, range_props) = public_archive_service.get_data(&request, archive_info.clone()).await?;
+
     if range_props.is_range() {
         let mut builder = HttpResponse::PartialContent();
-        update_partial_content_response(&mut builder, &resolved_address, &header_builder, &range_props, Some(archive_info.modified_time));
+        update_partial_content_response(&mut builder, &resolved_address, &header_builder, &range_props, Some(archive_info.modified_time), signature_verified);
         if has_body {
             Ok(builder.streaming(chunk_receiver))
         } else {
@@ -185,7 +248,7 @@ async fn get_data_archive(request: &HttpRequest, resolved_address: &ResolvedAddr
         }
     } else {
         let mut builder = HttpResponse::Ok();
-        update_full_content_response(&mut builder, &resolved_address, &header_builder, &range_props, Some(archive_info.modified_time));
+        update_full_content_response(&mut builder, &resolved_address, &header_builder, &range_props, Some(archive_info.modified_time), signature_verified);
         if has_body {
             Ok(builder.streaming(chunk_receiver))
         } else {
@@ -207,7 +270,7 @@ async fn get_data_xor(request: &HttpRequest, resolved_address: &ResolvedAddress,
     let (chunk_receiver, range_props) = file_service.get_data(&request, &resolved_address).await?;
     if range_props.is_range() {
         let mut builder = HttpResponse::PartialContent();
-        update_partial_content_response(&mut builder, &resolved_address, &header_builder, &range_props, None);
+        update_partial_content_response(&mut builder, &resolved_address, &header_builder, &range_props, None, None);
         if has_body {
             Ok(builder.streaming(chunk_receiver))
         } else {
@@ -215,7 +278,7 @@ async fn get_data_xor(request: &HttpRequest, resolved_address: &ResolvedAddress,
         }
     } else {
         let mut builder = HttpResponse::Ok();
-        update_full_content_response(&mut builder, &resolved_address, &header_builder, &range_props, None);
+        update_full_content_response(&mut builder, &resolved_address, &header_builder, &range_props, None, None);
         if has_body {
             Ok(builder.streaming(chunk_receiver))
         } else {

@@ -199,6 +199,7 @@ mod tests {
             offset: 0,
             size: 100,
             modified: 1,
+            signature: None,
         };
         map.insert("index.html".to_string(), file1.clone());
         vec.push(file1);
@@ -209,6 +210,7 @@ mod tests {
             offset: 100,
             size: 50,
             modified: 2,
+            signature: None,
         };
         map.insert("style.css".to_string(), file2.clone());
         vec.push(file2);
@@ -219,6 +221,7 @@ mod tests {
             offset: 150,
             size: 20,
             modified: 3,
+            signature: None,
         };
         map.insert("sub/test.txt".to_string(), file3.clone());
         vec.push(file3);

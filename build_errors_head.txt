@@ -1,0 +1,100 @@
+   Compiling anttp v0.25.19 (/home/paul/dev/anttp)
+warning: unused import: `clap::Parser`
+  --> src/service/tarchive_service.rs:31:5
+   |
+31 | use clap::Parser;
+   |     ^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+error[E0599]: no method named `get` found for reference `&archive::Archive` in the current scope
+   --> src/controller/file_controller.rs:222:52
+    |
+222 | ...) = archive.get(resolved_address.filepath.clone()) {
+    |                ^^^ method not found in `&archive::Archive`
+    |
+    = help: items from traits can only be used if the trait is implemented and in scope
+    = note: the following traits define an item `get`, perhaps you need to implement one of them:
+            candidate #1: `SliceIndex`
+            candidate #2: `StoresServerSessions`
+            candidate #3: `bitvec::slice::api::BitSliceIndex`
+            candidate #4: `foyer_memory::indexer::Indexer`
+            candidate #5: `icu_properties::names::PropertyEnumToValueNameLookup`
+            candidate #6: `icu_provider::baked::DataStore`
+            candidate #7: `itertools::Itertools`
+            candidate #8: `libp2p_kad::record::store::RecordStore`
+            candidate #9: `metadata::map::as_metadata_key::Sealed`
+            candidate #10: `object::read::elf::relocation::Relr`
+            candidate #11: `prometheus_client::metrics::counter::Atomic`
+            candidate #12: `prometheus_client::metrics::gauge::Atomic`
+            candidate #13: `rust_embed::RustEmbed`
+
+error[E0609]: no field `filepath` on type `&resolver_service::ResolvedAddress`
+   --> src/controller/file_controller.rs:222:73
+    |
+222 | ...e.get(resolved_address.filepath.clone()) {
+    |                           ^^^^^^^^ unknown field
+    |
+help: a field with a similar name exists
+    |
+222 |         if let Some(data_address_offset) = archive.get(resolved_address.file_path.clone()) {
+    |                                                                             +
+
+error[E0282]: type annotations needed
+   --> src/controller/file_controller.rs:224:60
+    |
+224 | ..."x-data-signature", signature.clone()));
+    |                        ^^^^^^^^^ cannot infer type
+
+error[E0599]: no method named `get` found for reference `&archive::Archive` in the current scope
+   --> src/controller/file_controller.rs:246:52
+    |
+246 | ...) = archive.get(resolved_address.filepath.clone()) {
+    |                ^^^ method not found in `&archive::Archive`
+    |
+    = help: items from traits can only be used if the trait is implemented and in scope
+    = note: the following traits define an item `get`, perhaps you need to implement one of them:
+            candidate #1: `SliceIndex`
+            candidate #2: `StoresServerSessions`
+            candidate #3: `bitvec::slice::api::BitSliceIndex`
+            candidate #4: `foyer_memory::indexer::Indexer`
+            candidate #5: `icu_properties::names::PropertyEnumToValueNameLookup`
+            candidate #6: `icu_provider::baked::DataStore`
+            candidate #7: `itertools::Itertools`
+            candidate #8: `libp2p_kad::record::store::RecordStore`
+            candidate #9: `metadata::map::as_metadata_key::Sealed`
+            candidate #10: `object::read::elf::relocation::Relr`
+            candidate #11: `prometheus_client::metrics::counter::Atomic`
+            candidate #12: `prometheus_client::metrics::gauge::Atomic`
+            candidate #13: `rust_embed::RustEmbed`
+
+error[E0609]: no field `filepath` on type `&resolver_service::ResolvedAddress`
+   --> src/controller/file_controller.rs:246:73
+    |
+246 | ...e.get(resolved_address.filepath.clone()) {
+    |                           ^^^^^^^^ unknown field
+    |
+help: a field with a similar name exists
+    |
+246 |         if let Some(data_address_offset) = archive.get(resolved_address.file_path.clone()) {
+    |                                                                             +
+
+error[E0282]: type annotations needed
+   --> src/controller/file_controller.rs:248:60
+    |
+248 | ..."x-data-signature", signature.clone()));
+    |                        ^^^^^^^^^ cannot infer type
+
+error[E0502]: cannot borrow `entry` as mutable because it is also borrowed as immutable
+  --> src/model/tarchive.rs:31:17
+   |
+25 | ...       let path = entry.path()?;
+   |                      ----- immutable borrow occurs here
+...
+31 | ...       entry.read_to_end(&mut content)?;
+   |           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ mutable borrow occurs here
+...
+37 | ...       index.push_str(&format!("{} {} {} {} {}\n", path_str, offset, ...
+   |                                                       -------- immutable borrow later used here
+
+Some errors have detailed explanations: E0282, E0502, E0599, E0609.

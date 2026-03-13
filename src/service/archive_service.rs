@@ -2,6 +2,7 @@ use autonomi::Wallet;
 use crate::controller::StoreType;
 use crate::service::public_archive_service::PublicArchiveService;
 use crate::service::tarchive_service::TarchiveService;
+#[double]
 use crate::service::resolver_service::ResolverService;
 use actix_multipart::form::MultipartForm;
 use actix_multipart::form::tempfile::TempFile;
@@ -10,6 +11,11 @@ use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 use crate::model::path_detail::PathDetail;
 use crate::error::archive_error::ArchiveError;
+pub use crate::model::archive::ArchiveType;
+#[double]
+use crate::client::ArchiveCachingClient;
+use autonomi::files::archive_public::ArchiveAddress;
+use mockall_double::double;
 
 #[derive(Serialize, Deserialize, Clone, ToSchema, Debug)]
 pub struct Upload {
@@ -56,10 +62,6 @@ impl ArchiveRaw {
         ArchiveRaw { items, content, address }
     }
 }
-
-pub use crate::model::archive::ArchiveType;
-use crate::client::ArchiveCachingClient;
-use autonomi::files::archive_public::ArchiveAddress;
 
 #[derive(Debug, Clone)]
 pub struct ArchiveService {

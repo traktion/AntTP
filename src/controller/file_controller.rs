@@ -27,6 +27,14 @@ use crate::service::header_builder::HeaderBuilder;
 #[double]
 use crate::service::resolver_service::ResolverService;
 use crate::service::resolver_service::ResolvedAddress;
+use crate::service::archive_service::ArchiveService;
+use crate::service::signature_service::SignatureService;
+#[double]
+use crate::client::ArchiveCachingClient;
+#[double]
+use crate::client::TArchiveCachingClient;
+use crate::service::public_data_service::PublicDataService;
+use crate::service::tarchive_service::TarchiveService;
 
 pub async fn get_public_data(
     request: HttpRequest,
@@ -81,11 +89,33 @@ async fn fetch_public_data(
                 let public_archive_caching_client = PublicArchiveCachingClient::new(caching_client.clone(), streaming_client.clone());
                 let public_data_caching_client = PublicDataCachingClient::new(caching_client.clone(), streaming_client.clone());
                 let file_service = FileService::new(chunk_caching_client, ant_tp_config.download_threads);
-                let public_archive_service = PublicArchiveService::new(file_service, public_archive_caching_client, public_data_caching_client, resolver_service.get_ref().clone());
+                let public_archive_service = PublicArchiveService::new(file_service.clone(), public_archive_caching_client, public_data_caching_client.clone(), resolver_service.get_ref().clone());
+
                 let archive_info = public_archive_service.get_archive_info(&resolved_address, &request).await;
 
                 match archive_info.action {
-                    ArchiveAction::Data => get_data_archive(&request, &resolved_address, &header_builder, public_archive_service, archive_info, has_body).await,
+                    ArchiveAction::Data => {
+                        let mut signature_verified = None;
+                        if !has_body {
+                            if let (Some(signer_public_key_b64), Some(data_signature_b64)) = (request.headers().get("x-signer-public-key"), request.headers().get("x-data-signature")) {
+                                if let (Ok(signer_public_key_str), Ok(data_signature_str)) = (signer_public_key_b64.to_str(), data_signature_b64.to_str()) {
+                                    if let (Some(signer_public_key_bytes), Some(data_signature_bytes)) = (SignatureService::decode_base64(signer_public_key_str), SignatureService::decode_base64(data_signature_str)) {
+                                        let archive_caching_client = ArchiveCachingClient::new(caching_client.clone(), streaming_client.clone());
+                                        let tarchive_caching_client = TArchiveCachingClient::new(caching_client.clone(), streaming_client.clone());
+                                        let public_data_service = PublicDataService::new(public_data_caching_client, resolver_service.get_ref().clone());
+                                        let tarchive_service = TarchiveService::new(public_data_service, tarchive_caching_client, file_service.clone(), resolver_service.get_ref().clone());
+                                        let archive_service = ArchiveService::new(public_archive_service.clone(), tarchive_service, resolver_service.get_ref().clone(), archive_caching_client);
+
+                                        if let Ok(archive_raw) = archive_service.get_archive_binary(format!("{:x}", resolved_address.xor_name), Some(archive_info.path_string.clone())).await {
+                                            let signature_service = SignatureService;
+                                            signature_verified = Some(signature_service.verify(&signer_public_key_bytes, &data_signature_bytes, &archive_raw.content));
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        get_data_archive(&request, &resolved_address, &header_builder, public_archive_service, archive_info, signature_verified, has_body).await
+                    },
                     ArchiveAction::Redirect => Ok(build_moved_permanently_response(&request.path(), &header_builder)),
                     ArchiveAction::Listing  => Ok(build_list_files_response(&request, &resolved_address, &header_builder, has_body)),
                     ArchiveAction::NotFound => Err(GetError::RecordNotFound(format!("File not found: {}", request.full_url())).into()),
@@ -173,11 +203,15 @@ fn update_full_content_response(builder: &mut HttpResponseBuilder, resolved_addr
     }
 }
 
-async fn get_data_archive(request: &HttpRequest, resolved_address: &ResolvedAddress, header_builder: &HeaderBuilder, public_archive_service: PublicArchiveService, archive_info: ArchiveInfo, has_body: bool) -> Result<HttpResponse, ChunkError> {
+async fn get_data_archive(request: &HttpRequest, resolved_address: &ResolvedAddress, header_builder: &HeaderBuilder, public_archive_service: PublicArchiveService, archive_info: ArchiveInfo, signature_verified: Option<bool>, has_body: bool) -> Result<HttpResponse, ChunkError> {
     let (chunk_receiver, range_props) = public_archive_service.get_data(&request, archive_info.clone()).await?;
+
     if range_props.is_range() {
         let mut builder = HttpResponse::PartialContent();
         update_partial_content_response(&mut builder, &resolved_address, &header_builder, &range_props, Some(archive_info.modified_time));
+        if let Some(verified) = signature_verified {
+            builder.insert_header(("x-data-signature-verified", verified.to_string()));
+        }
         if has_body {
             Ok(builder.streaming(chunk_receiver))
         } else {
@@ -186,6 +220,9 @@ async fn get_data_archive(request: &HttpRequest, resolved_address: &ResolvedAddr
     } else {
         let mut builder = HttpResponse::Ok();
         update_full_content_response(&mut builder, &resolved_address, &header_builder, &range_props, Some(archive_info.modified_time));
+        if let Some(verified) = signature_verified {
+            builder.insert_header(("x-data-signature-verified", verified.to_string()));
+        }
         if has_body {
             Ok(builder.streaming(chunk_receiver))
         } else {

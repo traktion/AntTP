@@ -15,6 +15,7 @@ use autonomi::data::DataAddress;
 
 use crate::service::public_archive_service::{PublicArchiveForm, Upload, ArchiveResponse, ArchiveRaw};
 use crate::service::public_data_service::PublicDataService;
+#[double]
 use crate::service::file_service::FileService;
 use mockall_double::double;
 #[double]

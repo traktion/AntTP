@@ -1,6 +1,7 @@
 use autonomi::files::archive_public::ArchiveAddress;
 use autonomi::files::PublicArchive;
 use log::{info, debug, error, warn};
+use mockall::mock;
 use mockall_double::double;
 use tokio::join;
 #[double]
@@ -9,7 +10,9 @@ use crate::client::CachingClient;
 use crate::client::PublicArchiveCachingClient;
 #[double]
 use crate::client::StreamingClient;
-use crate::client::{ARCHIVE_CACHE_KEY, TArchiveCachingClient};
+use crate::client::ARCHIVE_CACHE_KEY;
+#[double]
+use crate::client::TArchiveCachingClient;
 use crate::error::archive_error::ArchiveError;
 use crate::model::archive::Archive;
 
@@ -17,6 +20,17 @@ use crate::model::archive::Archive;
 pub struct ArchiveCachingClient {
     caching_client: CachingClient,
     streaming_client: StreamingClient
+}
+
+mock! {
+    #[derive(Debug)]
+    pub ArchiveCachingClient {
+        pub fn new(caching_client: CachingClient, streaming_client: StreamingClient) -> Self;
+        pub async fn archive_get(&self, addr: ArchiveAddress) -> Result<Archive, ArchiveError>;
+    }
+    impl Clone for ArchiveCachingClient {
+        fn clone(&self) -> Self;
+    }
 }
 
 impl ArchiveCachingClient {

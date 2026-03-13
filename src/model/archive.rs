@@ -28,6 +28,7 @@ pub struct DataAddressOffset {
     pub offset: u64,
     pub size: u64,
     pub modified: u64,
+    pub signature: Option<String>,
 }
 
 impl Archive {
@@ -52,18 +53,25 @@ impl Archive {
                         continue;
                     }
 
-                    // todo: confirm this handles file names with spaces (maybe %20 though)?
-                    let path_string = Self::sanitise_path(parts.get(parts.len() - 3).expect("path missing from tar"));
-                    let offset = parts.get(parts.len() - 2).expect("offset missing from tar").parse::<u64>().unwrap_or_else(|_| 0);
-                    let size = parts.get(parts.len() - 1).expect("size missing from tar").parse::<u64>().unwrap_or_else(|_| 0);
+                    let path_string = Self::sanitise_path(parts.get(0).expect("path missing from tar"));
+                    let offset = parts.get(1).expect("offset missing from tar").parse::<u64>().unwrap_or_else(|_| 0);
+                    let size = parts.get(2).expect("size missing from tar").parse::<u64>().unwrap_or_else(|_| 0);
+                    let xorname_hex = parts.get(3);
+                    let signature = parts.get(4);
+
+                    let data_address = if let Some(hex) = xorname_hex {
+                        DataAddress::from_hex(hex).unwrap_or(*tar_data_addr)
+                    } else {
+                        *tar_data_addr
+                    };
 
                     let data_address_offset = DataAddressOffset {
-                        data_address: *tar_data_addr,
-                        // file names can have spaces, so index from right and join on left
+                        data_address,
                         path: path_string.clone(),
                         offset,
                         size,
                         modified: entry_counter, // note: use a counter to derive date sequence by archive file order, as times are only embedded in the tar file itself
+                        signature: signature.map(|s| s.to_string()),
                     };
                     debug!("insert into archive: path_string [{}], data address offset: [{:?}]", path_string, data_address_offset);
                     data_address_offsets_map.insert(
@@ -106,7 +114,8 @@ impl Archive {
                 path: path_string.clone(),
                 offset: 0,
                 size: metadata.size,
-                modified: metadata.modified
+                modified: metadata.modified,
+                signature: None,
             };
             data_address_offsets_map.insert(
                 path_string.clone(),

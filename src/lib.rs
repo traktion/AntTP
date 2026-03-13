@@ -246,7 +246,8 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> io::Result<()> {
         PublicDataService::new(public_data_caching_client.clone(), resolver_service_data.get_ref().clone()),
         tarchive_caching_client.clone(),
         FileService::new(chunk_caching_client.clone(), ant_tp_config.download_threads),
-        resolver_service_data.get_ref().clone()
+        resolver_service_data.get_ref().clone(),
+        ant_tp_config.clone()
     ));
     let command_service_data = Data::new(CommandService::new(command_status_data.clone()));
     let chunk_service_data = Data::new(ChunkService::new(chunk_caching_client.clone(), resolver_service_data.get_ref().clone()));

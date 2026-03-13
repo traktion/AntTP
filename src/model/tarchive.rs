@@ -1,5 +1,6 @@
 use std::io::{Read, Seek};
 use tar::Archive;
+use autonomi::{XorName, SecretKey};
 
 pub struct Tarchive;
 
@@ -9,24 +10,31 @@ impl Tarchive {
     }
 
     /// Generates a tar index string for the given tar file.
-    /// The index format follows: "filename offset size"
-    pub fn index<R: Read + Seek>(reader: &mut R) -> Result<String, std::io::Error> {
+    /// The index format follows: "filename offset size xorname signature"
+    pub fn index<R: Read + Seek>(reader: &mut R, app_private_key: &SecretKey) -> Result<String, std::io::Error> {
         let mut archive = Archive::new(reader);
         let mut index = String::new();
 
         let entries = archive.entries()?;
         for entry_result in entries {
-            let entry = entry_result?;
+            let mut entry = entry_result?;
             let header = entry.header();
             
             // We only index files
             if header.entry_type().is_file() {
-                let path = entry.path()?;
-                let path_str = path.to_str().unwrap_or("");
+                let path = entry.path()?.to_path_buf();
+                let path_str = path.to_str().unwrap_or("").to_string();
                 let offset = entry.raw_file_position();
-                let size = entry.header().size()?;
+                let size = header.size()?;
+
+                let mut content = Vec::new();
+                entry.read_to_end(&mut content)?;
+                let xor_name = XorName::from_content(&content);
+                let xor_name_hex = hex::encode(xor_name.0);
+                let signature = app_private_key.sign(&xor_name.0);
+                let signature_hex = hex::encode(signature.to_bytes());
                 
-                index.push_str(&format!("{} {} {}\n", path_str, offset, size));
+                index.push_str(&format!("{} {} {} {} {}\n", path_str, offset, size, xor_name_hex, signature_hex));
             }
         }
         
@@ -43,6 +51,7 @@ mod tests {
     #[test]
     fn test_tarchive_index() {
         let mut buf = Vec::new();
+        let app_private_key = SecretKey::random();
         {
             let mut builder = Builder::new(&mut buf);
             
@@ -64,7 +73,7 @@ mod tests {
         }
 
         let mut cursor = Cursor::new(buf);
-        let index = Tarchive::index(&mut cursor).unwrap();
+        let index = Tarchive::index(&mut cursor, &app_private_key).unwrap();
         
         let lines: Vec<&str> = index.lines().collect();
         assert_eq!(lines.len(), 2);
@@ -74,8 +83,12 @@ mod tests {
         // Verify offset and size
         let parts1: Vec<&str> = lines[0].split_whitespace().collect();
         assert_eq!(parts1[2], "11");
+        assert_eq!(parts1[3], hex::encode(XorName::from_content(b"hello world").0));
+        assert_eq!(parts1[4].len(), 192); // 96 bytes as hex
         
         let parts2: Vec<&str> = lines[1].split_whitespace().collect();
         assert_eq!(parts2[2], "22");
+        assert_eq!(parts2[3], hex::encode(XorName::from_content(b"anttp tarchive support").0));
+        assert_eq!(parts2[4].len(), 192);
     }
 }

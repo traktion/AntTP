@@ -185,6 +185,7 @@ mod tests {
             offset: 0,
             size: 100,
             modified: 0,
+            signature: None,
         });
         
         // Subdirectory file
@@ -194,6 +195,7 @@ mod tests {
             offset: 0,
             size: 200,
             modified: 0,
+            signature: None,
         });
 
         let vec = map.values().cloned().collect();

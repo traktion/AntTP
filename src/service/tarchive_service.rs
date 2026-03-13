@@ -27,6 +27,7 @@ use crate::error::UpdateError;
 use crate::controller::StoreType;
 use crate::model::tarchive::Tarchive;
 use crate::model::archive::Archive;
+use crate::config::anttp_config::AntTpConfig;
 
 #[derive(Debug, Clone)]
 pub struct TarchiveService {
@@ -34,11 +35,12 @@ pub struct TarchiveService {
     tarchive_caching_client: TArchiveCachingClient,
     file_service: FileService,
     resolver_service: ResolverService,
+    ant_tp_config: AntTpConfig,
 }
 
 impl TarchiveService {
-    pub fn new(public_data_service: PublicDataService, tarchive_caching_client: TArchiveCachingClient, file_service: FileService, resolver_service: ResolverService) -> Self {
-        TarchiveService { public_data_service, tarchive_caching_client, file_service, resolver_service }
+    pub fn new(public_data_service: PublicDataService, tarchive_caching_client: TArchiveCachingClient, file_service: FileService, resolver_service: ResolverService, ant_tp_config: AntTpConfig) -> Self {
+        TarchiveService { public_data_service, tarchive_caching_client, file_service, resolver_service, ant_tp_config }
     }
 
     pub async fn get_tarchive(&self, address: String, path: Option<String>) -> Result<ArchiveResponse, TarchiveError> {
@@ -223,7 +225,9 @@ impl TarchiveService {
     fn rebuild_with_index(&self, tar_path: &PathBuf, tmp_dir: &PathBuf) -> Result<PathBuf, TarchiveError> {
         let index_str = {
             let mut tar_file = fs::File::open(tar_path)?;
-            Tarchive::index(&mut tar_file)?
+            let app_private_key = self.ant_tp_config.get_app_private_key()
+                .map_err(|_| TarchiveError::UpdateError(UpdateError::AppKeyMissing("App private key missing or invalid".to_string())))?;
+            Tarchive::index(&mut tar_file, &app_private_key)?
         };
 
         let final_tar_path = tmp_dir.join("final_archive.tar");
@@ -278,6 +282,8 @@ mod tests {
     use crate::client::{MockPublicDataCachingClient, MockChunkCachingClient, MockTArchiveCachingClient};
     use autonomi::data::DataAddress;
     use xor_name::XorName;
+    use clap::Parser;
+
 
     fn create_mock_service() -> TarchiveService {
         let mock_client = MockPublicDataCachingClient::default();
@@ -290,6 +296,7 @@ mod tests {
             });
         let mock_tarchive_client = MockTArchiveCachingClient::default();
         let mut mock_resolver = MockResolverService::default();
+        let config = AntTpConfig::parse_from(&["anttp"]);
 
         mock_resolver.expect_resolve_name()
             .returning(|address| Some(address.clone()));
@@ -305,7 +312,7 @@ mod tests {
         let mut file_service = MockFileService::default();
         file_service.expect_clone().returning(MockFileService::default);
 
-        TarchiveService::new(public_data_service, mock_tarchive_client, file_service, mock_resolver)
+        TarchiveService::new(public_data_service, mock_tarchive_client, file_service, mock_resolver, config)
     }
 
     #[test]
@@ -359,8 +366,9 @@ mod tests {
         let mock_tarchive_client = MockTArchiveCachingClient::default();
         let mut file_service = MockFileService::default();
         file_service.expect_clone().returning(MockFileService::default);
+        let config = AntTpConfig::parse_from(&["anttp", "--app-private-key", "55dcbc4624699d219b8ec293339a3b81e68815397f5a502026784d8122d09fce"]);
 
-        let service = TarchiveService::new(public_data_service, mock_tarchive_client, file_service, mock_resolver);
+        let service = TarchiveService::new(public_data_service, mock_tarchive_client, file_service, mock_resolver, config);
 
         let wallet = Wallet::new_with_random_wallet(autonomi::Network::ArbitrumOne);
         let result = tokio::runtime::Runtime::new().unwrap().block_on(
@@ -395,8 +403,9 @@ mod tests {
         let public_data_service = PublicDataService::new(mock_client, mock_resolver.clone());
         let mut file_service = MockFileService::default();
         file_service.expect_clone().returning(MockFileService::default);
+        let config = AntTpConfig::parse_from(&["anttp"]);
 
-        let service = TarchiveService::new(public_data_service, mock_tarchive_client, file_service, mock_resolver);
+        let service = TarchiveService::new(public_data_service, mock_tarchive_client, file_service, mock_resolver, config);
 
         let xor_name = XorName::from_content(b"test");
         let address = DataAddress::new(xor_name).to_hex();
@@ -442,7 +451,8 @@ mod tests {
         let mut file_service = MockFileService::default();
         file_service.expect_clone().returning(MockFileService::default);
         let mock_tarchive_client = MockTArchiveCachingClient::default();
-        let service = TarchiveService::new(public_data_service, mock_tarchive_client, file_service, mock_resolver);
+        let config = AntTpConfig::parse_from(&["anttp"]);
+        let service = TarchiveService::new(public_data_service, mock_tarchive_client, file_service, mock_resolver, config);
         
         let wallet = Wallet::new_with_random_wallet(autonomi::Network::ArbitrumOne);
 
@@ -481,7 +491,8 @@ mod tests {
         file_service.expect_download_data_bytes()
             .returning(|_, _, _| Ok(bytes::BytesMut::from(b"content1".as_slice())));
 
-        let service = TarchiveService::new(public_data_service, mock_tarchive_client, file_service, mock_resolver);
+        let config = AntTpConfig::parse_from(&["anttp"]);
+        let service = TarchiveService::new(public_data_service, mock_tarchive_client, file_service, mock_resolver, config);
 
         let xor_name = XorName::from_content(b"test");
         let address = DataAddress::new(xor_name).to_hex();

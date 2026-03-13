@@ -103,7 +103,8 @@ async fn fetch_public_data(
                             &caching_client,
                             &streaming_client,
                             &resolver_service,
-                            &file_service
+                            &file_service,
+                            &ant_tp_config_data
                         ).await;
                         get_data_archive(&request, &resolved_address, &header_builder, public_archive_service, archive_info, signature_verified, has_body).await
                     },
@@ -130,7 +131,8 @@ async fn verify_signature(
     caching_client: &CachingClient,
     streaming_client: &StreamingClient,
     resolver_service: &Data<ResolverService>,
-    file_service: &FileService
+    file_service: &FileService,
+    ant_tp_config: &Data<AntTpConfig>
 ) -> Option<bool> {
     // todo: change to verify signature of an XorName (hash) rather than the content
     if !*has_body {
@@ -143,7 +145,7 @@ async fn verify_signature(
                     let tarchive_caching_client = TArchiveCachingClient::new(caching_client.clone(), streaming_client.clone());
                     let public_archive_service = PublicArchiveService::new(file_service.clone(), public_archive_caching_client, public_data_caching_client.clone(), resolver_service.get_ref().clone());
                     let public_data_service = PublicDataService::new(public_data_caching_client, resolver_service.get_ref().clone());
-                    let tarchive_service = TarchiveService::new(public_data_service, tarchive_caching_client, file_service.clone(), resolver_service.get_ref().clone());
+                    let tarchive_service = TarchiveService::new(public_data_service, tarchive_caching_client, file_service.clone(), resolver_service.get_ref().clone(), ant_tp_config.get_ref().clone());
                     let archive_service = ArchiveService::new(public_archive_service, tarchive_service, resolver_service.get_ref().clone(), archive_caching_client);
 
                     if let Ok(archive_raw) = archive_service.get_archive_binary(format!("{:x}", resolved_address.xor_name), Some(archive_info.path_string.clone())).await {
@@ -216,6 +218,13 @@ fn update_partial_content_response(builder: &mut HttpResponseBuilder, resolved_a
     if let Some(verified) = signature_verified {
         builder.insert_header(("x-data-signature-verified", verified.to_string()));
     }
+    if let Some(archive) = &resolved_address.archive {
+        if let Some(data_address_offset) = archive.map().get(&resolved_address.file_path) {
+            if let Some(signature) = &data_address_offset.signature {
+                builder.insert_header(("x-data-signature", signature.clone()));
+            }
+        }
+    }
 }
 
 fn update_full_content_response(builder: &mut HttpResponseBuilder, resolved_address: &ResolvedAddress, header_builder: &HeaderBuilder, range_props: &RangeProps, modified_time: Option<u64>, signature_verified: Option<bool>) {
@@ -232,6 +241,13 @@ fn update_full_content_response(builder: &mut HttpResponseBuilder, resolved_addr
     }
     if let Some(verified) = signature_verified {
         builder.insert_header(("x-data-signature-verified", verified.to_string()));
+    }
+    if let Some(archive) = &resolved_address.archive {
+        if let Some(data_address_offset) = archive.map().get(&resolved_address.file_path) {
+            if let Some(signature) = &data_address_offset.signature {
+                builder.insert_header(("x-data-signature", signature.clone()));
+            }
+        }
     }
 }
 

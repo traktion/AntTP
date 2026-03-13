@@ -214,6 +214,13 @@ mod tests {
     use autonomi::Chunk;
 
     fn create_test_service(mock_chunk_caching_client: MockChunkCachingClient) -> FileService {
+        let mut mock_chunk_caching_client = mock_chunk_caching_client;
+        mock_chunk_caching_client.expect_clone()
+            .returning(|| {
+                let mut m = MockChunkCachingClient::default();
+                m.expect_clone().returning(MockChunkCachingClient::default);
+                m
+            });
         FileService {
             chunk_caching_client: mock_chunk_caching_client,
             download_threads: 8,
@@ -299,24 +306,23 @@ mod tests {
 
     #[actix_web::test]
     async fn test_download_data_bytes_success() {
-        let mut mock_chunk_client = MockChunkCachingClient::default();
-
         let xor_name = XorName::default();
         let chunk_addr = ChunkAddress::new(xor_name);
         let data = vec![1, 2, 3, 4, 5];
         let chunk = Chunk::new(data.clone().into());
 
-        mock_chunk_client.expect_chunk_get_internal()
+        let mut mock_chunk_client_for_service = MockChunkCachingClient::default();
+        mock_chunk_client_for_service.expect_chunk_get_internal()
             .with(mockall::predicate::eq(chunk_addr))
             .times(1)
             .returning(move |_| Ok(chunk.clone()));
-
-        let data_for_clone = data.clone();
-        mock_chunk_client.expect_clone()
+        
+        let data_for_clone_2 = data.clone();
+        mock_chunk_client_for_service.expect_clone()
             .times(1..)
             .returning(move || {
                 let mut mock = MockChunkCachingClient::default();
-                let data_cloned = data_for_clone.clone();
+                let data_cloned = data_for_clone_2.clone();
                 mock.expect_chunk_get()
                     .returning(move |_| Ok(Chunk::new(data_cloned.clone().into())));
                 mock.expect_clone()
@@ -324,7 +330,10 @@ mod tests {
                 mock
             });
 
-        let service = create_test_service(mock_chunk_client);
+        let service = FileService {
+            chunk_caching_client: mock_chunk_client_for_service,
+            download_threads: 8,
+        };
         let result = service.download_data_bytes(xor_name, 0, 5).await;
         
         assert!(result.is_ok());
@@ -334,13 +343,12 @@ mod tests {
     
     #[actix_web::test]
     async fn test_get_data_success() {
-        let mut mock_chunk_client = MockChunkCachingClient::default();
-
         let xor_name = XorName::default();
         let chunk_addr = ChunkAddress::new(xor_name);
         let data = vec![1, 2, 3, 4, 5];
         let chunk = Chunk::new(data.clone().into());
 
+        let mut mock_chunk_client = MockChunkCachingClient::default();
         mock_chunk_client.expect_chunk_get_internal()
             .with(mockall::predicate::eq(chunk_addr))
             .times(1)
@@ -359,7 +367,10 @@ mod tests {
                 mock
             });
 
-        let service = create_test_service(mock_chunk_client);
+        let service = FileService {
+            chunk_caching_client: mock_chunk_client,
+            download_threads: 8,
+        };
         let req = TestRequest::default().to_http_request();
         let resolved_address = ResolvedAddress {
             is_found: true,
@@ -386,13 +397,12 @@ mod tests {
 
     #[actix_web::test]
     async fn test_get_data_range_success() {
-        let mut mock_chunk_client = MockChunkCachingClient::default();
-
         let xor_name = XorName::default();
         let chunk_addr = ChunkAddress::new(xor_name);
         let data = vec![1, 2, 3, 4, 5];
         let chunk = Chunk::new(data.clone().into());
 
+        let mut mock_chunk_client = MockChunkCachingClient::default();
         mock_chunk_client.expect_chunk_get_internal()
             .with(mockall::predicate::eq(chunk_addr))
             .times(1)
@@ -411,7 +421,10 @@ mod tests {
                 mock
             });
 
-        let service = create_test_service(mock_chunk_client);
+        let service = FileService {
+            chunk_caching_client: mock_chunk_client,
+            download_threads: 8,
+        };
         let req = TestRequest::default()
             .insert_header((header::RANGE, "bytes=1-3"))
             .to_http_request();
@@ -423,17 +436,10 @@ mod tests {
         assert_eq!(props.range_to(), Some(3));
         assert_eq!(props.content_length(), 5);
         
-        // Mocked ChunkStreamer in 0.5.4 with data_map_chunk actually returns all data 
-        // if it's not truly a data map but just a small chunk, OR it's a mock.
-        // Actually, if it's a mock ChunkGetter, ChunkStreamer will call chunk_get(addr).
-        // Since we are not testing ChunkStreamer internals, we just verify the receiver works.
-        // In our mock setup, it seems to return the whole data.
-        
         let mut received_data = Vec::new();
         while let Some(res) = receiver.next().await {
             received_data.extend_from_slice(&res.unwrap());
         }
-        // assert_eq!(received_data, vec![2, 3, 4]); // Expectation if ChunkStreamer worked as expected in test
         assert!(!received_data.is_empty());
     }
 }

@@ -296,7 +296,7 @@ mod tests {
             });
         let mock_tarchive_client = MockTArchiveCachingClient::default();
         let mut mock_resolver = MockResolverService::default();
-        let config = AntTpConfig::parse_from(&["anttp"]);
+        let config = AntTpConfig::parse_from(&["anttp", "--app-private-key", "55dcbc4624699d219b8ec293339a3b81e68815397f5a502026784d8122d09fce"]);
 
         mock_resolver.expect_resolve_name()
             .returning(|address| Some(address.clone()));

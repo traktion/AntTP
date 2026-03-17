@@ -43,6 +43,7 @@ impl McpTool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use clap::Parser;
     use crate::service::crypto_service::CryptoService;
     use crate::service::signature_service::SignatureService;
     use actix_web::web::Data;
@@ -75,7 +76,8 @@ mod tests {
         let mut verify_map = HashMap::new();
         verify_map.insert(data_hex.clone(), signature.clone());
 
-        let crypto_service = Data::new(CryptoService::new(SignatureService));
+        let ant_tp_config = crate::config::anttp_config::AntTpConfig::parse_from(&["anttp"]);
+        let crypto_service = Data::new(CryptoService::new(SignatureService, ant_tp_config));
         
         // Use a dummy McpTool just for testing this specific method
         // Since McpTool doesn't have a simple way to be constructed without all services,

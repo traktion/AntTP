@@ -58,6 +58,7 @@ impl CryptoServiceTrait for CryptoHandler {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use clap::Parser;
     use crate::service::signature_service::SignatureService;
     use blsttc::SecretKey;
 
@@ -69,7 +70,8 @@ mod tests {
         let data_hex = hex::encode(data);
         let signature = hex::encode(secret_key.sign(data).to_bytes());
 
-        let crypto_service = Data::new(CryptoService::new(SignatureService));
+        let ant_tp_config = crate::config::anttp_config::AntTpConfig::parse_from(&["anttp"]);
+        let crypto_service = Data::new(CryptoService::new(SignatureService, ant_tp_config));
         let handler = CryptoHandler::new(crypto_service);
 
         let request = Request::new(VerifyRequest {

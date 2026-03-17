@@ -104,7 +104,7 @@ impl RegisterCachingClient {
     pub async fn register_get(&self, address: &RegisterAddress) -> Result<RegisterValue, RegisterError> {
         let local_address = address.clone();
         let local_ant_tp_config = self.caching_client.get_ant_tp_config().clone();
-        let cache_entry = self.caching_client.get_hybrid_cache().get_ref().fetch(format!("{}{}", REGISTER_CACHE_KEY, local_address.to_hex()), {
+        let cache_entry = self.caching_client.get_hybrid_cache().get_ref().get_or_fetch(&format!("{}{}", REGISTER_CACHE_KEY, local_address.to_hex()), {
             let client = self.caching_client.get_client_harness().get_ref().lock().await.get_client().await?;
             || async move {
                 match client.register_get(&local_address).await {
@@ -113,10 +113,10 @@ impl RegisterCachingClient {
                         let cache_item = CacheItem::new(Some(register_value.clone()), local_ant_tp_config.cached_mutable_ttl);
                         match rmp_serde::to_vec(&cache_item) {
                             Ok(cache_item) => Ok(cache_item),
-                            Err(e) => Err(foyer::Error::other(format!("Failed to serialize register for [{}]: {}", local_address.to_hex(), e.to_string())))
+                            Err(e) => Err(anyhow::anyhow!(format!("Failed to serialize register for [{}]: {}", local_address.to_hex(), e.to_string())))
                         }
                     }
-                    Err(e) => Err(foyer::Error::other(format!("Failed to retrieve register for [{}] from network: {}", local_address.to_hex(), e.to_string())))
+                    Err(e) => Err(anyhow::anyhow!(format!("Failed to retrieve register for [{}] from network: {}", local_address.to_hex(), e.to_string())))
                 }
             }
         }).await?;

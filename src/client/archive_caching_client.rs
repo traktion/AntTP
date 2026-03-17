@@ -44,7 +44,7 @@ impl ArchiveCachingClient {
         let local_address = addr.clone();
         let local_streaming_client = self.streaming_client.clone();
         let cache_key = format!("{}{}", ARCHIVE_CACHE_KEY, local_address.to_hex());
-        let cache_entry = self.caching_client.get_hybrid_cache().get_ref().fetch(cache_key.clone(), || async move {
+        let cache_entry = self.caching_client.get_hybrid_cache().get_ref().get_or_fetch(&cache_key.clone(), || async move {
             // todo: can these be injected?
             let public_archive_caching_client = PublicArchiveCachingClient::new(local_caching_client.clone(), local_streaming_client.clone());
             let tarchive_caching_client = TArchiveCachingClient::new(local_caching_client.clone(), local_streaming_client.clone());
@@ -67,14 +67,14 @@ impl ArchiveCachingClient {
                             },
                             Err(err) => {
                                 error!("Failed to retrieve tarchive at [{}] from hybrid cache: {:?}", addr.to_hex(), err);
-                                Err(foyer::Error::other(format!("Failed to retrieve tarchive at [{}] from hybrid cache: {:?}", addr.to_hex(), err)))
+                                Err(anyhow::anyhow!(format!("Failed to retrieve tarchive at [{}] from hybrid cache: {:?}", addr.to_hex(), err)))
                             },
                         }
                     },
                 },
                 Err(err) =>  {
                     error!("Failed to retrieve public archive at [{}] from hybrid cache: {:?}", addr.to_hex(), err);
-                    Err(foyer::Error::other(format!("Failed to retrieve public archive at [{}] from hybrid cache: {:?}", addr.to_hex(), err)))
+                    Err(anyhow::anyhow!(format!("Failed to retrieve public archive at [{}] from hybrid cache: {:?}", addr.to_hex(), err)))
                 }
             }
         }).await?;

@@ -37,7 +37,7 @@ impl TArchiveCachingClient {
     pub async fn get_archive_from_tar(&self, addr: &DataAddress) -> Result<Bytes, GetError> {
         let local_streaming_client = self.streaming_client.clone();
         let local_address = addr.clone();
-        let cache_entry = self.caching_client.get_hybrid_cache().get_ref().fetch(format!("{}{}", TARCHIVE_CACHE_KEY, local_address.to_hex()), || async move {
+        let cache_entry = self.caching_client.get_hybrid_cache().get_ref().get_or_fetch(&format!("{}{}", TARCHIVE_CACHE_KEY, local_address.to_hex()), || async move {
             let trailer_bytes = local_streaming_client.download_stream(&local_address, -20480, 0).await;
             match trailer_bytes {
                 Ok(trailer_bytes) => {
@@ -51,11 +51,11 @@ impl TArchiveCachingClient {
                         },
                         None => {
                             debug!("no archive.tar.idx found in tar trailer");
-                            Err(foyer::Error::other(format!("Failed to retrieve archive.tar.idx in tar trailer for [{}] from network", local_address.to_hex())))
+                            Err(anyhow::anyhow!(format!("Failed to retrieve archive.tar.idx in tar trailer for [{}] from network", local_address.to_hex())))
                         }
                     }
                 },
-                Err(e) => Err(foyer::Error::other(format!("Failed to download stream for [{}] from network {:?}", local_address.to_hex(), e)))
+                Err(e) => Err(anyhow::anyhow!(format!("Failed to download stream for [{}] from network {:?}", local_address.to_hex(), e)))
             }
         }).await?;
         info!("retrieved tarchive for [{}] from hybrid cache", addr.to_hex());

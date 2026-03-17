@@ -24,7 +24,7 @@ use std::sync::Arc;
 use std::time::Duration;
 use actix_web::http::Method;
 use async_job::Runner;
-use foyer::{BlockEngineBuilder, Compression, DeviceBuilder, FsDeviceBuilder, HybridCache, HybridCacheBuilder, HybridCachePolicy, IoEngineBuilder, LfuConfig, PsyncIoEngineBuilder, RecoverMode, RuntimeOptions, TokioRuntimeOptions};
+use foyer::{BlockEngineConfig, Compression, DeviceBuilder, FsDeviceBuilder, HybridCache, HybridCacheBuilder, HybridCachePolicy, LfuConfig, PsyncIoEngineConfig, RecoverMode};
 use indexmap::IndexMap;
 use mockall_double::double;
 use rmcp_actix_web::transport::{StreamableHttpService};
@@ -716,15 +716,13 @@ async fn build_foyer_cache(app_config: &AntTpConfig) -> HybridCache<String, Vec<
         let device = FsDeviceBuilder::new(Path::new(cache_dir.as_str()))
             .with_capacity(app_config.immutable_disk_cache_size * 1024 * 1024)
             .build().expect("Failed to build FsDevice");
-        let io_engine = PsyncIoEngineBuilder::new()
-            .build().await.expect("Failed to build IoEngine");
 
         builder
-            .with_io_engine(io_engine)
-            .with_engine_config(BlockEngineBuilder::new(device))
+            .with_io_engine_config(PsyncIoEngineConfig::new())
+            .with_engine_config(BlockEngineConfig::new(device))
             .with_recover_mode(RecoverMode::Quiet)
             .with_compression(Compression::None) // as chunks are already compressed
-            .with_runtime_options(RuntimeOptions::Separated {
+            /*.with_runtime_options(RuntimeOptions::Separated {
                 read_runtime_options: TokioRuntimeOptions {
                     worker_threads: app_config.download_threads,
                     max_blocking_threads: 8,
@@ -733,7 +731,7 @@ async fn build_foyer_cache(app_config: &AntTpConfig) -> HybridCache<String, Vec<
                     worker_threads: app_config.download_threads,
                     max_blocking_threads: 8,
                 },
-            }).build().await.expect("Failed to build hybrid in-memory/on-disk cache")
+            })*/.build().await.expect("Failed to build hybrid in-memory/on-disk cache")
     } else {
         builder.build().await.expect("Failed to build in-memory cache")
     }

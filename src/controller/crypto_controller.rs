@@ -22,7 +22,7 @@ use crate::service::crypto_service::{CryptoService, Verify};
         (status = OK, description = "Verification results", body = HashMap<String, Verify>),
     )
 )]
-pub async fn get_verify(
+pub async fn post_verify(
     path: web::Path<String>,
     crypto_service: Data<CryptoService>,
     data_map: web::Json<HashMap<String, Verify>>,

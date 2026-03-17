@@ -6,7 +6,7 @@ Given pointer_controller.rs already exists and provides a GET endpoint
 When adding crypto_controller.rs for cryptographic REST endpoints
 Then use pointer_controller.rs as an example
 And add an /anttp-0/crypto/verify/{public_key} endpoint which takes a body as a list of pairs, which contain data hex strings and signature hex strings
-And define 'get_verify' as the associated function
+And define 'post_verify' as the associated function
 
 Given pointer_service.rs already exists and provides a get_pointer function
 When adding crypto_service.rs for performing cryptographic operations
@@ -17,7 +17,7 @@ And returns a map of 'data => (signature, verified)' with verified populated by 
 Given pointer_service.rs defines Pointer struct for holding pointer properties
 When adding Verify struct for holding signatures and whether they are verified
 Then define a struct which holds 'signature' as a hex string and 'verified' as an optional boolean
-And allow crypto_controller.get_verify and crypto_service.verify to accept an iterable map of Verify structs, with the key being the data (which has been signed)
+And allow crypto_controller.post_verify and crypto_service.verify to accept an iterable map of Verify structs, with the key being the data (which has been signed)
 And the JSON payload must look like the below, with the data being the key and the signature being the value
 
 ```

@@ -172,7 +172,7 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> io::Result<()> {
             key_value_controller::get_key_value,
             key_value_controller::get_key_value_binary,
             resolver_controller::resolve,
-            crypto_controller::get_verify
+            crypto_controller::post_verify
         ),
         components(
             schemas(PublicArchiveForm, ArchiveForm, Upload, ArchiveResponse, Chunk, ArchiveType, Resolve, Verify)
@@ -449,7 +449,7 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> io::Result<()> {
             )
             .route(
                 format!("{}crypto/verify/{{public_key}}", API_BASE).as_str(),
-                web::post().to(crypto_controller::get_verify)
+                web::post().to(crypto_controller::post_verify)
             )
             .route(
                 "/{path:.*}",

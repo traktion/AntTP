@@ -63,12 +63,18 @@ impl GraphEntryCachingClient {
     fn cache_graph_entry(&self, graph_entry: GraphEntry, store_type: StoreType) {
         let ttl = if store_type != StoreType::Network { u64::MAX } else { self.caching_client.get_ant_tp_config().cached_mutable_ttl };
         let cache_item = CacheItem::new(Some(graph_entry.clone()), ttl);
-        let serialised_cache_item = rmp_serde::to_vec(&cache_item).expect("Failed to serialize graph entry");
-        info!("updating cache with graph_entry at address {}[{}] and TTL [{}]", GRAPH_ENTRY_CACHE_KEY, graph_entry.address().to_hex(), ttl);
-        if store_type == StoreType::Disk {
-            self.caching_client.get_hybrid_cache().insert(format!("{}{}", GRAPH_ENTRY_CACHE_KEY, graph_entry.address().to_hex()), serialised_cache_item);
-        } else {
-            self.caching_client.get_hybrid_cache().memory().insert(format!("{}{}", GRAPH_ENTRY_CACHE_KEY, graph_entry.address().to_hex()), serialised_cache_item);
+        match rmp_serde::to_vec(&cache_item) {
+            Ok(serialised_cache_item) => {
+                info!("updating cache with graph_entry at address {}[{}] and TTL [{}]", GRAPH_ENTRY_CACHE_KEY, graph_entry.address().to_hex(), ttl);
+                if store_type == StoreType::Disk {
+                    self.caching_client.get_hybrid_cache().insert(format!("{}{}", GRAPH_ENTRY_CACHE_KEY, graph_entry.address().to_hex()), serialised_cache_item);
+                } else {
+                    self.caching_client.get_hybrid_cache().memory().insert(format!("{}{}", GRAPH_ENTRY_CACHE_KEY, graph_entry.address().to_hex()), serialised_cache_item);
+                }
+            },
+            Err(e) => {
+                log::warn!("Failed to serialize graph entry for [{}]: {}", graph_entry.address().to_hex(), e.to_string());
+            }
         }
     }
 

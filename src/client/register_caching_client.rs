@@ -91,12 +91,18 @@ impl RegisterCachingClient {
         let register_address = RegisterAddress::new(owner.public_key());
         let ttl = if store_type != StoreType::Network { u64::MAX } else { self.caching_client.get_ant_tp_config().cached_mutable_ttl };
         let cache_item = CacheItem::new(Some(register_value.clone()), ttl);
-        let serialised_cache_item = rmp_serde::to_vec(&cache_item).expect("Failed to serialize register");
-        info!("updating cache with register at address {}[{}] to value [{:?}] and TTL [{}]", REGISTER_CACHE_KEY, register_address.to_hex(), register_value, ttl);
-        if store_type == StoreType::Disk {
-            self.caching_client.get_hybrid_cache().insert(format!("{}{}", REGISTER_CACHE_KEY, register_address.to_hex()), serialised_cache_item);
-        } else {
-            self.caching_client.get_hybrid_cache().memory().insert(format!("{}{}", REGISTER_CACHE_KEY, register_address.to_hex()), serialised_cache_item);
+        match rmp_serde::to_vec(&cache_item) {
+            Ok(serialised_cache_item) => {
+                info!("updating cache with register at address {}[{}] to value [{:?}] and TTL [{}]", REGISTER_CACHE_KEY, register_address.to_hex(), register_value, ttl);
+                if store_type == StoreType::Disk {
+                    self.caching_client.get_hybrid_cache().insert(format!("{}{}", REGISTER_CACHE_KEY, register_address.to_hex()), serialised_cache_item);
+                } else {
+                    self.caching_client.get_hybrid_cache().memory().insert(format!("{}{}", REGISTER_CACHE_KEY, register_address.to_hex()), serialised_cache_item);
+                }
+            },
+            Err(e) => {
+                log::warn!("Failed to serialize register for [{}]: {}", register_address.to_hex(), e.to_string());
+            }
         }
         register_address
     }

@@ -57,13 +57,19 @@ impl ArchiveCachingClient {
                 Ok(bytes) => match PublicArchive::from_bytes(bytes).ok() {
                     Some(public_archive) => {
                         debug!("found public archive at [{}]", local_address.to_hex());
-                        Ok(rmp_serde::to_vec(&Archive::build_from_public_archive(public_archive)).expect("Failed to serialize public archive"))
+                        match rmp_serde::to_vec(&Archive::build_from_public_archive(public_archive)) {
+                            Ok(bytes) => Ok(bytes),
+                            Err(e) => Err(anyhow::anyhow!(format!("Failed to serialize public archive for [{}]: {}", local_address.to_hex(), e.to_string())))
+                        }
                     },
                     None => {
                         match tarchive {
                             Ok(bytes) => {
                                 debug!("found tarchive at [{}]", local_address.to_hex());
-                                Ok(rmp_serde::to_vec(&Archive::build_from_tar(&addr, bytes)).expect("Failed to serialize tarchive"))
+                                match rmp_serde::to_vec(&Archive::build_from_tar(&addr, bytes)) {
+                                    Ok(bytes) => Ok(bytes),
+                                    Err(e) => Err(anyhow::anyhow!(format!("Failed to serialize tarchive for [{}]: {}", local_address.to_hex(), e.to_string())))
+                                }
                             },
                             Err(err) => {
                                 error!("Failed to retrieve tarchive at [{}] from hybrid cache: {:?}", addr.to_hex(), err);

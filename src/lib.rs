@@ -722,16 +722,15 @@ async fn build_foyer_cache(app_config: &AntTpConfig) -> HybridCache<String, Vec<
             .with_engine_config(BlockEngineConfig::new(device))
             .with_recover_mode(RecoverMode::Quiet)
             .with_compression(Compression::None) // as chunks are already compressed
-            /*.with_runtime_options(RuntimeOptions::Separated {
-                read_runtime_options: TokioRuntimeOptions {
-                    worker_threads: app_config.download_threads,
-                    max_blocking_threads: 8,
-                },
-                write_runtime_options: TokioRuntimeOptions {
-                    worker_threads: app_config.download_threads,
-                    max_blocking_threads: 8,
-                },
-            })*/.build().await.expect("Failed to build hybrid in-memory/on-disk cache")
+            .with_spawner(tokio::runtime::Builder::new_multi_thread()
+                              .enable_all()
+                              .worker_threads(4)
+                              .max_blocking_threads(8)
+                              .build()
+                              .unwrap()
+                              .into()
+            )
+            .build().await.expect("Failed to build hybrid in-memory/on-disk cache")
     } else {
         builder.build().await.expect("Failed to build in-memory cache")
     }

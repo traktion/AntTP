@@ -62,6 +62,7 @@ use crate::service::access_checker::AccessChecker;
 use crate::service::bookmark_resolver::BookmarkResolver;
 use crate::service::pointer_name_resolver::PointerNameResolver;
 use crate::service::pnr_service::PnrService;
+use crate::service::crypto_service::{CryptoService, Verify};
 use crate::service::key_value_service::KeyValueService;
 use crate::service::chunk_service::{Chunk, ChunkService};
 use crate::service::command_service::CommandService;
@@ -170,10 +171,11 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> io::Result<()> {
             key_value_controller::post_key_value_binary,
             key_value_controller::get_key_value,
             key_value_controller::get_key_value_binary,
-            resolver_controller::resolve
+            resolver_controller::resolve,
+            crypto_controller::get_verify
         ),
         components(
-            schemas(PublicArchiveForm, ArchiveForm, Upload, ArchiveResponse, Chunk, ArchiveType, Resolve)
+            schemas(PublicArchiveForm, ArchiveForm, Upload, ArchiveResponse, Chunk, ArchiveType, Resolve, Verify)
         )
     )]
     struct ApiDoc;
@@ -264,6 +266,7 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> io::Result<()> {
     ));
     let pnr_service_data = Data::new(PnrService::new(chunk_caching_client.clone(), pointer_service_data.clone()));
     let key_value_service_data = Data::new(KeyValueService::new(public_data_service_data.clone(), pnr_service_data.clone()));
+    let crypto_service_data = Data::new(CryptoService::new(crate::service::signature_service::SignatureService));
 
     // MCP
     let mcp_tool = McpTool::new(
@@ -445,6 +448,10 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> io::Result<()> {
                 web::get().to(resolver_controller::resolve)
             )
             .route(
+                format!("{}crypto/verify/{{public_key}}", API_BASE).as_str(),
+                web::post().to(crypto_controller::get_verify)
+            )
+            .route(
                 "/{path:.*}",
                 web::get().to(file_controller::get_public_data),
             )
@@ -465,6 +472,7 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> io::Result<()> {
             .app_data(chunk_service_data.clone())
             .app_data(graph_service_data.clone())
             .app_data(pointer_service_data.clone())
+            .app_data(crypto_service_data.clone())
             .app_data(public_archive_service_data.clone())
             .app_data(tarchive_service_data.clone())
             .app_data(archive_service_data.clone())

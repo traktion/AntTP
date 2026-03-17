@@ -19,6 +19,7 @@ pub mod pointer_name_resolver;
 pub mod pnr_service;
 pub mod key_value_service;
 pub mod signature_service;
+pub mod crypto_service;
 
 use crate::config::anttp_config::AntTpConfig;
 use crate::controller::DataKey;

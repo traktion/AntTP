@@ -1,0 +1,58 @@
+As an AntTP user
+I want to be able to provide some data, it's cryptographic signature and a public key using a REST endpoint
+So that I can verify that the associated private key was used to sign the data
+
+Given pointer_controller.rs already exists and provides a GET endpoint
+When adding crypto_controller.rs for cryptographic REST endpoints
+Then use pointer_controller.rs as an example
+And add an /anttp-0/crypto/verify/{public_key} endpoint which takes a body as a list of pairs, which contain data hex strings and signature hex strings
+And define 'get_verify' as the associated function
+
+Given pointer_service.rs already exists and provides a get_pointer function
+When adding crypto_service.rs for performing cryptographic operations
+Then use pointer_service.rs as an example for creating 'verify' as a the function to verify signatures
+And 'verify' must take a 'public_key' (hex string) and the map of 'data => signature' pairs
+And returns a map of 'data => (signature, verified)' with verified populated by the signature verification result
+
+Given pointer_service.rs defines Pointer struct for holding pointer properties
+When adding Verify struct for holding signatures and whether they are verified
+Then define a struct which holds 'signature' as a hex string and 'verified' as an optional boolean
+And allow crypto_controller.get_verify and crypto_service.verify to accept an iterable map of Verify structs, with the key being the data (which has been signed)
+And the JSON payload must look like the below, with the data being the key and the signature being the value
+
+```
+{
+  "data_hex_1" : {
+    "signature": "signature_hex_1",
+    "verified": "true"
+  },
+  "data_hex_2" : {
+    "signature": "signature_hex_2",
+    "verified": "false"
+  },
+  "data_hex_3" : {
+    "signature": "signature_hex_3",
+  },
+  ...
+  "data_hex_N" : {
+    "signature": "signature_hex_N",
+    "verified": "false"
+  }
+}
+```
+
+Given the verify function in the pointer service must take a public key and a set of data/signature pairs and return the same set with the 'verified' value populated with true/false
+When verify function is defined
+Then it must accept the public_key and the Verify map
+And the map must be iterated over, and each data/signature pair must be verified
+And signature_service.rs should be used to verify the signature
+And SignatureService should be enhanced to include a verify_hex function, which accepts hex strings instead of bytes
+And share 'verify' code to avoid duplicating logic
+
+Implementation Notes
+
+- Place any unit tests at the bottom of the same file as the associated production code
+- Increment patch version of anttp package in Cargo.toml
+- Create a copy of this issue description and save to /spec using the name of this issue as the filename (with lower underscore case, starting with the 5 char padded issue number, e.g. 00001_issue_title.txt)
+- Update unit tests to validate the changes
+- Update newman tests to include the new endpoint

@@ -16,6 +16,7 @@ pub mod connect_controller;
 pub mod pnr_controller;
 pub mod key_value_controller;
 pub mod resolver_controller;
+pub mod crypto_controller;
 
 #[derive(Clone,Debug)]
 pub enum StoreType {

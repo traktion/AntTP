@@ -1,0 +1,34 @@
+As a Tarchive user
+I want to create tarchives with an archive.tar.idx that includes the file XorName and blsttc signature
+So that I can allow others to easily verify that I created
+
+Given tarchive_service.rs needs to generate signatures from a blsttc private key
+When adding capability to TarchiveService
+Then add a dependency for AnttpConfig and ensure it is provided where TarchiveService is instantiated
+
+Given a tarchive should include XorNames and blsttc signatures for each file in the archive
+When creating the index using 'index' function in tarchive_service.rs
+Then for each entry_result generate an XorName string using from_content
+And also generate a blsttc signature by calling Signature::from_bytes with the XorName bytes as the message and AnttpConfig.app_private_key as the private key
+And then output both values out, as hex strings, to the index entry, after size (separated by spaces)  
+
+Given archive.rs already defines Archive and DataAddressOffset
+When adding XorName and signature to tarchives
+Then build_from_tar should be updated to get the XorName and Signature from the tar_index parts
+And then DataAddressOffset.data_address should be assigned the XorName value
+And DataAddressOffset.signature field should be added and populated with the (optional) blsttc signature
+
+Given archive.rs already contains build_from_public_archive for building archives from public archives
+When building an archive from a public archive
+Then set signature to None
+
+Given file_controller.rs already returns response headers for archive file requests
+When creating response headers on responses
+Then update update_full_content_response and update_partial_content_response to include a new a new 'x-data-signature' header containing the signature (from resolved_address.archive.get(resolved_address.filepath).signature, if it exists)
+
+Implementation Notes
+
+- Place any unit tests at the bottom of the same file as the associated production code
+- Increment patch version of anttp package in Cargo.toml
+- Create a copy of this issue description and save to /spec using the name of this issue as the filename (with lower underscore case, starting with the 5 char padded issue number, e.g. 00001_issue_title.txt)
+- Update unit tests to validate the changes

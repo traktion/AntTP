@@ -11,6 +11,7 @@ use crate::service::archive_service::ArchiveService;
 use crate::service::tarchive_service::TarchiveService;
 use crate::service::resolver_service::ResolverService;
 use crate::service::key_value_service::KeyValueService;
+use crate::service::crypto_service::CryptoService;
 use actix_web::web::Data;
 use ant_evm::EvmWallet;
 use rmcp::handler::server::tool::ToolRouter;
@@ -32,6 +33,7 @@ pub mod private_scratchpad_tool;
 pub mod tarchive_tool;
 pub mod resolver_tool;
 pub mod key_value_tool;
+pub mod crypto_tool;
 
 #[derive(Debug, Clone)]
 pub struct McpTool {
@@ -48,6 +50,7 @@ pub struct McpTool {
     tarchive_service: Data<TarchiveService>,
     resolver_service: Data<ResolverService>,
     key_value_service: Data<KeyValueService>,
+    crypto_service: Data<CryptoService>,
     evm_wallet: Data<EvmWallet>,
     tool_router: ToolRouter<Self>,
 }
@@ -67,6 +70,7 @@ impl McpTool {
         tarchive_service: Data<TarchiveService>,
         resolver_service: Data<ResolverService>,
         key_value_service: Data<KeyValueService>,
+        crypto_service: Data<CryptoService>,
         evm_wallet: Data<EvmWallet>
     ) -> Self {
         Self {
@@ -83,6 +87,7 @@ impl McpTool {
             tarchive_service,
             resolver_service,
             key_value_service,
+            crypto_service,
             evm_wallet,
             tool_router: Self::chunk_tool_router()
                 + Self::pnr_tool_router()
@@ -98,6 +103,7 @@ impl McpTool {
                 + Self::tarchive_tool_router()
                 + Self::resolver_tool_router()
                 + Self::key_value_tool_router()
+                + Self::crypto_tool_router()
         }
     }
 }

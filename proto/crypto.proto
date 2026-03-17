@@ -1,0 +1,23 @@
+syntax = "proto3";
+
+package crypto;
+
+service CryptoService {
+  rpc Verify(VerifyRequest) returns (VerifyResponse);
+}
+
+message Verify {
+  string data = 1;
+  string signature = 2;
+  bool verified = 3;
+}
+
+message VerifyRequest {
+  string public_key = 1;
+  repeated Verify verify = 2;
+}
+
+message VerifyResponse {
+  string public_key = 1;
+  repeated Verify verify = 2;
+}

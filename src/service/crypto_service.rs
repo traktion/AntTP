@@ -9,6 +9,7 @@ pub struct Verify {
     pub verified: Option<bool>,
 }
 
+#[derive(Debug)]
 pub struct CryptoService {
     signature_service: SignatureService,
 }

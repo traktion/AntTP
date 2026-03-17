@@ -107,6 +107,8 @@ use crate::grpc::public_scratchpad_handler::{PublicScratchpadHandler, PublicScra
 use crate::grpc::resolver_handler::{ResolverHandler, ResolverServiceServer};
 #[cfg(not(grpc_disabled))]
 use crate::grpc::key_value_handler::{KeyValueHandler, KeyValueServiceServer};
+#[cfg(not(grpc_disabled))]
+use crate::grpc::crypto_handler::{CryptoHandler, CryptoServiceServer};
 
 static ACTIX_SERVER_HANDLE: Lazy<Mutex<Option<ServerHandle>>> = Lazy::new(|| Mutex::new(None));
 #[cfg(not(grpc_disabled))]
@@ -283,6 +285,7 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> io::Result<()> {
         tarchive_service_data.clone(),
         resolver_service_data.clone(),
         key_value_service_data.clone(),
+        crypto_service_data.clone(),
         evm_wallet_data.clone()
     );
     let mcp_tool_service = StreamableHttpService::builder()
@@ -309,6 +312,7 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> io::Result<()> {
         let public_scratchpad_handler = PublicScratchpadHandler::new(scratchpad_service_data.clone(), evm_wallet_data.clone());
         let resolver_handler = ResolverHandler::new(resolver_service_data.clone());
         let key_value_handler = KeyValueHandler::new(key_value_service_data.clone(), evm_wallet_data.clone());
+        let crypto_handler = CryptoHandler::new(crypto_service_data.clone());
 
         let (tx, rx) = oneshot::channel::<()>();
         {
@@ -333,6 +337,7 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> io::Result<()> {
                 .add_service(PublicScratchpadServiceServer::new(public_scratchpad_handler))
                 .add_service(ResolverServiceServer::new(resolver_handler))
                 .add_service(KeyValueServiceServer::new(key_value_handler))
+                .add_service(CryptoServiceServer::new(crypto_handler))
                 .serve_with_shutdown(grpc_listen_address, async {
                     rx.await.ok();
                 })

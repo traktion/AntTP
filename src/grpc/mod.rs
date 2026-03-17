@@ -26,3 +26,5 @@ pub mod public_scratchpad_handler;
 pub mod resolver_handler;
 #[cfg(not(grpc_disabled))]
 pub mod key_value_handler;
+#[cfg(not(grpc_disabled))]
+pub mod crypto_handler;

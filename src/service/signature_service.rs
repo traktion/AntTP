@@ -1,6 +1,7 @@
 use blsttc::{PublicKey, Signature};
 use base64::{engine::general_purpose, Engine as _};
 
+#[derive(Debug)]
 pub struct SignatureService;
 
 impl SignatureService {

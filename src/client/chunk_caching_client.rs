@@ -62,7 +62,7 @@ impl ChunkCachingClient {
 
     pub async fn chunk_get_internal(&self, address: &ChunkAddress) -> Result<Chunk, ChunkError> {
         let local_address = address.clone();
-        let cache_entry = self.caching_client.get_hybrid_cache().get_ref().fetch(local_address.to_hex(), {
+        let cache_entry = self.caching_client.get_hybrid_cache().get_ref().get_or_fetch(&local_address.to_hex(), {
             let client = self.caching_client.get_client_harness().get_ref().lock().await.get_client().await?;
             || async move {
                 match client.chunk_get(&local_address).await {
@@ -72,7 +72,7 @@ impl ChunkCachingClient {
                     }
                     Err(err) => {
                         error!("Failed to retrieve chunk for [{}] from network {:?}", local_address.to_hex(), err);
-                        Err(foyer::Error::other(format!("Failed to retrieve chunk for [{}] from network {:?}", local_address.to_hex(), err)))
+                        Err(anyhow::anyhow!(format!("Failed to retrieve chunk for [{}] from network {:?}", local_address.to_hex(), err)))
                     }
                 }
             }

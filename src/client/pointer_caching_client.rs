@@ -97,12 +97,18 @@ impl PointerCachingClient {
         let pointer = Pointer::new(owner, counter.unwrap_or(0), target.clone());
         let ttl = if store_type != StoreType::Network { u64::MAX } else { self.caching_client.get_ant_tp_config().cached_mutable_ttl };
         let cache_item = CacheItem::new(Some(pointer.clone()), ttl);
-        let serialised_cache_item = rmp_serde::to_vec(&cache_item).expect("Failed to serialize pointer");
-        info!("updating cache with pointer at address {}[{}] to target [{}] and TTL [{}]", POINTER_CACHE_KEY, pointer.address().to_hex(), target.to_hex(), ttl);
-        if store_type == StoreType::Disk {
-            self.caching_client.get_hybrid_cache().insert(format!("{}{}", POINTER_CACHE_KEY, pointer.address().to_hex()), serialised_cache_item);
-        } else {
-            self.caching_client.get_hybrid_cache().memory().insert(format!("{}{}", POINTER_CACHE_KEY, pointer.address().to_hex()), serialised_cache_item);
+        match rmp_serde::to_vec(&cache_item) {
+            Ok(serialised_cache_item) => {
+                info!("updating cache with pointer at address {}[{}] to target [{}] and TTL [{}]", POINTER_CACHE_KEY, pointer.address().to_hex(), target.to_hex(), ttl);
+                if store_type == StoreType::Disk {
+                    self.caching_client.get_hybrid_cache().insert(format!("{}{}", POINTER_CACHE_KEY, pointer.address().to_hex()), serialised_cache_item);
+                } else {
+                    self.caching_client.get_hybrid_cache().memory().insert(format!("{}{}", POINTER_CACHE_KEY, pointer.address().to_hex()), serialised_cache_item);
+                }
+            },
+            Err(e) => {
+                warn!("Failed to serialize pointer for [{}]: {}", pointer.address().to_hex(), e.to_string());
+            }
         }
         pointer
     }
@@ -155,31 +161,40 @@ impl PointerCachingClient {
     async fn get_cache_item(&self, address: &PointerAddress) -> Result<CacheItem<Pointer>, PointerError> {
         let local_address = address.clone();
         let local_ant_tp_config = self.caching_client.get_ant_tp_config().clone();
-        let cache_entry = self.caching_client.get_hybrid_cache().get_ref().fetch(format!("{}{}", POINTER_CACHE_KEY, local_address.to_hex()), {
+        let cache_entry = self.caching_client.get_hybrid_cache().get_ref().get_or_fetch(&format!("{}{}", POINTER_CACHE_KEY, local_address.to_hex()), {
             let client = self.caching_client.get_client_harness().get_ref().lock().await.get_client().await?;
             || async move {
                 match client.pointer_get(&local_address).await {
                     Ok(pointer) => {
                         debug!("found pointer [{}] for address [{}]", hex::encode(pointer.target().to_hex()), local_address.to_hex());
                         let cache_item = CacheItem::new(Some(pointer.clone()), local_ant_tp_config.cached_mutable_ttl);
-                        Ok(rmp_serde::to_vec(&cache_item).expect("Failed to serialize pointer"))
+                        match rmp_serde::to_vec(&cache_item) {
+                            Ok(cache_item) => Ok(cache_item),
+                            Err(e) => Err(anyhow::anyhow!(format!("Failed to serialize pointer for [{}]: {}", local_address.to_hex(), e.to_string())))
+                        }
                     },
                     Err(e) => {
                         // store negative cache to avoid repeated lookups
                         debug!("failed to find pointer for address [{}]: {}", local_address.to_hex(), e);
                         let cache_item: CacheItem<Pointer> = CacheItem::new(None, local_ant_tp_config.cached_mutable_ttl * 10);
-                        Ok(rmp_serde::to_vec(&cache_item).expect("Failed to serialize pointer"))
+                        match rmp_serde::to_vec(&cache_item) {
+                            Ok(cache_item) => Ok(cache_item),
+                            Err(e) => Err(anyhow::anyhow!(format!("Failed to serialize pointer for [{}]: {}", local_address.to_hex(), e.to_string())))
+                        }
                     }
                 }
             }
         }).await?;
-        Ok(rmp_serde::from_slice(cache_entry.value()).expect("Failed to deserialize pointer"))
+        match rmp_serde::from_slice(cache_entry.value()) {
+            Ok(cache_item) => Ok(cache_item),
+            Err(e) => Err(PointerError::GetError(GetError::RecordNotFound(format!("Failed to deserialize pointer for [{}]: {}", local_address.to_hex(), e.to_string()))))
+        }
     }
 
     pub async fn pointer_check_existence(&self, address: &PointerAddress) -> Result<bool, PointerError> {
         let local_address = address.clone();
         let local_ant_tp_config = self.caching_client.get_ant_tp_config().clone();
-        let cache_entry = self.caching_client.get_hybrid_cache().get_ref().fetch(format!("{}{}", POINTER_CHECK_CACHE_KEY, local_address.to_hex()), {
+        let cache_entry = self.caching_client.get_hybrid_cache().get_ref().get_or_fetch(&format!("{}{}", POINTER_CHECK_CACHE_KEY, local_address.to_hex()), {
             let client = self.caching_client.get_client_harness().get_ref().lock().await.get_client().await?;
             || async move {
                 match client.pointer_check_existence(&local_address).await {
@@ -188,14 +203,17 @@ impl PointerCachingClient {
                         let cache_item = CacheItem::new(Some(true), local_ant_tp_config.cached_mutable_ttl);
                         match rmp_serde::to_vec(&cache_item) {
                             Ok(cache_item) => Ok(cache_item),
-                            Err(e) => Err(foyer::Error::other(format!("Failed to serialize pointer for [{}]: {}", local_address.to_hex(), e.to_string())))
+                            Err(e) => Err(anyhow::anyhow!(format!("Failed to serialize pointer for [{}]: {}", local_address.to_hex(), e.to_string())))
                         }
                     },
                     Err(e) => {
                         // store negative cache to avoid repeated lookups
                         debug!("failed to find pointer exists for address [{}]: {}", local_address.to_hex(), e);
                         let cache_item: CacheItem<Pointer> = CacheItem::new(None, local_ant_tp_config.cached_mutable_ttl * 10);
-                        Ok(rmp_serde::to_vec(&cache_item).expect("Failed to serialize pointer"))
+                        match rmp_serde::to_vec(&cache_item) {
+                            Ok(cache_item) => Ok(cache_item),
+                            Err(e) => Err(anyhow::anyhow!(format!("Failed to serialize pointer for [{}]: {}", local_address.to_hex(), e.to_string())))
+                        }
                     }
                 }
             }

@@ -44,7 +44,7 @@ impl ArchiveCachingClient {
         let local_address = addr.clone();
         let local_streaming_client = self.streaming_client.clone();
         let cache_key = format!("{}{}", ARCHIVE_CACHE_KEY, local_address.to_hex());
-        let cache_entry = self.caching_client.get_hybrid_cache().get_ref().fetch(cache_key.clone(), || async move {
+        let cache_entry = self.caching_client.get_hybrid_cache().get_ref().get_or_fetch(&cache_key.clone(), || async move {
             // todo: can these be injected?
             let public_archive_caching_client = PublicArchiveCachingClient::new(local_caching_client.clone(), local_streaming_client.clone());
             let tarchive_caching_client = TArchiveCachingClient::new(local_caching_client.clone(), local_streaming_client.clone());
@@ -57,24 +57,30 @@ impl ArchiveCachingClient {
                 Ok(bytes) => match PublicArchive::from_bytes(bytes).ok() {
                     Some(public_archive) => {
                         debug!("found public archive at [{}]", local_address.to_hex());
-                        Ok(rmp_serde::to_vec(&Archive::build_from_public_archive(public_archive)).expect("Failed to serialize public archive"))
+                        match rmp_serde::to_vec(&Archive::build_from_public_archive(public_archive)) {
+                            Ok(bytes) => Ok(bytes),
+                            Err(e) => Err(anyhow::anyhow!(format!("Failed to serialize public archive for [{}]: {}", local_address.to_hex(), e.to_string())))
+                        }
                     },
                     None => {
                         match tarchive {
                             Ok(bytes) => {
                                 debug!("found tarchive at [{}]", local_address.to_hex());
-                                Ok(rmp_serde::to_vec(&Archive::build_from_tar(&addr, bytes)).expect("Failed to serialize tarchive"))
+                                match rmp_serde::to_vec(&Archive::build_from_tar(&addr, bytes)) {
+                                    Ok(bytes) => Ok(bytes),
+                                    Err(e) => Err(anyhow::anyhow!(format!("Failed to serialize tarchive for [{}]: {}", local_address.to_hex(), e.to_string())))
+                                }
                             },
                             Err(err) => {
                                 error!("Failed to retrieve tarchive at [{}] from hybrid cache: {:?}", addr.to_hex(), err);
-                                Err(foyer::Error::other(format!("Failed to retrieve tarchive at [{}] from hybrid cache: {:?}", addr.to_hex(), err)))
+                                Err(anyhow::anyhow!(format!("Failed to retrieve tarchive at [{}] from hybrid cache: {:?}", addr.to_hex(), err)))
                             },
                         }
                     },
                 },
                 Err(err) =>  {
                     error!("Failed to retrieve public archive at [{}] from hybrid cache: {:?}", addr.to_hex(), err);
-                    Err(foyer::Error::other(format!("Failed to retrieve public archive at [{}] from hybrid cache: {:?}", addr.to_hex(), err)))
+                    Err(anyhow::anyhow!(format!("Failed to retrieve public archive at [{}] from hybrid cache: {:?}", addr.to_hex(), err)))
                 }
             }
         }).await?;

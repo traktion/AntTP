@@ -161,12 +161,18 @@ impl ScratchpadCachingClient {
 
         let ttl = if store_type != StoreType::Network { u64::MAX } else { self.caching_client.get_ant_tp_config().cached_mutable_ttl };
         let cache_item = CacheItem::new(Some(scratchpad.clone()), ttl);
-        let serialised_cache_item = rmp_serde::to_vec(&cache_item).expect("Failed to serialize scratchpad");
-        info!("updating cache with scratchpad at address {}[{}] to value [{:?}] and TTL [{}]", SCRATCHPAD_CACHE_KEY, scratchpad_address.to_hex(), scratchpad, ttl);
-        if store_type == StoreType::Disk {
-            self.caching_client.get_hybrid_cache().insert(format!("{}{}", SCRATCHPAD_CACHE_KEY, scratchpad_address.to_hex()), serialised_cache_item);
-        } else {
-            self.caching_client.get_hybrid_cache().memory().insert(format!("{}{}", SCRATCHPAD_CACHE_KEY, scratchpad_address.to_hex()), serialised_cache_item);
+        match rmp_serde::to_vec(&cache_item) {
+            Ok(serialised_cache_item) => {
+                info!("updating cache with scratchpad at address {}[{}] to value [{:?}] and TTL [{}]", SCRATCHPAD_CACHE_KEY, scratchpad_address.to_hex(), scratchpad, ttl);
+                if store_type == StoreType::Disk {
+                    self.caching_client.get_hybrid_cache().insert(format!("{}{}", SCRATCHPAD_CACHE_KEY, scratchpad_address.to_hex()), serialised_cache_item);
+                } else {
+                    self.caching_client.get_hybrid_cache().memory().insert(format!("{}{}", SCRATCHPAD_CACHE_KEY, scratchpad_address.to_hex()), serialised_cache_item);
+                }
+            },
+            Err(e) => {
+                log::warn!("Failed to serialize scratchpad for [{}]: {}", scratchpad_address.to_hex(), e.to_string());
+            }
         }
         scratchpad_address
     }
@@ -174,7 +180,7 @@ impl ScratchpadCachingClient {
     pub async fn scratchpad_get(&self, address: &ScratchpadAddress) -> Result<Scratchpad, ScratchpadError> {
         let local_address = address.clone();
         let local_ant_tp_config = self.caching_client.get_ant_tp_config().clone();
-        let cache_entry = self.caching_client.get_hybrid_cache().get_ref().fetch(format!("{}{}", SCRATCHPAD_CACHE_KEY, local_address.to_hex()), {
+        let cache_entry = self.caching_client.get_hybrid_cache().get_ref().get_or_fetch(&format!("{}{}", SCRATCHPAD_CACHE_KEY, local_address.to_hex()), {
             let client = self.caching_client.get_client_harness().get_ref().lock().await.get_client().await?;
             || async move {
                 match client.scratchpad_get(&local_address).await {
@@ -183,10 +189,10 @@ impl ScratchpadCachingClient {
                         let cache_item = CacheItem::new(Some(scratchpad.clone()), local_ant_tp_config.cached_mutable_ttl);
                         match rmp_serde::to_vec(&cache_item) {
                             Ok(cache_item) => Ok(cache_item),
-                            Err(e) => Err(foyer::Error::other(format!("Failed to serialize scratchpad for [{}]: {}", local_address.to_hex(), e.to_string())))
+                            Err(e) => Err(anyhow::anyhow!(format!("Failed to serialize scratchpad for [{}]: {}", local_address.to_hex(), e.to_string())))
                         }
                     }
-                    Err(e) => Err(foyer::Error::other(format!("Failed to retrieve scratchpad for [{}] from network: {}", local_address.to_hex(), e.to_string())))
+                    Err(e) => Err(anyhow::anyhow!(format!("Failed to retrieve scratchpad for [{}] from network: {}", local_address.to_hex(), e.to_string())))
                 }
             }
         }).await?;

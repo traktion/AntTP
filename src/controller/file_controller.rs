@@ -95,17 +95,30 @@ async fn fetch_public_data(
 
                 match archive_info.action {
                     ArchiveAction::Data => {
-                        let signature_verified = verify_signature(
-                            &request,
-                            &has_body,
-                            &resolved_address,
-                            &archive_info,
-                            &caching_client,
-                            &streaming_client,
-                            &resolver_service,
-                            &file_service,
-                            &ant_tp_config_data
-                        ).await;
+                        let mut signature_hex = None;
+                        if let Some(archive) = &resolved_address.archive {
+                            if let Some(data_address_offset) = archive.map().get(&resolved_address.file_path) {
+                                signature_hex = data_address_offset.signature.clone();
+                            }
+                        }
+                        if let Some(data_signature_header) = request.headers().get("x-data-signature") {
+                            if let Ok(data_signature_str) = data_signature_header.to_str() {
+                                signature_hex = Some(data_signature_str.to_string());
+                            }
+                        }
+
+                        let mut signature_verified = None;
+                        if let (Some(signer_public_key_header), Some(signature_hex)) = (request.headers().get("x-signer-public-key"), signature_hex) {
+                            if let Ok(signer_public_key_hex) = signer_public_key_header.to_str() {
+                                let signature_service = SignatureService;
+                                signature_verified = Some(signature_service.verify_hex(
+                                    signer_public_key_hex,
+                                    &signature_hex,
+                                    &format!("{:x}", resolved_address.xor_name)
+                                ));
+                            }
+                        }
+
                         get_data_archive(&request, &resolved_address, &header_builder, public_archive_service, archive_info, signature_verified, has_body).await
                     },
                     ArchiveAction::Redirect => Ok(build_moved_permanently_response(&request.path(), &header_builder)),
@@ -123,41 +136,6 @@ async fn fetch_public_data(
     }
 }
 
-async fn verify_signature(
-    request: &HttpRequest,
-    has_body: &bool,
-    resolved_address: &ResolvedAddress,
-    archive_info: &ArchiveInfo,
-    caching_client: &CachingClient,
-    streaming_client: &StreamingClient,
-    resolver_service: &Data<ResolverService>,
-    file_service: &FileService,
-    ant_tp_config: &Data<AntTpConfig>
-) -> Option<bool> {
-    // todo: change to verify signature of an XorName (hash) rather than the content
-    if !*has_body {
-        if let (Some(signer_public_key_b64), Some(data_signature_b64)) = (request.headers().get("x-signer-public-key"), request.headers().get("x-data-signature")) {
-            if let (Ok(signer_public_key_str), Ok(data_signature_str)) = (signer_public_key_b64.to_str(), data_signature_b64.to_str()) {
-                if let (Some(signer_public_key_bytes), Some(data_signature_bytes)) = (SignatureService::decode_base64(signer_public_key_str), SignatureService::decode_base64(data_signature_str)) {
-                    let public_archive_caching_client = PublicArchiveCachingClient::new(caching_client.clone(), streaming_client.clone());
-                    let public_data_caching_client = PublicDataCachingClient::new(caching_client.clone(), streaming_client.clone());
-                    let archive_caching_client = ArchiveCachingClient::new(caching_client.clone(), streaming_client.clone());
-                    let tarchive_caching_client = TArchiveCachingClient::new(caching_client.clone(), streaming_client.clone());
-                    let public_archive_service = PublicArchiveService::new(file_service.clone(), public_archive_caching_client, public_data_caching_client.clone(), resolver_service.get_ref().clone());
-                    let public_data_service = PublicDataService::new(public_data_caching_client, resolver_service.get_ref().clone());
-                    let tarchive_service = TarchiveService::new(public_data_service, tarchive_caching_client, file_service.clone(), resolver_service.get_ref().clone(), ant_tp_config.get_ref().clone());
-                    let archive_service = ArchiveService::new(public_archive_service, tarchive_service, resolver_service.get_ref().clone(), archive_caching_client);
-
-                    if let Ok(archive_raw) = archive_service.get_archive_binary(format!("{:x}", resolved_address.xor_name), Some(archive_info.path_string.clone())).await {
-                        let signature_service = SignatureService;
-                        return Some(signature_service.verify(&signer_public_key_bytes, &data_signature_bytes, &archive_raw.content));
-                    }
-                }
-            }
-        }
-    }
-    None
-}
 
 fn build_not_modified_response(resolved_address: &ResolvedAddress, header_builder: &HeaderBuilder) -> HttpResponse {
     HttpResponse::NotModified()
@@ -408,6 +386,39 @@ mod tests {
         
         let result = head_public_data(req, path, resolver_service, caching_client, streaming_client, conn, config).await;
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_signature_verification_logic() {
+        use blsttc::SecretKey;
+        use xor_name::XorName;
+
+        let xor_name = XorName([1; 32]);
+        let data = format!("{:x}", xor_name);
+        let secret_key = SecretKey::random();
+        let public_key = secret_key.public_key();
+        let signature = secret_key.sign(data.as_bytes());
+
+        let public_key_hex = hex::encode(public_key.to_bytes());
+        let signature_hex = hex::encode(signature.to_bytes());
+
+        let signature_service = SignatureService;
+        let verified = signature_service.verify_hex(
+            &public_key_hex,
+            &signature_hex,
+            &data
+        );
+        assert!(verified);
+
+        let other_secret_key = SecretKey::random();
+        let other_signature = other_secret_key.sign(data.as_bytes());
+        let other_signature_hex = hex::encode(other_signature.to_bytes());
+        let verified_wrong = signature_service.verify_hex(
+            &public_key_hex,
+            &other_signature_hex,
+            &data
+        );
+        assert!(!verified_wrong);
     }
 }
 

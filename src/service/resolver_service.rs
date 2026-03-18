@@ -20,6 +20,7 @@ use crate::service::pointer_name_resolver::PointerNameResolver;
 use crate::service::bookmark_resolver::BookmarkResolver;
 use mockall_double::double;
 
+#[derive(Clone)]
 pub struct ResolvedAddress {
     pub is_found: bool,
     pub archive: Option<Archive>,

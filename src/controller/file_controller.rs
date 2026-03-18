@@ -99,7 +99,8 @@ async fn fetch_public_data(
                 debug!("Retrieving file from XOR [{:x}]", resolved_address.xor_name);
                 let chunk_caching_client = ChunkCachingClient::new(caching_client.clone());
                 let file_service = FileService::new(chunk_caching_client, ant_tp_config.download_threads);
-                get_data_xor(&request, &resolved_address, &header_builder, file_service, has_body).await
+                let signature_verified = verify_signature(&request, &resolved_address);
+                get_data_xor(&request, &resolved_address, &header_builder, file_service, signature_verified, has_body).await
             }
         },
         None => Err(GetError::RecordNotFound(format!("File not found: {}", request.full_url())).into())
@@ -252,11 +253,11 @@ fn get_accept_header_value(header_map: &HeaderMap) -> Mime {
     }
 }
 
-async fn get_data_xor(request: &HttpRequest, resolved_address: &ResolvedAddress, header_builder: &HeaderBuilder, file_service: FileService, has_body: bool) -> Result<HttpResponse, ChunkError> {
+async fn get_data_xor(request: &HttpRequest, resolved_address: &ResolvedAddress, header_builder: &HeaderBuilder, file_service: FileService, signature_verified: Option<bool>, has_body: bool) -> Result<HttpResponse, ChunkError> {
     let (chunk_receiver, range_props) = file_service.get_data(&request, &resolved_address).await?;
     if range_props.is_range() {
         let mut builder = HttpResponse::PartialContent();
-        update_partial_content_response(&mut builder, &resolved_address, &header_builder, &range_props, None, None);
+        update_partial_content_response(&mut builder, &resolved_address, &header_builder, &range_props, None, signature_verified);
         if has_body {
             Ok(builder.streaming(chunk_receiver))
         } else {
@@ -264,7 +265,7 @@ async fn get_data_xor(request: &HttpRequest, resolved_address: &ResolvedAddress,
         }
     } else {
         let mut builder = HttpResponse::Ok();
-        update_full_content_response(&mut builder, &resolved_address, &header_builder, &range_props, None, None);
+        update_full_content_response(&mut builder, &resolved_address, &header_builder, &range_props, None, signature_verified);
         if has_body {
             Ok(builder.streaming(chunk_receiver))
         } else {
@@ -412,6 +413,46 @@ mod tests {
             &data_hex
         );
         assert!(!verified_wrong);
+    }
+
+    #[test]
+    fn test_verify_signature_non_archive() {
+        use blsttc::SecretKey;
+        use xor_name::XorName;
+        use crate::service::resolver_service::ResolvedAddress;
+
+        let xor_name = XorName([1; 32]);
+        let data_hex = format!("{:x}", xor_name);
+        let data_bytes = hex::decode(&data_hex).unwrap();
+        let secret_key = SecretKey::random();
+        let public_key = secret_key.public_key();
+        let signature = secret_key.sign(&data_bytes);
+
+        let public_key_hex = hex::encode(public_key.to_bytes());
+        let signature_hex = hex::encode(signature.to_bytes());
+
+        let resolved_address = ResolvedAddress {
+            is_found: true,
+            xor_name,
+            file_path: "".to_string(),
+            ttl: 0,
+            is_allowed: true,
+            is_modified: true,
+            is_resolved_from_mutable: false,
+            archive: None,
+        };
+
+        let req = TestRequest::get()
+            .insert_header(("x-signer-public-key", public_key_hex))
+            .insert_header(("x-data-signature", signature_hex))
+            .to_http_request();
+
+        let verified = verify_signature(&req, &resolved_address);
+        assert_eq!(verified, Some(true));
+
+        let req_no_headers = TestRequest::get().to_http_request();
+        let verified_none = verify_signature(&req_no_headers, &resolved_address);
+        assert_eq!(verified_none, None);
     }
 }
 

@@ -1,0 +1,23 @@
+As an AntTP user
+I want to receive the x-data-signature-verified based on the hex address of the public data
+So that the whole message does not need to be downloaded before the signature can be verified
+
+Given fetch_public_data function in file_controller.rs currently verifies the signature
+When updating the signature verify operation to be based on the address hex
+Then replace the `let signature_verified = verify_signature()` call with SignatureService.verify()
+And pass in resolved_address.xor_name (as a hex string) as data_hex
+And pass in the x-signer-public-key (as a hex string) header as public_key_hex
+And pass in the resolved_address.archive.data_address_offsets_map.get(resolved_address.file_path).signature (if present) as signature_hex
+And pass in the x-data-signature (as a hex string) header (if it exists) as signature_hex to override the (aforementioned) signature
+And then populate signature_verified with the returned boolean value  
+
+Given x-data-signature-verified was only returned for HEAD due to cost
+When only validating signatures for address hex strings
+Then verify the signature for both GET and HEAD requests (when has_body is true or false)
+
+Implementation Notes
+
+- Place any unit tests at the bottom of the same file as the associated production code
+- Increment patch version of anttp package in Cargo.toml
+- Create a copy of this issue description and save to /spec using the name of this issue as the filename (with lower underscore case, starting with the 5 char padded issue number, e.g. 00001_issue_title.txt)
+- Update unit tests to validate the changes

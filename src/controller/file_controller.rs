@@ -95,29 +95,7 @@ async fn fetch_public_data(
 
                 match archive_info.action {
                     ArchiveAction::Data => {
-                        let mut signature_hex = None;
-                        if let Some(archive) = &resolved_address.archive {
-                            if let Some(data_address_offset) = archive.map().get(&resolved_address.file_path) {
-                                signature_hex = data_address_offset.signature.clone();
-                            }
-                        }
-                        if let Some(data_signature_header) = request.headers().get("x-data-signature") {
-                            if let Ok(data_signature_str) = data_signature_header.to_str() {
-                                signature_hex = Some(data_signature_str.to_string());
-                            }
-                        }
-
-                        let mut signature_verified = None;
-                        if let (Some(signer_public_key_header), Some(signature_hex)) = (request.headers().get("x-signer-public-key"), signature_hex) {
-                            if let Ok(signer_public_key_hex) = signer_public_key_header.to_str() {
-                                let signature_service = SignatureService;
-                                signature_verified = Some(signature_service.verify_hex(
-                                    signer_public_key_hex,
-                                    &signature_hex,
-                                    &format!("{:x}", resolved_address.xor_name)
-                                ));
-                            }
-                        }
+                        let signature_verified = verify_signature(&request, &resolved_address);
 
                         get_data_archive(&request, &resolved_address, &header_builder, public_archive_service, archive_info, signature_verified, has_body).await
                     },
@@ -134,6 +112,32 @@ async fn fetch_public_data(
         },
         None => Err(GetError::RecordNotFound(format!("File not found: {}", request.full_url())).into())
     }
+}
+
+fn verify_signature(request: &HttpRequest, resolved_address: &ResolvedAddress) -> Option<bool> {
+    let mut signature_hex = None;
+    if let Some(archive) = &resolved_address.archive {
+        if let Some(data_address_offset) = archive.map().get(&resolved_address.file_path) {
+            signature_hex = data_address_offset.signature.clone();
+        }
+    }
+    if let Some(data_signature_header) = request.headers().get("x-data-signature") {
+        if let Ok(data_signature_str) = data_signature_header.to_str() {
+            signature_hex = Some(data_signature_str.to_string());
+        }
+    }
+
+    if let (Some(signer_public_key_header), Some(signature_hex)) = (request.headers().get("x-signer-public-key"), signature_hex) {
+        if let Ok(signer_public_key_hex) = signer_public_key_header.to_str() {
+            let signature_service = SignatureService;
+            return Some(signature_service.verify_hex(
+                signer_public_key_hex,
+                &signature_hex,
+                &format!("{:x}", resolved_address.xor_name)
+            ));
+        }
+    }
+    None
 }
 
 
@@ -394,10 +398,11 @@ mod tests {
         use xor_name::XorName;
 
         let xor_name = XorName([1; 32]);
-        let data = format!("{:x}", xor_name);
+        let data_hex = format!("{:x}", xor_name);
+        let data_bytes = hex::decode(&data_hex).unwrap();
         let secret_key = SecretKey::random();
         let public_key = secret_key.public_key();
-        let signature = secret_key.sign(data.as_bytes());
+        let signature = secret_key.sign(&data_bytes);
 
         let public_key_hex = hex::encode(public_key.to_bytes());
         let signature_hex = hex::encode(signature.to_bytes());
@@ -406,17 +411,17 @@ mod tests {
         let verified = signature_service.verify_hex(
             &public_key_hex,
             &signature_hex,
-            &data
+            &data_hex
         );
         assert!(verified);
 
         let other_secret_key = SecretKey::random();
-        let other_signature = other_secret_key.sign(data.as_bytes());
+        let other_signature = other_secret_key.sign(&data_bytes);
         let other_signature_hex = hex::encode(other_signature.to_bytes());
         let verified_wrong = signature_service.verify_hex(
             &public_key_hex,
             &other_signature_hex,
-            &data
+            &data_hex
         );
         assert!(!verified_wrong);
     }

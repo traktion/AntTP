@@ -1,0 +1,24 @@
+As an AntTP user
+I want to receive the x-data-signature-verified based on a public key, a signature and the the hex address of non-archive public data
+So that I can verify whether the signature matches the keys
+
+Given fetch_public_data function in file_controller.rs currently verifies signatures of archive files
+When retrieving non-archive public data
+Then call SignatureService.verify() to verify a signature against the data
+And pass in resolved_address.xor_name (as a hex string) as data_hex
+And pass in the x-signer-public-key (as a hex string) header as public_key_hex
+And pass in the x-data-signature (as a hex string) header as signature_hex
+And then populate signature_verified with the returned boolean value, like what is done with ArchiveAction::Data
+And call get_data_xor with signature_verified as an extra argument
+
+Given get_data_xor already exists
+When adding signature support
+Then update get_data_xor to include a signature_verified argument, like what is done with get_data_archive
+And pass signature_verified to update_partial_content_response and update_full_content_response
+
+Implementation Notes
+
+- Place any unit tests at the bottom of the same file as the associated production code
+- Increment patch version of anttp package in Cargo.toml
+- Create a copy of this issue description and save to /spec using the name of this issue as the filename (with lower underscore case, starting with the 5 char padded issue number, e.g. 00001_issue_title.txt)
+- Update unit tests to validate the changes

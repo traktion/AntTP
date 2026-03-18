@@ -62,7 +62,7 @@ use crate::service::access_checker::AccessChecker;
 use crate::service::bookmark_resolver::BookmarkResolver;
 use crate::service::pointer_name_resolver::PointerNameResolver;
 use crate::service::pnr_service::PnrService;
-use crate::service::crypto_service::{CryptoService, Verify};
+use crate::service::crypto_service::{CryptoService, Crypto};
 use crate::service::key_value_service::KeyValueService;
 use crate::service::chunk_service::{Chunk, ChunkService};
 use crate::service::command_service::CommandService;
@@ -174,10 +174,11 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> io::Result<()> {
             key_value_controller::get_key_value,
             key_value_controller::get_key_value_binary,
             resolver_controller::resolve,
-            crypto_controller::post_verify
+            crypto_controller::post_verify,
+            crypto_controller::post_sign
         ),
         components(
-            schemas(PublicArchiveForm, ArchiveForm, Upload, ArchiveResponse, Chunk, ArchiveType, Resolve, Verify)
+            schemas(PublicArchiveForm, ArchiveForm, Upload, ArchiveResponse, Chunk, ArchiveType, Resolve, Crypto)
         )
     )]
     struct ApiDoc;
@@ -268,7 +269,7 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> io::Result<()> {
     ));
     let pnr_service_data = Data::new(PnrService::new(chunk_caching_client.clone(), pointer_service_data.clone()));
     let key_value_service_data = Data::new(KeyValueService::new(public_data_service_data.clone(), pnr_service_data.clone()));
-    let crypto_service_data = Data::new(CryptoService::new(crate::service::signature_service::SignatureService));
+    let crypto_service_data = Data::new(CryptoService::new(crate::service::signature_service::SignatureService, ant_tp_config.clone()));
 
     // MCP
     let mcp_tool = McpTool::new(
@@ -455,6 +456,10 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> io::Result<()> {
             .route(
                 format!("{}crypto/verify/{{public_key}}", API_BASE).as_str(),
                 web::post().to(crypto_controller::post_verify)
+            )
+            .route(
+                format!("{}crypto/sign", API_BASE).as_str(),
+                web::post().to(crypto_controller::post_sign)
             )
             .route(
                 "/{path:.*}",

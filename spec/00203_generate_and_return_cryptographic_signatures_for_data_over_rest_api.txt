@@ -1,0 +1,63 @@
+As an AntTP user
+I want to be able to provide some data for AntTP to sign using the app_secret_key over a REST endpoint
+So that I can generate signatures for arbitrary hex data strings, which can represent data addresses
+
+Given crypto_controller.rs already exists and is used for cryptographic API endpoints
+When adding support to sign data
+Then update crypto_controller.rs to add an /anttp-0/crypto/sign endpoint which takes a body as a list of pairs, which contain data hex strings and empty signature hex strings
+And define 'post_sign' as the associated function
+
+Given crypto_service.rs already exists and provides a verify function
+When adding a sign function to crypto_service.rs
+Then 'sign' must take a a map of 'data => signature' pairs (with empty signature)
+And returns a map of 'data => (signature, verified)' with signature populated by the signing result and verified = true
+And if there is an issue, then don't populate signature and set verified = false
+
+Given pointer_service.rs defines Pointer struct for holding pointer properties
+When adding Verify struct for holding signatures and whether they are verified
+Then define a struct which holds 'signature' as a hex string and 'verified' as an optional boolean
+And allow crypto_controller.get_verify and crypto_service.verify to accept an iterable map of Verify structs, with the key being the data (which has been signed)
+And the JSON payload must look like the below, with the data being the key and the signature being the value
+
+```
+{
+  [
+    "data_hex_1" : {
+      "signature": ""
+    },
+    "data_hex_2" : {},
+    "data_hex_3" : {
+      "signature": "signature_hex_3",
+    },
+    ...
+    "data_hex_N" : {
+      "signature": "",
+      "verified": "false"
+  ]
+}
+```
+
+Given the verify function in the crypto service must take a public key and a set of data/signature pairs and return the same set with the 'signature' value populated with the signature value
+When sign function is defined
+Then it must accept the Verify map
+And the map must be iterated over, and each data key must be signed
+And app_private_key.sign().to_bytes() should be used to generate the signature
+And hex::encode() must be used to hex encode the signature as a string
+And then "signature" must be populated for the associated data key
+And "verified" must be set to true
+
+Implementation Notes
+
+- Place any unit tests at the bottom of the same file as the associated production code
+- Increment patch version of anttp package in Cargo.toml
+- Create a copy of this issue description and save to /spec using the name of this issue as the filename (with lower underscore case, starting with the 5 char padded issue number, e.g. 00001_issue_title.txt)
+- Update unit tests to validate the changes
+- Update newman tests to include the new endpoint
+
+Amendments
+
+Given Verify is used for both signing and verifying
+When refactoring Verify
+Then update 'signature' to be optional
+And rename Verify struct to Crypto to describe wider use cases
+And update variable naming in crypto_controller.rs, crypto_service.rs, crypto_tool.rs, crypto_handler.rs and crypto.proto to reflect the naming change

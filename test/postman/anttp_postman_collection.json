@@ -302,6 +302,33 @@
 									]
 								}
 							}
+						},
+						{
+							"name": "Sign Data",
+							"request": {
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"68656c6c6f20776f726c64\": {\n    }\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{base_url}}/anttp-0/crypto/sign",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"anttp-0",
+										"crypto",
+										"sign"
+									]
+								}
+							}
 						}
 					]
 				},

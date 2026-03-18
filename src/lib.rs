@@ -62,7 +62,7 @@ use crate::service::access_checker::AccessChecker;
 use crate::service::bookmark_resolver::BookmarkResolver;
 use crate::service::pointer_name_resolver::PointerNameResolver;
 use crate::service::pnr_service::PnrService;
-use crate::service::crypto_service::{CryptoService, Verify};
+use crate::service::crypto_service::{CryptoService, Crypto};
 use crate::service::key_value_service::KeyValueService;
 use crate::service::chunk_service::{Chunk, ChunkService};
 use crate::service::command_service::CommandService;
@@ -178,7 +178,7 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> io::Result<()> {
             crypto_controller::post_sign
         ),
         components(
-            schemas(PublicArchiveForm, ArchiveForm, Upload, ArchiveResponse, Chunk, ArchiveType, Resolve, Verify)
+            schemas(PublicArchiveForm, ArchiveForm, Upload, ArchiveResponse, Chunk, ArchiveType, Resolve, Crypto)
         )
     )]
     struct ApiDoc;

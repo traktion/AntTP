@@ -1,7 +1,7 @@
 use actix_web::{web, HttpResponse};
 use actix_web::web::Data;
 use std::collections::HashMap;
-use crate::service::crypto_service::{CryptoService, Verify};
+use crate::service::crypto_service::{CryptoService, Crypto};
 
 #[utoipa::path(
     post,
@@ -10,8 +10,8 @@ use crate::service::crypto_service::{CryptoService, Verify};
         ("public_key" = String, Path, description = "Public key as hex string"),
     ),
     request_body(
-        content = HashMap<String, Verify>,
-        description = "Map of data hex to Verify struct",
+        content = HashMap<String, Crypto>,
+        description = "Map of data hex to Crypto struct",
         example = json!({
             "68656c6c6f20776f726c64": {
                 "signature": "81216b208c697818836511110058e1c64e0db658092a403429399e52f0855219e273574c30c3453b6f27b9c6a7a503e9114f8263f3392f440532289659b87642630718d78f44f9449f87c53d9154497676767676767676767676767676767676"
@@ -19,13 +19,13 @@ use crate::service::crypto_service::{CryptoService, Verify};
         })
     ),
     responses(
-        (status = OK, description = "Verification results", body = HashMap<String, Verify>),
+        (status = OK, description = "Verification results", body = HashMap<String, Crypto>),
     )
 )]
 pub async fn post_verify(
     path: web::Path<String>,
     crypto_service: Data<CryptoService>,
-    data_map: web::Json<HashMap<String, Verify>>,
+    data_map: web::Json<HashMap<String, Crypto>>,
 ) -> HttpResponse {
     let public_key = path.into_inner();
     let result = crypto_service.verify(public_key, data_map.into_inner());
@@ -36,21 +36,20 @@ pub async fn post_verify(
     post,
     path = "/anttp-0/crypto/sign",
     request_body(
-        content = HashMap<String, Verify>,
-        description = "Map of data hex to Verify struct",
+        content = HashMap<String, Crypto>,
+        description = "Map of data hex to Crypto struct",
         example = json!({
             "68656c6c6f20776f726c64": {
-                "signature": ""
             }
         })
     ),
     responses(
-        (status = OK, description = "Signing results", body = HashMap<String, Verify>),
+        (status = OK, description = "Signing results", body = HashMap<String, Crypto>),
     )
 )]
 pub async fn post_sign(
     crypto_service: Data<CryptoService>,
-    data_map: web::Json<HashMap<String, Verify>>,
+    data_map: web::Json<HashMap<String, Crypto>>,
 ) -> HttpResponse {
     let result = crypto_service.sign(data_map.into_inner());
     HttpResponse::Ok().json(result)
@@ -81,8 +80,8 @@ mod tests {
         ).await;
 
         let mut data_map = HashMap::new();
-        data_map.insert(data_hex.clone(), Verify {
-            signature: "".to_string(),
+        data_map.insert(data_hex.clone(), Crypto {
+            signature: None,
             verified: None,
         });
 
@@ -91,12 +90,12 @@ mod tests {
             .set_json(&data_map)
             .to_request();
 
-        let resp: HashMap<String, Verify> = test::call_and_read_body_json(&app, req).await;
+        let resp: HashMap<String, Crypto> = test::call_and_read_body_json(&app, req).await;
 
         assert!(resp.contains_key(&data_hex));
-        let verify_struct = resp.get(&data_hex).unwrap();
-        assert!(verify_struct.verified.unwrap());
-        assert!(!verify_struct.signature.is_empty());
+        let crypto_struct = resp.get(&data_hex).unwrap();
+        assert!(crypto_struct.verified.unwrap());
+        assert!(crypto_struct.signature.is_some());
     }
 
     #[actix_web::test]
@@ -117,8 +116,8 @@ mod tests {
         ).await;
 
         let mut data_map = HashMap::new();
-        data_map.insert(data_hex.clone(), Verify {
-            signature,
+        data_map.insert(data_hex.clone(), Crypto {
+            signature: Some(signature),
             verified: None,
         });
 
@@ -127,7 +126,7 @@ mod tests {
             .set_json(&data_map)
             .to_request();
 
-        let resp: HashMap<String, Verify> = test::call_and_read_body_json(&app, req).await;
+        let resp: HashMap<String, Crypto> = test::call_and_read_body_json(&app, req).await;
 
         assert!(resp.contains_key(&data_hex));
         assert!(resp.get(&data_hex).unwrap().verified.unwrap());

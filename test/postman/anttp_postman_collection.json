@@ -310,7 +310,7 @@
 								"header": [],
 								"body": {
 									"mode": "raw",
-									"raw": "{\n    \"68656c6c6f20776f726c64\": {\n        \"signature\": \"\"\n    }\n}",
+									"raw": "{\n    \"68656c6c6f20776f726c64\": {\n    }\n}",
 									"options": {
 										"raw": {
 											"language": "json"

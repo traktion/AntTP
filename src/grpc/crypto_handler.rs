@@ -1,7 +1,7 @@
 use tonic::{Request, Response, Status};
 use actix_web::web::Data;
 use std::collections::HashMap;
-use crate::service::crypto_service::{CryptoService, Verify as ServiceVerify};
+use crate::service::crypto_service::{CryptoService, Crypto as ServiceVerify};
 
 pub mod crypto_proto {
     tonic::include_proto!("crypto");
@@ -9,7 +9,7 @@ pub mod crypto_proto {
 
 pub use crypto_proto::crypto_service_server::CryptoServiceServer;
 use crypto_proto::crypto_service_server::CryptoService as CryptoServiceTrait;
-use crypto_proto::{Verify, VerifyRequest, VerifyResponse};
+use crypto_proto::{Crypto, CryptoRequest, CryptoResponse};
 
 pub struct CryptoHandler {
     crypto_service: Data<CryptoService>,
@@ -25,32 +25,32 @@ impl CryptoHandler {
 impl CryptoServiceTrait for CryptoHandler {
     async fn verify(
         &self,
-        request: Request<VerifyRequest>,
-    ) -> Result<Response<VerifyResponse>, Status> {
+        request: Request<CryptoRequest>,
+    ) -> Result<Response<CryptoResponse>, Status> {
         let req = request.into_inner();
         let public_key = req.public_key;
         
         let mut data_map = HashMap::new();
-        for v in req.verify {
+        for v in req.crypto {
             data_map.insert(v.data, ServiceVerify {
-                signature: v.signature,
+                signature: Some(v.signature),
                 verified: None,
             });
         }
 
         let result_map = self.crypto_service.verify(public_key.clone(), data_map);
 
-        let verify_results = result_map.into_iter().map(|(data, v)| {
-            Verify {
+        let crypto_results = result_map.into_iter().map(|(data, v)| {
+            Crypto {
                 data,
-                signature: v.signature,
+                signature: v.signature.unwrap_or_default(),
                 verified: v.verified.unwrap_or(false),
             }
         }).collect();
 
-        Ok(Response::new(VerifyResponse {
+        Ok(Response::new(CryptoResponse {
             public_key,
-            verify: verify_results,
+            crypto: crypto_results,
         }))
     }
 }
@@ -74,9 +74,9 @@ mod tests {
         let crypto_service = Data::new(CryptoService::new(SignatureService, ant_tp_config));
         let handler = CryptoHandler::new(crypto_service);
 
-        let request = Request::new(VerifyRequest {
+        let request = Request::new(CryptoRequest {
             public_key: public_key.clone(),
-            verify: vec![Verify {
+            crypto: vec![Crypto {
                 data: data_hex.clone(),
                 signature,
                 verified: false,
@@ -87,8 +87,8 @@ mod tests {
         let inner = response.into_inner();
 
         assert_eq!(inner.public_key, public_key);
-        assert_eq!(inner.verify.len(), 1);
-        assert!(inner.verify[0].verified);
-        assert_eq!(inner.verify[0].data, data_hex);
+        assert_eq!(inner.crypto.len(), 1);
+        assert!(inner.crypto[0].verified);
+        assert_eq!(inner.crypto[0].data, data_hex);
     }
 }

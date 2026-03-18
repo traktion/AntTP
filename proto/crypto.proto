@@ -3,21 +3,21 @@ syntax = "proto3";
 package crypto;
 
 service CryptoService {
-  rpc Verify(VerifyRequest) returns (VerifyResponse);
+  rpc Verify(CryptoRequest) returns (CryptoResponse);
 }
 
-message Verify {
+message Crypto {
   string data = 1;
   string signature = 2;
   bool verified = 3;
 }
 
-message VerifyRequest {
+message CryptoRequest {
   string public_key = 1;
-  repeated Verify verify = 2;
+  repeated Crypto crypto = 2;
 }
 
-message VerifyResponse {
+message CryptoResponse {
   string public_key = 1;
-  repeated Verify verify = 2;
+  repeated Crypto crypto = 2;
 }

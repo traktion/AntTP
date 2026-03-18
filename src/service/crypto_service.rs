@@ -5,8 +5,8 @@ use crate::config::anttp_config::AntTpConfig;
 use crate::service::signature_service::SignatureService;
 
 #[derive(Debug, Serialize, Deserialize, ToSchema, Clone)]
-pub struct Verify {
-    pub signature: String,
+pub struct Crypto {
+    pub signature: Option<String>,
     pub verified: Option<bool>,
 }
 
@@ -21,35 +21,36 @@ impl CryptoService {
         Self { signature_service, ant_tp_config }
     }
 
-    pub fn sign(&self, mut data_map: HashMap<String, Verify>) -> HashMap<String, Verify> {
+    pub fn sign(&self, mut data_map: HashMap<String, Crypto>) -> HashMap<String, Crypto> {
         match self.ant_tp_config.get_app_private_key() {
             Ok(app_private_key) => {
-                for (data_hex, verify_struct) in data_map.iter_mut() {
+                for (data_hex, crypto_struct) in data_map.iter_mut() {
                     match hex::decode(data_hex) {
                         Ok(data_bytes) => {
                             let signature = app_private_key.sign(&data_bytes);
-                            verify_struct.signature = hex::encode(signature.to_bytes());
-                            verify_struct.verified = Some(true);
+                            crypto_struct.signature = Some(hex::encode(signature.to_bytes()));
+                            crypto_struct.verified = Some(true);
                         }
                         Err(_) => {
-                            verify_struct.verified = Some(false);
+                            crypto_struct.verified = Some(false);
                         }
                     }
                 }
             }
             Err(_) => {
-                for verify_struct in data_map.values_mut() {
-                    verify_struct.verified = Some(false);
+                for crypto_struct in data_map.values_mut() {
+                    crypto_struct.verified = Some(false);
                 }
             }
         }
         data_map
     }
 
-    pub fn verify(&self, public_key: String, mut data_map: HashMap<String, Verify>) -> HashMap<String, Verify> {
-        for (data_hex, verify_struct) in data_map.iter_mut() {
-            let is_verified = self.signature_service.verify_hex(&public_key, &verify_struct.signature, data_hex);
-            verify_struct.verified = Some(is_verified);
+    pub fn verify(&self, public_key: String, mut data_map: HashMap<String, Crypto>) -> HashMap<String, Crypto> {
+        for (data_hex, crypto_struct) in data_map.iter_mut() {
+            let signature = crypto_struct.signature.clone().unwrap_or_default();
+            let is_verified = self.signature_service.verify_hex(&public_key, &signature, data_hex);
+            crypto_struct.verified = Some(is_verified);
         }
         data_map
     }
@@ -70,8 +71,8 @@ mod tests {
         let signature = hex::encode(secret_key.sign(data).to_bytes());
 
         let mut data_map = HashMap::new();
-        data_map.insert(data_hex.clone(), Verify {
-            signature,
+        data_map.insert(data_hex.clone(), Crypto {
+            signature: Some(signature),
             verified: None,
         });
 
@@ -90,8 +91,8 @@ mod tests {
         let signature = hex::encode(secret_key.sign(b"other data").to_bytes());
 
         let mut data_map = HashMap::new();
-        data_map.insert(data_hex.clone(), Verify {
-            signature,
+        data_map.insert(data_hex.clone(), Crypto {
+            signature: Some(signature),
             verified: None,
         });
 
@@ -110,8 +111,8 @@ mod tests {
         let data_hex = hex::encode(data);
 
         let mut data_map = HashMap::new();
-        data_map.insert(data_hex.clone(), Verify {
-            signature: "".to_string(),
+        data_map.insert(data_hex.clone(), Crypto {
+            signature: None,
             verified: None,
         });
 
@@ -119,14 +120,14 @@ mod tests {
         let service = CryptoService::new(SignatureService, ant_tp_config);
         let result = service.sign(data_map);
 
-        let verify_struct = result.get(&data_hex).unwrap();
-        assert!(verify_struct.verified.unwrap());
-        assert!(!verify_struct.signature.is_empty());
+        let crypto_struct = result.get(&data_hex).unwrap();
+        assert!(crypto_struct.verified.unwrap());
+        assert!(crypto_struct.signature.is_some());
 
-        // Verify the generated signature
+        // Crypto the generated signature
         let is_verified = SignatureService.verify_hex(
             &hex::encode(secret_key.public_key().to_bytes()),
-            &verify_struct.signature,
+            crypto_struct.signature.as_ref().unwrap(),
             &data_hex
         );
         assert!(is_verified);

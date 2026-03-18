@@ -27,14 +27,7 @@ use crate::service::header_builder::HeaderBuilder;
 #[double]
 use crate::service::resolver_service::ResolverService;
 use crate::service::resolver_service::ResolvedAddress;
-use crate::service::archive_service::ArchiveService;
 use crate::service::signature_service::SignatureService;
-#[double]
-use crate::client::ArchiveCachingClient;
-#[double]
-use crate::client::TArchiveCachingClient;
-use crate::service::public_data_service::PublicDataService;
-use crate::service::tarchive_service::TarchiveService;
 
 pub async fn get_public_data(
     request: HttpRequest,
@@ -96,7 +89,6 @@ async fn fetch_public_data(
                 match archive_info.action {
                     ArchiveAction::Data => {
                         let signature_verified = verify_signature(&request, &resolved_address);
-
                         get_data_archive(&request, &resolved_address, &header_builder, public_archive_service, archive_info, signature_verified, has_body).await
                     },
                     ArchiveAction::Redirect => Ok(build_moved_permanently_response(&request.path(), &header_builder)),

@@ -115,17 +115,13 @@ async fn fetch_public_data(
 }
 
 fn verify_signature(request: &HttpRequest, resolved_address: &ResolvedAddress) -> Option<bool> {
-    let mut signature_hex = None;
-    if let Some(archive) = &resolved_address.archive {
-        if let Some(data_address_offset) = archive.map().get(&resolved_address.file_path) {
-            signature_hex = data_address_offset.signature.clone();
-        }
-    }
-    if let Some(data_signature_header) = request.headers().get("x-data-signature") {
-        if let Ok(data_signature_str) = data_signature_header.to_str() {
-            signature_hex = Some(data_signature_str.to_string());
-        }
-    }
+    let signature_hex = if let Some(data_signature_header) = request.headers().get("x-data-signature") {
+        data_signature_header.to_str().ok().map(|s| s.to_string())
+    } else if let Some(archive) = &resolved_address.archive {
+        archive.map().get(&resolved_address.file_path).and_then(|data_address_offset| data_address_offset.signature.clone())
+    } else {
+        None
+    };
 
     if let (Some(signer_public_key_header), Some(signature_hex)) = (request.headers().get("x-signer-public-key"), signature_hex) {
         if let Ok(signer_public_key_hex) = signer_public_key_header.to_str() {

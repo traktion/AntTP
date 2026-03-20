@@ -12,11 +12,17 @@ use crate::service::crypto_service::Crypto as ServiceCrypto;
 use crate::tool::McpTool;
 
 #[derive(Debug, Deserialize, JsonSchema)]
-struct CryptoRequest {
+struct CryptoVerifyRequest {
     #[schemars(description = "Public key as hex string")]
     public_key: String,
     #[schemars(description = "Map of data hex to signature hex")]
     crypto_map: HashMap<String, String>,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+struct CryptoSignRequest {
+    #[schemars(description = "List of data hex strings to sign")]
+    data: Vec<String>,
 }
 
 #[tool_router(router = crypto_tool_router, vis = "pub")]
@@ -25,7 +31,7 @@ impl McpTool {
     #[tool(description = "Verify signatures of data using a public key")]
     async fn verify_signatures(
         &self,
-        Parameters(CryptoRequest { public_key, crypto_map }): Parameters<CryptoRequest>,
+        Parameters(CryptoVerifyRequest { public_key, crypto_map }): Parameters<CryptoVerifyRequest>,
     ) -> Result<CallToolResult, ErrorData> {
         let mut data_map = HashMap::new();
         for (data_hex, signature_hex) in crypto_map {
@@ -36,6 +42,23 @@ impl McpTool {
         }
 
         let result = self.crypto_service.verify(public_key, data_map);
+        Ok(CallToolResult::structured(json!(result)))
+    }
+
+    #[tool(description = "Sign data using the application's secret key")]
+    async fn create_signatures(
+        &self,
+        Parameters(CryptoSignRequest { data }): Parameters<CryptoSignRequest>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let mut data_map = HashMap::new();
+        for data_hex in data {
+            data_map.insert(data_hex, ServiceCrypto {
+                signature: None,
+                verified: None,
+            });
+        }
+
+        let result = self.crypto_service.sign(data_map);
         Ok(CallToolResult::structured(json!(result)))
     }
 }
@@ -73,17 +96,8 @@ mod tests {
         let data_hex = hex::encode(data);
         let signature = hex::encode(secret_key.sign(data).to_bytes());
 
-        let mut verify_map = HashMap::new();
-        verify_map.insert(data_hex.clone(), signature.clone());
-
         let ant_tp_config = crate::config::anttp_config::AntTpConfig::parse_from(&["anttp"]);
         let crypto_service = Data::new(CryptoService::new(SignatureService, ant_tp_config));
-        
-        // Use a dummy McpTool just for testing this specific method
-        // Since McpTool doesn't have a simple way to be constructed without all services,
-        // we can test the service directly as it's what the tool uses,
-        // or we can just verify the service logic which is already tested in crypto_service.rs.
-        // However, the requirement is to update unit tests to validate the changes.
         
         let result = crypto_service.verify(public_key, {
             let mut data_map = HashMap::new();
@@ -95,5 +109,27 @@ mod tests {
         });
 
         assert!(result.get(&data_hex).unwrap().verified.unwrap());
+    }
+
+    #[tokio::test]
+    async fn test_create_signatures_tool() {
+        let secret_key = SecretKey::random();
+        let app_private_key_hex = secret_key.to_hex();
+        let data_hex = hex::encode(b"hello world");
+
+        let ant_tp_config = crate::config::anttp_config::AntTpConfig::parse_from(&["anttp", "--app-private-key", &app_private_key_hex]);
+        let crypto_service = Data::new(CryptoService::new(SignatureService, ant_tp_config));
+        
+        let result = crypto_service.sign({
+            let mut data_map = HashMap::new();
+            data_map.insert(data_hex.clone(), ServiceCrypto {
+                signature: None,
+                verified: None,
+            });
+            data_map
+        });
+
+        assert!(result.get(&data_hex).unwrap().verified.unwrap());
+        assert!(result.get(&data_hex).unwrap().signature.is_some());
     }
 }

@@ -4,11 +4,12 @@ package crypto;
 
 service CryptoService {
   rpc Verify(CryptoRequest) returns (CryptoResponse);
+  rpc Sign(CryptoRequest) returns (CryptoResponse);
 }
 
 message Crypto {
   string data = 1;
-  string signature = 2;
+  optional string signature = 2;
   bool verified = 3;
 }
 

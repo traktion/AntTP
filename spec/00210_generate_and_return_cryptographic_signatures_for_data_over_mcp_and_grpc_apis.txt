@@ -1,0 +1,42 @@
+As an AntTP user
+I want to be able to provide some data for AntTP to sign using the app_secret_key over a MCP or gRPC endpoint
+So that I can generate signatures for arbitrary hex data strings, which can represent data addresses using alternative APIs
+
+Given crypto_controller.rs already exists and is used for signing data over the REST API
+When adding support to sign data using MCP or gRPC API
+Then use crypto_controller.rs as an example on how to integrate with crypto_service.rs for the &#39;sign&#39; function
+And update crypto_handler.rs to add a &#39;sign&#39; function which is a similar format to its &#39;verify&#39; function
+
+Given crypto.proto already exists and is used to verify signatures over gRPC
+When adding support for signing data
+Then update crypto.proto to include a new Sign RPC service
+And update signature to be optional, to allow the same CryptoRequest/CryptoResponse messages to be used
+And update crypto_handler.rs to reflect the optional signature property
+And use the below as an example:
+
+```
+service CryptoService {
+  ...
+  rpc Sign(CryptoRequest) returns (CryptoResponse);
+}
+
+message Crypto {
+  string data = 1;
+  optional string signature = 2;
+  bool verified = 3;
+}
+
+...
+```
+
+Given crypto_tool.rs already exists and is used to verify signatures over gRPC
+When adding support for signing data
+Then use crypto_controller.rs as an example on how to integrate with crypto_service.rs for the &#39;sign&#39; function
+And update crypto_tool.rs to add a &#39;create_signatures&#39; function which is similar to its &#39;verify_signatures&#39; function
+
+Implementation Notes
+
+- Place any unit tests at the bottom of the same file as the associated production code
+- Increment patch version of anttp package in Cargo.toml
+- Create a copy of this issue description and save to /spec using the name of this issue as the filename (with lower underscore case, starting with the 5 char padded issue number, e.g. 00001_issue_title.txt)
+- Update unit tests to validate the changes

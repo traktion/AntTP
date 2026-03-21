@@ -37,9 +37,10 @@ pub async fn get_public_data(
     streaming_client_data: Data<StreamingClient>,
     conn: ConnectionInfo,
     ant_tp_config_data: Data<AntTpConfig>,
+    crypto_service_data: Data<CryptoService>,
 ) -> Result<HttpResponse, ChunkError> {
     fetch_public_data(request, path, resolver_service, caching_client_data, streaming_client_data,
-                      conn, ant_tp_config_data, true).await
+                      conn, ant_tp_config_data, crypto_service_data, true).await
 }
 
 pub async fn head_public_data(
@@ -50,9 +51,10 @@ pub async fn head_public_data(
     streaming_client_data: Data<StreamingClient>,
     conn: ConnectionInfo,
     ant_tp_config_data: Data<AntTpConfig>,
+    crypto_service_data: Data<CryptoService>,
 ) -> Result<HttpResponse, ChunkError> {
     fetch_public_data(request, path, resolver_service, caching_client_data, streaming_client_data,
-                      conn, ant_tp_config_data, false).await
+                      conn, ant_tp_config_data, crypto_service_data, false).await
 }
 
 async fn fetch_public_data(
@@ -63,11 +65,13 @@ async fn fetch_public_data(
     streaming_client_data: Data<StreamingClient>,
     conn: ConnectionInfo,
     ant_tp_config_data: Data<AntTpConfig>,
+    crypto_service_data: Data<CryptoService>,
     has_body: bool,
 ) -> Result<HttpResponse, ChunkError> {
     let ant_tp_config = ant_tp_config_data.get_ref().clone();
     let caching_client = caching_client_data.get_ref().clone();
     let streaming_client = streaming_client_data.get_ref().clone();
+    let crypto_service = crypto_service_data.get_ref().clone();
 
     match resolver_service.resolve(&conn.host(), &path.into_inner(), &request.headers()).await {
         Some(resolved_address) => {
@@ -88,7 +92,7 @@ async fn fetch_public_data(
 
                 match archive_info.action {
                     ArchiveAction::Data => {
-                        let signature_verified = verify_signature(&request, &resolved_address);
+                        let signature_verified = verify_signature(&request, &resolved_address, &crypto_service);
                         get_data_archive(&request, &resolved_address, &header_builder, public_archive_service, archive_info, signature_verified, has_body).await
                     },
                     ArchiveAction::Redirect => Ok(build_moved_permanently_response(&request.path(), &header_builder)),
@@ -99,7 +103,7 @@ async fn fetch_public_data(
                 debug!("Retrieving file from XOR [{:x}]", resolved_address.xor_name);
                 let chunk_caching_client = ChunkCachingClient::new(caching_client.clone());
                 let file_service = FileService::new(chunk_caching_client, ant_tp_config.download_threads);
-                let signature_verified = verify_signature(&request, &resolved_address);
+                let signature_verified = verify_signature(&request, &resolved_address, &crypto_service);
                 get_data_xor(&request, &resolved_address, &header_builder, file_service, signature_verified, has_body).await
             }
         },
@@ -107,7 +111,7 @@ async fn fetch_public_data(
     }
 }
 
-fn verify_signature(request: &HttpRequest, resolved_address: &ResolvedAddress) -> Option<bool> {
+fn verify_signature(request: &HttpRequest, resolved_address: &ResolvedAddress, crypto_service: &CryptoService) -> Option<bool> {
     let signature_hex = if let Some(data_signature_header) = request.headers().get("x-data-signature") {
         data_signature_header.to_str().ok().map(|s| s.to_string())
     } else if let Some(archive) = &resolved_address.archive {
@@ -118,7 +122,7 @@ fn verify_signature(request: &HttpRequest, resolved_address: &ResolvedAddress) -
 
     if let (Some(signer_public_key_header), Some(signature_hex)) = (request.headers().get("x-signer-public-key"), signature_hex) {
         if let Ok(signer_public_key_hex) = signer_public_key_header.to_str() {
-            return Some(CryptoService::verify_signature(
+            return Some(crypto_service.verify_signature(
                 signer_public_key_hex,
                 &signature_hex,
                 &format!("{:x}", resolved_address.xor_name)
@@ -364,8 +368,9 @@ mod tests {
         let req = TestRequest::get().uri("/nonexistent").to_http_request();
         let path = web::Path::from("nonexistent".to_string());
         let conn = req.connection_info().clone();
+        let crypto_service = Data::new(CryptoService::new(config.get_ref().clone()));
         
-        let result = get_public_data(req, path, resolver_service, caching_client, streaming_client, conn, config).await;
+        let result = get_public_data(req, path, resolver_service, caching_client, streaming_client, conn, config, crypto_service).await;
         assert!(result.is_err());
     }
 
@@ -375,8 +380,9 @@ mod tests {
         let req = TestRequest::default().method(actix_web::http::Method::HEAD).uri("/nonexistent").to_http_request();
         let path = web::Path::from("nonexistent".to_string());
         let conn = req.connection_info().clone();
+        let crypto_service = Data::new(CryptoService::new(config.get_ref().clone()));
         
-        let result = head_public_data(req, path, resolver_service, caching_client, streaming_client, conn, config).await;
+        let result = head_public_data(req, path, resolver_service, caching_client, streaming_client, conn, config, crypto_service).await;
         assert!(result.is_err());
     }
 
@@ -385,6 +391,7 @@ mod tests {
         use blsttc::SecretKey;
         use xor_name::XorName;
         use crate::service::crypto_service::CryptoService;
+        use clap::Parser;
 
         let xor_name = XorName([1; 32]);
         let data_hex = format!("{:x}", xor_name);
@@ -396,7 +403,9 @@ mod tests {
         let public_key_hex = hex::encode(public_key.to_bytes());
         let signature_hex = hex::encode(signature.to_bytes());
 
-        let verified = CryptoService::verify_signature(
+        let ant_tp_config = AntTpConfig::parse_from(&["anttp"]);
+        let crypto_service = CryptoService::new(ant_tp_config);
+        let verified = crypto_service.verify_signature(
             &public_key_hex,
             &signature_hex,
             &data_hex
@@ -406,7 +415,7 @@ mod tests {
         let other_secret_key = SecretKey::random();
         let other_signature = other_secret_key.sign(&data_bytes);
         let other_signature_hex = hex::encode(other_signature.to_bytes());
-        let verified_wrong = CryptoService::verify_signature(
+        let verified_wrong = crypto_service.verify_signature(
             &public_key_hex,
             &other_signature_hex,
             &data_hex
@@ -416,9 +425,11 @@ mod tests {
 
     #[test]
     fn test_verify_signature_non_archive() {
+        use actix_web::test::TestRequest;
         use blsttc::SecretKey;
         use xor_name::XorName;
         use crate::service::resolver_service::ResolvedAddress;
+        use clap::Parser;
 
         let xor_name = XorName([1; 32]);
         let data_hex = format!("{:x}", xor_name);
@@ -446,11 +457,13 @@ mod tests {
             .insert_header(("x-data-signature", signature_hex))
             .to_http_request();
 
-        let verified = verify_signature(&req, &resolved_address);
+        let ant_tp_config = AntTpConfig::parse_from(&["anttp"]);
+        let crypto_service = CryptoService::new(ant_tp_config);
+        let verified = verify_signature(&req, &resolved_address, &crypto_service);
         assert_eq!(verified, Some(true));
 
         let req_no_headers = TestRequest::get().to_http_request();
-        let verified_none = verify_signature(&req_no_headers, &resolved_address);
+        let verified_none = verify_signature(&req_no_headers, &resolved_address, &crypto_service);
         assert_eq!(verified_none, None);
     }
 }

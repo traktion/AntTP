@@ -20,7 +20,41 @@ impl CryptoService {
         Self { ant_tp_config }
     }
 
-    pub fn verify_signature(public_key_hex: &str, signature_hex: &str, data_hex: &str) -> bool {
+    pub fn sign(&self, mut data_map: HashMap<String, Crypto>) -> HashMap<String, Crypto> {
+        match self.ant_tp_config.get_app_private_key() {
+            Ok(app_private_key) => {
+                for (data_hex, crypto_struct) in data_map.iter_mut() {
+                    match hex::decode(data_hex) {
+                        Ok(data_bytes) => {
+                            let signature = app_private_key.sign(&data_bytes);
+                            crypto_struct.signature = Some(hex::encode(signature.to_bytes()));
+                            crypto_struct.verified = Some(true);
+                        }
+                        Err(_) => {
+                            crypto_struct.verified = Some(false);
+                        }
+                    }
+                }
+            }
+            Err(_) => {
+                for crypto_struct in data_map.values_mut() {
+                    crypto_struct.verified = Some(false);
+                }
+            }
+        }
+        data_map
+    }
+
+    pub fn verify(&self, public_key: String, mut data_map: HashMap<String, Crypto>) -> HashMap<String, Crypto> {
+        for (data_hex, crypto_struct) in data_map.iter_mut() {
+            let signature = crypto_struct.signature.clone().unwrap_or_default();
+            let is_verified = self.verify_signature(&public_key, &signature, data_hex);
+            crypto_struct.verified = Some(is_verified);
+        }
+        data_map
+    }
+
+    pub fn verify_signature(&self, public_key_hex: &str, signature_hex: &str, data_hex: &str) -> bool {
         let public_key_bytes = match hex::decode(public_key_hex) {
             Ok(bytes) => bytes,
             Err(_) => return false,
@@ -55,40 +89,6 @@ impl CryptoService {
         };
 
         public_key.verify(&signature, &data_bytes)
-    }
-
-    pub fn sign(&self, mut data_map: HashMap<String, Crypto>) -> HashMap<String, Crypto> {
-        match self.ant_tp_config.get_app_private_key() {
-            Ok(app_private_key) => {
-                for (data_hex, crypto_struct) in data_map.iter_mut() {
-                    match hex::decode(data_hex) {
-                        Ok(data_bytes) => {
-                            let signature = app_private_key.sign(&data_bytes);
-                            crypto_struct.signature = Some(hex::encode(signature.to_bytes()));
-                            crypto_struct.verified = Some(true);
-                        }
-                        Err(_) => {
-                            crypto_struct.verified = Some(false);
-                        }
-                    }
-                }
-            }
-            Err(_) => {
-                for crypto_struct in data_map.values_mut() {
-                    crypto_struct.verified = Some(false);
-                }
-            }
-        }
-        data_map
-    }
-
-    pub fn verify(&self, public_key: String, mut data_map: HashMap<String, Crypto>) -> HashMap<String, Crypto> {
-        for (data_hex, crypto_struct) in data_map.iter_mut() {
-            let signature = crypto_struct.signature.clone().unwrap_or_default();
-            let is_verified = Self::verify_signature(&public_key, &signature, data_hex);
-            crypto_struct.verified = Some(is_verified);
-        }
-        data_map
     }
 }
 
@@ -161,7 +161,7 @@ mod tests {
         assert!(crypto_struct.signature.is_some());
 
         // Crypto the generated signature
-        let is_verified = CryptoService::verify_signature(
+        let is_verified = service.verify_signature(
             &hex::encode(secret_key.public_key().to_bytes()),
             crypto_struct.signature.as_ref().unwrap(),
             &data_hex

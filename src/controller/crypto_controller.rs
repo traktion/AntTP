@@ -28,7 +28,7 @@ pub async fn post_verify(
     data_map: web::Json<HashMap<String, Crypto>>,
 ) -> HttpResponse {
     let public_key = path.into_inner();
-    let result = crypto_service.verify(public_key, data_map.into_inner());
+    let result = crypto_service.verify_map(public_key, data_map.into_inner());
     HttpResponse::Ok().json(result)
 }
 
@@ -51,7 +51,7 @@ pub async fn post_sign(
     crypto_service: Data<CryptoService>,
     data_map: web::Json<HashMap<String, Crypto>>,
 ) -> HttpResponse {
-    let result = crypto_service.sign(data_map.into_inner());
+    let result = crypto_service.sign_map(data_map.into_inner());
     HttpResponse::Ok().json(result)
 }
 
@@ -60,7 +60,6 @@ mod tests {
     use super::*;
     use actix_web::{test, App};
     use blsttc::SecretKey;
-    use crate::service::signature_service::SignatureService;
     use crate::config::anttp_config::AntTpConfig;
     use clap::Parser;
 
@@ -71,7 +70,7 @@ mod tests {
         let data_hex = hex::encode(b"hello world");
 
         let ant_tp_config = AntTpConfig::parse_from(&["anttp", "--app-private-key", &app_private_key_hex]);
-        let crypto_service = Data::new(CryptoService::new(SignatureService, ant_tp_config));
+        let crypto_service = Data::new(CryptoService::new(ant_tp_config));
 
         let app = test::init_service(
             App::new()
@@ -107,7 +106,7 @@ mod tests {
         let signature = hex::encode(secret_key.sign(data).to_bytes());
 
         let ant_tp_config = AntTpConfig::parse_from(&["anttp"]);
-        let crypto_service = Data::new(CryptoService::new(SignatureService, ant_tp_config));
+        let crypto_service = Data::new(CryptoService::new(ant_tp_config));
 
         let app = test::init_service(
             App::new()

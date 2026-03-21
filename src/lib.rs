@@ -269,7 +269,7 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> io::Result<()> {
     ));
     let pnr_service_data = Data::new(PnrService::new(chunk_caching_client.clone(), pointer_service_data.clone()));
     let key_value_service_data = Data::new(KeyValueService::new(public_data_service_data.clone(), pnr_service_data.clone()));
-    let crypto_service_data = Data::new(CryptoService::new(crate::service::signature_service::SignatureService, ant_tp_config.clone()));
+    let crypto_service_data = Data::new(CryptoService::new(ant_tp_config.clone()));
 
     // MCP
     let mcp_tool = McpTool::new(

@@ -38,7 +38,7 @@ impl CryptoServiceTrait for CryptoHandler {
             });
         }
 
-        let result_map = self.crypto_service.verify(public_key.clone(), data_map);
+        let result_map = self.crypto_service.verify_map(public_key.clone(), data_map);
 
         let crypto_results = result_map.into_iter().map(|(data, v)| {
             Crypto {
@@ -68,7 +68,7 @@ impl CryptoServiceTrait for CryptoHandler {
             });
         }
 
-        let result_map = self.crypto_service.sign(data_map);
+        let result_map = self.crypto_service.sign_map(data_map);
 
         let crypto_results = result_map.into_iter().map(|(data, v)| {
             Crypto {
@@ -89,7 +89,6 @@ impl CryptoServiceTrait for CryptoHandler {
 mod tests {
     use super::*;
     use clap::Parser;
-    use crate::service::signature_service::SignatureService;
     use blsttc::SecretKey;
 
     #[tokio::test]
@@ -101,7 +100,7 @@ mod tests {
         let signature = hex::encode(secret_key.sign(data).to_bytes());
 
         let ant_tp_config = crate::config::anttp_config::AntTpConfig::parse_from(&["anttp"]);
-        let crypto_service = Data::new(CryptoService::new(SignatureService, ant_tp_config));
+        let crypto_service = Data::new(CryptoService::new(ant_tp_config));
         let handler = CryptoHandler::new(crypto_service);
 
         let request = Request::new(CryptoRequest {
@@ -129,7 +128,7 @@ mod tests {
         let data_hex = hex::encode(b"hello world");
 
         let ant_tp_config = crate::config::anttp_config::AntTpConfig::parse_from(&["anttp", "--app-private-key", &app_private_key_hex]);
-        let crypto_service = Data::new(CryptoService::new(SignatureService, ant_tp_config));
+        let crypto_service = Data::new(CryptoService::new(ant_tp_config));
         let handler = CryptoHandler::new(crypto_service);
 
         let request = Request::new(CryptoRequest {

@@ -27,7 +27,7 @@ use crate::service::header_builder::HeaderBuilder;
 #[double]
 use crate::service::resolver_service::ResolverService;
 use crate::service::resolver_service::ResolvedAddress;
-use crate::service::signature_service::SignatureService;
+use crate::service::crypto_service::CryptoService;
 
 pub async fn get_public_data(
     request: HttpRequest,
@@ -118,8 +118,7 @@ fn verify_signature(request: &HttpRequest, resolved_address: &ResolvedAddress) -
 
     if let (Some(signer_public_key_header), Some(signature_hex)) = (request.headers().get("x-signer-public-key"), signature_hex) {
         if let Ok(signer_public_key_hex) = signer_public_key_header.to_str() {
-            let signature_service = SignatureService;
-            return Some(signature_service.verify_hex(
+            return Some(CryptoService::verify_signature(
                 signer_public_key_hex,
                 &signature_hex,
                 &format!("{:x}", resolved_address.xor_name)
@@ -385,6 +384,7 @@ mod tests {
     fn test_signature_verification_logic() {
         use blsttc::SecretKey;
         use xor_name::XorName;
+        use crate::service::crypto_service::CryptoService;
 
         let xor_name = XorName([1; 32]);
         let data_hex = format!("{:x}", xor_name);
@@ -396,8 +396,7 @@ mod tests {
         let public_key_hex = hex::encode(public_key.to_bytes());
         let signature_hex = hex::encode(signature.to_bytes());
 
-        let signature_service = SignatureService;
-        let verified = signature_service.verify_hex(
+        let verified = CryptoService::verify_signature(
             &public_key_hex,
             &signature_hex,
             &data_hex
@@ -407,7 +406,7 @@ mod tests {
         let other_secret_key = SecretKey::random();
         let other_signature = other_secret_key.sign(&data_bytes);
         let other_signature_hex = hex::encode(other_signature.to_bytes());
-        let verified_wrong = signature_service.verify_hex(
+        let verified_wrong = CryptoService::verify_signature(
             &public_key_hex,
             &other_signature_hex,
             &data_hex

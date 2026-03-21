@@ -41,7 +41,7 @@ impl McpTool {
             });
         }
 
-        let result = self.crypto_service.verify(public_key, data_map);
+        let result = self.crypto_service.verify_map(public_key, data_map);
         Ok(CallToolResult::structured(json!(result)))
     }
 
@@ -58,7 +58,7 @@ impl McpTool {
             });
         }
 
-        let result = self.crypto_service.sign(data_map);
+        let result = self.crypto_service.sign_map(data_map);
         Ok(CallToolResult::structured(json!(result)))
     }
 }
@@ -98,7 +98,7 @@ mod tests {
         let ant_tp_config = crate::config::anttp_config::AntTpConfig::parse_from(&["anttp"]);
         let crypto_service = Data::new(CryptoService::new(ant_tp_config));
         
-        let result = crypto_service.verify(public_key, {
+        let result = crypto_service.verify_map(public_key, {
             let mut data_map = HashMap::new();
             data_map.insert(data_hex.clone(), ServiceCrypto {
                 signature: Some(signature.clone()),
@@ -119,7 +119,7 @@ mod tests {
         let ant_tp_config = crate::config::anttp_config::AntTpConfig::parse_from(&["anttp", "--app-private-key", &app_private_key_hex]);
         let crypto_service = Data::new(CryptoService::new(ant_tp_config));
         
-        let result = crypto_service.sign({
+        let result = crypto_service.sign_map({
             let mut data_map = HashMap::new();
             data_map.insert(data_hex.clone(), ServiceCrypto {
                 signature: None,

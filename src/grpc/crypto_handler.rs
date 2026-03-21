@@ -38,7 +38,7 @@ impl CryptoServiceTrait for CryptoHandler {
             });
         }
 
-        let result_map = self.crypto_service.verify(public_key.clone(), data_map);
+        let result_map = self.crypto_service.verify_map(public_key.clone(), data_map);
 
         let crypto_results = result_map.into_iter().map(|(data, v)| {
             Crypto {
@@ -68,7 +68,7 @@ impl CryptoServiceTrait for CryptoHandler {
             });
         }
 
-        let result_map = self.crypto_service.sign(data_map);
+        let result_map = self.crypto_service.sign_map(data_map);
 
         let crypto_results = result_map.into_iter().map(|(data, v)| {
             Crypto {

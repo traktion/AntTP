@@ -122,7 +122,7 @@ fn verify_signature(request: &HttpRequest, resolved_address: &ResolvedAddress, c
 
     if let (Some(signer_public_key_header), Some(signature_hex)) = (request.headers().get("x-signer-public-key"), signature_hex) {
         if let Ok(signer_public_key_hex) = signer_public_key_header.to_str() {
-            return Some(crypto_service.verify_signature(
+            return Some(crypto_service.verify(
                 signer_public_key_hex,
                 &signature_hex,
                 &format!("{:x}", resolved_address.xor_name)
@@ -405,7 +405,7 @@ mod tests {
 
         let ant_tp_config = AntTpConfig::parse_from(&["anttp"]);
         let crypto_service = CryptoService::new(ant_tp_config);
-        let verified = crypto_service.verify_signature(
+        let verified = crypto_service.verify(
             &public_key_hex,
             &signature_hex,
             &data_hex
@@ -415,7 +415,7 @@ mod tests {
         let other_secret_key = SecretKey::random();
         let other_signature = other_secret_key.sign(&data_bytes);
         let other_signature_hex = hex::encode(other_signature.to_bytes());
-        let verified_wrong = crypto_service.verify_signature(
+        let verified_wrong = crypto_service.verify(
             &public_key_hex,
             &other_signature_hex,
             &data_hex

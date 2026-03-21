@@ -28,7 +28,7 @@ pub async fn post_verify(
     data_map: web::Json<HashMap<String, Crypto>>,
 ) -> HttpResponse {
     let public_key = path.into_inner();
-    let result = crypto_service.verify(public_key, data_map.into_inner());
+    let result = crypto_service.verify_map(public_key, data_map.into_inner());
     HttpResponse::Ok().json(result)
 }
 
@@ -51,7 +51,7 @@ pub async fn post_sign(
     crypto_service: Data<CryptoService>,
     data_map: web::Json<HashMap<String, Crypto>>,
 ) -> HttpResponse {
-    let result = crypto_service.sign(data_map.into_inner());
+    let result = crypto_service.sign_map(data_map.into_inner());
     HttpResponse::Ok().json(result)
 }
 

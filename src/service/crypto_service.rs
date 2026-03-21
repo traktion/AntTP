@@ -10,7 +10,7 @@ pub struct Crypto {
     pub verified: Option<bool>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct CryptoService {
     ant_tp_config: AntTpConfig,
 }
@@ -18,21 +18,6 @@ pub struct CryptoService {
 impl CryptoService {
     pub fn new(ant_tp_config: AntTpConfig) -> Self {
         Self { ant_tp_config }
-    }
-
-    pub fn sign(&self, data_hex: &str) -> Option<String> {
-        match self.ant_tp_config.get_app_private_key() {
-            Ok(app_private_key) => {
-                match hex::decode(data_hex) {
-                    Ok(data_bytes) => {
-                        let signature = app_private_key.sign(&data_bytes);
-                        Some(hex::encode(signature.to_bytes()))
-                    }
-                    Err(_) => None,
-                }
-            }
-            Err(_) => None,
-        }
     }
 
     pub fn sign_map(&self, mut data_map: HashMap<String, Crypto>) -> HashMap<String, Crypto> {
@@ -48,6 +33,21 @@ impl CryptoService {
             }
         }
         data_map
+    }
+
+    pub fn sign(&self, data_hex: &str) -> Option<String> {
+        match self.ant_tp_config.get_app_private_key() {
+            Ok(app_private_key) => {
+                match hex::decode(data_hex) {
+                    Ok(data_bytes) => {
+                        let signature = app_private_key.sign(&data_bytes);
+                        Some(hex::encode(signature.to_bytes()))
+                    }
+                    Err(_) => None,
+                }
+            }
+            Err(_) => None,
+        }
     }
 
     pub fn verify_map(&self, public_key: String, mut data_map: HashMap<String, Crypto>) -> HashMap<String, Crypto> {

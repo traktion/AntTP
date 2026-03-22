@@ -65,3 +65,13 @@ Implementation Notes
 - Increment patch version of anttp package in Cargo.toml
 - Create a copy of this issue description and save to /spec using the name of this issue as the filename (with lower underscore case, starting with the 5 char padded issue number, e.g. 00001_issue_title.txt)
 - Update unit tests to validate the changes
+
+Amendments
+
+Given the data_map is built the same way as a Crypto map in multiple functions is crypto_handler.rs
+When refactoring the code to reduce duplication
+Then extract the duplicate logic to build_crypto_data_map function
+
+Given the data_map is built the same way as a CryptoContent map in multiple functions is crypto_handler.rs
+When refactoring the code to reduce duplication
+Then extract the duplicate logic to build_crypto_content_data_map function

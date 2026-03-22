@@ -1,0 +1,77 @@
+As an AntTP user
+I want to be able to encrypt and decrypt data over MCP and gRPC endpoints
+So that I can encrypt/decrypt data in the same way as the crypto REST API
+
+Given crypto_controller.rs already exists and is used for encrypting and decrypting data over the REST API
+When adding support to encrypt/decrypt data using MCP or gRPC API
+Then use crypto_controller.rs as an example on how to integrate with crypto_service.rs for the 'encrypt_map' and 'decrypt_map' functions
+And update crypto_handler.rs to add 'encrypt' and 'decrypt' functions which is a similar format to its 'sign' and 'verify' function
+
+Given crypto.proto already exists and is used to sign/verify signatures over gRPC
+When adding support for encrypting/decrypting data
+Then update crypto.proto to include new Encrypt and Decrypt RPC services
+And add CryptoContent, CryptoContentRequest and CryptoContentResponse
+And update CryptoRequest/CryptoResponse to make public_key optional 
+And use the below as an example:
+
+```
+service CryptoService {
+  rpc Verify(CryptoRequest) returns (CryptoResponse);
+  rpc Sign(CryptoRequest) returns (CryptoResponse);
+  rpc Encrypt(CryptoContentRequest) returns (CryptoContentResponse);
+  rpc Decrypt(CryptoContentRequest) returns (CryptoContentResponse);
+}
+
+message Crypto {
+  string data = 1;
+  optional string signature = 2;
+  bool verified = 3;
+}
+
+message CryptoRequest {
+  optional string public_key = 1;
+  repeated Crypto crypto = 2;
+}
+
+message CryptoResponse {
+  optional string public_key = 1;
+  repeated Crypto crypto = 2;
+}
+
+message CryptoContent {
+  string data = 1;
+  optional string content = 2;
+}
+
+message CryptoContentRequest {
+  optional string public_key = 1;
+  repeated CryptoContent crypto_content = 2;
+}
+
+message CryptoContentResponse {
+  optional string public_key = 1;
+  repeated CryptoContent crypto_content = 2;
+}
+```
+
+Given crypto_tool.rs already exists and is used to sign/verify signatures over MCP
+When adding support for encrypting/decrypting data
+Then use crypto_controller.rs as an example on how to integrate with crypto_service.rs for the 'encrypt_map' and 'decrypt_map' function
+And update crypto_tool.rs to add a 'encrypt' and 'decrypt' functions which is similar to its 'verify_signatures'/'create_signatures' functions
+
+Implementation Notes
+
+- Place any unit tests at the bottom of the same file as the associated production code
+- Increment patch version of anttp package in Cargo.toml
+- Create a copy of this issue description and save to /spec using the name of this issue as the filename (with lower underscore case, starting with the 5 char padded issue number, e.g. 00001_issue_title.txt)
+- Update unit tests to validate the changes
+
+Amendments
+
+Given the data_map is built the same way as a Crypto map in multiple functions is crypto_handler.rs
+When refactoring the code to reduce duplication
+Then extract the duplicate logic to build_crypto_data_map function
+
+Given the data_map is built the same way as a CryptoContent map in multiple functions is crypto_handler.rs
+When refactoring the code to reduce duplication
+Then extract the duplicate logic to build_crypto_content_data_map function

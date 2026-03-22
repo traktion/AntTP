@@ -8,7 +8,7 @@ use rmcp::schemars::JsonSchema;
 use serde::Deserialize;
 use serde_json::json;
 use std::collections::HashMap;
-use crate::service::crypto_service::Crypto as ServiceCrypto;
+use crate::service::crypto_service::{Crypto as ServiceCrypto, CryptoContent as ServiceCryptoContent};
 use crate::tool::McpTool;
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -22,6 +22,20 @@ struct CryptoVerifyRequest {
 #[derive(Debug, Deserialize, JsonSchema)]
 struct CryptoSignRequest {
     #[schemars(description = "List of data hex strings to sign")]
+    data: Vec<String>,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+struct CryptoEncryptRequest {
+    #[schemars(description = "Public key as hex string")]
+    public_key: String,
+    #[schemars(description = "List of base64 data strings to encrypt")]
+    data: Vec<String>,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+struct CryptoDecryptRequest {
+    #[schemars(description = "List of base64 encrypted data strings to decrypt")]
     data: Vec<String>,
 }
 
@@ -61,6 +75,38 @@ impl McpTool {
         let result = self.crypto_service.sign_map(data_map);
         Ok(CallToolResult::structured(json!(result)))
     }
+
+    #[tool(description = "Encrypt data using a public key")]
+    async fn encrypt(
+        &self,
+        Parameters(CryptoEncryptRequest { public_key, data }): Parameters<CryptoEncryptRequest>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let mut data_map = HashMap::new();
+        for data_base64 in data {
+            data_map.insert(data_base64, ServiceCryptoContent {
+                content: None,
+            });
+        }
+
+        let result = self.crypto_service.encrypt_map(public_key, data_map);
+        Ok(CallToolResult::structured(json!(result)))
+    }
+
+    #[tool(description = "Decrypt data using the application's secret key")]
+    async fn decrypt(
+        &self,
+        Parameters(CryptoDecryptRequest { data }): Parameters<CryptoDecryptRequest>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let mut data_map = HashMap::new();
+        for data_base64 in data {
+            data_map.insert(data_base64, ServiceCryptoContent {
+                content: None,
+            });
+        }
+
+        let result = self.crypto_service.decrypt_map(data_map);
+        Ok(CallToolResult::structured(json!(result)))
+    }
 }
 
 #[cfg(test)]
@@ -86,6 +132,7 @@ mod tests {
     use crate::service::resolver_service::ResolverService;
     use crate::service::key_value_service::KeyValueService;
     use std::sync::Arc;
+    use base64::Engine;
 
     #[tokio::test]
     async fn test_verify_signatures_tool() {
@@ -130,5 +177,52 @@ mod tests {
 
         assert!(result.get(&data_hex).unwrap().verified.unwrap());
         assert!(result.get(&data_hex).unwrap().signature.is_some());
+    }
+
+    #[tokio::test]
+    async fn test_encrypt_tool() {
+        let secret_key = SecretKey::random();
+        let public_key = hex::encode(secret_key.public_key().to_bytes());
+        let data = b"hello world";
+        let data_base64 = base64::engine::general_purpose::STANDARD.encode(data);
+
+        let ant_tp_config = crate::config::anttp_config::AntTpConfig::parse_from(&["anttp"]);
+        let crypto_service = Data::new(CryptoService::new(ant_tp_config));
+        
+        let result = crypto_service.encrypt_map(public_key, {
+            let mut data_map = HashMap::new();
+            data_map.insert(data_base64.clone(), ServiceCryptoContent {
+                content: None,
+            });
+            data_map
+        });
+
+        assert!(result.contains_key(&data_base64));
+        assert!(result.get(&data_base64).unwrap().content.is_some());
+    }
+
+    #[tokio::test]
+    async fn test_decrypt_tool() {
+        let secret_key = SecretKey::random();
+        let app_private_key_hex = secret_key.to_hex();
+        let data = b"hello world";
+        let encrypted_data = secret_key.public_key().encrypt(data).to_bytes();
+        let encrypted_data_base64 = base64::engine::general_purpose::STANDARD.encode(encrypted_data);
+
+        let ant_tp_config = crate::config::anttp_config::AntTpConfig::parse_from(&["anttp", "--app-private-key", &app_private_key_hex]);
+        let crypto_service = Data::new(CryptoService::new(ant_tp_config));
+        
+        let result = crypto_service.decrypt_map({
+            let mut data_map = HashMap::new();
+            data_map.insert(encrypted_data_base64.clone(), ServiceCryptoContent {
+                content: None,
+            });
+            data_map
+        });
+
+        assert!(result.contains_key(&encrypted_data_base64));
+        let decrypted_base64 = result.get(&encrypted_data_base64).unwrap().content.as_ref().unwrap();
+        let decrypted_bytes = base64::engine::general_purpose::STANDARD.decode(decrypted_base64).unwrap();
+        assert_eq!(decrypted_bytes, data);
     }
 }

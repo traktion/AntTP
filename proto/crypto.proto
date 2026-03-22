@@ -5,6 +5,8 @@ package crypto;
 service CryptoService {
   rpc Verify(CryptoRequest) returns (CryptoResponse);
   rpc Sign(CryptoRequest) returns (CryptoResponse);
+  rpc Encrypt(CryptoContentRequest) returns (CryptoContentResponse);
+  rpc Decrypt(CryptoContentRequest) returns (CryptoContentResponse);
 }
 
 message Crypto {
@@ -14,11 +16,26 @@ message Crypto {
 }
 
 message CryptoRequest {
-  string public_key = 1;
+  optional string public_key = 1;
   repeated Crypto crypto = 2;
 }
 
 message CryptoResponse {
-  string public_key = 1;
+  optional string public_key = 1;
   repeated Crypto crypto = 2;
+}
+
+message CryptoContent {
+  string data = 1;
+  optional string content = 2;
+}
+
+message CryptoContentRequest {
+  optional string public_key = 1;
+  repeated CryptoContent crypto_content = 2;
+}
+
+message CryptoContentResponse {
+  optional string public_key = 1;
+  repeated CryptoContent crypto_content = 2;
 }

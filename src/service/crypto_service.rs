@@ -2,12 +2,18 @@ use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 use blsttc::{PublicKey, Signature};
+use base64::{engine::general_purpose, Engine as _};
 use crate::config::anttp_config::AntTpConfig;
 
 #[derive(Debug, Serialize, Deserialize, ToSchema, Clone)]
 pub struct Crypto {
     pub signature: Option<String>,
     pub verified: Option<bool>,
+}
+
+#[derive(Debug, Serialize, Deserialize, ToSchema, Clone)]
+pub struct CryptoContent {
+    pub content: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -94,6 +100,43 @@ impl CryptoService {
         };
 
         public_key.verify(&signature, &data_bytes)
+    }
+
+    pub fn encrypt_map(&self, public_key: String, mut data_map: HashMap<String, CryptoContent>) -> HashMap<String, CryptoContent> {
+        for (data_base64, crypto_content_struct) in data_map.iter_mut() {
+            match self.encrypt(&public_key, data_base64) {
+                Some(encrypted_bytes) => {
+                    crypto_content_struct.content = Some(general_purpose::STANDARD.encode(encrypted_bytes));
+                }
+                None => {
+                    crypto_content_struct.content = None;
+                }
+            }
+        }
+        data_map
+    }
+
+    pub fn encrypt(&self, public_key_hex: &str, data_base64: &str) -> Option<Vec<u8>> {
+        let public_key_bytes = match hex::decode(public_key_hex) {
+            Ok(bytes) => bytes,
+            Err(_) => return None,
+        };
+        let data_bytes = match general_purpose::STANDARD.decode(data_base64) {
+            Ok(bytes) => bytes,
+            Err(_) => return None,
+        };
+
+        let mut pk_arr = [0u8; 48];
+        if public_key_bytes.len() != 48 {
+            return None;
+        }
+        pk_arr.copy_from_slice(&public_key_bytes);
+        let public_key = match PublicKey::from_bytes(pk_arr) {
+            Ok(pk) => pk,
+            Err(_) => return None,
+        };
+
+        Some(public_key.encrypt(&data_bytes).to_bytes())
     }
 }
 
@@ -192,5 +235,53 @@ mod tests {
             &data_hex
         );
         assert!(is_verified);
+    }
+
+    #[test]
+    fn test_encrypt_success() {
+        let secret_key = SecretKey::random();
+        let public_key_hex = hex::encode(secret_key.public_key().to_bytes());
+        let data = b"test data";
+        let data_base64 = general_purpose::STANDARD.encode(data);
+
+        let ant_tp_config = AntTpConfig::parse_from(&["anttp"]);
+        let service = CryptoService::new(ant_tp_config);
+        let encrypted_bytes = service.encrypt(&public_key_hex, &data_base64);
+
+        assert!(encrypted_bytes.is_some());
+        let encrypted_bytes = encrypted_bytes.unwrap();
+        
+        let ciphertext = blsttc::Ciphertext::from_bytes(&encrypted_bytes).unwrap();
+        
+        let decrypted_data = secret_key.decrypt(&ciphertext).unwrap();
+        assert_eq!(decrypted_data, data);
+    }
+
+    #[test]
+    fn test_encrypt_map_success() {
+        let secret_key = SecretKey::random();
+        let public_key_hex = hex::encode(secret_key.public_key().to_bytes());
+        let data = b"test data";
+        let data_base64 = general_purpose::STANDARD.encode(data);
+
+        let mut data_map = HashMap::new();
+        data_map.insert(data_base64.clone(), CryptoContent {
+            content: None,
+        });
+
+        let ant_tp_config = AntTpConfig::parse_from(&["anttp"]);
+        let service = CryptoService::new(ant_tp_config);
+        let result = service.encrypt_map(public_key_hex, data_map);
+
+        let crypto_content_struct = result.get(&data_base64).unwrap();
+        assert!(crypto_content_struct.content.is_some());
+        
+        let encrypted_base64 = crypto_content_struct.content.as_ref().unwrap();
+        let encrypted_bytes = general_purpose::STANDARD.decode(encrypted_base64).unwrap();
+        
+        let ciphertext = blsttc::Ciphertext::from_bytes(&encrypted_bytes).unwrap();
+        
+        let decrypted_data = secret_key.decrypt(&ciphertext).unwrap();
+        assert_eq!(decrypted_data, data);
     }
 }

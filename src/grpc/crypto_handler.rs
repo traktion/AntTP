@@ -1,7 +1,7 @@
 use tonic::{Request, Response, Status};
 use actix_web::web::Data;
 use std::collections::HashMap;
-use crate::service::crypto_service::{CryptoService, Crypto as ServiceVerify, CryptoContent as ServiceCryptoContent};
+use crate::service::crypto_service::{CryptoService, Crypto as ServiceCrypto, CryptoContent as ServiceCryptoContent};
 
 pub mod crypto_proto {
     tonic::include_proto!("crypto");
@@ -19,6 +19,27 @@ impl CryptoHandler {
     pub fn new(crypto_service: Data<CryptoService>) -> Self {
         Self { crypto_service }
     }
+
+    fn build_crypto_data_map(&self, crypto: Vec<Crypto>) -> HashMap<String, ServiceCrypto> {
+        let mut data_map = HashMap::new();
+        for v in crypto {
+            data_map.insert(v.data, ServiceCrypto {
+                signature: v.signature,
+                verified: None,
+            });
+        }
+        data_map
+    }
+
+    fn build_crypto_content_data_map(&self, crypto_content: Vec<CryptoContent>) -> HashMap<String, ServiceCryptoContent> {
+        let mut data_map = HashMap::new();
+        for v in crypto_content {
+            data_map.insert(v.data, ServiceCryptoContent {
+                content: v.content,
+            });
+        }
+        data_map
+    }
 }
 
 #[tonic::async_trait]
@@ -30,13 +51,7 @@ impl CryptoServiceTrait for CryptoHandler {
         let req = request.into_inner();
         let public_key = req.public_key.clone().unwrap_or_default();
         
-        let mut data_map = HashMap::new();
-        for v in req.crypto {
-            data_map.insert(v.data, ServiceVerify {
-                signature: v.signature,
-                verified: None,
-            });
-        }
+        let data_map = self.build_crypto_data_map(req.crypto);
 
         let result_map = self.crypto_service.verify_map(public_key, data_map);
 
@@ -60,13 +75,7 @@ impl CryptoServiceTrait for CryptoHandler {
     ) -> Result<Response<CryptoResponse>, Status> {
         let req = request.into_inner();
         
-        let mut data_map = HashMap::new();
-        for v in req.crypto {
-            data_map.insert(v.data, ServiceVerify {
-                signature: v.signature,
-                verified: None,
-            });
-        }
+        let data_map = self.build_crypto_data_map(req.crypto);
 
         let result_map = self.crypto_service.sign_map(data_map);
 
@@ -91,12 +100,7 @@ impl CryptoServiceTrait for CryptoHandler {
         let req = request.into_inner();
         let public_key = req.public_key.unwrap_or_default();
 
-        let mut data_map = HashMap::new();
-        for v in req.crypto_content {
-            data_map.insert(v.data, ServiceCryptoContent {
-                content: v.content,
-            });
-        }
+        let data_map = self.build_crypto_content_data_map(req.crypto_content);
 
         let result_map = self.crypto_service.encrypt_map(public_key.clone(), data_map);
 
@@ -119,12 +123,7 @@ impl CryptoServiceTrait for CryptoHandler {
     ) -> Result<Response<CryptoContentResponse>, Status> {
         let req = request.into_inner();
 
-        let mut data_map = HashMap::new();
-        for v in req.crypto_content {
-            data_map.insert(v.data, ServiceCryptoContent {
-                content: v.content,
-            });
-        }
+        let data_map = self.build_crypto_content_data_map(req.crypto_content);
 
         let result_map = self.crypto_service.decrypt_map(data_map);
 

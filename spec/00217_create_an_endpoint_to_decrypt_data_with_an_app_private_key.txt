@@ -1,0 +1,50 @@
+As an AntTP user
+I want to be able to provide some encrypted data and return decrypted data
+So that I can use my app private key to decrypt the data that has been shared with me
+
+Given crypto_controller.rs already exists and provides encrypt endpoint
+When adding decrypet support
+Then use the encrypt endpoint/function as an example
+And create a new decrypt endpoint at /anttp-0/crypto/decrypt
+And request must use the same CryptoContent request body
+And with the encrypted data being provided as the map key (like encrypt endpoint)
+And response must also have the 'CryptoContent' body type
+And both the data key in the request and the response content must be base64 
+And the payload must look similar to the below:
+
+```
+{
+  [
+    "base64_encrypted_data_1" : {
+      "content": "base64_decrypted_data_1"
+    },
+    "base64_encrypted_data_2" : {
+      "content": "base64_decrypted_data_2"
+    },
+    ...
+    "base64_encrypted_data_N" : {
+      "content": "base64_decrypted_data_N"
+    },
+  ]
+}
+```
+
+Given crypto_service.rs already exists and provides an encrypt function
+When adding decrypt support
+Then add decrypt and decrypt_map functions, using encrypt/encrypt_map (but don't use public_key) and sign/sign_map as examples
+And use base64 decode to extract the data key value
+And use the app_private_key (from anttp_config.rs) to decrypt the data using private_key.decrypt() (instead of encrypting)
+And then return the data_map with the 'content' CryptoContent field populated with the result
+And use private_key.decrypt() to get the raw bytes (from decrypt function), then use base64 encode to safely place the decrypted data in the data_map 'content' variable (in decrypt_map function)
+
+Given /src/lib.rs will need to be updated with the new endpoints and route
+When adding the new controller endpoint
+Then update lib.rs to add /anttp-0/crypto/decrypt like /anttp-0/crypto/encrypt/{public_key}
+
+Implementation Notes
+
+- Place any unit tests at the bottom of the same file as the associated production code
+- Increment patch version of anttp package in Cargo.toml
+- Create a copy of this issue description and save to /spec using the name of this issue as the filename (with lower underscore case, starting with the 5 char padded issue number, e.g. 00001_issue_title.txt)
+- Update unit tests to validate the changes
+- Update newman tests to include the new endpoint

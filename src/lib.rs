@@ -176,7 +176,8 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> io::Result<()> {
             resolver_controller::resolve,
             crypto_controller::post_verify,
             crypto_controller::post_sign,
-            crypto_controller::post_encrypt
+            crypto_controller::post_encrypt,
+            crypto_controller::post_decrypt
         ),
         components(
             schemas(PublicArchiveForm, ArchiveForm, Upload, ArchiveResponse, Chunk, ArchiveType, Resolve, Crypto, CryptoContent)
@@ -465,6 +466,10 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> io::Result<()> {
             .route(
                 format!("{}crypto/encrypt/{{public_key}}", API_BASE).as_str(),
                 web::post().to(crypto_controller::post_encrypt)
+            )
+            .route(
+                format!("{}crypto/decrypt", API_BASE).as_str(),
+                web::post().to(crypto_controller::post_decrypt)
             )
             .route(
                 "/{path:.*}",

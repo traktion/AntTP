@@ -138,6 +138,38 @@ impl CryptoService {
 
         Some(public_key.encrypt(&data_bytes).to_bytes())
     }
+
+    pub fn decrypt_map(&self, mut data_map: HashMap<String, CryptoContent>) -> HashMap<String, CryptoContent> {
+        for (data_base64, crypto_content_struct) in data_map.iter_mut() {
+            match self.decrypt(data_base64) {
+                Some(decrypted_bytes) => {
+                    crypto_content_struct.content = Some(general_purpose::STANDARD.encode(decrypted_bytes));
+                }
+                None => {
+                    crypto_content_struct.content = None;
+                }
+            }
+        }
+        data_map
+    }
+
+    pub fn decrypt(&self, data_base64: &str) -> Option<Vec<u8>> {
+        let app_private_key = match self.ant_tp_config.get_app_private_key() {
+            Ok(key) => key,
+            Err(_) => return None,
+        };
+        let data_bytes = match general_purpose::STANDARD.decode(data_base64) {
+            Ok(bytes) => bytes,
+            Err(_) => return None,
+        };
+
+        let ciphertext = match blsttc::Ciphertext::from_bytes(&data_bytes) {
+            Ok(ct) => ct,
+            Err(_) => return None,
+        };
+
+        app_private_key.decrypt(&ciphertext)
+    }
 }
 
 #[cfg(test)]
@@ -283,5 +315,43 @@ mod tests {
         
         let decrypted_data = secret_key.decrypt(&ciphertext).unwrap();
         assert_eq!(decrypted_data, data);
+    }
+
+    #[test]
+    fn test_decrypt_success() {
+        let secret_key = SecretKey::random();
+        let app_private_key_hex = secret_key.to_hex();
+        let data = b"test data";
+        let encrypted_data = secret_key.public_key().encrypt(data).to_bytes();
+        let encrypted_data_base64 = general_purpose::STANDARD.encode(encrypted_data);
+
+        let ant_tp_config = AntTpConfig::parse_from(&["anttp", "--app-private-key", &app_private_key_hex]);
+        let service = CryptoService::new(ant_tp_config);
+        let decrypted_bytes = service.decrypt(&encrypted_data_base64);
+
+        assert!(decrypted_bytes.is_some());
+        assert_eq!(decrypted_bytes.unwrap(), data);
+    }
+
+    #[test]
+    fn test_decrypt_map_success() {
+        let secret_key = SecretKey::random();
+        let app_private_key_hex = secret_key.to_hex();
+        let data = b"test data";
+        let encrypted_data = secret_key.public_key().encrypt(data).to_bytes();
+        let encrypted_data_base64 = general_purpose::STANDARD.encode(encrypted_data);
+
+        let mut data_map = HashMap::new();
+        data_map.insert(encrypted_data_base64.clone(), CryptoContent {
+            content: None,
+        });
+
+        let ant_tp_config = AntTpConfig::parse_from(&["anttp", "--app-private-key", &app_private_key_hex]);
+        let service = CryptoService::new(ant_tp_config);
+        let result = service.decrypt_map(data_map);
+
+        let decrypted_content_base64 = result.get(&encrypted_data_base64).unwrap().content.as_ref().unwrap();
+        let decrypted_bytes = general_purpose::STANDARD.decode(decrypted_content_base64).unwrap();
+        assert_eq!(decrypted_bytes, data);
     }
 }

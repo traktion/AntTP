@@ -1,7 +1,7 @@
 use actix_web::{web, HttpResponse};
 use actix_web::web::Data;
 use std::collections::HashMap;
-use crate::service::crypto_service::{CryptoService, Crypto};
+use crate::service::crypto_service::{CryptoService, Crypto, CryptoContent};
 
 #[utoipa::path(
     post,
@@ -55,13 +55,83 @@ pub async fn post_sign(
     HttpResponse::Ok().json(result)
 }
 
+#[utoipa::path(
+    post,
+    path = "/anttp-0/crypto/encrypt/{public_key}",
+    params(
+        ("public_key" = String, Path, description = "Public key as hex string"),
+    ),
+    request_body(
+        content = HashMap<String, CryptoContent>,
+        description = "Map of base64 data to CryptoContent struct",
+        example = json!({
+            "aGVsbG8gd29ybGQ=": {
+            }
+        })
+    ),
+    responses(
+        (status = OK, description = "Encryption results", body = HashMap<String, CryptoContent>),
+    )
+)]
+pub async fn post_encrypt(
+    path: web::Path<String>,
+    crypto_service: Data<CryptoService>,
+    data_map: web::Json<HashMap<String, CryptoContent>>,
+) -> HttpResponse {
+    let public_key = path.into_inner();
+    let result = crypto_service.encrypt_map(public_key, data_map.into_inner());
+    HttpResponse::Ok().json(result)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use actix_web::{test, App};
     use blsttc::SecretKey;
+    use base64::{engine::general_purpose, Engine as _};
     use crate::config::anttp_config::AntTpConfig;
     use clap::Parser;
+
+    #[actix_web::test]
+    async fn test_post_encrypt_success() {
+        let secret_key = SecretKey::random();
+        let public_key_hex = hex::encode(secret_key.public_key().to_bytes());
+        let data = b"hello world";
+        let data_base64 = general_purpose::STANDARD.encode(data);
+
+        let ant_tp_config = AntTpConfig::parse_from(&["anttp"]);
+        let crypto_service = Data::new(CryptoService::new(ant_tp_config));
+
+        let app = test::init_service(
+            App::new()
+                .app_data(crypto_service.clone())
+                .route("/anttp-0/crypto/encrypt/{public_key}", web::post().to(post_encrypt))
+        ).await;
+
+        let mut data_map = HashMap::new();
+        data_map.insert(data_base64.clone(), CryptoContent {
+            content: None,
+        });
+
+        let req = test::TestRequest::post()
+            .uri(&format!("/anttp-0/crypto/encrypt/{}", public_key_hex))
+            .set_json(&data_map)
+            .to_request();
+
+        let resp: HashMap<String, CryptoContent> = test::call_and_read_body_json(&app, req).await;
+
+        assert!(resp.contains_key(&data_base64));
+        let crypto_content_struct = resp.get(&data_base64).unwrap();
+        assert!(crypto_content_struct.content.is_some());
+        
+        let encrypted_base64 = crypto_content_struct.content.as_ref().unwrap();
+        let encrypted_bytes = general_purpose::STANDARD.decode(encrypted_base64).unwrap();
+        
+        let ciphertext = blsttc::Ciphertext::from_bytes(&encrypted_bytes).unwrap();
+        
+        let decrypted_data = secret_key.decrypt(&ciphertext).unwrap();
+        assert_eq!(decrypted_data, data);
+    }
 
     #[actix_web::test]
     async fn test_post_sign_success() {

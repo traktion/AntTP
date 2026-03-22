@@ -329,6 +329,34 @@
 									]
 								}
 							}
+						},
+						{
+							"name": "Encrypt",
+							"request": {
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"aGVsbG8gd29ybGQ=\": {\n    }\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{base_url}}/anttp-0/crypto/encrypt/a074c538743f9a71092525790a6e4d940608035105a51351235123512351235123512351235123512351235123512351",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"anttp-0",
+										"crypto",
+										"encrypt",
+										"a074c538743f9a71092525790a6e4d940608035105a51351235123512351235123512351235123512351235123512351"
+									]
+								}
+							}
 						}
 					]
 				},

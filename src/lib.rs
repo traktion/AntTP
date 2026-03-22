@@ -62,7 +62,7 @@ use crate::service::access_checker::AccessChecker;
 use crate::service::bookmark_resolver::BookmarkResolver;
 use crate::service::pointer_name_resolver::PointerNameResolver;
 use crate::service::pnr_service::PnrService;
-use crate::service::crypto_service::{CryptoService, Crypto};
+use crate::service::crypto_service::{CryptoService, Crypto, CryptoContent};
 use crate::service::key_value_service::KeyValueService;
 use crate::service::chunk_service::{Chunk, ChunkService};
 use crate::service::command_service::CommandService;
@@ -175,10 +175,11 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> io::Result<()> {
             key_value_controller::get_key_value_binary,
             resolver_controller::resolve,
             crypto_controller::post_verify,
-            crypto_controller::post_sign
+            crypto_controller::post_sign,
+            crypto_controller::post_encrypt
         ),
         components(
-            schemas(PublicArchiveForm, ArchiveForm, Upload, ArchiveResponse, Chunk, ArchiveType, Resolve, Crypto)
+            schemas(PublicArchiveForm, ArchiveForm, Upload, ArchiveResponse, Chunk, ArchiveType, Resolve, Crypto, CryptoContent)
         )
     )]
     struct ApiDoc;
@@ -460,6 +461,10 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> io::Result<()> {
             .route(
                 format!("{}crypto/sign", API_BASE).as_str(),
                 web::post().to(crypto_controller::post_sign)
+            )
+            .route(
+                format!("{}crypto/encrypt/{{public_key}}", API_BASE).as_str(),
+                web::post().to(crypto_controller::post_encrypt)
             )
             .route(
                 "/{path:.*}",

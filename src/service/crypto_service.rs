@@ -2,12 +2,14 @@ use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 use blsttc::{PublicKey, Signature};
+use base64::{engine::general_purpose, Engine as _};
 use crate::config::anttp_config::AntTpConfig;
 
 #[derive(Debug, Serialize, Deserialize, ToSchema, Clone)]
 pub struct Crypto {
     pub signature: Option<String>,
     pub verified: Option<bool>,
+    pub encrypted: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -95,6 +97,34 @@ impl CryptoService {
 
         public_key.verify(&signature, &data_bytes)
     }
+
+    pub fn encrypt_map(&self, public_key_hex: String, mut data_map: HashMap<String, Crypto>) -> HashMap<String, Crypto> {
+        for (data, crypto_struct) in data_map.iter_mut() {
+            let encrypted = self.encrypt(&public_key_hex, data);
+            crypto_struct.encrypted = encrypted;
+        }
+        data_map
+    }
+
+    pub fn encrypt(&self, public_key_hex: &str, data: &str) -> Option<String> {
+        let public_key_bytes = match hex::decode(public_key_hex) {
+            Ok(bytes) => bytes,
+            Err(_) => return None,
+        };
+
+        let mut pk_arr = [0u8; 48];
+        if public_key_bytes.len() != 48 {
+            return None;
+        }
+        pk_arr.copy_from_slice(&public_key_bytes);
+        let public_key = match PublicKey::from_bytes(pk_arr) {
+            Ok(pk) => pk,
+            Err(_) => return None,
+        };
+
+        let ciphertext = public_key.encrypt(data.as_bytes());
+        Some(general_purpose::STANDARD.encode(ciphertext.to_bytes()))
+    }
 }
 
 #[cfg(test)]
@@ -115,6 +145,7 @@ mod tests {
         data_map.insert(data_hex.clone(), Crypto {
             signature: Some(signature),
             verified: None,
+            encrypted: None,
         });
 
         let ant_tp_config = AntTpConfig::parse_from(&["anttp"]);
@@ -135,6 +166,7 @@ mod tests {
         data_map.insert(data_hex.clone(), Crypto {
             signature: Some(signature),
             verified: None,
+            encrypted: None,
         });
 
         let ant_tp_config = AntTpConfig::parse_from(&["anttp"]);
@@ -175,6 +207,7 @@ mod tests {
         data_map.insert(data_hex.clone(), Crypto {
             signature: None,
             verified: None,
+            encrypted: None,
         });
 
         let ant_tp_config = AntTpConfig::parse_from(&["anttp", "--app-private-key", &app_private_key_hex]);
@@ -192,5 +225,49 @@ mod tests {
             &data_hex
         );
         assert!(is_verified);
+    }
+
+    #[test]
+    fn test_encrypt_success() {
+        use blsttc::Ciphertext;
+        let secret_key = SecretKey::random();
+        let public_key_hex = hex::encode(secret_key.public_key().to_bytes());
+        let data = "test data";
+
+        let ant_tp_config = AntTpConfig::parse_from(&["anttp"]);
+        let service = CryptoService::new(ant_tp_config);
+        let encrypted_base64 = service.encrypt(&public_key_hex, data).unwrap();
+
+        let encrypted_bytes = general_purpose::STANDARD.decode(encrypted_base64).unwrap();
+        let ciphertext = Ciphertext::from_bytes(&encrypted_bytes).unwrap();
+        let decrypted_bytes = secret_key.decrypt(&ciphertext).unwrap();
+        assert_eq!(data.as_bytes(), decrypted_bytes.as_slice());
+    }
+
+    #[test]
+    fn test_encrypt_map_success() {
+        use blsttc::Ciphertext;
+        let secret_key = SecretKey::random();
+        let public_key_hex = hex::encode(secret_key.public_key().to_bytes());
+        let data = "test data";
+
+        let mut data_map = HashMap::new();
+        data_map.insert(data.to_string(), Crypto {
+            signature: None,
+            verified: None,
+            encrypted: None,
+        });
+
+        let ant_tp_config = AntTpConfig::parse_from(&["anttp"]);
+        let service = CryptoService::new(ant_tp_config);
+        let result = service.encrypt_map(public_key_hex, data_map);
+
+        let crypto_struct = result.get(data).unwrap();
+        let encrypted_base64 = crypto_struct.encrypted.as_ref().unwrap();
+
+        let encrypted_bytes = general_purpose::STANDARD.decode(encrypted_base64).unwrap();
+        let ciphertext = Ciphertext::from_bytes(&encrypted_bytes).unwrap();
+        let decrypted_bytes = secret_key.decrypt(&ciphertext).unwrap();
+        assert_eq!(data.as_bytes(), decrypted_bytes.as_slice());
     }
 }

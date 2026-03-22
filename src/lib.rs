@@ -175,7 +175,8 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> io::Result<()> {
             key_value_controller::get_key_value_binary,
             resolver_controller::resolve,
             crypto_controller::post_verify,
-            crypto_controller::post_sign
+            crypto_controller::post_sign,
+            crypto_controller::post_encrypt
         ),
         components(
             schemas(PublicArchiveForm, ArchiveForm, Upload, ArchiveResponse, Chunk, ArchiveType, Resolve, Crypto)

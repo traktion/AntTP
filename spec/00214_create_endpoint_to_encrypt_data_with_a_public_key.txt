@@ -1,0 +1,48 @@
+As an AntTP user
+I want to be able to provide some data and a public key and have the encrypted data returned
+So that I can store sensitive data safely for the associated private key holder
+
+Given crypto_controller.rs already exists and provides sign/verify endpoints
+When adding encrypt support
+Then use the verify endpoint/function as an example
+And create a new encrypt endpoint at /anttp-0/crypto/encrypt/{public_key}
+And request must have the same body type, with 'data' being provided as the map key (like verify)
+And response must have the same body type, but add an optional 'encrypted' field in the Crypto struct for holding encrypted data responses
+And assume that the 'data' in the request and the 'encrypted' in the response are both strings (which may or may not be hex)
+
+```
+{
+  [
+    "data_1" : {
+      "encrypted": "encrypted_data_1"
+      "verified": "false"
+    },
+    "data_hex_2" : {
+      "encrypted": "encrypted_data_hex_2",
+      "verified": "false"
+    },
+    "data_hex_3" : {
+      "encrypted": "encrypted_data_hex_3",
+    },
+    ...
+    "data_N" : {
+      "encrypted": "encrypted_data_N",
+      "verified": "false"
+  ]
+}
+```
+
+Given crypto_service.rs already exists and provides sign/verify (and sign_map/verify_map) functions
+When adding encrypt support
+Then add encrypt and encrypt_map functions, using verify/verify_map and sign/sign_map as examples
+And use the public key to encrypt the data using public_key.encrypt() (instead of signing)
+And then return the data_map with the 'encrypted' Crypto field populated with the result
+And use public_key.encrypt().to_bytes() to get the raw bytes (from encrypt function), then use base64 encode to safely place the encrypted data in the data_map (in encrypt_map function)
+
+Implementation Notes
+
+- Place any unit tests at the bottom of the same file as the associated production code
+- Increment patch version of anttp package in Cargo.toml
+- Create a copy of this issue description and save to /spec using the name of this issue as the filename (with lower underscore case, starting with the 5 char padded issue number, e.g. 00001_issue_title.txt)
+- Update unit tests to validate the changes
+- Update newman tests to include the new endpoint

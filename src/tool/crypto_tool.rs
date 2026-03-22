@@ -38,6 +38,7 @@ impl McpTool {
             data_map.insert(data_hex, ServiceCrypto {
                 signature: Some(signature_hex),
                 verified: None,
+                encrypted: None,
             });
         }
 
@@ -55,6 +56,7 @@ impl McpTool {
             data_map.insert(data_hex, ServiceCrypto {
                 signature: None,
                 verified: None,
+                encrypted: None,
             });
         }
 
@@ -103,6 +105,7 @@ mod tests {
             data_map.insert(data_hex.clone(), ServiceCrypto {
                 signature: Some(signature.clone()),
                 verified: None,
+                encrypted: None,
             });
             data_map
         });
@@ -124,6 +127,7 @@ mod tests {
             data_map.insert(data_hex.clone(), ServiceCrypto {
                 signature: None,
                 verified: None,
+                encrypted: None,
             });
             data_map
         });

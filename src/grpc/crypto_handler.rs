@@ -35,6 +35,7 @@ impl CryptoServiceTrait for CryptoHandler {
             data_map.insert(v.data, ServiceVerify {
                 signature: v.signature,
                 verified: None,
+                encrypted: None,
             });
         }
 
@@ -65,6 +66,7 @@ impl CryptoServiceTrait for CryptoHandler {
             data_map.insert(v.data, ServiceVerify {
                 signature: v.signature,
                 verified: None,
+                encrypted: None,
             });
         }
 

@@ -83,6 +83,29 @@ pub async fn post_encrypt(
     HttpResponse::Ok().json(result)
 }
 
+#[utoipa::path(
+    post,
+    path = "/anttp-0/crypto/decrypt",
+    request_body(
+        content = HashMap<String, CryptoContent>,
+        description = "Map of base64 encrypted data to CryptoContent struct",
+        example = json!({
+            "aGVsbG8gd29ybGQ=": {
+            }
+        })
+    ),
+    responses(
+        (status = OK, description = "Decryption results", body = HashMap<String, CryptoContent>),
+    )
+)]
+pub async fn post_decrypt(
+    crypto_service: Data<CryptoService>,
+    data_map: web::Json<HashMap<String, CryptoContent>>,
+) -> HttpResponse {
+    let result = crypto_service.decrypt_map(data_map.into_inner());
+    HttpResponse::Ok().json(result)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -131,6 +154,45 @@ mod tests {
         
         let decrypted_data = secret_key.decrypt(&ciphertext).unwrap();
         assert_eq!(decrypted_data, data);
+    }
+
+    #[actix_web::test]
+    async fn test_post_decrypt_success() {
+        let secret_key = SecretKey::random();
+        let app_private_key_hex = secret_key.to_hex();
+        let data = b"hello world";
+        let encrypted_data = secret_key.public_key().encrypt(data).to_bytes();
+        let encrypted_data_base64 = general_purpose::STANDARD.encode(encrypted_data);
+
+        let ant_tp_config = AntTpConfig::parse_from(&["anttp", "--app-private-key", &app_private_key_hex]);
+        let crypto_service = Data::new(CryptoService::new(ant_tp_config));
+
+        let app = test::init_service(
+            App::new()
+                .app_data(crypto_service.clone())
+                .route("/anttp-0/crypto/decrypt", web::post().to(post_decrypt))
+        ).await;
+
+        let mut data_map = HashMap::new();
+        data_map.insert(encrypted_data_base64.clone(), CryptoContent {
+            content: None,
+        });
+
+        let req = test::TestRequest::post()
+            .uri("/anttp-0/crypto/decrypt")
+            .set_json(&data_map)
+            .to_request();
+
+        let resp: HashMap<String, CryptoContent> = test::call_and_read_body_json(&app, req).await;
+
+        assert!(resp.contains_key(&encrypted_data_base64));
+        let crypto_content_struct = resp.get(&encrypted_data_base64).unwrap();
+        assert!(crypto_content_struct.content.is_some());
+        
+        let decrypted_base64 = crypto_content_struct.content.as_ref().unwrap();
+        let decrypted_bytes = general_purpose::STANDARD.decode(decrypted_base64).unwrap();
+        
+        assert_eq!(decrypted_bytes, data);
     }
 
     #[actix_web::test]

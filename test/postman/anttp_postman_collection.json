@@ -357,6 +357,33 @@
 									]
 								}
 							}
+						},
+						{
+							"name": "Decrypt",
+							"request": {
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"m/Xv3wWv0N9G8f6H7X...==\": {\n    }\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{base_url}}/anttp-0/crypto/decrypt",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"anttp-0",
+										"crypto",
+										"decrypt"
+									]
+								}
+							}
 						}
 					]
 				},

@@ -37,19 +37,23 @@ AntTP is actively developed, with many features planned to enhance its capabilit
 - [x] Pointer, Register, Chunk, Public Archive
 - [x] Async command/upload queue
 - [x] Tarchive & PNR support
-- [ ] BLS support (Create, sign, verify)
+- [x] BLS support (encrypt, decrypt, sign, verify)
 - [ ] Vault & Wallet management
 - [ ] Data upload cost analysis
 
 ### gRPC API
 - [x] Pointer, Register, Chunk, Public Archive
 - [x] Tarchive & PNR support
-- [ ] BLS, Vault, and Wallet support
+- [x] BLS support (encrypt, decrypt, sign, verify)
+- [ ] Vault & Wallet management
+- [ ] Data upload cost analysis
 
 ### MCP API
 - [x] Pointer, Register, Chunk, Public Archive
 - [x] Tarchive & PNR support
-- [ ] Extended agent tools
+- [x] BLS support (encrypt, decrypt, sign, verify)
+- [ ] Vault & Wallet management
+- [ ] Data upload cost analysis
 
 ---
 
@@ -57,7 +61,6 @@ AntTP is actively developed, with many features planned to enhance its capabilit
 - [ ] **Websockets:** Streaming immutable and mutable data changes.
 - [ ] **Accounting:** Bandwidth usage tracking and payments for public proxies.
 - [x] **Access List:** Allow/deny controls for addresses.
-- [ ] **Status Page:** Enhanced UI for monitoring the async command queue.
 - [x] **Offline Mode:** Support for requests and uploads without an active network connection (with async sync).
 
 ---

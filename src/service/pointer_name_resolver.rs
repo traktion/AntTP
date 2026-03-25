@@ -11,6 +11,7 @@ use crate::error::GetError;
 use crate::error::pointer_error::PointerError;
 use crate::model::pnr::PnrZone;
 use crate::service::validate_immutable_address;
+use mockall::mock;
 use mockall_double::double;
 
 static PUBLIC_SUFFIX_LIST: Lazy<HashSet<&'static str>> = Lazy::new(|| {
@@ -95,12 +96,24 @@ impl ResolvedRecord {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct PointerNameResolver {
     pointer_caching_client: PointerCachingClient,
     chunk_caching_client: ChunkCachingClient,
     pointer_name_resolver_secret_key: SecretKey,
     ttl_default: u64,
+}
+
+mock! {
+    #[derive(Debug)]
+    pub PointerNameResolver {
+        pub fn new(pointer_caching_client: PointerCachingClient, chunk_caching_client: ChunkCachingClient, pointer_name_resolver_secret_key: SecretKey, ttl_default: u64) -> Self;
+        pub async fn is_resolved(&self, name: &String) -> bool;
+        pub async fn resolve(&self, name: &String) -> Option<ResolvedRecord>;
+    }
+    impl Clone for PointerNameResolver {
+        fn clone(&self) -> Self;
+    }
 }
 
 impl PointerNameResolver {

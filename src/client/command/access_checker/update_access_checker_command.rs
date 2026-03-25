@@ -15,16 +15,22 @@ use crate::client::CachingClient;
 use crate::client::StreamingClient;
 #[double]
 use crate::client::RegisterCachingClient;
+#[double]
 use crate::client::ArchiveCachingClient;
 use mockall_double::double;
 use crate::client::command::error::CommandError;
 use crate::client::command::Command;
 use crate::model::access_list::AccessList;
 use crate::config::anttp_config::AntTpConfig;
+#[double]
 use crate::service::access_checker::AccessChecker;
+#[double]
 use crate::service::bookmark_resolver::BookmarkResolver;
+#[double]
 use crate::service::pointer_name_resolver::PointerNameResolver;
+#[double]
 use crate::service::file_service::FileService;
+#[double]
 use crate::service::resolver_service::ResolverService;
 
 pub struct UpdateAccessCheckerCommand {

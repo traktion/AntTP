@@ -13,6 +13,7 @@ use crate::client::ChunkCachingClient;
 use crate::client::CachingClient;
 #[double]
 use crate::client::StreamingClient;
+#[double]
 use crate::client::ArchiveCachingClient;
 #[double]
 use crate::client::RegisterCachingClient;
@@ -21,10 +22,15 @@ use crate::client::command::error::CommandError;
 use crate::client::command::Command;
 use crate::config::anttp_config::AntTpConfig;
 use crate::model::bookmark_list::BookmarkList;
+#[double]
 use crate::service::access_checker::AccessChecker;
+#[double]
 use crate::service::bookmark_resolver::BookmarkResolver;
+#[double]
 use crate::service::pointer_name_resolver::PointerNameResolver;
+#[double]
 use crate::service::file_service::FileService;
+#[double]
 use crate::service::resolver_service::ResolverService;
 
 pub struct UpdateBookmarkResolverCommand {

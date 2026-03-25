@@ -51,21 +51,32 @@ use crate::client::PublicDataCachingClient;
 use crate::client::TArchiveCachingClient;
 #[double]
 use crate::client::StreamingClient;
-use crate::client::{ArchiveCachingClient, GraphEntryCachingClient, RegisterCachingClient, ScratchpadCachingClient};
+#[double]
+use crate::client::ArchiveCachingClient;
+#[double]
+use crate::client::GraphEntryCachingClient;
+#[double]
+use crate::client::RegisterCachingClient;
+#[double]
+use crate::client::ScratchpadCachingClient;
 use crate::client::client_harness::ClientHarness;
 use client::command::executor::Executor;
 use crate::client::command::access_checker::update_access_checker_command::UpdateAccessCheckerCommand;
 use crate::client::command::bookmark_resolver::update_bookmark_resolver_command::UpdateBookmarkResolverCommand;
 use crate::client::command::Command;
 use crate::client::command::command_details::CommandDetails;
+#[double]
 use crate::service::access_checker::AccessChecker;
+#[double]
 use crate::service::bookmark_resolver::BookmarkResolver;
+#[double]
 use crate::service::pointer_name_resolver::PointerNameResolver;
 use crate::service::pnr_service::PnrService;
 use crate::service::crypto_service::{CryptoService, Crypto, CryptoContent};
 use crate::service::key_value_service::KeyValueService;
 use crate::service::chunk_service::{Chunk, ChunkService};
 use crate::service::command_service::CommandService;
+#[double]
 use crate::service::file_service::FileService;
 use crate::service::graph_service::GraphService;
 use crate::service::pointer_service::PointerService;
@@ -76,6 +87,7 @@ use crate::model::resolve::Resolve;
 use crate::service::tarchive_service::TarchiveService;
 use crate::service::public_data_service::PublicDataService;
 use crate::service::register_service::RegisterService;
+#[double]
 use crate::service::resolver_service::ResolverService;
 use crate::service::scratchpad_service::ScratchpadService;
 use crate::tool::McpTool;

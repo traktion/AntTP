@@ -1,15 +1,29 @@
-use crate::model::access_list::AccessList;
 use std::collections::HashMap;
 use log::debug;
+use mockall::mock;
+use crate::model::access_list::AccessList;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 enum AccessType {
     Allow, Deny
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct AccessChecker {
     map: HashMap<String, AccessType>,
+}
+
+mock! {
+    #[derive(Debug)]
+    pub AccessChecker {
+        pub fn new() -> Self;
+        pub fn update(&mut self, access_list: &AccessList);
+        pub fn is_allowed(&self, address: &String) -> bool;
+        pub fn is_allowed_default(&self) -> bool;
+    }
+    impl Clone for AccessChecker {
+        fn clone(&self) -> Self;
+    }
 }
 
 impl AccessChecker {
@@ -18,6 +32,15 @@ impl AccessChecker {
         let map = HashMap::new();
         AccessChecker { map }
     }
+}
+
+impl Default for AccessChecker {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl AccessChecker {
 
     pub fn update(&mut self, access_list: &AccessList) {
         for allow_address in access_list.allow() {

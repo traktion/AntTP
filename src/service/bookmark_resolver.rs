@@ -1,9 +1,23 @@
 use std::collections::HashMap;
+use mockall::mock;
 use crate::model::bookmark_list::BookmarkList;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct BookmarkResolver {
     map: HashMap<String, String>,
+}
+
+mock! {
+    #[derive(Debug)]
+    pub BookmarkResolver {
+        pub fn new() -> Self;
+        pub fn update(&mut self, bookmark_list: &BookmarkList);
+        pub fn is_bookmark(&self, name: &String) -> bool;
+        pub fn resolve(&self, name: &String) -> Option<String>;
+    }
+    impl Clone for BookmarkResolver {
+        fn clone(&self) -> Self;
+    }
 }
 
 impl BookmarkResolver {
@@ -12,6 +26,15 @@ impl BookmarkResolver {
         let map = HashMap::new();
         BookmarkResolver { map }
     }
+}
+
+impl Default for BookmarkResolver {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl BookmarkResolver {
 
     pub fn update(&mut self, bookmark_list: &BookmarkList) {
         self.map = bookmark_list.bookmarks().clone();

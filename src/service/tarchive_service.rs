@@ -2,6 +2,8 @@ use std::{env, fs, io};
 use std::fs::create_dir;
 use std::io::Write;
 use std::path::PathBuf;
+use std::collections::HashMap;
+use std::sync::Arc;
 use actix_multipart::form::MultipartForm;
 use actix_web::web::Bytes;
 use autonomi::Wallet;
@@ -28,6 +30,7 @@ use crate::controller::StoreType;
 use crate::model::tarchive::Tarchive;
 use crate::model::archive::Archive;
 use crate::config::anttp_config::AntTpConfig;
+use tokio::sync::Mutex as TokioMutex;
 
 #[derive(Debug, Clone)]
 pub struct TarchiveService {
@@ -36,11 +39,13 @@ pub struct TarchiveService {
     file_service: FileService,
     resolver_service: ResolverService,
     ant_tp_config: AntTpConfig,
+    // Per-address async mutexes to serialize updates to the same tarchive address
+    address_locks: Arc<TokioMutex<HashMap<String, Arc<TokioMutex<()>>>>>,
 }
 
 impl TarchiveService {
     pub fn new(public_data_service: PublicDataService, tarchive_caching_client: TArchiveCachingClient, file_service: FileService, resolver_service: ResolverService, ant_tp_config: AntTpConfig) -> Self {
-        TarchiveService { public_data_service, tarchive_caching_client, file_service, resolver_service, ant_tp_config }
+        TarchiveService { public_data_service, tarchive_caching_client, file_service, resolver_service, ant_tp_config, address_locks: Arc::new(TokioMutex::new(HashMap::new())) }
     }
 
     pub async fn get_tarchive(&self, address: String, path: Option<String>) -> Result<ArchiveResponse, TarchiveError> {
@@ -102,6 +107,13 @@ impl TarchiveService {
 
     pub async fn update_tarchive(&self, address: String, target_path: Option<String>, tarchive_form: MultipartForm<PublicArchiveForm>, evm_wallet: Wallet, store_type: StoreType) -> Result<Upload, TarchiveError> {
         let resolved_address = self.resolver_service.resolve_name(&address).await.unwrap_or(address);
+        // Acquire per-address lock to prevent concurrent updates to the same tarchive
+        let addr_lock = {
+            let mut locks = self.address_locks.lock().await;
+            Arc::clone(locks.entry(resolved_address.clone()).or_insert_with(|| Arc::new(TokioMutex::new(()))))
+        };
+        let _guard = addr_lock.lock().await;
+
         info!("Updating tarchive at address [{}]", resolved_address);
         let tmp_dir = Self::create_tmp_dir()?;
         let tar_path = tmp_dir.join("archive.tar");
@@ -147,6 +159,13 @@ impl TarchiveService {
 
     pub async fn truncate_tarchive(&self, address: String, path: String, evm_wallet: Wallet, store_type: StoreType) -> Result<Upload, TarchiveError> {
         let resolved_address = self.resolver_service.resolve_name(&address).await.unwrap_or(address);
+        // Acquire per-address lock to prevent concurrent truncations to the same tarchive
+        let addr_lock = {
+            let mut locks = self.address_locks.lock().await;
+            Arc::clone(locks.entry(resolved_address.clone()).or_insert_with(|| Arc::new(TokioMutex::new(()))))
+        };
+        let _guard = addr_lock.lock().await;
+
         info!("Truncating tarchive at address [{}]", resolved_address);
         let tmp_dir = Self::create_tmp_dir()?;
         let tar_path = tmp_dir.join("archive.tar");
@@ -536,5 +555,226 @@ mod tests {
         assert!(entries.contains(&"archive.tar.idx".to_string()));
         
         TarchiveService::purge_tmp_dir(&tmp_dir);
+    }
+
+    #[test]
+    fn test_concurrent_truncate_same_address_serialized() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        use std::time::{Duration, Instant};
+        use std::thread::sleep;
+
+        let mut mock_client = MockPublicDataCachingClient::default();
+
+        // Prepare minimal tar data returned by get
+        let mut initial_tar = Vec::new();
+        {
+            let mut builder = Builder::new(&mut initial_tar);
+            let data = b"content1";
+            let mut header = tar::Header::new_gnu();
+            header.set_size(data.len() as u64);
+            header.set_path("keep.txt").unwrap();
+            header.set_cksum();
+            builder.append(&header, &data[..]).unwrap();
+            builder.finish().unwrap();
+        }
+        let initial_tar_bytes = Bytes::from(initial_tar);
+        // Shared counter across clones
+        let put_counter = Arc::new(AtomicUsize::new(0));
+        let counter_for_orig = Arc::clone(&put_counter);
+        let getb_for_orig = initial_tar_bytes.clone();
+        mock_client
+            .expect_data_get_public()
+            .returning(move |_| Ok(getb_for_orig.clone()));
+        mock_client
+            .expect_data_put_public()
+            .returning(move |_, _, _| {
+                counter_for_orig.fetch_add(1, Ordering::SeqCst);
+                sleep(Duration::from_millis(100));
+                Ok(DataAddress::new(XorName([1; 32])))
+            });
+        // Service clones underlying client during concurrent calls; configure clones similarly
+        let getb_for_clone = initial_tar_bytes.clone();
+        let counter_for_clone = Arc::clone(&put_counter);
+        mock_client
+            .expect_clone()
+            .returning(move || {
+                let mut m = MockPublicDataCachingClient::default();
+                let getb = getb_for_clone.clone();
+                let c = Arc::clone(&counter_for_clone);
+                m.expect_data_get_public().returning(move |_| Ok(getb.clone()));
+                m.expect_data_put_public().returning(move |_, _, _| {
+                    c.fetch_add(1, Ordering::SeqCst);
+                    sleep(Duration::from_millis(100));
+                    Ok(DataAddress::new(XorName([1; 32])))
+                });
+                m
+            });
+
+        let mut mock_resolver = MockResolverService::default();
+        mock_resolver
+            .expect_resolve_name()
+            .returning(|address| Some(address.clone()));
+        mock_resolver.expect_clone().returning(|| {
+            let mut m = MockResolverService::default();
+            m.expect_resolve_name()
+                .returning(|address| Some(address.clone()));
+            // Allow further clones of the resolver mock
+            m.expect_clone()
+                .returning(|| {
+                    let mut inner = MockResolverService::default();
+                    inner.expect_resolve_name().returning(|address| Some(address.clone()));
+                    inner.expect_clone().returning(MockResolverService::default);
+                    inner
+                });
+            m
+        });
+
+        let public_data_service = PublicDataService::new(mock_client, mock_resolver.clone());
+        let mut file_service = MockFileService::default();
+        file_service.expect_clone().returning(MockFileService::default);
+        let mut mock_tarchive_client = MockTArchiveCachingClient::default();
+        mock_tarchive_client.expect_clone().returning(MockTArchiveCachingClient::default);
+        let config = AntTpConfig::parse_from(&["anttp", "--app-private-key", "55dcbc4624699d219b8ec293339a3b81e68815397f5a502026784d8122d09fce"]);
+        let service = TarchiveService::new(public_data_service, mock_tarchive_client, file_service, mock_resolver, config);
+
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let wallet1 = Wallet::new_with_random_wallet(autonomi::Network::ArbitrumOne);
+        let wallet2 = Wallet::new_with_random_wallet(autonomi::Network::ArbitrumOne);
+        let addr = DataAddress::new(XorName([9; 32])).to_hex();
+
+        let start = Instant::now();
+        rt.block_on(async {
+            let s1 = service.clone();
+            let s2 = service.clone();
+            let addr_a = addr.clone();
+            let addr_b = addr.clone();
+            let f1 = tokio::spawn(async move {
+                s1.truncate_tarchive(addr_a, "keep.txt".to_string(), wallet1, StoreType::Memory)
+                    .await
+                    .unwrap()
+            });
+            let f2 = tokio::spawn(async move {
+                s2.truncate_tarchive(addr_b, "keep.txt".to_string(), wallet2, StoreType::Memory)
+                    .await
+                    .unwrap()
+            });
+            let _ = futures_util::future::join(f1, f2).await;
+        });
+        let elapsed = start.elapsed();
+
+        // Both puts were called, second should wait for first (so total >= one delay)
+        assert_eq!(put_counter.load(Ordering::SeqCst), 2);
+        assert!(elapsed >= Duration::from_millis(180));
+    }
+
+    #[test]
+    fn test_concurrent_truncate_different_addresses_parallel() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        use std::time::{Duration, Instant};
+        use std::thread::sleep;
+
+        let mut mock_client = MockPublicDataCachingClient::default();
+
+        // Prepare minimal tar data returned by get
+        let mut initial_tar = Vec::new();
+        {
+            let mut builder = Builder::new(&mut initial_tar);
+            let data = b"content1";
+            let mut header = tar::Header::new_gnu();
+            header.set_size(data.len() as u64);
+            header.set_path("keep.txt").unwrap();
+            header.set_cksum();
+            builder.append(&header, &data[..]).unwrap();
+            builder.finish().unwrap();
+        }
+        let initial_tar_bytes = Bytes::from(initial_tar);
+        // Shared counter across clones
+        let call_counter = Arc::new(AtomicUsize::new(0));
+        let counter_for_orig = Arc::clone(&call_counter);
+        let getb_for_orig = initial_tar_bytes.clone();
+        mock_client
+            .expect_data_get_public()
+            .returning(move |_| Ok(getb_for_orig.clone()));
+        mock_client
+            .expect_data_put_public()
+            .returning(move |_, _, _| {
+                counter_for_orig.fetch_add(1, Ordering::SeqCst);
+                sleep(Duration::from_millis(100));
+                Ok(DataAddress::new(XorName([3; 32])))
+            });
+        // Service clones underlying client during concurrent calls; configure clones similarly
+        let getb_for_clone = initial_tar_bytes.clone();
+        let counter_for_clone = Arc::clone(&call_counter);
+        mock_client
+            .expect_clone()
+            .returning(move || {
+                let mut m = MockPublicDataCachingClient::default();
+                let getb = getb_for_clone.clone();
+                let c = Arc::clone(&counter_for_clone);
+                m.expect_data_get_public().returning(move |_| Ok(getb.clone()));
+                m.expect_data_put_public().returning(move |_, _, _| {
+                    c.fetch_add(1, Ordering::SeqCst);
+                    sleep(Duration::from_millis(100));
+                    Ok(DataAddress::new(XorName([3; 32])))
+                });
+                m
+            });
+
+        let mut mock_resolver = MockResolverService::default();
+        mock_resolver
+            .expect_resolve_name()
+            .returning(|address| Some(address.clone()));
+        mock_resolver.expect_clone().returning(|| {
+            let mut m = MockResolverService::default();
+            m.expect_resolve_name()
+                .returning(|address| Some(address.clone()));
+            // Allow further clones of the resolver mock
+            m.expect_clone()
+                .returning(|| {
+                    let mut inner = MockResolverService::default();
+                    inner.expect_resolve_name().returning(|address| Some(address.clone()));
+                    inner.expect_clone().returning(MockResolverService::default);
+                    inner
+                });
+            m
+        });
+
+        let public_data_service = PublicDataService::new(mock_client, mock_resolver.clone());
+        let mut file_service = MockFileService::default();
+        file_service.expect_clone().returning(MockFileService::default);
+        let mut mock_tarchive_client = MockTArchiveCachingClient::default();
+        mock_tarchive_client.expect_clone().returning(MockTArchiveCachingClient::default);
+        let config = AntTpConfig::parse_from(&["anttp", "--app-private-key", "55dcbc4624699d219b8ec293339a3b81e68815397f5a502026784d8122d09fce"]);
+        let service = TarchiveService::new(public_data_service, mock_tarchive_client, file_service, mock_resolver, config);
+
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let wallet1 = Wallet::new_with_random_wallet(autonomi::Network::ArbitrumOne);
+        let wallet2 = Wallet::new_with_random_wallet(autonomi::Network::ArbitrumOne);
+        let addr1 = DataAddress::new(XorName([9; 32])).to_hex();
+        let addr2 = DataAddress::new(XorName([8; 32])).to_hex();
+
+        let start = Instant::now();
+        rt.block_on(async {
+            let s1 = service.clone();
+            let s2 = service.clone();
+            let a1 = addr1.clone();
+            let a2 = addr2.clone();
+            let f1 = tokio::spawn(async move {
+                s1.truncate_tarchive(a1, "keep.txt".to_string(), wallet1, StoreType::Memory)
+                    .await
+                    .unwrap()
+            });
+            let f2 = tokio::spawn(async move {
+                s2.truncate_tarchive(a2, "keep.txt".to_string(), wallet2, StoreType::Memory)
+                    .await
+                    .unwrap()
+            });
+            let _ = futures_util::future::join(f1, f2).await;
+        });
+        let elapsed = start.elapsed();
+
+        // Both puts were called; elapsed should be close to single sleep (i.e., significantly less than serial 2x)
+        assert_eq!(call_counter.load(Ordering::SeqCst), 2);
+        assert!(elapsed < Duration::from_millis(180));
     }
 }

@@ -1,0 +1,22 @@
+Prevent race conditions when updating a tarchive
+
+As a tarchive consumer over the REST API
+I want to be able to reliably make updates to a tarchive without strange behaviour/corruption occurring
+So that I can use tarchives as an alternative to public archives
+
+Given simultaneous updates to a tarchive at an address could result in a race condition
+When calling update_tarchive in tarchive_service
+Then create a mutex guard for the `address` to block after update_tarchive function entry and wait in a queue for the existing, parallel, call to complete
+And allow other threads to access update_function when a different `address` is provided (as there will be no conflict/race) to maintain high performance
+
+Given simultaneous updates to a tarchive at an address could result in a race condition
+When calling truncate_tarchive in tarchive_service
+Then create a mutex guard for the `address` to block after truncate_tarchive function entry and wait in a queue for the existing, parallel, call to complete
+And allow other threads to access truncate_tarchive when a different `address` is provided (as there will be no conflict/race) to maintain high performance
+
+Implementation Notes
+
+- Place any unit tests at the bottom of the same file as the associated production code
+- Increment patch version of anttp package in Cargo.toml
+- Create a copy of this issue description and save to /spec using the name of this issue as the filename (with lower underscore case, starting with the 5 char padded issue number, e.g. 00001_issue_title.txt)
+- Update unit tests to validate the changes

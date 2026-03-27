@@ -1,3 +1,4 @@
+#![cfg_attr(test, warn(unused_imports, unused_variables, dead_code))]
 use actix_web::HttpRequest;
 
 pub mod archive_controller;

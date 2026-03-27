@@ -1,3 +1,4 @@
+#![cfg_attr(test, warn(unused_imports, unused_variables, dead_code))]
 pub mod public_archive_service;
 pub mod tarchive_service;
 pub mod archive_service;

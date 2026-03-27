@@ -1,3 +1,4 @@
+#![cfg_attr(test, warn(unused_imports, unused_variables, dead_code))]
 use crate::client::command::Command;
 use actix_http::StatusCode;
 use actix_web::http::header::ContentType;

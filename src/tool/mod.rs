@@ -1,3 +1,4 @@
+#![cfg_attr(test, warn(unused_imports, unused_variables, dead_code))]
 use crate::service::command_service::CommandService;
 use crate::service::chunk_service::ChunkService;
 use crate::service::public_data_service::PublicDataService;

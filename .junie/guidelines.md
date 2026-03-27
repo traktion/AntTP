@@ -32,6 +32,7 @@ mod tests {
 }
 ```
 
+- Ensure there are no warnings or errors when running `cargo test`
 - If a mock must be created, then define it with 'mock!' macro, with '#[derive(Debug)]', and do not attempt to use '#[automock]' on a struct impl.
 - If a mock must be used, use `#[double]` macro to to include the mock or real implementation, depending on context (don't use elaborate #[cfg(test)] combinations).
 
@@ -39,7 +40,7 @@ mod tests {
 
 #### Integration & Performance Tests
 Located in the `test/` directory:
-- **Postman**: `test/postman` contains collections for Newman-based testing for REST HTTP endpoints.
+- **Postman**: `test/postman` contains collections for Newman-based testing for REST HTTP endpoints. When controller endpoints are changed, ensure Newman tests are updated to reflect. 
 - **Performance**: `test/performance` contains k6 scripts (`.js`) for load testing.
 
 ### Development Information
@@ -52,7 +53,6 @@ Located in the `test/` directory:
 - REST API endpoints uses utoipa annotations in /src/controller/*_controller.rs files (and lib.rs) and use the URL prefix `/anttp-0/`
 - MCP API endpoints in /src/tool/*_tool.rs files (and lib.rs)
 - gRPC API endpoints in /src/grpc/*_handler.rs files (and lib.rs) and protobuffers in /proto/*.proto
-
 
 #### Key Architectural Components
 - **CachingClient**: Wraps the Autonomi network client with a caching layer.

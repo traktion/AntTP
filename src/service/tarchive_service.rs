@@ -380,7 +380,7 @@ mod tests {
 
     #[test]
     fn test_get_tarchive_directory_listing() {
-        let mut mock_client = MockPublicDataCachingClient::default();
+        let mock_client = MockPublicDataCachingClient::default();
         let mut mock_tarchive_client = MockTArchiveCachingClient::default();
 
         // Prepare index data
@@ -464,7 +464,7 @@ mod tests {
 
     #[test]
     fn test_get_tarchive_file() {
-        let mut mock_client = MockPublicDataCachingClient::default();
+        let mock_client = MockPublicDataCachingClient::default();
         let mut mock_tarchive_client = MockTArchiveCachingClient::default();
 
         // Prepare index data

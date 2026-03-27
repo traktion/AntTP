@@ -1,3 +1,4 @@
+#![cfg_attr(test, warn(unused_imports, unused_variables, dead_code))]
 use async_trait::async_trait;
 use indexmap::IndexMap;
 use crate::client::command::error::CommandError;

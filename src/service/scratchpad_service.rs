@@ -201,7 +201,7 @@ mod tests {
     #[tokio::test]
     async fn test_get_scratchpad_success() {
         let mut mock_client = MockScratchpadCachingClient::default();
-        let mut mock_resolver = setup_mock_resolver();
+        let mock_resolver = setup_mock_resolver();
 
         let name = "test_scratchpad".to_string();
         let app_secret_key = autonomi::SecretKey::from_hex("0000000000000000000000000000000000000000000000000000000000000001").unwrap();

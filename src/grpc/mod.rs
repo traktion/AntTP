@@ -1,3 +1,4 @@
+#![cfg_attr(test, warn(unused_imports, unused_variables, dead_code))]
 #[cfg(not(grpc_disabled))]
 pub mod archive_handler;
 #[cfg(not(grpc_disabled))]

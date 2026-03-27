@@ -621,7 +621,6 @@ mod tests {
         let mut mock_chunk_caching_client = MockChunkCachingClient::default();
         
         let target_chunk_address = ChunkAddress::from_hex("a40e045a6fbed33b27039aa8383c9dbf286e19a7265141c2da3085e0c8571527").unwrap();
-        let _sk1 = SecretKey::random();
         let sk2 = SecretKey::random();
         
         // Use fixed resolver SK to match name

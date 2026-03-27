@@ -286,8 +286,6 @@ mod tests {
     use foyer::HybridCacheBuilder;
     use tokio::sync::mpsc;
     use crate::client::command::Command;
-    use crate::service::access_checker::AccessChecker;
-    use crate::service::bookmark_resolver::BookmarkResolver;
     use crate::service::pointer_name_resolver::PointerNameResolver;
     use crate::client::MockPointerCachingClient;
     use crate::client::MockChunkCachingClient;
@@ -326,11 +324,8 @@ mod tests {
                 mock
             });
 
-        let _caching_client = Data::new(CachingClient::new(client_harness, config.clone(), hybrid_cache, command_executor));
-        
-        let _access_checker = Data::new(tokio::sync::Mutex::new(AccessChecker::new()));
-        let _bookmark_resolver = Data::new(tokio::sync::Mutex::new(BookmarkResolver::new()));
-        
+        let caching_client = Data::new(CachingClient::new(client_harness, config.clone(), hybrid_cache, command_executor));
+
         let mut mock_pointer_caching_client = MockPointerCachingClient::default();
         mock_pointer_caching_client
             .expect_clone()
@@ -359,7 +354,7 @@ mod tests {
         let mut mock_resolver = MockResolverService::default();
         mock_resolver.expect_resolve().returning(|_, _, _| None);
 
-        (Data::new(mock_resolver), _caching_client, Data::new(mock_streaming_client), Data::new(config))
+        (Data::new(mock_resolver), caching_client, Data::new(mock_streaming_client), Data::new(config))
     }
 
     #[actix_web::test]

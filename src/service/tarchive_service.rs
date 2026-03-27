@@ -106,14 +106,14 @@ impl TarchiveService {
     }
 
     pub async fn update_tarchive(&self, address: String, target_path: Option<String>, tarchive_form: MultipartForm<PublicArchiveForm>, evm_wallet: Wallet, store_type: StoreType) -> Result<Upload, TarchiveError> {
-        let resolved_address = self.resolver_service.resolve_name(&address).await.unwrap_or(address);
-        // Acquire per-address lock to prevent concurrent updates to the same tarchive
+        // Acquire per-address lock to prevent concurrent updates to the same tarchive (based on input name/address)
         let addr_lock = {
             let mut locks = self.address_locks.lock().await;
-            Arc::clone(locks.entry(resolved_address.clone()).or_insert_with(|| Arc::new(TokioMutex::new(()))))
+            Arc::clone(locks.entry(address.clone()).or_insert_with(|| Arc::new(TokioMutex::new(()))))
         };
         let _guard = addr_lock.lock().await;
 
+        let resolved_address = self.resolver_service.resolve_name(&address).await.unwrap_or(address);
         info!("Updating tarchive at address [{}]", resolved_address);
         let tmp_dir = Self::create_tmp_dir()?;
         let tar_path = tmp_dir.join("archive.tar");
@@ -158,14 +158,14 @@ impl TarchiveService {
     }
 
     pub async fn truncate_tarchive(&self, address: String, path: String, evm_wallet: Wallet, store_type: StoreType) -> Result<Upload, TarchiveError> {
-        let resolved_address = self.resolver_service.resolve_name(&address).await.unwrap_or(address);
-        // Acquire per-address lock to prevent concurrent truncations to the same tarchive
+        // Acquire per-address lock to prevent concurrent truncations to the same tarchive (based on input name/address)
         let addr_lock = {
             let mut locks = self.address_locks.lock().await;
-            Arc::clone(locks.entry(resolved_address.clone()).or_insert_with(|| Arc::new(TokioMutex::new(()))))
+            Arc::clone(locks.entry(address.clone()).or_insert_with(|| Arc::new(TokioMutex::new(()))))
         };
         let _guard = addr_lock.lock().await;
 
+        let resolved_address = self.resolver_service.resolve_name(&address).await.unwrap_or(address);
         info!("Truncating tarchive at address [{}]", resolved_address);
         let tmp_dir = Self::create_tmp_dir()?;
         let tar_path = tmp_dir.join("archive.tar");

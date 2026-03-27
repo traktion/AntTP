@@ -235,7 +235,6 @@ impl PnrService {
 #[cfg(test)]
 mod tests {
     use crate::model::pnr::{PnrRecord, PnrRecordType};
-    use ant_protocol::storage::ChunkAddress;
     use std::collections::HashMap;
 
     #[tokio::test]

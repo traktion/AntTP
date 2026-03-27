@@ -43,8 +43,6 @@ impl ResolverServiceTrait for ResolverHandler {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     #[test]
     fn test_handler_creation() {
         // Since mocking ResolverService in this context is difficult due to its complex constructor

@@ -286,8 +286,6 @@ mod tests {
     use foyer::HybridCacheBuilder;
     use tokio::sync::mpsc;
     use crate::client::command::Command;
-    use crate::service::access_checker::AccessChecker;
-    use crate::service::bookmark_resolver::BookmarkResolver;
     use crate::service::pointer_name_resolver::PointerNameResolver;
     use crate::client::MockPointerCachingClient;
     use crate::client::MockChunkCachingClient;
@@ -313,7 +311,7 @@ mod tests {
         let hc = hybrid_cache.clone();
         let ctx = MockCachingClient::new_context();
         ctx.expect()
-            .returning(move |client_harness, config, hybrid_cache, command_executor| {
+            .returning(move |_client_harness, _config, _hybrid_cache, _command_executor| {
                 let mut mock = MockCachingClient::default();
                 mock.expect_get_hybrid_cache().return_const(hc.clone());
                 let hc_for_clone = hc.clone();
@@ -327,10 +325,7 @@ mod tests {
             });
 
         let caching_client = Data::new(CachingClient::new(client_harness, config.clone(), hybrid_cache, command_executor));
-        
-        let access_checker = Data::new(tokio::sync::Mutex::new(AccessChecker::new()));
-        let bookmark_resolver = Data::new(tokio::sync::Mutex::new(BookmarkResolver::new()));
-        
+
         let mut mock_pointer_caching_client = MockPointerCachingClient::default();
         mock_pointer_caching_client
             .expect_clone()
@@ -346,7 +341,7 @@ mod tests {
 
         let mock_chunk_caching_client = MockChunkCachingClient::default();
 
-        let pointer_name_resolver = Data::new(PointerNameResolver::new(
+        let _pointer_name_resolver = Data::new(PointerNameResolver::new(
             mock_pointer_caching_client.clone(),
             mock_chunk_caching_client,
             SecretKey::default(),

@@ -148,8 +148,6 @@ impl KeyValueService {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     #[tokio::test]
     async fn test_key_value_service_logic() {
         // Logic verification: The refactored functions reuse overlapping code

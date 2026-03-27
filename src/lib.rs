@@ -1,3 +1,4 @@
+#![cfg_attr(test, allow(unused_imports, unused_variables, dead_code))]
 pub mod client;
 pub mod config;
 pub mod controller;

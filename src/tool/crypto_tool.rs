@@ -116,22 +116,6 @@ mod tests {
     use crate::service::crypto_service::CryptoService;
     use actix_web::web::Data;
     use blsttc::SecretKey;
-    use ant_evm::EvmWallet;
-    use crate::client::caching_client::CachingClient;
-    use crate::service::pointer_service::PointerService;
-    use crate::service::archive_service::ArchiveService;
-    use crate::service::register_service::RegisterService;
-    use crate::service::chunk_service::ChunkService;
-    use crate::service::graph_service::GraphService;
-    use crate::service::command_service::CommandService;
-    use crate::service::pnr_service::PnrService;
-    use crate::service::public_data_service::PublicDataService;
-    use crate::service::public_archive_service::PublicArchiveService;
-    use crate::service::tarchive_service::TarchiveService;
-    use crate::service::scratchpad_service::ScratchpadService;
-    use crate::service::resolver_service::ResolverService;
-    use crate::service::key_value_service::KeyValueService;
-    use std::sync::Arc;
     use base64::Engine;
 
     #[tokio::test]

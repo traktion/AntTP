@@ -321,9 +321,6 @@ mod tests {
     use crate::service::pointer_name_resolver::{MockPointerNameResolver, ResolvedRecord};
     use crate::service::bookmark_resolver::MockBookmarkResolver;
     use crate::service::access_checker::MockAccessChecker;
-    use autonomi::files::archive_public::ArchiveAddress;
-    use autonomi::register::RegisterAddress;
-    use autonomi::{ChunkAddress, Pointer, PointerAddress};
     use tokio::sync::Mutex;
     use actix_http::header::HeaderMap;
 

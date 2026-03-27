@@ -131,7 +131,7 @@ mod tests {
     use tempfile::tempdir;
 
     async fn create_mock_caching_client() -> (MockCachingClient, mpsc::Receiver<Box<dyn Command>>) {
-        let (tx, rx) = mpsc::channel(100);
+        let (_tx, rx) = mpsc::channel(100);
         let mut client = MockCachingClient::default();
         
         client.expect_get_derived_ranges()
@@ -199,7 +199,7 @@ mod tests {
 
         let ctx = MockCachingClient::new_context();
         ctx.expect()
-            .returning(|client_harness, config, hybrid_cache, command_executor| {
+            .returning(|_client_harness, config, _hybrid_cache, _command_executor| {
                 let cache_dir = config.clone().map_cache_directory;
                 CachingClient::create_tmp_dir(cache_dir.clone());
                 MockCachingClient::default()
@@ -217,14 +217,14 @@ mod tests {
 
     #[tokio::test]
     async fn test_job_schedule() {
-        let (mut client, _) = create_mock_caching_client().await;
+        let (mut client, _rx) = create_mock_caching_client().await;
         client.expect_schedule().returning(|| Some("1/10 * * * * *".parse().unwrap()));
         assert!(client.schedule().is_some());
     }
 
     #[tokio::test]
     async fn test_job_handle() {
-        let (mut client, _) = create_mock_caching_client().await;
+        let (mut client, _rx) = create_mock_caching_client().await;
         client.expect_handle().returning(|| ());
         // This should not panic and should at least lock the harness
         client.handle().await;
@@ -232,7 +232,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_send_commands() {
-        let (mut client, mut rx) = create_mock_caching_client().await;
+        let (mut client, _rx) = create_mock_caching_client().await;
 
         client.expect_send_create_command().returning(|_| Ok(()));
         client.expect_send_update_command().returning(|_| Ok(()));

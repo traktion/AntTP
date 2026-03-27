@@ -1,3 +1,4 @@
+#![cfg_attr(test, warn(unused_imports, unused_variables, dead_code))]
 const ARCHIVE_CACHE_KEY: &'static str = "ar";
 const GRAPH_ENTRY_CACHE_KEY: &'static str = "gg";
 const POINTER_CACHE_KEY: &'static str = "pg";

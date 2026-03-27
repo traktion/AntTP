@@ -20,3 +20,9 @@ Implementation Notes
 - Increment patch version of anttp package in Cargo.toml
 - Create a copy of this issue description and save to /spec using the name of this issue as the filename (with lower underscore case, starting with the 5 char padded issue number, e.g. 00001_issue_title.txt)
 - Update unit tests to validate the changes
+
+Amendments
+
+Given the locks should be applied prior to address resolution
+When adding the locks
+Then ensure they apply prior to the resolve_name call

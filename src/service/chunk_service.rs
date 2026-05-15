@@ -1,9 +1,8 @@
-use autonomi::{ChunkAddress, Wallet};
-use autonomi::client::chunk as autonomi_chunk;
-use autonomi::client::payment::PaymentOption;
+use ant_core::data::{DataChunk, XorName};
 use base64::Engine;
 use base64::prelude::BASE64_STANDARD;
 use bytes::Bytes;
+use hex::{FromHex, ToHex};
 use log::{info, warn};
 use mockall_double::double;
 use serde::{Deserialize, Serialize};
@@ -29,7 +28,6 @@ impl Chunk {
     }
 }
 
-#[derive(Debug)]
 pub struct ChunkService {
     chunk_caching_client: ChunkCachingClient,
     resolver_service: ResolverService,
@@ -41,32 +39,32 @@ impl ChunkService {
         ChunkService { chunk_caching_client, resolver_service }
     }
 
-    pub async fn create_chunk_binary(&self, bytes: Bytes, evm_wallet: Wallet, store_type: StoreType) -> Result<Chunk, ChunkError> {
-        let chunk_data =  autonomi_chunk::Chunk::new(bytes);
-        self.create_chunk_raw(chunk_data, evm_wallet, store_type).await
+    pub async fn create_chunk_binary(&self, bytes: Bytes, store_type: StoreType) -> Result<Chunk, ChunkError> {
+        let chunk_data = DataChunk::from_content(bytes);
+        self.create_chunk_raw(chunk_data, store_type).await
     }
 
-    pub async fn create_chunk(&self, chunk: Chunk, evm_wallet: Wallet, store_type: StoreType) -> Result<Chunk, ChunkError> {
+    pub async fn create_chunk(&self, chunk: Chunk, store_type: StoreType) -> Result<Chunk, ChunkError> {
         let content = match chunk.content.clone() {
             Some(content) => content,
             None => return Err(ChunkError::CreateError(CreateError::InvalidData("Empty chunk payload".to_string())))
         };
         let decoded_content = BASE64_STANDARD.decode(content).unwrap_or_else(|_| Vec::new());
-        let chunk_data =  autonomi_chunk::Chunk::new(Bytes::from(decoded_content.clone()));
+        let chunk_data = DataChunk::from_content(Bytes::from(decoded_content.clone()));
 
-        self.create_chunk_raw(chunk_data, evm_wallet, store_type).await
+        self.create_chunk_raw(chunk_data, store_type).await
     }
 
-    pub async fn create_chunk_raw(&self, chunk: autonomi_chunk::Chunk, evm_wallet: Wallet, store_type: StoreType) -> Result<Chunk, ChunkError> {
-        info!("Create chunk at address [{}]", chunk.address.to_hex());
-        let chunk_address = self.chunk_caching_client.chunk_put(&chunk, PaymentOption::from(&evm_wallet), store_type).await?;
-        info!("Queued command to create chunk at [{}]", chunk_address.to_hex());
-        Ok(Chunk::new(None, Some(chunk_address.to_hex())))
+    pub async fn create_chunk_raw(&self, chunk: DataChunk, store_type: StoreType) -> Result<Chunk, ChunkError> {
+        info!("Create chunk at address [{}]", hex::encode(chunk.address));
+        let chunk_address = self.chunk_caching_client.chunk_put(&chunk, store_type).await?;
+        info!("Queued command to create chunk at [{}]", hex::encode(chunk_address));
+        Ok(Chunk::new(None, Some(chunk_address.encode_hex())))
     }
 
-    pub async fn get_chunk_binary(&self, address: String) -> Result<autonomi::Chunk, ChunkError> {
+    pub async fn get_chunk_binary(&self, address: String) -> Result<DataChunk, ChunkError> {
         let resolved_address = self.resolver_service.resolve_name(&address).await.unwrap_or(address);
-        match ChunkAddress::from_hex(resolved_address.as_str()) {
+        match XorName::from_hex(resolved_address.as_str()) {
             Ok(chunk_address) => match self.chunk_caching_client.chunk_get_internal(&chunk_address).await {
                 Ok(chunk) => {
                     info!("Retrieved chunk at address [{}]", resolved_address);
@@ -83,11 +81,11 @@ impl ChunkService {
 
     pub async fn get_chunk(&self, address: String) -> Result<Chunk, ChunkError> {
         let resolved_address = self.resolver_service.resolve_name(&address).await.unwrap_or(address);
-        match ChunkAddress::from_hex(resolved_address.as_str()) {
+        match XorName::from_hex(resolved_address.as_str()) {
             Ok(chunk_address) => match self.chunk_caching_client.chunk_get_internal(&chunk_address).await {
                 Ok(chunk) => {
                     info!("Retrieved chunk at address [{}]", resolved_address);
-                    Ok(Chunk::new(Some(BASE64_STANDARD.encode(chunk.value)), Some(resolved_address)))
+                    Ok(Chunk::new(Some(BASE64_STANDARD.encode(chunk.content)), Some(resolved_address)))
                 }
                 Err(e) => {
                     warn!("Failed to retrieve chunk at address [{}]: [{:?}]", resolved_address, e);
@@ -105,7 +103,6 @@ mod tests {
     use mockall::predicate::*;
     use crate::client::MockChunkCachingClient;
     use crate::service::resolver_service::MockResolverService;
-    use autonomi::Network;
 
     fn create_test_service(mock_client: MockChunkCachingClient, mock_resolver: MockResolverService) -> ChunkService {
         ChunkService::new(mock_client, mock_resolver)
@@ -116,17 +113,16 @@ mod tests {
         let mut mock_client = MockChunkCachingClient::default();
         let mock_resolver = MockResolverService::default();
         let bytes = Bytes::from("test content");
-        let wallet = Wallet::new_with_random_wallet(Network::ArbitrumOne);
         let store_type = StoreType::Network;
 
         mock_client
             .expect_chunk_put()
-            .with(always(), always(), eq(store_type.clone()))
+            .with(always(), eq(store_type.clone()))
             .times(1)
-            .returning(|_, _, _| Ok(ChunkAddress::from_hex("0000000000000000000000000000000000000000000000000000000000000000").unwrap()));
+            .returning(|_, _| Ok(XorName::from_hex("0000000000000000000000000000000000000000000000000000000000000000").unwrap()));
 
         let service = create_test_service(mock_client, mock_resolver);
-        let result = service.create_chunk_binary(bytes, wallet, store_type).await;
+        let result = service.create_chunk_binary(bytes, store_type).await;
 
         assert!(result.is_ok());
         let chunk = result.unwrap();
@@ -139,17 +135,16 @@ mod tests {
         let mock_resolver = MockResolverService::default();
         let content = BASE64_STANDARD.encode("test content");
         let chunk_input = Chunk::new(Some(content), None);
-        let wallet = Wallet::new_with_random_wallet(Network::ArbitrumOne);
         let store_type = StoreType::Network;
 
         mock_client
             .expect_chunk_put()
-            .with(always(), always(), eq(store_type.clone()))
+            .with(always(), eq(store_type.clone()))
             .times(1)
-            .returning(|_, _, _| Ok(ChunkAddress::from_hex("0000000000000000000000000000000000000000000000000000000000000000").unwrap()));
+            .returning(|_, _| Ok(XorName::from_hex("0000000000000000000000000000000000000000000000000000000000000000").unwrap()));
 
         let service = create_test_service(mock_client, mock_resolver);
-        let result = service.create_chunk(chunk_input, wallet, store_type).await;
+        let result = service.create_chunk(chunk_input, store_type).await;
 
         assert!(result.is_ok());
         let chunk = result.unwrap();
@@ -161,11 +156,10 @@ mod tests {
         let mock_client = MockChunkCachingClient::default();
         let mock_resolver = MockResolverService::default();
         let chunk_input = Chunk::new(None, None);
-        let wallet = Wallet::new_with_random_wallet(Network::ArbitrumOne);
         let store_type = StoreType::Network;
 
         let service = create_test_service(mock_client, mock_resolver);
-        let result = service.create_chunk(chunk_input, wallet, store_type).await;
+        let result = service.create_chunk(chunk_input, store_type).await;
 
         assert!(result.is_err());
         match result.unwrap_err() {
@@ -179,7 +173,7 @@ mod tests {
         let mut mock_client = MockChunkCachingClient::default();
         let mut mock_resolver = MockResolverService::default();
         let address_hex = "0000000000000000000000000000000000000000000000000000000000000000";
-        let chunk_address = ChunkAddress::from_hex(address_hex).unwrap();
+        let chunk_address = XorName::from_hex(address_hex).unwrap();
         let expected_bytes = Bytes::from("test content");
 
         mock_resolver
@@ -192,13 +186,13 @@ mod tests {
             .expect_chunk_get_internal()
             .with(eq(chunk_address))
             .times(1)
-            .returning(move |_| Ok(autonomi::Chunk::new(expected_bytes.clone())));
+            .returning(move |_| Ok(DataChunk::from_content(expected_bytes.clone())));
 
         let service = create_test_service(mock_client, mock_resolver);
         let result = service.get_chunk_binary(address_hex.to_string()).await;
 
         assert!(result.is_ok());
-        assert_eq!(result.unwrap().value, Bytes::from("test content"));
+        assert_eq!(result.unwrap().content, Bytes::from("test content"));
     }
 
     #[tokio::test]
@@ -207,7 +201,7 @@ mod tests {
         let mut mock_resolver = MockResolverService::default();
         let name = "test.name";
         let address_hex = "0000000000000000000000000000000000000000000000000000000000000000";
-        let chunk_address = ChunkAddress::from_hex(address_hex).unwrap();
+        let chunk_address = XorName::from_hex(address_hex).unwrap();
         let expected_bytes = Bytes::from("test content");
 
         mock_resolver
@@ -220,13 +214,13 @@ mod tests {
             .expect_chunk_get_internal()
             .with(eq(chunk_address))
             .times(1)
-            .returning(move |_| Ok(autonomi::Chunk::new(expected_bytes.clone())));
+            .returning(move |_| Ok(DataChunk::from_content(expected_bytes.clone())));
 
         let service = create_test_service(mock_client, mock_resolver);
         let result = service.get_chunk_binary(name.to_string()).await;
 
         assert!(result.is_ok());
-        assert_eq!(result.unwrap().value, Bytes::from("test content"));
+        assert_eq!(result.unwrap().content, Bytes::from("test content"));
     }
 
     #[tokio::test]
@@ -234,7 +228,7 @@ mod tests {
         let mut mock_client = MockChunkCachingClient::default();
         let mut mock_resolver = MockResolverService::default();
         let address_hex = "0000000000000000000000000000000000000000000000000000000000000000";
-        let chunk_address = ChunkAddress::from_hex(address_hex).unwrap();
+        let chunk_address = XorName::from_hex(address_hex).unwrap();
 
         mock_resolver
             .expect_resolve_name()
@@ -263,7 +257,7 @@ mod tests {
         let mut mock_client = MockChunkCachingClient::default();
         let mut mock_resolver = MockResolverService::default();
         let address_hex = "0000000000000000000000000000000000000000000000000000000000000000";
-        let chunk_address = ChunkAddress::from_hex(address_hex).unwrap();
+        let chunk_address = XorName::from_hex(address_hex).unwrap();
         let expected_bytes = Bytes::from("test content");
 
         mock_resolver
@@ -276,7 +270,7 @@ mod tests {
             .expect_chunk_get_internal()
             .with(eq(chunk_address))
             .times(1)
-            .returning(move |_| Ok(autonomi::Chunk::new(expected_bytes.clone())));
+            .returning(move |_| Ok(DataChunk::from_content(expected_bytes.clone())));
 
         let service = create_test_service(mock_client, mock_resolver);
         let result = service.get_chunk(address_hex.to_string()).await;
@@ -293,7 +287,7 @@ mod tests {
         let mut mock_resolver = MockResolverService::default();
         let name = "test.name";
         let address_hex = "0000000000000000000000000000000000000000000000000000000000000000";
-        let chunk_address = ChunkAddress::from_hex(address_hex).unwrap();
+        let chunk_address = XorName::from_hex(address_hex).unwrap();
         let expected_bytes = Bytes::from("test content");
 
         mock_resolver
@@ -306,7 +300,7 @@ mod tests {
             .expect_chunk_get_internal()
             .with(eq(chunk_address))
             .times(1)
-            .returning(move |_| Ok(autonomi::Chunk::new(expected_bytes.clone())));
+            .returning(move |_| Ok(DataChunk::from_content(expected_bytes.clone())));
 
         let service = create_test_service(mock_client, mock_resolver);
         let result = service.get_chunk(name.to_string()).await;

@@ -1,6 +1,6 @@
-use tonic::{Request, Response, Status};
+/*use tonic::{Request, Response, Status};
 use actix_web::web::Data;
-use ant_evm::EvmWallet;
+use ant_core::data::Wallet;
 use crate::service::graph_service::{GraphEntry as ServiceGraphEntry, GraphDescendants as ServiceGraphDescendants, GraphService};
 use crate::controller::{DataKey, StoreType};
 use crate::error::graph_error::GraphError;
@@ -15,11 +15,11 @@ use graph_proto::{GraphEntry, GraphDescendants, GraphResponse, CreateGraphEntryR
 
 pub struct GraphHandler {
     graph_service: Data<GraphService>,
-    evm_wallet: Data<EvmWallet>,
+    evm_wallet: Data<Wallet>,
 }
 
 impl GraphHandler {
-    pub fn new(graph_service: Data<GraphService>, evm_wallet: Data<EvmWallet>) -> Self {
+    pub fn new(graph_service: Data<GraphService>, evm_wallet: Data<Wallet>) -> Self {
         Self { graph_service, evm_wallet }
     }
 }
@@ -172,3 +172,4 @@ mod tests {
         assert_eq!(proto_back.descendants, Vec::<GraphDescendants>::new());
     }
 }
+*/

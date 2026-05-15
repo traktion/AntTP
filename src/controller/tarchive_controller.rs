@@ -1,12 +1,13 @@
 use actix_multipart::form::MultipartForm;
 use actix_web::{web, HttpRequest, HttpResponse};
 use actix_web::web::Data;
-use ant_evm::EvmWallet;
+use ant_core::data::Wallet;
 use log::debug;
-use crate::service::public_archive_service::{PublicArchiveForm, Upload, ArchiveResponse};
+/*use crate::service::public_archive_service::{PublicArchiveForm, Upload, ArchiveResponse};*/
 use crate::service::tarchive_service::TarchiveService;
 use crate::error::tarchive_error::TarchiveError;
 use crate::controller::get_store_type;
+use crate::service::archive_service::{ArchiveResponse, PublicArchiveForm, Upload};
 
 #[utoipa::path(
     delete,
@@ -24,7 +25,7 @@ use crate::controller::get_store_type;
 pub async fn delete_tarchive(
     path_params: web::Path<(String, String)>,
     tarchive_service: Data<TarchiveService>,
-    evm_wallet_data: Data<EvmWallet>,
+    evm_wallet_data: Data<Wallet>,
     request: HttpRequest,
 ) -> Result<HttpResponse, TarchiveError> {
     let (address, mut path) = path_params.into_inner();
@@ -51,7 +52,7 @@ pub async fn delete_tarchive(
 pub async fn push_tarchive(
     path: web::Path<String>,
     tarchive_service: Data<TarchiveService>,
-    evm_wallet_data: Data<EvmWallet>,
+    evm_wallet_data: Data<Wallet>,
     request: HttpRequest,
 ) -> Result<HttpResponse, TarchiveError> {
     let address = path.into_inner();
@@ -81,7 +82,7 @@ pub async fn push_tarchive(
 pub async fn post_tarchive_root(
     tarchive_form: MultipartForm<PublicArchiveForm>,
     tarchive_service: Data<TarchiveService>,
-    evm_wallet_data: Data<EvmWallet>,
+    evm_wallet_data: Data<Wallet>,
     request: HttpRequest
 ) -> Result<HttpResponse, TarchiveError> {
     let evm_wallet = evm_wallet_data.get_ref().clone();
@@ -112,7 +113,7 @@ pub async fn post_tarchive(
     path_params: web::Path<String>,
     tarchive_form: MultipartForm<PublicArchiveForm>,
     tarchive_service: Data<TarchiveService>,
-    evm_wallet_data: Data<EvmWallet>,
+    evm_wallet_data: Data<Wallet>,
     request: HttpRequest
 ) -> Result<HttpResponse, TarchiveError> {
     let mut path = path_params.into_inner();
@@ -145,7 +146,7 @@ pub async fn put_tarchive_root(
     path: web::Path<String>,
     tarchive_form: MultipartForm<PublicArchiveForm>,
     tarchive_service: Data<TarchiveService>,
-    evm_wallet_data: Data<EvmWallet>,
+    evm_wallet_data: Data<Wallet>,
     request: HttpRequest,
 ) -> Result<HttpResponse, TarchiveError> {
     let address = path.into_inner();
@@ -178,7 +179,7 @@ pub async fn put_tarchive(
     path_params: web::Path<(String, String)>,
     tarchive_form: MultipartForm<PublicArchiveForm>,
     tarchive_service: Data<TarchiveService>,
-    evm_wallet_data: Data<EvmWallet>,
+    evm_wallet_data: Data<Wallet>,
     request: HttpRequest,
 ) -> Result<HttpResponse, TarchiveError> {
     let (address, mut path) = path_params.into_inner();

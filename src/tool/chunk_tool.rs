@@ -48,7 +48,7 @@ impl McpTool {
     ) -> Result<CallToolResult, ErrorData> {
         let chunk = Chunk::new(Some(content), None);
         Ok(self.chunk_service.create_chunk(
-            chunk, self.evm_wallet.get_ref().clone(), StoreType::from(store_type)
+            chunk, StoreType::from(store_type)
         ).await?.into())
     }
 

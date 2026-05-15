@@ -160,6 +160,7 @@ mod tests {
     use super::*;
     use crate::model::archive::Archive;
     use std::collections::HashMap;
+    use ant_core::data::XorName;
 
     #[test]
     fn test_render_empty_archive() {
@@ -172,16 +173,14 @@ mod tests {
     #[test]
     fn test_render_relative_links() {
         use crate::model::archive::{ArchiveType, DataAddressOffset};
-        use autonomi::data::DataAddress;
-        use xor_name::XorName;
         
         let mut map = HashMap::new();
-        let addr = DataAddress::new(XorName::default());
+        let addr = XorName::default();
         
         // Root file
         map.insert("file1.txt".to_string(), DataAddressOffset {
             path: "file1.txt".to_string(),
-            data_address: addr.clone(),
+            data_address: addr,
             offset: 0,
             size: 100,
             modified: 0,

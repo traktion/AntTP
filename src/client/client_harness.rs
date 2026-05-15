@@ -1,30 +1,32 @@
 use std::time::{SystemTime, UNIX_EPOCH};
-use ant_evm::EvmNetwork;
-use autonomi::{BootstrapConfig, Client, ClientConfig, ClientOperatingStrategy};
-use autonomi::client::ConnectError;
+use actix_web::web::Data;
+use ant_core::data::{Client, ClientConfig, Error};
+use evmlib::Network;
 use log::{debug, info};
 use crate::config::anttp_config::AntTpConfig;
 
-#[derive(Debug, Clone)]
 pub struct ClientHarness {
-    evm_network: EvmNetwork,
+    evm_network: Network,
     ant_tp_config: AntTpConfig,
-    maybe_client: Option<Client>,
+    maybe_client: Option<Data<Client>>,
     last_accessed_time: u64,
 }
 
 impl ClientHarness {
-    pub fn new(evm_network: EvmNetwork, ant_tp_config: AntTpConfig) -> Self {
+    pub fn new(evm_network: Network, ant_tp_config: AntTpConfig) -> Self {
         let last_accessed_time = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
         ClientHarness { evm_network, ant_tp_config, maybe_client: None, last_accessed_time }
     }
 
-    pub async fn get_client(&mut self) -> Result<Client, ConnectError> {
+    pub async fn get_client(&mut self) -> Result<Data<Client>, Error> {
         self.last_accessed_time = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
         if self.maybe_client.is_none() {
-            self.maybe_client = Some(self.init_client().await?);
+            self.maybe_client = Some(Data::new(self.init_client().await?));
         }
-        Ok(self.maybe_client.clone().unwrap())
+        match self.maybe_client.clone() {
+            Some(client) => Ok(client),
+            None => Err(Error::Network("Client failure".to_string()))
+        }
     }
 
     pub fn try_sleep(&mut self) {
@@ -40,18 +42,23 @@ impl ClientHarness {
         }
     }
 
-    async fn init_client(&self) -> Result<Client, ConnectError> {
-        let bootstrap_config = BootstrapConfig::new(false)
-            .with_initial_peers(self.ant_tp_config.peers.clone());
-
-        let mut strategy = ClientOperatingStrategy::default();
-        strategy.chunk_cache_enabled = false; // disable cache to avoid double-caching
-
-        Ok(Client::init_with_config(ClientConfig {
-            bootstrap_config,
-            evm_network: self.evm_network.clone(),
-            strategy,
-            network_id: Some(1),
-        }).await?)
+    async fn init_client(&self) -> Result<Client, Error> {
+        // todo: fix unwraps
+        Ok(
+            Client::connect(
+                ant_core::config::load_bootstrap_peers().unwrap().unwrap().as_slice(),
+                ClientConfig::default(),
+            ).await?
+                //.with_wallet(Wallet::new_from_private_key(EvmNetwork::ArbitrumOne, self.ant_tp_config.wallet_private_key.as_str()).unwrap())
+                .with_evm_network(self.evm_network.clone())
+        )
+        /*Ok(Client {
+            config: ClientConfig::default(),
+            network: Network::new(self.ant_tp_config.peers.as_slice(), true).await?,
+            wallet: Some(Arc::new(Wallet::new_with_random_wallet(EvmNetwork::ArbitrumOne))),
+            evm_network: Some(self.evm_network.clone()),
+            chunk_cache: ChunkCache::new(0),
+            next_request_id: AtomicU64::new(0),
+        })*/
     }
 }

@@ -1,4 +1,4 @@
-use thiserror::Error;
+/*use thiserror::Error;
 use serde::Serialize;
 use actix_http::StatusCode;
 use actix_web::HttpResponse;
@@ -80,4 +80,4 @@ impl actix_web::ResponseError for RegisterError {
             .insert_header(ContentType::json())
             .json(self)
     }
-}
+}*/

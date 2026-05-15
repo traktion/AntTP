@@ -1,6 +1,6 @@
-use actix_web::{web, HttpRequest, HttpResponse};
+/*use actix_web::{web, HttpRequest, HttpResponse};
 use actix_web::web::Data;
-use ant_evm::EvmWallet;
+use ant_core::data::Wallet;
 use log::debug;
 use crate::error::pointer_error::PointerError;
 use crate::controller::{get_store_type, data_key};
@@ -25,7 +25,7 @@ use crate::service::pointer_service::{Pointer, PointerService};
 )]
 pub async fn post_pointer(
     pointer_service: Data<PointerService>,
-    evm_wallet_data: Data<EvmWallet>,
+    evm_wallet_data: Data<Wallet>,
     pointer: web::Json<Pointer>,
     request: HttpRequest,
 ) -> Result<HttpResponse, PointerError> {
@@ -91,3 +91,4 @@ pub async fn get_pointer(
     debug!("Getting pointer at [{}]", address);
     Ok(HttpResponse::Ok().json(pointer_service.get_pointer(address, data_key(&request)).await?))
 }
+*/

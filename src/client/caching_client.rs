@@ -2,7 +2,6 @@ use std::fs;
 use actix_web::web::Data;
 use async_job::{Job, Schedule};
 use async_trait::async_trait;
-use autonomi::data::DataAddress;
 use foyer::HybridCache;
 use crate::config::anttp_config::AntTpConfig;
 use bytes::Bytes;
@@ -12,8 +11,9 @@ use crate::error::chunk_error::ChunkError;
 use mockall::mock;
 use crate::client::client_harness::ClientHarness;
 use crate::client::command::Command;
+use ant_core::data::XorName;
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct CachingClient {
     pub client_harness: Data<tokio::sync::Mutex<ClientHarness>>,
     pub ant_tp_config: AntTpConfig,
@@ -22,13 +22,12 @@ pub struct CachingClient {
 }
 
 mock! {
-    #[derive(Debug)]
     pub CachingClient {
         pub fn new(client_harness: Data<tokio::sync::Mutex<ClientHarness>>, ant_tp_config: AntTpConfig,
                    hybrid_cache: Data<HybridCache<String, Vec<u8>>>, command_executor: Data<Sender<Box<dyn Command>>>) -> Self;
         pub async fn download_stream(
             &self,
-            addr: &DataAddress,
+            addr: &XorName,
             range_from: i64,
             range_to: i64,
         ) -> Result<Bytes, ChunkError>;
@@ -123,8 +122,9 @@ impl Job for CachingClient {
 
 #[cfg(test)]
 mod tests {
+    use ant_core::data::EvmNetwork::ArbitrumOne;
+    use ant_core::data::Network;
     use super::*;
-    use ant_evm::EvmNetwork;
     use foyer::HybridCacheBuilder;
     use clap::Parser;
     use tokio::sync::mpsc;
@@ -194,7 +194,7 @@ mod tests {
         ]);
 
         let (tx, _) = mpsc::channel(1);
-        let client_harness = ClientHarness::new(EvmNetwork::ArbitrumOne, ant_tp_config.clone());
+        let client_harness = ClientHarness::new(ArbitrumOne, ant_tp_config.clone());
         let hybrid_cache = HybridCacheBuilder::new().memory(1024).storage().build().await.unwrap();
 
         let ctx = MockCachingClient::new_context();

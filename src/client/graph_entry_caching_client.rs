@@ -1,4 +1,4 @@
-use autonomi::client::payment::PaymentOption;
+/*use autonomi::client::payment::PaymentOption;
 use autonomi::{GraphEntry, GraphEntryAddress};
 use log::{debug, info};
 use mockall_double::double;
@@ -110,4 +110,4 @@ impl GraphEntryCachingClient {
         }
         Ok(cache_item.item.unwrap())
     }
-}
+}*/

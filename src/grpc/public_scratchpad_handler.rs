@@ -1,6 +1,6 @@
-use tonic::{Request, Response, Status};
+/*use tonic::{Request, Response, Status};
 use actix_web::web::Data;
-use ant_evm::EvmWallet;
+use ant_core::data::Wallet;
 use crate::service::scratchpad_service::{Scratchpad as ServiceScratchpad, ScratchpadService};
 use crate::controller::StoreType;
 
@@ -19,11 +19,11 @@ use scratchpad_proto::Scratchpad;
 
 pub struct PublicScratchpadHandler {
     scratchpad_service: Data<ScratchpadService>,
-    evm_wallet: Data<EvmWallet>,
+    evm_wallet: Data<Wallet>,
 }
 
 impl PublicScratchpadHandler {
-    pub fn new(scratchpad_service: Data<ScratchpadService>, evm_wallet: Data<EvmWallet>) -> Self {
+    pub fn new(scratchpad_service: Data<ScratchpadService>, evm_wallet: Data<Wallet>) -> Self {
         Self { scratchpad_service, evm_wallet }
     }
 }
@@ -155,3 +155,4 @@ mod tests {
         assert_eq!(proto.counter, service.counter);
     }
 }
+*/

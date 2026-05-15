@@ -1,6 +1,6 @@
 use tonic::{Request, Response, Status};
 use actix_web::web::Data;
-use ant_evm::EvmWallet;
+use ant_core::data::Wallet;
 use actix_multipart::form::tempfile::TempFile;
 use actix_multipart::form::MultipartForm;
 use std::io::Write;
@@ -19,11 +19,11 @@ use archive_proto::{ArchiveType, CreateArchiveRequest, UpdateArchiveRequest, Tru
 
 pub struct ArchiveHandler {
     archive_service: Data<ArchiveService>,
-    evm_wallet: Data<EvmWallet>,
+    evm_wallet: Data<Wallet>,
 }
 
 impl ArchiveHandler {
-    pub fn new(archive_service: Data<ArchiveService>, evm_wallet: Data<EvmWallet>) -> Self {
+    pub fn new(archive_service: Data<ArchiveService>, evm_wallet: Data<Wallet>) -> Self {
         Self { archive_service, evm_wallet }
     }
 

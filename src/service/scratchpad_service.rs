@@ -1,4 +1,4 @@
-use autonomi::{Client, ScratchpadAddress, SecretKey, Wallet};
+/*use autonomi::{Client, ScratchpadAddress, SecretKey, Wallet};
 use autonomi::client::payment::PaymentOption;
 use base64::Engine;
 use base64::prelude::BASE64_STANDARD;
@@ -232,3 +232,4 @@ mod tests {
         assert_eq!(result.unwrap().content.unwrap(), BASE64_STANDARD.encode(content));
     }
 }
+*/

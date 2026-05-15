@@ -1,4 +1,4 @@
-use serde::{Deserialize, Serialize};
+/*use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Clone, Default, Debug)]
 #[serde(rename_all = "camelCase")]
@@ -15,4 +15,4 @@ impl AccessList {
     pub fn deny(&self) -> &Vec<String> {
         &self.deny
     }
-}
+}*/

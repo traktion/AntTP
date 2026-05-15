@@ -1,4 +1,4 @@
-use serde::{Deserialize, Serialize};
+/*use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
 #[derive(Serialize, Deserialize, ToSchema, Clone, Debug, PartialEq)]
@@ -13,3 +13,4 @@ impl KeyValue {
         }
     }
 }
+*/

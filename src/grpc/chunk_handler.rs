@@ -1,6 +1,6 @@
 use tonic::{Request, Response, Status};
 use actix_web::web::Data;
-use ant_evm::EvmWallet;
+use ant_core::data::Wallet;
 use crate::service::chunk_service::{Chunk as ServiceChunk, ChunkService};
 use crate::controller::StoreType;
 use bytes::Bytes;
@@ -16,11 +16,11 @@ use crate::error::chunk_error::ChunkError;
 
 pub struct ChunkHandler {
     chunk_service: Data<ChunkService>,
-    evm_wallet: Data<EvmWallet>,
+    evm_wallet: Data<Wallet>,
 }
 
 impl ChunkHandler {
-    pub fn new(chunk_service: Data<ChunkService>, evm_wallet: Data<EvmWallet>) -> Self {
+    pub fn new(chunk_service: Data<ChunkService>, evm_wallet: Data<Wallet>) -> Self {
         Self { chunk_service, evm_wallet }
     }
 }
@@ -60,7 +60,6 @@ impl ChunkServiceTrait for ChunkHandler {
 
         let result = self.chunk_service.create_chunk(
             ServiceChunk::from(chunk),
-            self.evm_wallet.get_ref().clone(),
             StoreType::from(req.store_type.unwrap_or_default()),
         ).await?;
 
@@ -77,7 +76,6 @@ impl ChunkServiceTrait for ChunkHandler {
         
         let result = self.chunk_service.create_chunk_binary(
             Bytes::from(req.data),
-            self.evm_wallet.get_ref().clone(),
             StoreType::from(req.store_type.unwrap_or_default()),
         ).await?;
 
@@ -106,7 +104,7 @@ impl ChunkServiceTrait for ChunkHandler {
         let result = self.chunk_service.get_chunk_binary(req.address).await?;
 
         Ok(Response::new(GetChunkBinaryResponse {
-            data: result.value.to_vec(),
+            data: result.content.to_vec(),
         }))
     }
 }

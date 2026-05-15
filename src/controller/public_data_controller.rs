@@ -2,7 +2,7 @@ use actix_http::header;
 use actix_web::{web, HttpRequest, HttpResponse};
 use actix_web::http::header::{ContentLength, ContentType};
 use actix_web::web::{Data, Payload};
-use ant_evm::EvmWallet;
+use ant_core::data::Wallet;
 use log::debug;
 use crate::error::public_data_error::PublicDataError;
 use crate::controller::get_store_type;
@@ -24,15 +24,14 @@ use crate::service::chunk_service::Chunk;
 pub async fn push_public_data(
     path: web::Path<String>,
     public_data_service: Data<PublicDataService>,
-    evm_wallet_data: Data<EvmWallet>,
+    evm_wallet_data: Data<Wallet>,
     request: HttpRequest,
 ) -> Result<HttpResponse, PublicDataError> {
     let address = path.into_inner();
-    let evm_wallet = evm_wallet_data.get_ref().clone();
 
     debug!("Pushing public data [{}] to target store type [{:?}]", address, get_store_type(&request));
     Ok(HttpResponse::Ok().json(
-        public_data_service.push_public_data(address, evm_wallet, get_store_type(&request)).await?
+        public_data_service.push_public_data(address, get_store_type(&request)).await?
     ))
 }
 
@@ -53,7 +52,7 @@ pub async fn push_public_data(
 )]
 pub async fn post_public_data(
     public_data_service: Data<PublicDataService>,
-    evm_wallet_data: Data<EvmWallet>,
+    evm_wallet_data: Data<Wallet>,
     payload: Payload,
     request: HttpRequest
 ) -> Result<HttpResponse, PublicDataError> {
@@ -61,7 +60,7 @@ pub async fn post_public_data(
     match payload.to_bytes().await {
         Ok(bytes) => {
             Ok(HttpResponse::Created().json(
-                public_data_service.create_public_data(bytes, evm_wallet_data.get_ref().clone(), get_store_type(&request)).await?
+                public_data_service.create_public_data(bytes, get_store_type(&request)).await?
             ))
         }
         Err(e) => {

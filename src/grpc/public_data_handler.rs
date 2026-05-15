@@ -1,6 +1,6 @@
 use tonic::{Request, Response, Status};
 use actix_web::web::Data;
-use ant_evm::EvmWallet;
+use ant_core::data::Wallet;
 use crate::service::public_data_service::PublicDataService;
 use crate::controller::StoreType;
 use crate::error::public_data_error::PublicDataError;
@@ -15,11 +15,11 @@ use public_data_proto::{CreatePublicDataRequest, PublicDataResponse, GetPublicDa
 
 pub struct PublicDataHandler {
     public_data_service: Data<PublicDataService>,
-    evm_wallet: Data<EvmWallet>,
+    evm_wallet: Data<Wallet>,
 }
 
 impl PublicDataHandler {
-    pub fn new(public_data_service: Data<PublicDataService>, evm_wallet: Data<EvmWallet>) -> Self {
+    pub fn new(public_data_service: Data<PublicDataService>, evm_wallet: Data<Wallet>) -> Self {
         Self { public_data_service, evm_wallet }
     }
 }
@@ -40,7 +40,6 @@ impl PublicServiceTrait for PublicDataHandler {
 
         let result = self.public_data_service.create_public_data(
             req.data.into(),
-            self.evm_wallet.get_ref().clone(),
             StoreType::from(req.store_type.unwrap_or_default()),
         ).await?;
 

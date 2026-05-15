@@ -76,7 +76,7 @@ impl McpTool {
         Ok(CallToolResult::structured(json!(result)))
     }
 
-    #[tool(description = "Encrypt data using a public key")]
+    /*#[tool(description = "Encrypt data using a public key")]
     async fn encrypt(
         &self,
         Parameters(CryptoEncryptRequest { public_key, data }): Parameters<CryptoEncryptRequest>,
@@ -90,9 +90,9 @@ impl McpTool {
 
         let result = self.crypto_service.encrypt_map(public_key, data_map);
         Ok(CallToolResult::structured(json!(result)))
-    }
+    }*/
 
-    #[tool(description = "Decrypt data using the application's secret key")]
+    /*#[tool(description = "Decrypt data using the application's secret key")]
     async fn decrypt(
         &self,
         Parameters(CryptoDecryptRequest { data }): Parameters<CryptoDecryptRequest>,
@@ -106,10 +106,10 @@ impl McpTool {
 
         let result = self.crypto_service.decrypt_map(data_map);
         Ok(CallToolResult::structured(json!(result)))
-    }
+    }*/
 }
 
-#[cfg(test)]
+/*#[cfg(test)]
 mod tests {
     use super::*;
     use clap::Parser;
@@ -210,3 +210,4 @@ mod tests {
         assert_eq!(decrypted_bytes, data);
     }
 }
+*/

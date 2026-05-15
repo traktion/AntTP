@@ -1,6 +1,6 @@
-use tonic::{Request, Response, Status};
+/*use tonic::{Request, Response, Status};
 use actix_web::web::Data;
-use ant_evm::EvmWallet;
+use ant_core::data::Wallet;
 use crate::service::pnr_service::PnrService;
 use crate::controller::StoreType;
 use crate::model::pnr::{PnrZone as ServicePnrZone, PnrRecord as ServicePnrRecord, PnrRecordType as ServicePnrRecordType};
@@ -15,11 +15,11 @@ use pnr_proto::{PnrZone, PnrRecord, PnrRecordType, PnrResponse, CreatePnrRequest
 
 pub struct PnrHandler {
     pnr_service: Data<PnrService>,
-    evm_wallet: Data<EvmWallet>,
+    evm_wallet: Data<Wallet>,
 }
 
 impl PnrHandler {
-    pub fn new(pnr_service: Data<PnrService>, evm_wallet: Data<EvmWallet>) -> Self {
+    pub fn new(pnr_service: Data<PnrService>, evm_wallet: Data<Wallet>) -> Self {
         Self { pnr_service, evm_wallet }
     }
 }
@@ -259,3 +259,4 @@ mod tests {
         assert_eq!(req.store_type.unwrap(), "memory");
     }
 }
+*/

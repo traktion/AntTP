@@ -1,4 +1,4 @@
-#![allow(dead_code)]
+/*#![allow(dead_code)]
 
 use rmcp::{handler::server::{
     wrapper::Parameters,
@@ -81,3 +81,4 @@ impl McpTool {
         Ok(self.scratchpad_service.get_scratchpad(address, Some(name), true).await?.into())
     }
 }
+*/

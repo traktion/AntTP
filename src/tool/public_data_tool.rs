@@ -45,7 +45,6 @@ impl McpTool {
         let decoded_content = BASE64_STANDARD.decode(content).map_err(|e| ErrorData::new(ErrorCode::INVALID_PARAMS, format!("Invalid base64 content: {}", e), None))?;
         let chunk = self.public_data_service.create_public_data(
             Bytes::from(decoded_content),
-            self.evm_wallet.get_ref().clone(),
             StoreType::from(store_type)
         ).await?;
         Ok(CallToolResult::structured(json!(chunk)))

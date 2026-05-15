@@ -1,4 +1,4 @@
-use ant_protocol::storage::{ChunkAddress, Pointer, PointerAddress, PointerTarget};
+/*use ant_protocol::storage::{ChunkAddress, Pointer, PointerAddress, PointerTarget};
 use autonomi::{Client, SecretKey};
 use log::{debug, error, warn};
 use std::collections::HashSet;
@@ -668,4 +668,4 @@ mod tests {
         assert!(result.is_some());
         assert_eq!(result.unwrap().address, "invalid");
     }
-}
+}*/

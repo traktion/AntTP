@@ -20,14 +20,14 @@ pub trait Command: Send {
     }
 }
 
-pub mod pointer;
-pub mod register;
+//pub mod pointer;
+//pub mod register;
 pub mod executor;
 pub mod chunk;
 pub mod public_data;
 pub mod error;
-pub mod graph;
-pub mod scratchpad;
+//pub mod graph;
+//pub mod scratchpad;
 pub mod command_details;
-pub mod access_checker;
-pub mod bookmark_resolver;
+//pub mod access_checker;
+//pub mod bookmark_resolver;

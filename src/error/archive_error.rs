@@ -1,12 +1,11 @@
-use autonomi::client::ConnectError;
-use autonomi::AddressParseError;
 use thiserror::Error;
 use serde::Serialize;
 use actix_http::StatusCode;
 use actix_web::HttpResponse;
 use actix_web::http::header::ContentType;
+use hex::FromHexError;
 use crate::error::{CreateError, GetError, UpdateError};
-use crate::error::public_archive_error::PublicArchiveError;
+/*use crate::error::public_archive_error::PublicArchiveError;*/
 use crate::error::tarchive_error::TarchiveError;
 
 #[derive(Error, Debug, Serialize)]
@@ -21,13 +20,7 @@ pub enum ArchiveError {
     NotImplemented(String),
 }
 
-impl From<AddressParseError> for ArchiveError {
-    fn from(value: AddressParseError) -> Self {
-        Self::GetError(value.into())
-    }
-}
-
-impl From<PublicArchiveError> for ArchiveError {
+/*impl From<PublicArchiveError> for ArchiveError {
     fn from(value: PublicArchiveError) -> Self {
         match value {
             PublicArchiveError::CreateError(e) => Self::CreateError(e),
@@ -35,7 +28,7 @@ impl From<PublicArchiveError> for ArchiveError {
             PublicArchiveError::GetError(e) => Self::GetError(e),
         }
     }
-}
+}*/
 
 impl From<TarchiveError> for ArchiveError {
     fn from(value: TarchiveError) -> Self {
@@ -60,8 +53,8 @@ impl From<foyer::Error> for ArchiveError {
     }
 }
 
-impl From<ConnectError> for ArchiveError {
-    fn from(value: ConnectError) -> Self {
+impl From<FromHexError> for ArchiveError {
+    fn from(value: FromHexError) -> Self {
         Self::GetError(value.into())
     }
 }

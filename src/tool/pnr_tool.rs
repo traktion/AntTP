@@ -1,4 +1,4 @@
-#![allow(dead_code)]
+/*#![allow(dead_code)]
 
 use std::collections::HashMap;
 use rmcp::{handler::server::{
@@ -202,3 +202,4 @@ mod tests {
         assert_eq!(request.store_type, "memory");
     }
 }
+*/

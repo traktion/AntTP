@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+/*use std::collections::HashMap;
 use actix_web::web::Data;
 use autonomi::Wallet;
 use base64::Engine;
@@ -155,3 +155,4 @@ mod tests {
         // due to complex mocking of multiple services wrapped in actix_web::web::Data.
     }
 }
+*/

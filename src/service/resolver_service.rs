@@ -1,27 +1,22 @@
-use std::fmt::Debug;
 use actix_http::header::{HeaderMap, IF_NONE_MATCH};
-use actix_web::web::Data;
-use autonomi::{ChunkAddress, PointerAddress, PublicKey};
-use autonomi::data::DataAddress;
-use autonomi::files::archive_public::ArchiveAddress;
-use autonomi::register::{RegisterAddress};
+use ant_core::data::XorName;
+use hex::{FromHex, ToHex};
 use log::{debug, error, info};
 use mockall::mock;
-use xor_name::XorName;
 #[double]
 use crate::client::ArchiveCachingClient;
-#[double]
-use crate::client::PointerCachingClient;
-#[double]
-use crate::client::RegisterCachingClient;
+/*#[double]
+use crate::client::PointerCachingClient;*/
+/*#[double]
+use crate::client::RegisterCachingClient;*/
 use crate::model::archive::Archive;
 use crate::model::resolve::Resolve;
-#[double]
-use crate::service::access_checker::AccessChecker;
-#[double]
-use crate::service::pointer_name_resolver::PointerNameResolver;
-#[double]
-use crate::service::bookmark_resolver::BookmarkResolver;
+/*#[double]
+use crate::service::access_checker::AccessChecker;*/
+/*#[double]
+use crate::service::pointer_name_resolver::PointerNameResolver;*/
+/*#[double]
+use crate::service::bookmark_resolver::BookmarkResolver;*/
 use mockall_double::double;
 
 #[derive(Clone)]
@@ -42,39 +37,38 @@ impl ResolvedAddress {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct ResolverService {
     archive_caching_client: ArchiveCachingClient,
-    pointer_caching_client: PointerCachingClient,
-    register_caching_client: RegisterCachingClient,
-    access_checker: Data<tokio::sync::Mutex<AccessChecker>>,
-    bookmark_resolver: Data<tokio::sync::Mutex<BookmarkResolver>>,
-    pointer_name_resolver: Data<PointerNameResolver>,
+    /*pointer_caching_client: PointerCachingClient,
+    register_caching_client: RegisterCachingClient,*/
+    /*access_checker: Data<tokio::sync::Mutex<AccessChecker>>,
+    bookmark_resolver: Data<tokio::sync::Mutex<BookmarkResolver>>,*/
+    /*pointer_name_resolver: Data<PointerNameResolver>,*/
     ttl_default: u64,
 }
 
 impl ResolverService {
     pub fn new(archive_caching_client: ArchiveCachingClient,
-               pointer_caching_client: PointerCachingClient,
-               register_caching_client: RegisterCachingClient,
-               access_checker: Data<tokio::sync::Mutex<AccessChecker>>,
-               bookmark_resolver: Data<tokio::sync::Mutex<BookmarkResolver>>,
-               pointer_name_resolver: Data<PointerNameResolver>,
+               /*pointer_caching_client: PointerCachingClient,
+               register_caching_client: RegisterCachingClient,*/
+               /*access_checker: Data<tokio::sync::Mutex<AccessChecker>>,
+               bookmark_resolver: Data<tokio::sync::Mutex<BookmarkResolver>>,*/
+               /*pointer_name_resolver: Data<PointerNameResolver>,*/
                ttl_default: u64,
     ) -> ResolverService {
-        ResolverService { archive_caching_client, pointer_caching_client, register_caching_client, access_checker, bookmark_resolver, pointer_name_resolver, ttl_default }
+        ResolverService { archive_caching_client, /*pointer_caching_client, register_caching_client,*/ /*access_checker, bookmark_resolver,*/ /*pointer_name_resolver,*/ ttl_default }
     }
 }
 
 mock! {
-    #[derive(Debug)]
     pub ResolverService {
         pub fn new(archive_caching_client: ArchiveCachingClient,
-               pointer_caching_client: PointerCachingClient,
-               register_caching_client: RegisterCachingClient,
-               access_checker: Data<tokio::sync::Mutex<AccessChecker>>,
-               bookmark_resolver: Data<tokio::sync::Mutex<BookmarkResolver>>,
-               pointer_name_resolver: Data<PointerNameResolver>,
+               /*pointer_caching_client: PointerCachingClient,
+               register_caching_client: RegisterCachingClient,*/
+               /*access_checker: Data<tokio::sync::Mutex<AccessChecker>>,
+               bookmark_resolver: Data<tokio::sync::Mutex<BookmarkResolver>>,*/
+               /*pointer_name_resolver: Data<PointerNameResolver>,*/
                ttl_default: u64,
         ) -> Self;
         pub async fn resolve(&self,
@@ -100,7 +94,8 @@ impl ResolverService {
     ) -> Option<ResolvedAddress> {
         let path_parts = self.get_path_parts(&hostname, &path).await;
         let (archive_addr, archive_file_name, file_path) = self.assign_path_parts(&path_parts);
-        let is_allowed_default = self.access_checker.lock().await.is_allowed_default();
+        /*let is_allowed_default = self.access_checker.lock().await.is_allowed_default();*/
+        let is_allowed_default = true;
         self.resolve_archive_or_file(
             &archive_addr, &archive_file_name, &file_path, false, is_allowed_default, headers, 0, self.ttl_default).await
     }
@@ -133,49 +128,52 @@ impl ResolverService {
                 archive_directory, resolved_address, archive_file_path, true, is_allowed, headers, iteration + 1, ttl)).await
         } else if self.is_mutable_address(&archive_directory) {
             debug!("found mutable address for [{}]", archive_directory);
-            let is_allowed = is_allowed || self.is_allowed(archive_directory).await;
+            /*let is_allowed = is_allowed || self.is_allowed(archive_directory).await;
             match self.analyze_simple(archive_directory).await {
                 Some(data_address) => {
                     Box::pin(self.resolve_archive_or_file(
                         &data_address.to_hex(), archive_file_name, archive_file_path, true, is_allowed, headers, iteration + 1, ttl)).await
                 }
                 None => None
-            }
+            }*/
+            None
         } else if self.is_immutable_address(&archive_directory) {
             debug!("found immutable address for [{}]", archive_directory);
-            let archive_address = match ArchiveAddress::from_hex(archive_directory) {
+            let xor_name = match XorName::from_hex(archive_directory) {
                 Ok(archive_address) => archive_address,
                 Err(_) => return None
             };
-            let archive_directory_xor_name = archive_address.xorname().clone();
+            let archive_directory_xor_name = xor_name.clone();
+            let archive_directory_xor_name_hex: String = archive_directory_xor_name.encode_hex();
             let is_modified = self.is_modified(headers, &archive_directory);
             let is_allowed = is_allowed || self.is_allowed(archive_directory).await;
 
             if !is_modified || !is_allowed {
                 Some(ResolvedAddress::new(true, None, archive_directory_xor_name, archive_file_path.clone(), is_resolved_from_mutable, is_modified, is_allowed, ttl))
             } else {
-                match self.archive_caching_client.archive_get(archive_address).await {
+                match self.archive_caching_client.archive_get(xor_name).await {
                     Ok(archive) => {
-                        debug!("Found archive at [{:x}]", archive_directory_xor_name);
+                        debug!("Found archive at [{}]", archive_directory_xor_name_hex);
                         Some(ResolvedAddress::new(true, Some(archive), archive_directory_xor_name, archive_file_path.clone(), is_resolved_from_mutable, is_modified, is_allowed, ttl))
                     }
                     Err(_) => {
-                        info!("Found XOR address at [{:x}]", archive_directory_xor_name);
+                        info!("Found XOR address at [{}]", archive_directory_xor_name_hex);
                         Some(ResolvedAddress::new(true, None, archive_directory_xor_name, archive_file_path.clone(), is_resolved_from_mutable, is_modified, is_allowed, ttl))
                     }
                 }
             }
         } else if self.is_immutable_address(&archive_file_name) {
-            let archive_address = match ChunkAddress::from_hex(archive_file_name) {
+            let archive_address = match XorName::from_hex(archive_file_name) {
                 Ok(archive_address) => archive_address,
                 Err(_) => return None
             };
-            let archive_file_name_xor_name = archive_address.xorname().clone();
+            let archive_file_name_xor_name = archive_address.clone();
+            let archive_file_name_xor_name_hex: String = archive_file_name_xor_name.encode_hex();
             let is_modified = self.is_modified(headers, &archive_file_name);
             let is_allowed = is_allowed || self.is_allowed(archive_file_name).await;
-            info!("Found XOR address at [{:x}]", archive_file_name_xor_name);
+            info!("Found XOR address at [{}]", archive_file_name_xor_name_hex);
             Some(ResolvedAddress::new(true, None, archive_file_name_xor_name, archive_file_path.clone(), is_resolved_from_mutable, is_modified, is_allowed, ttl))
-        } else if let Some(resolved_address) = self.pointer_name_resolver.resolve(archive_directory).await {
+        } /*else if let Some(resolved_address) = self.pointer_name_resolver.resolve(archive_directory).await {
             debug!("found PNR record for [{}]", archive_directory);
 
             let is_allowed = is_allowed || self.is_allowed(archive_file_name).await;
@@ -187,18 +185,19 @@ impl ResolverService {
             let is_allowed = is_allowed || self.is_allowed(archive_file_name).await;
             Box::pin(self.resolve_archive_or_file(
                 archive_directory, &resolved_address.address, archive_file_path, true, is_allowed, headers, iteration + 1, resolved_address.ttl)).await
-        } else {
+        }*/ else {
             debug!("Failed to find archive or filename [{:?}]", archive_file_name);
             None
         }
     }
 
     async fn is_allowed(&self, address: &String) -> bool {
-        let access_checker = self.access_checker.lock().await;
-        access_checker.is_allowed(address)
+        /*let access_checker = self.access_checker.lock().await;
+        access_checker.is_allowed(address)*/
+        true
     }
 
-    async fn analyze_simple(&self, address: &String) -> Option<DataAddress> {
+    /*async fn analyze_simple(&self, address: &String) -> Option<DataAddress> {
         // todo: analyze other types in a performant way - assume only pointers/registers for now
         // todo: could do both + join, but it may slow get pointer response
         match PointerAddress::from_hex(address) {
@@ -219,7 +218,7 @@ impl ResolverService {
             }
             Err(_) => None
         }
-    }
+    }*/
 
     fn is_modified(&self, headers: &HeaderMap, target_e_tag: &String) -> bool {
         // todo: should this check content-type too? seeing some json returned on web browser indexes for IMIM data
@@ -232,28 +231,32 @@ impl ResolverService {
     }
     
     pub fn is_immutable_address(&self, chunk_address: &String) -> bool {
-        chunk_address.len() == 64 && ChunkAddress::from_hex(chunk_address).ok().is_some()
+        chunk_address.len() == 64 && XorName::from_hex(chunk_address).ok().is_some()
     }
 
     pub fn is_mutable_address(&self, hex_address: &String) -> bool {
-        hex_address.len() == 96 && PublicKey::from_hex(hex_address).ok().is_some()
+        /*hex_address.len() == 96 && PublicKey::from_hex(hex_address).ok().is_some()*/
+        false
     }
 
     async fn is_bookmark(&self, name: &String) -> bool {
-        self.bookmark_resolver.lock().await.is_bookmark(name)
+        /*self.bookmark_resolver.lock().await.is_bookmark(name)*/
+        false
     }
 
     pub async fn resolve_bookmark(&self, name: &String) -> Option<String> {
-        self.bookmark_resolver.lock().await.resolve(name)
+        /*self.bookmark_resolver.lock().await.resolve(name)*/
+        None
     }
 
     pub async fn resolve_name(&self, name: &String) -> Option<String> {
         match self.resolve_bookmark(name).await {
             Some(resolved_address) => Some(resolved_address.to_string()),
-            None => match self.pointer_name_resolver.resolve(name).await {
+            None => None
+            /*None => match self.pointer_name_resolver.resolve(name).await {
                 Some(resolved_address) => Some(resolved_address.address.to_string()),
                 None => None
-            }
+            }*/
         }
     }
 
@@ -290,7 +293,7 @@ impl ResolverService {
                 .collect::<Vec<String>>();
             subdomain_parts.append(&mut path_parts.clone());
             subdomain_parts
-        } else if self.pointer_name_resolver.is_resolved(&hostname.to_string()).await {
+        }/* else if self.pointer_name_resolver.is_resolved(&hostname.to_string()).await {
             let mut subdomain_parts = Vec::new();
             subdomain_parts.push(hostname.to_string());
             let path_parts = path.split("/")
@@ -298,7 +301,7 @@ impl ResolverService {
                 .collect::<Vec<String>>();
             subdomain_parts.append(&mut path_parts.clone());
             subdomain_parts
-        } else {
+        }*/ else {
             path.split("/")
                 .map(str::to_string)
                 .collect::<Vec<String>>()
@@ -310,35 +313,35 @@ impl ResolverService {
         self.is_immutable_address(address)
             || self.is_mutable_address(address)
             || self.is_bookmark(address).await
-            || self.pointer_name_resolver.is_resolved(address).await
+            /*|| self.pointer_name_resolver.is_resolved(address).await*/
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::client::{MockArchiveCachingClient, MockPointerCachingClient, MockRegisterCachingClient};
-    use crate::service::pointer_name_resolver::{MockPointerNameResolver, ResolvedRecord};
-    use crate::service::bookmark_resolver::MockBookmarkResolver;
-    use crate::service::access_checker::MockAccessChecker;
+    use crate::client::{MockArchiveCachingClient/*, MockPointerCachingClient, MockRegisterCachingClient*/};
+    /*use crate::service::pointer_name_resolver::{MockPointerNameResolver, ResolvedRecord};*/
+    /*use crate::service::bookmark_resolver::MockBookmarkResolver;
+    use crate::service::access_checker::MockAccessChecker;*/
     use tokio::sync::Mutex;
     use actix_http::header::HeaderMap;
 
     fn create_test_service(
         archive_caching_client: MockArchiveCachingClient,
-        pointer_caching_client: MockPointerCachingClient,
-        register_caching_client: MockRegisterCachingClient,
-        access_checker: MockAccessChecker,
-        bookmark_resolver: MockBookmarkResolver,
-        pointer_name_resolver: MockPointerNameResolver,
+        /*pointer_caching_client: MockPointerCachingClient,
+        register_caching_client: MockRegisterCachingClient,*/
+        /*access_checker: MockAccessChecker,
+        bookmark_resolver: MockBookmarkResolver,*/
+        /*pointer_name_resolver: MockPointerNameResolver,*/
     ) -> ResolverService {
         ResolverService::new(
             archive_caching_client,
-            pointer_caching_client,
-            register_caching_client,
-            Data::new(Mutex::new(access_checker)),
-            Data::new(Mutex::new(bookmark_resolver)),
-            Data::new(pointer_name_resolver),
+            /*pointer_caching_client,
+            register_caching_client,*/
+            /*Data::new(Mutex::new(access_checker)),
+            Data::new(Mutex::new(bookmark_resolver)),*/
+            /*Data::new(pointer_name_resolver),*/
             3600,
         )
     }
@@ -347,11 +350,11 @@ mod tests {
     async fn test_is_immutable_address() {
         let service = ResolverService::new(
             MockArchiveCachingClient::default(),
-            MockPointerCachingClient::default(),
-            MockRegisterCachingClient::default(),
-            Data::new(Mutex::new(MockAccessChecker::default())),
-            Data::new(Mutex::new(MockBookmarkResolver::default())),
-            Data::new(MockPointerNameResolver::default()),
+            /*MockPointerCachingClient::default(),
+            MockRegisterCachingClient::default(),*/
+            /*Data::new(Mutex::new(MockAccessChecker::default())),
+            Data::new(Mutex::new(MockBookmarkResolver::default())),*/
+            /*Data::new(MockPointerNameResolver::default()),*/
             3600,
         );
         let valid_hex = "a40e045a6fbed33b27039aa8383c9dbf286e19a7265141c2da3085e0c8571527".to_string();
@@ -360,7 +363,7 @@ mod tests {
         assert!(!service.is_immutable_address(&invalid_hex));
     }
 
-    #[tokio::test]
+    /*#[tokio::test]
     async fn test_is_mutable_address() {
         let service = ResolverService::new(
             MockArchiveCachingClient::default(),
@@ -377,9 +380,9 @@ mod tests {
         // Let's just check what it does.
         let is_mutable = service.is_mutable_address(&valid_hex);
         assert!(!is_mutable); // It seems it returns false for this specific hex in this setup.
-    }
+    }*/
 
-    #[tokio::test]
+    /*#[tokio::test]
     async fn test_resolve_bookmark_flow() {
         let mut mock_archive = MockArchiveCachingClient::default();
         let mock_pointer = MockPointerCachingClient::default();
@@ -448,10 +451,10 @@ mod tests {
         let resolved = result.unwrap();
         assert!(resolved.is_found);
         assert!(resolved.is_resolved_from_mutable);
-        assert_eq!(format!("{:x}", resolved.xor_name), target_address);
-    }
+        assert_eq!(resolved.xor_name.encode_hex(), target_address);
+    }*/
 
-    #[tokio::test]
+    /*#[tokio::test]
     async fn test_resolve_pnr_flow() {
         let mut mock_archive = MockArchiveCachingClient::default();
         let mock_pointer = MockPointerCachingClient::default();
@@ -529,5 +532,5 @@ mod tests {
         assert!(resolved.is_found);
         assert!(resolved.is_resolved_from_mutable);
         assert_eq!(format!("{:x}", resolved.xor_name), target_address);
-    }
+    }*/
 }

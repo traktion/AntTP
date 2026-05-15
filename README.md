@@ -2,6 +2,8 @@
 
 AntTP is an HTTP gateway and proxy for the [Autonomi Network](https://autonomi.com/). It allows users to browse decentralized data using traditional web browsers and enables developers to integrate with Autonomi via familiar REST, gRPC, and MCP interfaces.
 
+__IMPORTANT: AntTP has been ported to Autonomi 2.0 and mutable types are not currently supported! Only file and chunk operations are currently available.__
+
 ## Quick Links
 
 *   **[Background & Overview](docs/background.md)** - What is AntTP and how it works.

@@ -1,10 +1,10 @@
 use tonic::{Request, Response, Status};
 use actix_web::web::Data;
-use ant_evm::EvmWallet;
 use actix_multipart::form::tempfile::TempFile;
 use actix_multipart::form::MultipartForm;
 use std::io::Write;
-use crate::service::public_archive_service::{PublicArchiveForm, Upload};
+use ant_core::data::Wallet;
+/*use crate::service::public_archive_service::{PublicArchiveForm, Upload};*/
 use crate::service::tarchive_service::TarchiveService;
 use crate::controller::StoreType;
 use crate::error::tarchive_error::TarchiveError;
@@ -16,16 +16,17 @@ pub mod tarchive_proto {
 use tarchive_proto::tarchive_service_server::TarchiveService as TarchiveServiceTrait;
 pub use tarchive_proto::tarchive_service_server::TarchiveServiceServer;
 use tarchive_proto::{CreateTarchiveRequest, UpdateTarchiveRequest, TruncateTarchiveRequest, TarchiveResponse, File as ProtoFile, GetTarchiveRequest, GetTarchiveResponse, Item, ListTarchiveRequest, ListTarchiveResponse, PushTarchiveRequest};
+use crate::service::archive_service::{PublicArchiveForm, Upload};
 use crate::service::public_data_service::PublicDataService;
 
 pub struct TarchiveHandler {
     tarchive_service: Data<TarchiveService>,
     public_data_service: Data<PublicDataService>,
-    evm_wallet: Data<EvmWallet>,
+    evm_wallet: Data<Wallet>,
 }
 
 impl TarchiveHandler {
-    pub fn new(tarchive_service: Data<TarchiveService>, public_data_service: Data<PublicDataService>, evm_wallet: Data<EvmWallet>) -> Self {
+    pub fn new(tarchive_service: Data<TarchiveService>, public_data_service: Data<PublicDataService>, evm_wallet: Data<Wallet>) -> Self {
         Self { tarchive_service, public_data_service, evm_wallet }
     }
 
@@ -165,7 +166,6 @@ impl TarchiveServiceTrait for TarchiveHandler {
         let req = request.into_inner();
         let result = self.public_data_service.push_public_data(
             req.address,
-            self.evm_wallet.get_ref().clone(),
             StoreType::from(req.store_type.unwrap_or_else(|| "network".to_string()))
         ).await.map_err(|e| Status::internal(e.to_string()))?;
 

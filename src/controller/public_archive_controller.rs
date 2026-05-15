@@ -1,7 +1,7 @@
-use actix_multipart::form::MultipartForm;
+/*use actix_multipart::form::MultipartForm;
 use actix_web::{web, HttpRequest, HttpResponse};
 use actix_web::web::Data;
-use ant_evm::EvmWallet;
+use ant_core::data::Wallet;
 use log::debug;
 use crate::service::public_archive_service::{PublicArchiveForm, PublicArchiveService, Upload, ArchiveResponse};
 use crate::error::public_archive_error::PublicArchiveError;
@@ -25,7 +25,7 @@ use crate::controller::get_store_type;
 pub async fn post_public_archive_root(
     public_archive_form: MultipartForm<PublicArchiveForm>,
     public_archive_service: Data<PublicArchiveService>,
-    evm_wallet_data: Data<EvmWallet>,
+    evm_wallet_data: Data<Wallet>,
     request: HttpRequest
 ) -> Result<HttpResponse, PublicArchiveError> {
     let evm_wallet = evm_wallet_data.get_ref().clone();
@@ -56,7 +56,7 @@ pub async fn post_public_archive(
     path_params: web::Path<String>,
     public_archive_form: MultipartForm<PublicArchiveForm>,
     public_archive_service: Data<PublicArchiveService>,
-    evm_wallet_data: Data<EvmWallet>,
+    evm_wallet_data: Data<Wallet>,
     request: HttpRequest
 ) -> Result<HttpResponse, PublicArchiveError> {
     let mut path = path_params.into_inner();
@@ -89,7 +89,7 @@ pub async fn put_public_archive_root(
     path: web::Path<String>,
     public_archive_form: MultipartForm<PublicArchiveForm>,
     public_archive_service: Data<PublicArchiveService>,
-    evm_wallet_data: Data<EvmWallet>,
+    evm_wallet_data: Data<Wallet>,
     request: HttpRequest,
 ) -> Result<HttpResponse, PublicArchiveError> {
     let address = path.into_inner();
@@ -122,7 +122,7 @@ pub async fn put_public_archive(
     path_params: web::Path<(String, String)>,
     public_archive_form: MultipartForm<PublicArchiveForm>,
     public_archive_service: Data<PublicArchiveService>,
-    evm_wallet_data: Data<EvmWallet>,
+    evm_wallet_data: Data<Wallet>,
     request: HttpRequest,
 ) -> Result<HttpResponse, PublicArchiveError> {
     let (address, mut path) = path_params.into_inner();
@@ -195,7 +195,7 @@ pub async fn get_public_archive(
 pub async fn delete_public_archive(
     path_params: web::Path<(String, String)>,
     public_archive_service: Data<PublicArchiveService>,
-    evm_wallet_data: Data<EvmWallet>,
+    evm_wallet_data: Data<Wallet>,
     request: HttpRequest,
 ) -> Result<HttpResponse, PublicArchiveError> {
     let (address, mut path) = path_params.into_inner();
@@ -222,7 +222,7 @@ pub async fn delete_public_archive(
 pub async fn push_public_archive(
     path: web::Path<String>,
     public_archive_service: Data<PublicArchiveService>,
-    evm_wallet_data: Data<EvmWallet>,
+    evm_wallet_data: Data<Wallet>,
     request: HttpRequest,
 ) -> Result<HttpResponse, PublicArchiveError> {
     let address = path.into_inner();
@@ -233,3 +233,4 @@ pub async fn push_public_archive(
         public_archive_service.push_public_archive(address, evm_wallet, get_store_type(&request)).await?
     ))
 }
+*/

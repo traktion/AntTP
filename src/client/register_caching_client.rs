@@ -1,4 +1,4 @@
-use autonomi::client::payment::PaymentOption;
+/*use autonomi::client::payment::PaymentOption;
 use autonomi::register::{RegisterAddress, RegisterHistory, RegisterValue};
 use autonomi::SecretKey;
 use log::{debug, info};
@@ -140,4 +140,4 @@ impl RegisterCachingClient {
     pub async fn register_history(&self, addr: &RegisterAddress) -> Result<RegisterHistory, RegisterError> {
         Ok(self.caching_client.get_client_harness().get_ref().lock().await.get_client().await?.register_history(addr))
     }
-}
+}*/

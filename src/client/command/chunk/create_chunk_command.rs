@@ -1,7 +1,6 @@
 use actix_web::web::Data;
+use ant_core::data::DataChunk;
 use async_trait::async_trait;
-use autonomi::Chunk;
-use autonomi::client::payment::PaymentOption;
 use indexmap::IndexMap;
 use log::{debug, info};
 use sha2::Digest;
@@ -13,14 +12,13 @@ use crate::client::command::error::CommandError;
 pub struct CreateChunkCommand {
     id: u128,
     client_harness: Data<Mutex<ClientHarness>>,
-    chunk: Chunk,
-    payment_option: PaymentOption,
+    chunk: DataChunk,
 }
 
 impl CreateChunkCommand {
-    pub fn new(client_harness: Data<Mutex<ClientHarness>>, chunk: Chunk, payment_option: PaymentOption,) -> Self {
+    pub fn new(client_harness: Data<Mutex<ClientHarness>>, chunk: DataChunk) -> Self {
         let id = rand::random::<u128>();
-        Self { id, client_harness, chunk, payment_option }
+        Self { id, client_harness, chunk }
     }
 }
 
@@ -30,9 +28,10 @@ const STRUCT_NAME: &'static str = "CreateChunkCommand";
 impl Command for CreateChunkCommand {    
     async fn execute(&self) -> Result<(), CommandError> {
         let client = self.client_harness.get_ref().lock().await.get_client().await?;
-        let chunk_address_hex = self.chunk.address.to_hex();
+        let chunk = &self.chunk.clone();
+        let chunk_address_hex = hex::encode(&chunk.address);
         debug!("creating chunk with address [{}] on network", chunk_address_hex);
-        client.chunk_put(&self.chunk, self.payment_option.clone()).await?;
+        client.chunk_put(chunk.content.clone()).await?;
         info!("chunk at address [{}] created successfully", chunk_address_hex);
         Ok(())
     }
@@ -40,7 +39,7 @@ impl Command for CreateChunkCommand {
     fn action_hash(&self) -> Vec<u8> {
         let mut hasher = sha2::Sha256::new();
         hasher.update(STRUCT_NAME);
-        hasher.update(self.chunk.address().to_hex());
+        hasher.update(hex::encode(self.chunk.address));
         hasher.finalize().to_ascii_lowercase()
     }
 
@@ -54,7 +53,7 @@ impl Command for CreateChunkCommand {
 
     fn properties(&self) -> IndexMap<String, String> {
         let mut properties = IndexMap::new();
-        properties.insert("chunk_address".to_string(), self.chunk.address().to_hex());
+        properties.insert("chunk_address".to_string(), hex::encode(self.chunk.address));
         properties
     }
 }

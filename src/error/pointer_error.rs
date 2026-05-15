@@ -1,4 +1,4 @@
-use crate::error::{CheckError, CreateError, GetError, UpdateError};
+/*use crate::error::{CheckError, CreateError, GetError, UpdateError};
 use actix_http::StatusCode;
 use actix_web::http::header::ContentType;
 use actix_web::HttpResponse;
@@ -82,4 +82,4 @@ impl actix_web::ResponseError for PointerError {
             .insert_header(ContentType::json())
             .json(self)
     }
-}
+}*/

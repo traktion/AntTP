@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+/*use std::collections::HashMap;
 use mockall::mock;
 use crate::model::bookmark_list::BookmarkList;
 
@@ -106,4 +106,4 @@ mod tests {
 
         assert!(resolver.resolve(&"missing".to_string()).is_none());
     }
-}
+}*/

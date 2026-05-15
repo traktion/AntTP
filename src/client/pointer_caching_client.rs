@@ -1,4 +1,4 @@
-use std::fmt::Debug;
+/*use std::fmt::Debug;
 use autonomi::client::payment::PaymentOption;
 use autonomi::pointer::PointerTarget;
 use autonomi::{Pointer, PointerAddress, SecretKey};
@@ -236,4 +236,4 @@ impl PointerCachingClient {
             }
         }
     }
-}
+}*/

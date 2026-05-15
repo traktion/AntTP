@@ -1,8 +1,8 @@
-use actix_http::header;
+/*use actix_http::header;
 use actix_web::{web, HttpRequest, HttpResponse};
 use actix_web::http::header::{ContentLength, ContentType};
 use actix_web::web::{Data, Payload};
-use ant_evm::EvmWallet;
+use ant_core::data::Wallet;
 use log::debug;
 use crate::controller::get_store_type;
 use crate::error::public_data_error::PublicDataError;
@@ -28,7 +28,7 @@ use crate::service::key_value_service::KeyValueService;
 )]
 pub async fn post_key_value(
     key_value_service: Data<KeyValueService>,
-    evm_wallet_data: Data<EvmWallet>,
+    evm_wallet_data: Data<Wallet>,
     path: web::Path<(String, String)>,
     key_value: web::Json<KeyValue>,
     request: HttpRequest,
@@ -62,7 +62,7 @@ pub async fn post_key_value(
 )]
 pub async fn post_key_value_binary(
     key_value_service: Data<KeyValueService>,
-    evm_wallet_data: Data<EvmWallet>,
+    evm_wallet_data: Data<Wallet>,
     path: web::Path<(String, String)>,
     payload: Payload,
     request: HttpRequest,
@@ -129,3 +129,4 @@ pub async fn get_key_value_binary(
         .insert_header((header::SERVER, format!("{}/{}", env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION"))))
         .body(content))
 }
+*/

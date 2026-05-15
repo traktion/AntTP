@@ -1,11 +1,6 @@
 use std::fmt::Debug;
-use autonomi::client::{ConnectError, PutError};
-use autonomi::graph::GraphError;
-use autonomi::pointer::PointerError;
-use autonomi::register::RegisterError;
-use autonomi::scratchpad::ScratchpadError;
 use thiserror::Error;
-use crate::error::chunk_error::ChunkError;
+use tonic::ConnectError;
 
 #[derive(Error, Debug)]
 pub enum CommandError {
@@ -21,38 +16,8 @@ impl From<ConnectError> for CommandError {
     }
 }
 
-impl From<ChunkError> for CommandError {
-    fn from(value: ChunkError) -> Self {
-        Self::Unrecoverable(value.to_string())
-    }
-}
-
-impl From<GraphError> for CommandError {
-    fn from(value: GraphError) -> Self {
-        Self::Unrecoverable(value.to_string())
-    }
-}
-
-impl From<PointerError> for CommandError {
-    fn from(value: PointerError) -> Self {
-        Self::Unrecoverable(value.to_string())
-    }
-}
-
-impl From<PutError> for CommandError {
-    fn from(value: PutError) -> Self {
-        Self::Unrecoverable(value.to_string())
-    }
-}
-
-impl From<RegisterError> for CommandError {
-    fn from(value: RegisterError) -> Self {
-        Self::Unrecoverable(value.to_string())
-    }
-}
-
-impl From<ScratchpadError> for CommandError {
-    fn from(value: ScratchpadError) -> Self {
+impl From<ant_core::data::error::Error> for CommandError {
+    fn from(value: ant_core::data::error::Error) -> Self {
         Self::Unrecoverable(value.to_string())
     }
 }

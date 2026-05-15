@@ -1,7 +1,7 @@
 use std::collections::HashMap;
-use autonomi::data::DataAddress;
-use autonomi::files::PublicArchive;
+use ant_core::data::XorName;
 use bytes::Bytes;
+use hex::FromHex;
 use log::{debug, error};
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
@@ -23,7 +23,7 @@ pub struct Archive {
 
 #[derive(Clone,Debug,Serialize,Deserialize)]
 pub struct DataAddressOffset {
-    pub data_address: DataAddress,
+    pub data_address: XorName,
     pub path: String,
     pub offset: u64,
     pub size: u64,
@@ -36,7 +36,7 @@ impl Archive {
         Archive { data_address_offsets_map, data_address_offsets_vec, archive_type }
     }
 
-    pub fn build_from_tar(tar_data_addr: &DataAddress, data: Bytes) -> Self {
+    pub fn build_from_tar(tar_data_addr: &XorName, data: Bytes) -> Self {
         let mut data_address_offsets_map = HashMap::new();
         let mut data_address_offsets_vec = Vec::new();
         match String::from_utf8(data.to_vec()) {
@@ -60,7 +60,7 @@ impl Archive {
                     let signature = parts.get(4);
 
                     let data_address = if let Some(hex) = xorname_hex {
-                        DataAddress::from_hex(hex).unwrap_or(*tar_data_addr)
+                        XorName::from_hex(hex).unwrap_or(*tar_data_addr)
                     } else {
                         *tar_data_addr
                     };
@@ -97,7 +97,7 @@ impl Archive {
             .to_string()
     }
 
-    pub fn build_from_public_archive(public_archive: PublicArchive) -> Self {
+    /*pub fn build_from_public_archive(public_archive: PublicArchive) -> Self {
         public_archive.iter().for_each(|(path_buf, data_address, _)|
             debug!("public archive entry: [{}] at [{:x}]",
                 path_buf.to_str().unwrap().to_string().replace("\\", "/"), data_address.xorname()));
@@ -124,7 +124,7 @@ impl Archive {
             data_address_offsets_vec.push(data_address_offset);
         }
         Archive::new(data_address_offsets_map, data_address_offsets_vec, ArchiveType::Public)
-    }
+    }*/
 
     pub fn find_file(&self, search_key: &String) -> Option<&DataAddressOffset> {
         let search_key = Archive::sanitise_path(&search_key);
@@ -216,10 +216,9 @@ impl Archive {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use xor_name::XorName;
 
-    fn create_test_data_address() -> DataAddress {
-        DataAddress::new(XorName::default())
+    fn create_test_data_address() -> XorName {
+        XorName::default()
     }
 
     #[test]

@@ -9,7 +9,7 @@ pub mod crypto_proto {
 
 pub use crypto_proto::crypto_service_server::CryptoServiceServer;
 use crypto_proto::crypto_service_server::CryptoService as CryptoServiceTrait;
-use crypto_proto::{Crypto, CryptoRequest, CryptoResponse, CryptoContent, CryptoContentRequest, CryptoContentResponse};
+use crypto_proto::{Crypto, CryptoRequest, CryptoResponse, CryptoContent/*, CryptoContentRequest, CryptoContentResponse*/};
 
 pub struct CryptoHandler {
     crypto_service: Data<CryptoService>,
@@ -93,7 +93,7 @@ impl CryptoServiceTrait for CryptoHandler {
         }))
     }
 
-    async fn encrypt(
+    /*async fn encrypt(
         &self,
         request: Request<CryptoContentRequest>,
     ) -> Result<Response<CryptoContentResponse>, Status> {
@@ -115,9 +115,9 @@ impl CryptoServiceTrait for CryptoHandler {
             public_key: Some(public_key),
             crypto_content: crypto_results,
         }))
-    }
+    }*/
 
-    async fn decrypt(
+    /*async fn decrypt(
         &self,
         request: Request<CryptoContentRequest>,
     ) -> Result<Response<CryptoContentResponse>, Status> {
@@ -138,10 +138,10 @@ impl CryptoServiceTrait for CryptoHandler {
             public_key: None,
             crypto_content: crypto_results,
         }))
-    }
+    }*/
 }
 
-#[cfg(test)]
+/*#[cfg(test)]
 mod tests {
     use super::*;
     use clap::Parser;
@@ -265,3 +265,4 @@ mod tests {
         assert_eq!(decrypted_bytes, data);
     }
 }
+*/

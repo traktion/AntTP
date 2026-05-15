@@ -1,8 +1,9 @@
 use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
-use blsttc::{PublicKey, Signature};
-use base64::{engine::general_purpose, Engine as _};
+use saorsa_pqc::api::sig::MlDsaVariant;
+use saorsa_pqc::ml_dsa_65;
+use saorsa_pqc::api::{MlDsaPublicKey, MlDsaSignature};
 use crate::config::anttp_config::AntTpConfig;
 
 #[derive(Debug, Serialize, Deserialize, ToSchema, Clone)]
@@ -44,10 +45,11 @@ impl CryptoService {
     pub fn sign(&self, data_hex: &str) -> Option<String> {
         match self.ant_tp_config.get_app_private_key() {
             Ok(app_private_key) => {
+                let dsa = ml_dsa_65();
                 match hex::decode(data_hex) {
                     Ok(data_bytes) => {
-                        let signature = app_private_key.sign(&data_bytes);
-                        Some(hex::encode(signature.to_bytes()))
+                        let signature = dsa.sign(&app_private_key, data_bytes.as_slice());
+                        Some(hex::encode(signature.unwrap().to_bytes()))
                     }
                     Err(_) => None,
                 }
@@ -79,30 +81,27 @@ impl CryptoService {
             Err(_) => return false,
         };
 
-        let mut pk_arr = [0u8; 48];
         if public_key_bytes.len() != 48 {
             return false;
         }
-        pk_arr.copy_from_slice(&public_key_bytes);
-        let public_key = match PublicKey::from_bytes(pk_arr) {
+        let public_key = match MlDsaPublicKey::from_bytes(MlDsaVariant::MlDsa65, public_key_bytes.as_slice()) {
             Ok(pk) => pk,
             Err(_) => return false,
         };
 
-        let mut sig_arr = [0u8; 96];
         if signature_bytes.len() != 96 {
             return false;
         }
-        sig_arr.copy_from_slice(&signature_bytes);
-        let signature = match Signature::from_bytes(sig_arr) {
+        let signature = match MlDsaSignature::from_bytes(MlDsaVariant::MlDsa65, signature_bytes.as_slice()) {
             Ok(sig) => sig,
             Err(_) => return false,
         };
 
-        public_key.verify(&signature, &data_bytes)
+        let dsa = ml_dsa_65();
+        dsa.verify(&public_key, &data_bytes, &signature).unwrap()
     }
 
-    pub fn encrypt_map(&self, public_key: String, mut data_map: HashMap<String, CryptoContent>) -> HashMap<String, CryptoContent> {
+    /*pub fn encrypt_map(&self, public_key: String, mut data_map: HashMap<String, CryptoContent>) -> HashMap<String, CryptoContent> {
         for (data_base64, crypto_content_struct) in data_map.iter_mut() {
             match self.encrypt(&public_key, data_base64) {
                 Some(encrypted_bytes) => {
@@ -114,9 +113,9 @@ impl CryptoService {
             }
         }
         data_map
-    }
+    }*/
 
-    pub fn encrypt(&self, public_key_hex: &str, data_base64: &str) -> Option<Vec<u8>> {
+    /*pub fn encrypt(&self, public_key_hex: &str, data_base64: &str) -> Option<Vec<u8>> {
         let public_key_bytes = match hex::decode(public_key_hex) {
             Ok(bytes) => bytes,
             Err(_) => return None,
@@ -126,20 +125,18 @@ impl CryptoService {
             Err(_) => return None,
         };
 
-        let mut pk_arr = [0u8; 48];
         if public_key_bytes.len() != 48 {
             return None;
         }
-        pk_arr.copy_from_slice(&public_key_bytes);
-        let public_key = match PublicKey::from_bytes(pk_arr) {
+        let public_key = match MlDsaPublicKey::from_bytes(MlDsaVariant::MlDsa65, public_key_bytes.as_slice()) {
             Ok(pk) => pk,
             Err(_) => return None,
         };
-
+        
         Some(public_key.encrypt(&data_bytes).to_bytes())
-    }
+    }*/
 
-    pub fn decrypt_map(&self, mut data_map: HashMap<String, CryptoContent>) -> HashMap<String, CryptoContent> {
+    /*pub fn decrypt_map(&self, mut data_map: HashMap<String, CryptoContent>) -> HashMap<String, CryptoContent> {
         for (data_base64, crypto_content_struct) in data_map.iter_mut() {
             match self.decrypt(data_base64) {
                 Some(decrypted_bytes) => {
@@ -151,9 +148,9 @@ impl CryptoService {
             }
         }
         data_map
-    }
+    }*/
 
-    pub fn decrypt(&self, data_base64: &str) -> Option<Vec<u8>> {
+    /*pub fn decrypt(&self, data_base64: &str) -> Option<Vec<u8>> {
         let app_private_key = match self.ant_tp_config.get_app_private_key() {
             Ok(key) => key,
             Err(_) => return None,
@@ -169,13 +166,12 @@ impl CryptoService {
         };
 
         app_private_key.decrypt(&ciphertext)
-    }
+    }*/
 }
 
-#[cfg(test)]
+/*#[cfg(test)]
 mod tests {
     use super::*;
-    use blsttc::SecretKey;
     use clap::Parser;
 
     #[test]
@@ -355,3 +351,4 @@ mod tests {
         assert_eq!(decrypted_bytes, data);
     }
 }
+*/

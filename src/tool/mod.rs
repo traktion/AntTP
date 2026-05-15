@@ -2,19 +2,19 @@
 use crate::service::command_service::CommandService;
 use crate::service::chunk_service::ChunkService;
 use crate::service::public_data_service::PublicDataService;
-use crate::service::pnr_service::PnrService;
+/*use crate::service::pnr_service::PnrService;
 use crate::service::pointer_service::PointerService;
 use crate::service::register_service::RegisterService;
 use crate::service::graph_service::GraphService;
 use crate::service::public_archive_service::PublicArchiveService;
-use crate::service::scratchpad_service::ScratchpadService;
+use crate::service::scratchpad_service::ScratchpadService;*/
 use crate::service::archive_service::ArchiveService;
 use crate::service::tarchive_service::TarchiveService;
 use crate::service::resolver_service::ResolverService;
-use crate::service::key_value_service::KeyValueService;
+/*use crate::service::key_value_service::KeyValueService;*/
 use crate::service::crypto_service::CryptoService;
 use actix_web::web::Data;
-use ant_evm::EvmWallet;
+use ant_core::data::Wallet;
 use rmcp::handler::server::tool::ToolRouter;
 use rmcp::model::{ServerCapabilities, ServerInfo};
 use rmcp::{tool_handler, ServerHandler};
@@ -36,23 +36,23 @@ pub mod resolver_tool;
 pub mod key_value_tool;
 pub mod crypto_tool;
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct McpTool {
     command_service: Data<CommandService>,
     chunk_service: Data<ChunkService>,
-    pnr_service: Data<PnrService>,
+    /*pnr_service: Data<PnrService>,*/
     public_data_service: Data<PublicDataService>,
-    pointer_service: Data<PointerService>,
+    /*pointer_service: Data<PointerService>,
     register_service: Data<RegisterService>,
     graph_service: Data<GraphService>,
-    public_archive_service: Data<PublicArchiveService>,
+    public_archive_service: Data<PublicArchiveService>,*/
     archive_service: Data<ArchiveService>,
-    scratchpad_service: Data<ScratchpadService>,
+    /*scratchpad_service: Data<ScratchpadService>,*/
     tarchive_service: Data<TarchiveService>,
     resolver_service: Data<ResolverService>,
-    key_value_service: Data<KeyValueService>,
+    /*key_value_service: Data<KeyValueService>,*/
     crypto_service: Data<CryptoService>,
-    evm_wallet: Data<EvmWallet>,
+    evm_wallet: Data<Wallet>,
     tool_router: ToolRouter<Self>,
 }
 
@@ -60,50 +60,50 @@ impl McpTool {
     pub fn new(
         command_service: Data<CommandService>,
         chunk_service: Data<ChunkService>,
-        pnr_service: Data<PnrService>,
+        /*pnr_service: Data<PnrService>,*/
         public_data_service: Data<PublicDataService>,
-        pointer_service: Data<PointerService>,
+        /*pointer_service: Data<PointerService>,
         register_service: Data<RegisterService>,
         graph_service: Data<GraphService>,
-        public_archive_service: Data<PublicArchiveService>,
+        public_archive_service: Data<PublicArchiveService>,*/
         archive_service: Data<ArchiveService>,
-        scratchpad_service: Data<ScratchpadService>,
+        /*scratchpad_service: Data<ScratchpadService>,*/
         tarchive_service: Data<TarchiveService>,
         resolver_service: Data<ResolverService>,
-        key_value_service: Data<KeyValueService>,
+        /*key_value_service: Data<KeyValueService>,*/
         crypto_service: Data<CryptoService>,
-        evm_wallet: Data<EvmWallet>
+        evm_wallet: Data<Wallet>
     ) -> Self {
         Self {
             command_service,
             chunk_service,
-            pnr_service,
+            /*pnr_service,*/
             public_data_service,
-            pointer_service,
+            /*pointer_service,
             register_service,
             graph_service,
-            public_archive_service,
+            public_archive_service,*/
             archive_service,
-            scratchpad_service,
+            /*scratchpad_service,*/
             tarchive_service,
             resolver_service,
-            key_value_service,
+            /*key_value_service,*/
             crypto_service,
             evm_wallet,
             tool_router: Self::chunk_tool_router()
-                + Self::pnr_tool_router()
+                /*+ Self::pnr_tool_router()*/
                 + Self::command_tool_router()
                 + Self::public_data_tool_router()
-                + Self::pointer_tool_router()
+                /*+ Self::pointer_tool_router()
                 + Self::register_tool_router()
                 + Self::graph_tool_router()
-                + Self::public_archive_tool_router()
+                + Self::public_archive_tool_router()*/
                 + Self::archive_tool_router()
-                + Self::public_scratchpad_tool_router()
-                + Self::private_scratchpad_tool_router()
+                /*+ Self::public_scratchpad_tool_router()
+                + Self::private_scratchpad_tool_router()*/
                 + Self::tarchive_tool_router()
                 + Self::resolver_tool_router()
-                + Self::key_value_tool_router()
+                /*+ Self::key_value_tool_router()*/
                 + Self::crypto_tool_router()
         }
     }

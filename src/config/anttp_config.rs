@@ -1,10 +1,11 @@
 use std::env;
 use std::net::SocketAddr;
-use ant_evm::EvmNetwork::ArbitrumOne;
-use autonomi::{Multiaddr, SecretKey};
+use ant_core::data::EvmNetwork::ArbitrumOne;
 use log::info;
 use clap::Parser;
 use crate::error::CreateError;
+use saorsa_pqc::api::sig::{MlDsaSecretKey, MlDsaVariant};
+use saorsa_pqc::ml_dsa_65;
 
 #[derive(Clone, Parser, Debug)]
 #[command(version, about, long_about = None)]
@@ -49,7 +50,7 @@ pub struct AntTpConfig {
     pub cached_mutable_ttl: u64,
 
     #[arg(short, long, value_delimiter = ',')]
-    pub peers: Vec<Multiaddr>,
+    pub peers: Vec<SocketAddr>,
 
     #[arg(short, long, default_value_t = AntTpConfig::get_default_map_cache_directory())]
     pub map_cache_directory: String,
@@ -85,13 +86,15 @@ impl AntTpConfig {
         info!("MCP tools disabled: [{}]", ant_tp_config.mcp_tools_disabled);
         info!("gRPC disabled: [{}]", ant_tp_config.grpc_disabled);
         if ant_tp_config.app_private_key.is_empty() {
-            info!("No app/personal private key provided. Try this one: [{:?}]", SecretKey::random().to_hex());
+            let dsa = ml_dsa_65();
+            let (_, private_key) = dsa.generate_keypair().unwrap();
+            info!("No app/personal private key provided. Try this one: [{:?}]", hex::encode(private_key.to_bytes()));
         } else {
             info!("App/personal private key: [*****]");
         }
         info!("Bookmarks address: {:?}", ant_tp_config.bookmarks_address);
         info!("Cached mutable TTL: {:?}", ant_tp_config.cached_mutable_ttl);
-        info!("Peers: {:?}", ant_tp_config.peers);
+        //info!("Peers: {:?}", ant_tp_config.peers);
         info!("Map cache directory: {:?}", ant_tp_config.map_cache_directory);
         info!("EVM network: {:?}", ant_tp_config.evm_network);
         info!("Immutable disk cache size (MB): {:?}", ant_tp_config.immutable_disk_cache_size);
@@ -111,15 +114,21 @@ impl AntTpConfig {
         ArbitrumOne.to_string()
     }
 
-    pub fn get_app_private_key(&self) -> Result<SecretKey, CreateError> {
-        match SecretKey::from_hex(self.app_private_key.clone().as_str()) {
+    pub fn get_app_private_key(&self) -> Result<MlDsaSecretKey, CreateError> {
+        match MlDsaSecretKey::from_bytes(
+            MlDsaVariant::MlDsa87,
+            hex::decode(self.app_private_key.clone().as_str()).unwrap_or(vec![]).as_slice())
+        {
             Ok(app_secret_key) => Ok(app_secret_key),
             Err(e) => Err(CreateError::DataKeyMissing(e.to_string()))
         }
     }
 
-    pub fn get_resolver_private_key(&self) -> Result<SecretKey, CreateError> {
-        match SecretKey::from_hex(self.resolver_private_key.clone().as_str()) {
+    pub fn get_resolver_private_key(&self) -> Result<MlDsaSecretKey, CreateError> {
+        match MlDsaSecretKey::from_bytes(
+            MlDsaVariant::MlDsa87,
+            hex::decode(self.resolver_private_key.clone().as_str()).unwrap_or(vec![]).as_slice())
+        {
             Ok(resolver_secret_key) => Ok(resolver_secret_key),
             Err(e) => Err(CreateError::DataKeyMissing(e.to_string()))
         }

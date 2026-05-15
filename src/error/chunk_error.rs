@@ -1,9 +1,9 @@
 use actix_http::StatusCode;
 use actix_web::HttpResponse;
 use actix_web::http::header::ContentType;
-use autonomi::client::ConnectError;
 use thiserror::Error;
 use serde::Serialize;
+use tonic::ConnectError;
 use crate::error::{CreateError, GetError, GetStreamError};
 
 #[derive(Error, Debug, Serialize)]
@@ -34,12 +34,6 @@ impl From<foyer::Error> for ChunkError {
     }
 }
 
-impl From<ConnectError> for ChunkError {
-    fn from(value: ConnectError) -> Self {
-        Self::GetError(value.into())
-    }
-}
-
 impl actix_web::ResponseError for ChunkError {
     fn status_code(&self) -> StatusCode {
         match self {
@@ -59,5 +53,17 @@ impl actix_web::ResponseError for ChunkError {
 impl From<GetStreamError> for ChunkError {
     fn from(value: GetStreamError) -> Self {
         Self::GetStreamError(value)
+    }
+}
+
+impl From<ConnectError> for ChunkError {
+    fn from(value: ConnectError) -> Self {
+        Self::GetError(GetError::NetworkOffline(value.to_string()))
+    }
+}
+
+impl From<ant_core::data::Error> for ChunkError {
+    fn from(value: ant_core::data::Error) -> Self {
+        Self::GetError(GetError::NetworkOffline(value.to_string()))
     }
 }

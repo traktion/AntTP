@@ -1,6 +1,6 @@
-use actix_web::{web, HttpRequest, HttpResponse};
+/*use actix_web::{web, HttpRequest, HttpResponse};
 use actix_web::web::Data;
-use ant_evm::EvmWallet;
+use ant_core::data::Wallet;
 use log::debug;
 use crate::error::graph_error::GraphError;
 use crate::controller::{get_store_type, data_key};
@@ -25,7 +25,7 @@ use crate::service::graph_service::{GraphEntry, GraphService};
 )]
 pub async fn post_graph_entry(
     graph_service: Data<GraphService>,
-    evm_wallet_data: Data<EvmWallet>,
+    evm_wallet_data: Data<Wallet>,
     graph_entry: web::Json<GraphEntry>,
     request: HttpRequest,
 ) -> Result<HttpResponse, GraphError> {
@@ -57,3 +57,4 @@ pub async fn get_graph_entry(
     debug!("Getting graph entry at [{}]", address);
     Ok(HttpResponse::Ok().json(graph_service.get_graph_entry(address, data_key(&request)).await?))
 }
+*/

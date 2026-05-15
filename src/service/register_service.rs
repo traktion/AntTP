@@ -1,4 +1,4 @@
-use autonomi::{Client, Wallet};
+/*use autonomi::{Client, Wallet};
 use autonomi::client::payment::PaymentOption;
 use autonomi::register::RegisterAddress;
 use log::{info, warn};
@@ -289,4 +289,4 @@ mod tests {
             _ => panic!("Expected BadAddress error"),
         }
     }
-}
+}*/

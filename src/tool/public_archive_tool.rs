@@ -1,4 +1,4 @@
-#![allow(dead_code)]
+/*#![allow(dead_code)]
 
 use std::io::Write;
 use std::collections::HashMap;
@@ -164,3 +164,4 @@ impl McpTool {
         Ok(MultipartForm(PublicArchiveForm { files: temp_files }))
     }
 }
+*/

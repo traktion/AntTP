@@ -14,7 +14,8 @@ use rmcp::schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use crate::controller::StoreType;
 use crate::error::tarchive_error::TarchiveError;
-use crate::service::public_archive_service::PublicArchiveForm;
+use crate::service::archive_service::PublicArchiveForm;
+/*use crate::service::public_archive_service::PublicArchiveForm;*/
 use crate::tool::McpTool;
 
 #[derive(Debug, Deserialize, JsonSchema, Serialize)]
@@ -161,7 +162,6 @@ impl McpTool {
     ) -> Result<CallToolResult, ErrorData> {
         Ok(self.public_data_service.push_public_data(
             address,
-            self.evm_wallet.get_ref().clone(),
             StoreType::from(store_type)
         ).await?.into())
     }

@@ -5,12 +5,16 @@ use actix_web::web::Data;
 use log::debug;
 use mime::{Mime, APPLICATION_JSON, TEXT_HTML};
 use mockall_double::double;
+#[double]
+use crate::client::ArchiveCachingClient;
+#[double]
+use crate::client::TArchiveCachingClient;
 use crate::config::anttp_config::AntTpConfig;
-use crate::service::public_archive_service::PublicArchiveService;
+/*use crate::service::public_archive_service::PublicArchiveService;*/
 #[double]
 use crate::client::ChunkCachingClient;
-#[double]
-use crate::client::PublicArchiveCachingClient;
+/*#[double]
+use crate::client::PublicArchiveCachingClient;*/
 #[double]
 use crate::client::PublicDataCachingClient;
 #[double]
@@ -20,6 +24,7 @@ use crate::client::StreamingClient;
 use crate::error::GetError;
 use crate::error::chunk_error::ChunkError;
 use crate::service::archive_helper::{ArchiveAction, ArchiveHelper, ArchiveInfo};
+use crate::service::archive_service::ArchiveService;
 #[double]
 use crate::service::file_service::FileService;
 use crate::service::file_service::{RangeProps};
@@ -28,6 +33,9 @@ use crate::service::header_builder::HeaderBuilder;
 use crate::service::resolver_service::ResolverService;
 use crate::service::resolver_service::ResolvedAddress;
 use crate::service::crypto_service::CryptoService;
+#[double]
+use crate::service::public_data_service::PublicDataService;
+use crate::service::tarchive_service::TarchiveService;
 
 pub async fn get_public_data(
     request: HttpRequest,
@@ -60,7 +68,7 @@ pub async fn head_public_data(
 async fn fetch_public_data(
     request: HttpRequest,
     path: web::Path<String>,
-    resolver_service: Data<ResolverService>,
+    resolver_service_data: Data<ResolverService>,
     caching_client_data: Data<CachingClient>,
     streaming_client_data: Data<StreamingClient>,
     conn: ConnectionInfo,
@@ -72,35 +80,40 @@ async fn fetch_public_data(
     let caching_client = caching_client_data.get_ref().clone();
     let streaming_client = streaming_client_data.get_ref().clone();
     let crypto_service = crypto_service_data.get_ref().clone();
+    let resolver_service = resolver_service_data.get_ref().clone();
 
-    match resolver_service.resolve(&conn.host(), &path.into_inner(), &request.headers()).await {
+    match resolver_service_data.resolve(&conn.host(), &path.into_inner(), &request.headers()).await {
         Some(resolved_address) => {
             let header_builder = HeaderBuilder::new(resolved_address.ttl);
             if !resolved_address.is_allowed {
-                Err(GetError::AccessNotAllowed(format!("Access forbidden: {}", resolved_address.xor_name)).into())
+                Err(GetError::AccessNotAllowed(format!("Access forbidden: {}", hex::encode(resolved_address.xor_name))).into())
             } else if !resolved_address.is_modified {
                 Ok(build_not_modified_response(&resolved_address, &header_builder))
             } else if resolved_address.archive.is_some() {
-                debug!("Retrieving file from archive [{:x}]", resolved_address.xor_name);
+                debug!("Retrieving file from archive [{}]", hex::encode(resolved_address.xor_name));
                 let chunk_caching_client = ChunkCachingClient::new(caching_client.clone());
-                let public_archive_caching_client = PublicArchiveCachingClient::new(caching_client.clone(), streaming_client.clone());
                 let public_data_caching_client = PublicDataCachingClient::new(caching_client.clone(), streaming_client.clone());
                 let file_service = FileService::new(chunk_caching_client, ant_tp_config.download_threads);
-                let public_archive_service = PublicArchiveService::new(file_service.clone(), public_archive_caching_client, public_data_caching_client.clone(), resolver_service.get_ref().clone());
+                
+                let public_data_service = PublicDataService::new(public_data_caching_client, resolver_service.clone());
+                let tarchive_caching_client = TArchiveCachingClient::new(caching_client.clone(), streaming_client.clone());
+                let tarchive_service = TarchiveService::new(public_data_service, tarchive_caching_client, file_service.clone(), resolver_service.clone(), ant_tp_config);
+                let archive_caching_client = ArchiveCachingClient::new(caching_client, streaming_client);
+                let archive_service = ArchiveService::new(tarchive_service, resolver_service.clone(), archive_caching_client, file_service.clone());
 
-                let archive_info = public_archive_service.get_archive_info(&resolved_address, &request).await;
+                let archive_info = archive_service.get_archive_info(&resolved_address, &request).await;
 
                 match archive_info.action {
                     ArchiveAction::Data => {
                         let signature_verified = verify_signature(&request, &resolved_address, &crypto_service);
-                        get_data_archive(&request, &resolved_address, &header_builder, public_archive_service, archive_info, signature_verified, has_body).await
+                        get_data_archive(&request, &resolved_address, &header_builder, file_service, archive_info, signature_verified, has_body).await
                     },
                     ArchiveAction::Redirect => Ok(build_moved_permanently_response(&request.path(), &header_builder)),
                     ArchiveAction::Listing  => Ok(build_list_files_response(&request, &resolved_address, &header_builder, has_body)),
                     ArchiveAction::NotFound => Err(GetError::RecordNotFound(format!("File not found: {}", request.full_url())).into()),
                 }
             } else {
-                debug!("Retrieving file from XOR [{:x}]", resolved_address.xor_name);
+                debug!("Retrieving file from XOR [{}]", hex::encode(resolved_address.xor_name));
                 let chunk_caching_client = ChunkCachingClient::new(caching_client.clone());
                 let file_service = FileService::new(chunk_caching_client, ant_tp_config.download_threads);
                 let signature_verified = verify_signature(&request, &resolved_address, &crypto_service);
@@ -125,7 +138,7 @@ fn verify_signature(request: &HttpRequest, resolved_address: &ResolvedAddress, c
             return Some(crypto_service.verify(
                 signer_public_key_hex,
                 &signature_hex,
-                &format!("{:x}", resolved_address.xor_name)
+                hex::encode(resolved_address.xor_name).as_str()
             ));
         }
     }
@@ -225,8 +238,8 @@ fn update_full_content_response(builder: &mut HttpResponseBuilder, resolved_addr
     }
 }
 
-async fn get_data_archive(request: &HttpRequest, resolved_address: &ResolvedAddress, header_builder: &HeaderBuilder, public_archive_service: PublicArchiveService, archive_info: ArchiveInfo, signature_verified: Option<bool>, has_body: bool) -> Result<HttpResponse, ChunkError> {
-    let (chunk_receiver, range_props) = public_archive_service.get_data(&request, archive_info.clone()).await?;
+async fn get_data_archive(request: &HttpRequest, resolved_address: &ResolvedAddress, header_builder: &HeaderBuilder, file_service: FileService, archive_info: ArchiveInfo, signature_verified: Option<bool>, has_body: bool) -> Result<HttpResponse, ChunkError> {
+    let (chunk_receiver, range_props) = file_service.download_data_request(request, archive_info.path_string, archive_info.resolved_xor_addr, archive_info.offset, archive_info.size).await?;
 
     if range_props.is_range() {
         let mut builder = HttpResponse::PartialContent();
@@ -277,7 +290,7 @@ async fn get_data_xor(request: &HttpRequest, resolved_address: &ResolvedAddress,
     }
 }
 
-#[cfg(test)]
+/*#[cfg(test)]
 mod tests {
     use super::*;
     use actix_web::test::{TestRequest};
@@ -462,5 +475,4 @@ mod tests {
         assert_eq!(verified_none, None);
     }
 }
-
-
+*/

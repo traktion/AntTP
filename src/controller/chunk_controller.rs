@@ -2,7 +2,7 @@ use actix_http::header;
 use actix_web::{web, HttpRequest, HttpResponse};
 use actix_web::http::header::{ContentLength, ContentType};
 use actix_web::web::{Data, Payload};
-use ant_evm::EvmWallet;
+use ant_core::data::Wallet;
 use log::debug;
 use crate::error::chunk_error::ChunkError;
 use crate::controller::get_store_type;
@@ -25,13 +25,13 @@ use crate::service::chunk_service::{Chunk, ChunkService};
 )]
 pub async fn post_chunk(
     chunk_service: Data<ChunkService>,
-    evm_wallet_data: Data<EvmWallet>,
+    evm_wallet_data: Data<Wallet>,
     chunk: web::Json<Chunk>,
     request: HttpRequest
 ) -> Result<HttpResponse, ChunkError> {
     debug!("Creating new chunk");
     Ok(HttpResponse::Created().json(
-        chunk_service.create_chunk(chunk.into_inner(), evm_wallet_data.get_ref().clone(), get_store_type(&request)).await?))
+        chunk_service.create_chunk(chunk.into_inner(), get_store_type(&request)).await?))
 }
 
 #[utoipa::path(
@@ -51,7 +51,7 @@ pub async fn post_chunk(
 )]
 pub async fn post_chunk_binary(
     chunk_service: Data<ChunkService>,
-    evm_wallet_data: Data<EvmWallet>,
+    evm_wallet_data: Data<Wallet>,
     payload: Payload,
     request: HttpRequest
 ) -> Result<HttpResponse, ChunkError> {
@@ -59,7 +59,7 @@ pub async fn post_chunk_binary(
     match payload.to_bytes().await {
         Ok(bytes) => {
             Ok(HttpResponse::Created().json(
-                chunk_service.create_chunk_binary(bytes, evm_wallet_data.get_ref().clone(), get_store_type(&request)).await?))
+                chunk_service.create_chunk_binary(bytes, get_store_type(&request)).await?))
         }
         Err(_) => {
             Err(ChunkError::CreateError(CreateError::InvalidData("Failed to retrieve bytes from payload".to_string())))
@@ -109,5 +109,5 @@ pub async fn get_chunk_binary(
         .insert_header(ContentType::octet_stream())
         .insert_header(ContentLength(chunk.size()))
         .insert_header((header::SERVER, format!("{}/{}", env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION"))))
-        .body(chunk.value))
+        .body(chunk.content))
 }

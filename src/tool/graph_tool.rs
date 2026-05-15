@@ -1,4 +1,4 @@
-#![allow(dead_code)]
+/*#![allow(dead_code)]
 
 use rmcp::{handler::server::{
     wrapper::Parameters,
@@ -86,3 +86,4 @@ impl McpTool {
         Ok(self.graph_service.get_graph_entry(address, DataKey::from(data_key)).await?.into())
     }
 }
+*/

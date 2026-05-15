@@ -1,7 +1,7 @@
 use actix_web::web::Data;
 use async_trait::async_trait;
-use autonomi::client::payment::PaymentOption;
 use bytes::Bytes;
+use hex::ToHex;
 use indexmap::IndexMap;
 use log::info;
 use sha2::Digest;
@@ -14,13 +14,12 @@ pub struct CreatePublicDataCommand {
     id: u128,
     client_harness: Data<Mutex<ClientHarness>>,
     data: Bytes,
-    payment_option: PaymentOption,
 }
 
 impl CreatePublicDataCommand {
-    pub fn new(client_harness: Data<Mutex<ClientHarness>>, data: Bytes, payment_option: PaymentOption) -> Self {
+    pub fn new(client_harness: Data<Mutex<ClientHarness>>, data: Bytes) -> Self {
         let id = rand::random::<u128>();
-        Self { id, client_harness, data, payment_option }
+        Self { id, client_harness, data }
     }
 }
 
@@ -30,8 +29,9 @@ const STRUCT_NAME: &'static str = "CreatePublicDataCommand";
 impl Command for CreatePublicDataCommand {
     async fn execute(&self) -> Result<(), CommandError> {
         let client = self.client_harness.get_ref().lock().await.get_client().await?;
-        let (_, data_address) = client.data_put_public(self.data.clone(), self.payment_option.clone()).await?;
-        info!("chunk at address [{}] created successfully", data_address);
+        let result = client.data_upload(self.data.clone()).await?;
+        let data_address = result.data_map.infos().get(0).unwrap().dst_hash;
+        info!("chunk at address [{}] created successfully", data_address.encode_hex::<String>());
         Ok(())
     }
 

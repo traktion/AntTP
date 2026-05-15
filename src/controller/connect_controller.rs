@@ -21,10 +21,10 @@ pub async fn forward(
 ) -> Result<HttpResponse, Error> {
     let client_writer: AsyncStream<Result<Bytes, Error>, _> = stream! {
         // Connect to a peer
-        let server_stream = TcpStream::connect(ant_tp_config_data.https_listen_address).await.unwrap();
+        let server_stream = TcpStream::connect(ant_tp_config_data.https_listen_address).await?;
 
         loop {
-            let ready = server_stream.ready(Interest::READABLE | Interest::WRITABLE).await.unwrap();
+            let ready = server_stream.ready(Interest::READABLE | Interest::WRITABLE).await?;
 
             if ready.is_readable() {
                 let mut data = vec![0; 1024 * 8]; // todo: tune

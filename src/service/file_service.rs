@@ -2,15 +2,15 @@ use std::cmp::min;
 use std::path::Path;
 use actix_http::header;
 use actix_web::HttpRequest;
-use autonomi::ChunkAddress;
+use ant_core::data::{DataChunk, XorName};
 use bytes::{BufMut, BytesMut};
 use chunk_streamer::chunk_receiver::ChunkReceiver;
 use chunk_streamer::chunk_streamer::ChunkStreamer;
 use futures_util::StreamExt;
+use hex::ToHex;
 use log::{debug, info};
 use mockall::mock;
 use mockall_double::double;
-use xor_name::XorName;
 #[double]
 use crate::client::ChunkCachingClient;
 use crate::error::{GetError, GetStreamError};
@@ -57,14 +57,13 @@ pub struct Range {
     pub end: u64,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct FileService {
     chunk_caching_client: ChunkCachingClient,
     download_threads: usize,
 }
 
 mock! {
-    #[derive(Debug)]
     pub FileService {
         pub fn new(chunk_caching_client: ChunkCachingClient, download_threads: usize) -> Self;
         pub async fn get_data(&self, request: &HttpRequest, resolved_address: &ResolvedAddress) -> Result<(ChunkReceiver, RangeProps), ChunkError>;
@@ -93,9 +92,9 @@ impl FileService {
         offset_modifier: u64,
         size_modifier: u64,
     ) -> Result<(ChunkReceiver, RangeProps), ChunkError> {
-        let data_map_chunk = self.chunk_caching_client.chunk_get_internal(&ChunkAddress::new(xor_name)).await?;
+        let data_map_chunk: DataChunk = self.chunk_caching_client.chunk_get_internal(&xor_name).await?;
 
-        let chunk_streamer = ChunkStreamer::new(xor_name.to_string(), data_map_chunk.value, self.chunk_caching_client.clone(), self.download_threads);
+        let chunk_streamer = ChunkStreamer::new(xor_name.encode_hex(), data_map_chunk.content, self.chunk_caching_client.clone(), self.download_threads);
         let content_length = self.get_content_length(&chunk_streamer, size_modifier).await;
 
         let (range_from, range_to, range_length, is_range_request) = self.get_range(Some(&request), offset_modifier, content_length);
@@ -111,8 +110,9 @@ impl FileService {
         let extension = Path::new(&path_str).extension().unwrap_or_default().to_str().unwrap_or_default().to_string();
         let (maybe_response_range_from, maybe_response_range_to) =
             self.get_response_range(range_from, range_to, is_range_request, offset_modifier);
+        let xor_name_hex: String = xor_name.encode_hex();
         info!("streaming item [{}] at addr [{}], range_from: [{}], range_to: [{}], offset_modifier: [{}], size_modifier: [{}], content_length: [{}], range_length: [{}], response_range_from: [{}], response_range_to: [{}]",
-                path_str, format!("{:x}", xor_name), range_from, range_to, offset_modifier, size_modifier, content_length, range_length, maybe_response_range_from.unwrap_or(0), maybe_response_range_to.unwrap_or(0));
+                path_str, xor_name_hex, range_from, range_to, offset_modifier, size_modifier, content_length, range_length, maybe_response_range_from.unwrap_or(0), maybe_response_range_to.unwrap_or(0));
         Ok((chunk_receiver, RangeProps::new(maybe_response_range_from, maybe_response_range_to, content_length, extension)))
     }
 
@@ -189,13 +189,14 @@ impl FileService {
 
     // todo: refactor/merge with download_data_request above
     async fn download_data(&self, xor_name: XorName, range_from: u64, size_modifier: u64) -> Result<ChunkReceiver, ChunkError> {
-        debug!("download data xor_name: [{}], offset: [{}], size: [{}]", xor_name.clone(), range_from, size_modifier);
-        let data_map_chunk = match self.chunk_caching_client.chunk_get_internal(&ChunkAddress::new(xor_name)).await {
+        let xor_name_hex: String = xor_name.encode_hex();
+        debug!("download data xor_name: [{}], offset: [{}], size: [{}]", xor_name_hex, range_from, size_modifier);
+        let data_map_chunk: DataChunk = match self.chunk_caching_client.chunk_get_internal(&xor_name).await {
             Ok(chunk) => chunk,
             Err(e) => return Err(e),
         };
 
-        let chunk_streamer = ChunkStreamer::new(xor_name.to_string(), data_map_chunk.value, self.chunk_caching_client.clone(), self.download_threads);
+        let chunk_streamer = ChunkStreamer::new(xor_name_hex, data_map_chunk.content, self.chunk_caching_client.clone(), self.download_threads);
         let content_length = self.get_content_length(&chunk_streamer, size_modifier).await;
         let (range_from, range_to, _, _) = self.get_range(None, range_from, content_length);
 
@@ -210,8 +211,8 @@ impl FileService {
 mod tests {
     use super::*;
     use actix_web::test::TestRequest;
+    use ant_core::data::DataChunk;
     use crate::client::MockChunkCachingClient;
-    use autonomi::Chunk;
 
     fn create_test_service(mock_chunk_caching_client: MockChunkCachingClient) -> FileService {
         let mut mock_chunk_caching_client = mock_chunk_caching_client;
@@ -307,13 +308,12 @@ mod tests {
     #[actix_web::test]
     async fn test_download_data_bytes_success() {
         let xor_name = XorName::default();
-        let chunk_addr = ChunkAddress::new(xor_name);
         let data = vec![1, 2, 3, 4, 5];
-        let chunk = Chunk::new(data.clone().into());
+        let chunk = DataChunk::from_content(data.clone().into());
 
         let mut mock_chunk_client_for_service = MockChunkCachingClient::default();
         mock_chunk_client_for_service.expect_chunk_get_internal()
-            .with(mockall::predicate::eq(chunk_addr))
+            .with(mockall::predicate::eq(xor_name))
             .times(1)
             .returning(move |_| Ok(chunk.clone()));
         
@@ -324,7 +324,7 @@ mod tests {
                 let mut mock = MockChunkCachingClient::default();
                 let data_cloned = data_for_clone_2.clone();
                 mock.expect_chunk_get()
-                    .returning(move |_| Ok(Chunk::new(data_cloned.clone().into())));
+                    .returning(move |_| Ok(Some(DataChunk::from_content(data_cloned.clone().into()))));
                 mock.expect_clone()
                     .returning(|| MockChunkCachingClient::default());
                 mock
@@ -344,13 +344,12 @@ mod tests {
     #[actix_web::test]
     async fn test_get_data_success() {
         let xor_name = XorName::default();
-        let chunk_addr = ChunkAddress::new(xor_name);
         let data = vec![1, 2, 3, 4, 5];
-        let chunk = Chunk::new(data.clone().into());
+        let chunk = DataChunk::from_content(data.clone().into());
 
         let mut mock_chunk_client = MockChunkCachingClient::default();
         mock_chunk_client.expect_chunk_get_internal()
-            .with(mockall::predicate::eq(chunk_addr))
+            .with(mockall::predicate::eq(xor_name))
             .times(1)
             .returning(move |_| Ok(chunk.clone()));
 
@@ -361,7 +360,7 @@ mod tests {
                 let mut mock = MockChunkCachingClient::default();
                 let data_cloned = data_for_clone.clone();
                 mock.expect_chunk_get()
-                    .returning(move |_| Ok(Chunk::new(data_cloned.clone().into())));
+                    .returning(move |_| Ok(Some(DataChunk::from_content(data_cloned.clone().into()))));
                 mock.expect_clone()
                     .returning(|| MockChunkCachingClient::default());
                 mock
@@ -398,13 +397,12 @@ mod tests {
     #[actix_web::test]
     async fn test_get_data_range_success() {
         let xor_name = XorName::default();
-        let chunk_addr = ChunkAddress::new(xor_name);
         let data = vec![1, 2, 3, 4, 5];
-        let chunk = Chunk::new(data.clone().into());
+        let chunk = DataChunk::from_content(data.clone().into());
 
         let mut mock_chunk_client = MockChunkCachingClient::default();
         mock_chunk_client.expect_chunk_get_internal()
-            .with(mockall::predicate::eq(chunk_addr))
+            .with(mockall::predicate::eq(xor_name))
             .times(1)
             .returning(move |_| Ok(chunk.clone()));
 
@@ -415,7 +413,7 @@ mod tests {
                 let mut mock = MockChunkCachingClient::default();
                 let data_cloned = data_for_clone.clone();
                 mock.expect_chunk_get()
-                    .returning(move |_| Ok(Chunk::new(data_cloned.clone().into())));
+                    .returning(move |_| Ok(Some(DataChunk::from_content(data_cloned.clone().into()))));
                 mock.expect_clone()
                     .returning(|| MockChunkCachingClient::default());
                 mock

@@ -2,9 +2,10 @@ use std::time::{Duration, SystemTime};
 use actix_files::file_extension_to_mime;
 use actix_http::header;
 use actix_web::http::header::{CacheControl, CacheDirective, ContentLength, ContentRange, ContentRangeSpec, ContentType, ETag, EntityTag, Expires, HeaderName};
+use ant_core::data::XorName;
 use chrono::DateTime;
+use hex::ToHex;
 use mime::Mime;
-use xor_name::XorName;
 
 pub struct HeaderBuilder {
     cached_mutable_ttl: u64
@@ -53,7 +54,7 @@ impl HeaderBuilder {
     }
     
     pub fn build_etag_header(&self, xor_name: &XorName) -> ETag {
-        ETag(EntityTag::new_strong(format!("{:x}", xor_name).to_owned()))
+        ETag(EntityTag::new_strong(xor_name.encode_hex()).to_owned())
     }
 
     pub fn build_cors_header(&self) -> (HeaderName, &str) {

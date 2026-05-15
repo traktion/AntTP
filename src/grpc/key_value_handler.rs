@@ -1,6 +1,6 @@
-use tonic::{Request, Response, Status};
+/*use tonic::{Request, Response, Status};
 use actix_web::web::Data;
-use ant_evm::EvmWallet;
+use ant_core::data::Wallet;
 use crate::service::key_value_service::KeyValueService;
 use crate::controller::StoreType;
 use bytes::Bytes;
@@ -16,11 +16,11 @@ use crate::error::public_data_error::PublicDataError;
 
 pub struct KeyValueHandler {
     key_value_service: Data<KeyValueService>,
-    evm_wallet: Data<EvmWallet>,
+    evm_wallet: Data<Wallet>,
 }
 
 impl KeyValueHandler {
-    pub fn new(key_value_service: Data<KeyValueService>, evm_wallet: Data<EvmWallet>) -> Self {
+    pub fn new(key_value_service: Data<KeyValueService>, evm_wallet: Data<Wallet>) -> Self {
         Self { key_value_service, evm_wallet }
     }
 }
@@ -69,3 +69,4 @@ impl KeyValueServiceTrait for KeyValueHandler {
         }))
     }
 }
+*/

@@ -1,8 +1,8 @@
 use actix_http::header::{HeaderMap, ACCEPT};
 use actix_web::{HttpRequest};
+use ant_core::data::XorName;
 use chrono::DateTime;
 use log::{debug, info};
-use xor_name::XorName;
 use crate::model::archive::Archive;
 use crate::service::html_directory_renderer::HtmlDirectoryRenderer;
 use crate::service::resolver_service::ResolvedAddress;
@@ -94,10 +94,10 @@ impl ArchiveHelper {
             debug!("retrieve route map index");
             match self.archive.find_file(resolved_route_path) {
                 Some(data_address_offset) => {
-                    info!("Resolved path [{}] to xor address [{}]", resolved_route_path, format!("{:x}", *data_address_offset.data_address.xorname()));
+                    info!("Resolved path [{}] to xor address [{}]", resolved_route_path, hex::encode(data_address_offset.data_address));
                     ArchiveInfo::new(
                         data_address_offset.path.clone(),
-                        *data_address_offset.data_address.xorname(),
+                        data_address_offset.data_address,
                         ArchiveAction::Data,
                         resolved_address.is_modified,
                         data_address_offset.offset,
@@ -111,10 +111,10 @@ impl ArchiveHelper {
             debug!("retrieve path and data address");
             match self.archive.find_file(&resolved_address.file_path) {
                 Some(data_address_offset) => {
-                    info!("Resolved path [{}] to xor address [{}]", resolved_route_path, format!("{:x}", *data_address_offset.data_address.xorname()));
+                    info!("Resolved path [{}] to xor address [{}]", resolved_route_path, hex::encode(data_address_offset.data_address));
                     ArchiveInfo::new(
                         resolved_route_path.clone(),
-                        *data_address_offset.data_address.xorname(),
+                        data_address_offset.data_address,
                         ArchiveAction::Data,
                         resolved_address.is_modified,
                         data_address_offset.offset,
@@ -130,10 +130,10 @@ impl ArchiveHelper {
                         debug!("Lookup default index: {}", default_index);
                         match self.archive.find_file(&default_index) {
                             Some(data_address_offset) => {
-                                info!("Resolved path [{}] to xor address [{}] to default [{}]", resolved_route_path, format!("{:x}", *data_address_offset.data_address.xorname()), default_index);
+                                info!("Resolved path [{}] to xor address [{}] to default [{}]", resolved_route_path, hex::encode(data_address_offset.data_address), default_index);
                                 ArchiveInfo::new(
                                     resolved_route_path.clone(),
-                                    *data_address_offset.data_address.xorname(),
+                                    data_address_offset.data_address,
                                     ArchiveAction::Data,
                                     resolved_address.is_modified,
                                     data_address_offset.offset,
@@ -156,10 +156,10 @@ impl ArchiveHelper {
             debug!("Lookup default index: {}", default_index);
             match self.archive.find_file(&default_index) {
                 Some(data_address_offset) => {
-                    info!("Resolved path [{}] to xor address [{}] to default [{}]", resolved_route_path, format!("{:x}", *data_address_offset.data_address.xorname()), default_index);
+                    info!("Resolved path [{}] to xor address [{}] to default [{}]", resolved_route_path, hex::encode(data_address_offset.data_address), default_index);
                     ArchiveInfo::new(
                         resolved_route_path.clone(),
-                        *data_address_offset.data_address.xorname(),
+                        data_address_offset.data_address,
                         ArchiveAction::Data,
                         resolved_address.is_modified,
                         data_address_offset.offset,
@@ -185,16 +185,16 @@ mod tests {
     use super::*;
     use actix_web::test::TestRequest;
     use std::collections::HashMap;
-    use autonomi::data::DataAddress;
     use crate::model::archive::DataAddressOffset;
     use actix_http::header::HeaderName;
+    use hex::FromHex;
 
     fn create_test_archive() -> Archive {
         let mut map = HashMap::new();
         let mut vec = Vec::new();
 
         let file1 = DataAddressOffset {
-            data_address: DataAddress::from_hex("0000000000000000000000000000000000000000000000000000000000000000").unwrap(),
+            data_address: XorName::from_hex("0000000000000000000000000000000000000000000000000000000000000000").unwrap(),
             path: "index.html".to_string(),
             offset: 0,
             size: 100,
@@ -205,7 +205,7 @@ mod tests {
         vec.push(file1);
 
         let file2 = DataAddressOffset {
-            data_address: DataAddress::from_hex("0000000000000000000000000000000000000000000000000000000000000000").unwrap(),
+            data_address: XorName::from_hex("0000000000000000000000000000000000000000000000000000000000000000").unwrap(),
             path: "style.css".to_string(),
             offset: 100,
             size: 50,
@@ -216,7 +216,7 @@ mod tests {
         vec.push(file2);
 
         let file3 = DataAddressOffset {
-            data_address: DataAddress::from_hex("0000000000000000000000000000000000000000000000000000000000000000").unwrap(),
+            data_address: XorName::from_hex("0000000000000000000000000000000000000000000000000000000000000000").unwrap(),
             path: "sub/test.txt".to_string(),
             offset: 150,
             size: 20,

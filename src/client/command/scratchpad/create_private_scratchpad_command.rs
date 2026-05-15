@@ -1,4 +1,4 @@
-use actix_web::web::Data;
+/*use actix_web::web::Data;
 use async_trait::async_trait;
 use autonomi::SecretKey;
 use autonomi::client::payment::PaymentOption;
@@ -65,4 +65,4 @@ impl Command for CreatePrivateScratchpadCommand {
         properties.insert("data".to_string(), "tbc".to_string()); // todo: improve
         properties
     }
-}
+}*/

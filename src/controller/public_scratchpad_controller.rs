@@ -1,6 +1,6 @@
-use actix_web::{web, HttpRequest, HttpResponse};
+/*use actix_web::{web, HttpRequest, HttpResponse};
 use actix_web::web::Data;
-use ant_evm::EvmWallet;
+use ant_core::data::Wallet;
 use log::debug;
 use crate::error::scratchpad_error::ScratchpadError;
 use crate::controller::get_store_type;
@@ -22,7 +22,7 @@ use crate::service::scratchpad_service::{Scratchpad, ScratchpadService};
 )]
 pub async fn post_public_scratchpad(
     scratchpad_service: Data<ScratchpadService>,
-    evm_wallet_data: Data<EvmWallet>,
+    evm_wallet_data: Data<Wallet>,
     scratchpad: web::Json<Scratchpad>,
     request: HttpRequest,
 ) -> Result<HttpResponse, ScratchpadError> {
@@ -56,7 +56,7 @@ pub async fn post_public_scratchpad(
 pub async fn put_public_scratchpad(
     path: web::Path<(String, String)>,
     scratchpad_service: Data<ScratchpadService>,
-    evm_wallet_data: Data<EvmWallet>,
+    evm_wallet_data: Data<Wallet>,
     scratchpad: web::Json<Scratchpad>,
     request: HttpRequest,
 ) -> Result<HttpResponse, ScratchpadError> {
@@ -94,4 +94,4 @@ pub async fn get_public_scratchpad(
 
     debug!("Getting public scratchpad at [{}]", address);
     Ok(HttpResponse::Ok().json(scratchpad_service.get_scratchpad(address, None, false).await?))
-}
+}*/

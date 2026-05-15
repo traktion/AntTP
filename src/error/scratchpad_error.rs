@@ -1,4 +1,4 @@
-use actix_http::StatusCode;
+/*use actix_http::StatusCode;
 use actix_web::HttpResponse;
 use actix_web::http::header::ContentType;
 use autonomi::client::ConnectError;
@@ -75,4 +75,4 @@ impl From<ScratchpadError> for Status {
     fn from(error: ScratchpadError) -> Self {
         Status::internal(error.to_string())
     }
-}
+}*/

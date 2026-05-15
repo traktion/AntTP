@@ -1,4 +1,4 @@
-#![allow(dead_code)]
+/*#![allow(dead_code)]
 
 use rmcp::{handler::server::{
     wrapper::Parameters,
@@ -70,3 +70,4 @@ impl McpTool {
         })))
     }
 }
+*/

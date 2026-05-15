@@ -1,5 +1,3 @@
-use autonomi::client::payment::PaymentOption;
-use autonomi::{Scratchpad, ScratchpadAddress, SecretKey};
 use bytes::Bytes;
 use log::{debug, info};
 use mockall_double::double;
@@ -7,11 +5,6 @@ use crate::client::cache_item::CacheItem;
 #[double]
 use crate::client::CachingClient;
 use crate::client::SCRATCHPAD_CACHE_KEY;
-use crate::client::command::scratchpad::create_private_scratchpad_command::CreatePrivateScratchpadCommand;
-use crate::client::command::scratchpad::create_public_scratchpad_command::CreatePublicScratchpadCommand;
-use crate::client::command::scratchpad::get_scratchpad_command::GetScratchpadCommand;
-use crate::client::command::scratchpad::update_private_scratchpad_command::UpdatePrivateScratchpadCommand;
-use crate::client::command::scratchpad::update_public_scratchpad_command::UpdatePublicScratchpadCommand;
 use crate::controller::StoreType;
 use crate::error::scratchpad_error::ScratchpadError;
 

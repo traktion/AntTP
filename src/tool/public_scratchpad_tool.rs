@@ -1,4 +1,4 @@
-#![allow(dead_code)]
+/*#![allow(dead_code)]
 
 use rmcp::{handler::server::{
     wrapper::Parameters,
@@ -135,3 +135,4 @@ mod tests {
         assert_eq!(request.address, "0x123");
     }
 }
+*/

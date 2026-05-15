@@ -1,6 +1,6 @@
-use tonic::{Request, Response, Status};
+/*use tonic::{Request, Response, Status};
 use actix_web::web::Data;
-use ant_evm::EvmWallet;
+use ant_core::data::Wallet;
 use crate::service::register_service::{Register as ServiceRegister, RegisterService};
 use crate::controller::StoreType;
 
@@ -15,11 +15,11 @@ use crate::error::register_error::RegisterError;
 
 pub struct RegisterHandler {
     register_service: Data<RegisterService>,
-    evm_wallet: Data<EvmWallet>,
+    evm_wallet: Data<Wallet>,
 }
 
 impl RegisterHandler {
-    pub fn new(register_service: Data<RegisterService>, evm_wallet: Data<EvmWallet>) -> Self {
+    pub fn new(register_service: Data<RegisterService>, evm_wallet: Data<Wallet>) -> Self {
         Self { register_service, evm_wallet }
     }
 }
@@ -151,3 +151,4 @@ mod tests {
         assert!(status.message().contains("not found"));
     }
 }
+*/

@@ -4,8 +4,6 @@ use serde::Serialize;
 use actix_http::StatusCode;
 use actix_web::HttpResponse;
 use actix_web::http::header::ContentType;
-use autonomi::AddressParseError;
-use autonomi::client::ConnectError;
 use crate::error::{CreateError, GetError, UpdateError};
 use crate::error::public_data_error::PublicDataError;
 use crate::error::chunk_error::ChunkError;
@@ -55,21 +53,9 @@ impl From<PublicDataError> for TarchiveError {
     }
 }
 
-impl From<ConnectError> for TarchiveError {
-    fn from(value: ConnectError) -> Self {
-        Self::GetError(value.into())
-    }
-}
-
 impl From<io::Error> for TarchiveError {
     fn from(value: io::Error) -> Self {
         Self::UpdateError(value.into())
-    }
-}
-
-impl From<AddressParseError> for TarchiveError {
-    fn from(value: AddressParseError) -> Self {
-        Self::GetError(value.into())
     }
 }
 

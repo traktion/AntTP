@@ -1,6 +1,6 @@
-use tonic::{Request, Response, Status};
+/*use tonic::{Request, Response, Status};
 use actix_web::web::Data;
-use ant_evm::EvmWallet;
+use ant_core::data::Wallet;
 use actix_multipart::form::tempfile::TempFile;
 use actix_multipart::form::MultipartForm;
 use std::io::Write;
@@ -18,11 +18,11 @@ use public_archive_proto::{CreatePublicArchiveRequest, UpdatePublicArchiveReques
 
 pub struct PublicArchiveHandler {
     public_archive_service: Data<PublicArchiveService>,
-    evm_wallet: Data<EvmWallet>,
+    evm_wallet: Data<Wallet>,
 }
 
 impl PublicArchiveHandler {
-    pub fn new(public_archive_service: Data<PublicArchiveService>, evm_wallet: Data<EvmWallet>) -> Self {
+    pub fn new(public_archive_service: Data<PublicArchiveService>, evm_wallet: Data<Wallet>) -> Self {
         Self { public_archive_service, evm_wallet }
     }
 
@@ -191,3 +191,4 @@ mod tests {
         assert_eq!(response.content, Some(content.to_vec()));
     }
 }
+*/

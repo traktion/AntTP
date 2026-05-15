@@ -1,4 +1,4 @@
-use base64::Engine;
+/*use base64::Engine;
 use base64::prelude::BASE64_STANDARD;
 use bytes::Bytes;
 use std::{env, fs};
@@ -9,10 +9,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use actix_multipart::form::MultipartForm;
 use actix_multipart::form::tempfile::TempFile;
 use actix_web::HttpRequest;
-use autonomi::Wallet;
-use autonomi::client::payment::PaymentOption;
-use autonomi::files::{Metadata, PublicArchive};
-use autonomi::files::archive_public::ArchiveAddress;
+use ant_core::data::Wallet;
 use chunk_streamer::chunk_receiver::ChunkReceiver;
 use log::{debug, info, warn};
 use mockall_double::double;
@@ -839,4 +836,4 @@ mod tests {
         assert!(result.is_ok());
         assert_eq!(result.unwrap().address, Some(new_archive_address.to_hex()));
     }
-}
+}*/

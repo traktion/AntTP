@@ -1,4 +1,4 @@
-#![allow(dead_code)]
+/*#![allow(dead_code)]
 
 use rmcp::{handler::server::{
     wrapper::Parameters,
@@ -97,3 +97,4 @@ impl McpTool {
         Ok(self.pointer_service.get_pointer(address, DataKey::from(data_key)).await?.into())
     }
 }
+*/

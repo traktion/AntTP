@@ -1,6 +1,6 @@
-use tonic::{Request, Response, Status};
+/*use tonic::{Request, Response, Status};
 use actix_web::web::Data;
-use ant_evm::EvmWallet;
+use ant_core::data::Wallet;
 use crate::service::pointer_service::{Pointer as ServicePointer, PointerService};
 use crate::controller::{StoreType, DataKey};
 
@@ -15,11 +15,11 @@ use crate::error::pointer_error::PointerError;
 
 pub struct PointerHandler {
     pointer_service: Data<PointerService>,
-    evm_wallet: Data<EvmWallet>,
+    evm_wallet: Data<Wallet>,
 }
 
 impl PointerHandler {
-    pub fn new(pointer_service: Data<PointerService>, evm_wallet: Data<EvmWallet>) -> Self {
+    pub fn new(pointer_service: Data<PointerService>, evm_wallet: Data<Wallet>) -> Self {
         Self { pointer_service, evm_wallet }
     }
 }
@@ -106,3 +106,4 @@ impl PointerServiceTrait for PointerHandler {
         }))
     }
 }
+*/

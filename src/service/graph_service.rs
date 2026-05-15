@@ -1,4 +1,4 @@
-use autonomi::{Client, GraphEntryAddress, PublicKey, Wallet};
+/*use autonomi::{Client, GraphEntryAddress, PublicKey, Wallet};
 use autonomi::client::payment::PaymentOption;
 use autonomi::graph::{GraphContent};
 use hex::FromHex;
@@ -225,3 +225,4 @@ mod tests {
         assert_eq!(result.unwrap().content, hex::encode(content));
     }
 }
+*/

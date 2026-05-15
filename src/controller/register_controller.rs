@@ -1,6 +1,6 @@
-use actix_web::{web, HttpRequest, HttpResponse};
+/*use actix_web::{web, HttpRequest, HttpResponse};
 use actix_web::web::Data;
-use ant_evm::EvmWallet;
+use ant_core::data::Wallet;
 use log::debug;
 use crate::error::register_error::RegisterError;
 use crate::controller::get_store_type;
@@ -23,7 +23,7 @@ use crate::service::register_service::{Register, RegisterService};
 )]
 pub async fn post_register(
     register_service: Data<RegisterService>,
-    evm_wallet_data: Data<EvmWallet>,
+    evm_wallet_data: Data<Wallet>,
     register: web::Json<Register>,
     request: HttpRequest,
 ) -> Result<HttpResponse, RegisterError> {
@@ -53,7 +53,7 @@ pub async fn post_register(
 pub async fn put_register(
     path: web::Path<String>,
     register_service: Data<RegisterService>,
-    evm_wallet_data: Data<EvmWallet>,
+    evm_wallet_data: Data<Wallet>,
     register: web::Json<Register>,
     request: HttpRequest,
 ) -> Result<HttpResponse, RegisterError> {
@@ -104,3 +104,4 @@ pub async fn get_register_history(
     debug!("Getting register history at [{}]", address);
     Ok(HttpResponse::Ok().json(register_service.get_register_history(address).await?))
 }
+*/

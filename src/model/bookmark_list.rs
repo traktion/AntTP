@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+/*use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Clone, Default, Debug)]
@@ -11,4 +11,4 @@ impl BookmarkList {
     pub fn bookmarks(&self) -> &HashMap<String, String> {
         &self.bookmarks
     }
-}
+}*/

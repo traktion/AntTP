@@ -1,4 +1,4 @@
-#[double]
+/*#[double]
 use crate::client::pointer_caching_client::PointerCachingClient;
 use crate::config::anttp_config::AntTpConfig;
 use crate::controller::{DataKey, StoreType};
@@ -553,4 +553,4 @@ mod tests {
             Err(e) => panic!("Update Error: {:?}", e),
         }
     }
-}
+}*/

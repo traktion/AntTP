@@ -1,4 +1,4 @@
-use actix_web::web::Data;
+/*use actix_web::web::Data;
 use async_trait::async_trait;
 use autonomi::register::RegisterAddress;
 use foyer::HybridCache;
@@ -65,4 +65,4 @@ impl Command for GetRegisterCommand {
         properties.insert("register_address".to_string(), self.register_address.to_hex());
         properties
     }
-}
+}*/

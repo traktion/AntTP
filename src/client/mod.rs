@@ -12,10 +12,10 @@ pub mod caching_client;
 pub mod cache_item;
 pub mod client_harness;
 pub mod chunk_caching_client;
-pub mod scratchpad_caching_client;
-pub mod graph_entry_caching_client;
-pub mod pointer_caching_client;
-pub mod register_caching_client;
+//pub mod scratchpad_caching_client;
+//pub mod graph_entry_caching_client;
+//pub mod pointer_caching_client;
+//pub mod register_caching_client;
 pub mod public_archive_caching_client;
 pub mod tarchive_caching_client;
 pub mod archive_caching_client;
@@ -25,11 +25,11 @@ pub mod streaming_client;
 
 pub use self::caching_client::*;
 pub use chunk_caching_client::{ChunkCachingClient, MockChunkCachingClient};
-pub use scratchpad_caching_client::{ScratchpadCachingClient, MockScratchpadCachingClient};
+/*pub use scratchpad_caching_client::{ScratchpadCachingClient, MockScratchpadCachingClient};
 pub use graph_entry_caching_client::{GraphEntryCachingClient, MockGraphEntryCachingClient};
 pub use pointer_caching_client::{PointerCachingClient, MockPointerCachingClient};
-pub use register_caching_client::{RegisterCachingClient, MockRegisterCachingClient};
-pub use public_archive_caching_client::{PublicArchiveCachingClient, MockPublicArchiveCachingClient};
+pub use register_caching_client::{RegisterCachingClient, MockRegisterCachingClient};*/
+/*pub use public_archive_caching_client::{PublicArchiveCachingClient, MockPublicArchiveCachingClient};*/
 pub use tarchive_caching_client::{TArchiveCachingClient, MockTArchiveCachingClient};
 pub use archive_caching_client::{ArchiveCachingClient, MockArchiveCachingClient};
 pub use public_data_caching_client::{PublicDataCachingClient, MockPublicDataCachingClient};

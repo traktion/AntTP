@@ -1,7 +1,7 @@
 use actix_web::{web, HttpResponse};
 use actix_web::web::Data;
 use std::collections::HashMap;
-use crate::service::crypto_service::{CryptoService, Crypto, CryptoContent};
+use crate::service::crypto_service::{CryptoService, Crypto};
 
 #[utoipa::path(
     post,
@@ -55,7 +55,7 @@ pub async fn post_sign(
     HttpResponse::Ok().json(result)
 }
 
-#[utoipa::path(
+/*#[utoipa::path(
     post,
     path = "/anttp-0/crypto/encrypt/{public_key}",
     params(
@@ -81,9 +81,9 @@ pub async fn post_encrypt(
     let public_key = path.into_inner();
     let result = crypto_service.encrypt_map(public_key, data_map.into_inner());
     HttpResponse::Ok().json(result)
-}
+}*/
 
-#[utoipa::path(
+/*#[utoipa::path(
     post,
     path = "/anttp-0/crypto/decrypt",
     request_body(
@@ -104,9 +104,9 @@ pub async fn post_decrypt(
 ) -> HttpResponse {
     let result = crypto_service.decrypt_map(data_map.into_inner());
     HttpResponse::Ok().json(result)
-}
+}*/
 
-#[cfg(test)]
+/*#[cfg(test)]
 mod tests {
     use super::*;
     use actix_web::{test, App};
@@ -263,3 +263,4 @@ mod tests {
         assert!(resp.get(&data_hex).unwrap().verified.unwrap());
     }
 }
+*/

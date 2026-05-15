@@ -1,4 +1,4 @@
-use crate::client::ChunkCachingClient;
+/*use crate::client::ChunkCachingClient;
 use crate::controller::{DataKey, StoreType};
 use crate::error::pointer_error::PointerError;
 use crate::error::{CreateError, UpdateError};
@@ -322,3 +322,4 @@ mod tests {
         assert!(validate_immutable_addresses(&non_hex).is_err());
     }
 }
+*/

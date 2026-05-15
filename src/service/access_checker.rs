@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+/*use std::collections::HashMap;
 use log::debug;
 use mockall::mock;
 use crate::model::access_list::AccessList;
@@ -137,4 +137,4 @@ mod tests {
         assert!(!checker.is_allowed(&"denied".to_string()));
         assert!(checker.is_allowed(&"allowed".to_string()));
     }
-}
+}*/

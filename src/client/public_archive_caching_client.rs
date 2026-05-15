@@ -1,4 +1,4 @@
-#[double]
+/*#[double]
 use crate::client::CachingClient;
 #[double]
 use crate::client::StreamingClient;
@@ -83,4 +83,4 @@ impl PublicArchiveCachingClient {
             Err(e) => Err(PublicArchiveError::GetError(e.into()))
         }
     }
-}
+}*/

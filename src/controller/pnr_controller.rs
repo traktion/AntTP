@@ -1,6 +1,6 @@
-use actix_web::{web, HttpRequest, HttpResponse};
+/*use actix_web::{web, HttpRequest, HttpResponse};
 use actix_web::web::Data;
-use ant_evm::EvmWallet;
+use ant_core::data::Wallet;
 use log::debug;
 use crate::controller::get_store_type;
 use crate::error::pointer_error::PointerError;
@@ -24,7 +24,7 @@ use crate::service::pnr_service::PnrService;
 )]
 pub async fn post_mutable_pnr(
     pnr_service: Data<PnrService>,
-    evm_wallet_data: Data<EvmWallet>,
+    evm_wallet_data: Data<Wallet>,
     pnr_zone: web::Json<PnrZone>,
     request: HttpRequest,
 ) -> Result<HttpResponse, PointerError> {
@@ -51,7 +51,7 @@ pub async fn post_mutable_pnr(
 )]
 pub async fn post_immutable_pnr(
     pnr_service: Data<PnrService>,
-    evm_wallet_data: Data<EvmWallet>,
+    evm_wallet_data: Data<Wallet>,
     pnr_zone: web::Json<PnrZone>,
     request: HttpRequest,
 ) -> Result<HttpResponse, PointerError> {
@@ -80,7 +80,7 @@ pub async fn post_immutable_pnr(
 pub async fn put_pnr(
     path: web::Path<String>,
     pnr_service: Data<PnrService>,
-    evm_wallet_data: Data<EvmWallet>,
+    evm_wallet_data: Data<Wallet>,
     pnr_zone: web::Json<PnrZone>,
     request: HttpRequest,
 ) -> Result<HttpResponse, PointerError> {
@@ -111,7 +111,7 @@ pub async fn put_pnr(
 pub async fn patch_pnr(
     path: web::Path<String>,
     pnr_service: Data<PnrService>,
-    evm_wallet_data: Data<EvmWallet>,
+    evm_wallet_data: Data<Wallet>,
     pnr_zone: web::Json<PnrZone>,
     request: HttpRequest,
 ) -> Result<HttpResponse, PointerError> {
@@ -166,7 +166,7 @@ pub async fn get_pnr(
 pub async fn put_pnr_record(
     path: web::Path<(String, String)>,
     pnr_service: Data<PnrService>,
-    evm_wallet_data: Data<EvmWallet>,
+    evm_wallet_data: Data<Wallet>,
     pnr_record: web::Json<PnrRecord>,
     request: HttpRequest,
 ) -> Result<HttpResponse, PointerError> {
@@ -176,4 +176,4 @@ pub async fn put_pnr_record(
     Ok(HttpResponse::Ok().json(
         pnr_service.update_pnr_record(name, record_key, pnr_record.into_inner(), evm_wallet_data.get_ref().clone(), get_store_type(&request)).await?
     ))
-}
+}*/

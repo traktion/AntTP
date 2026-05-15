@@ -3,9 +3,6 @@ use crate::client::command::Command;
 use actix_http::StatusCode;
 use actix_web::http::header::ContentType;
 use actix_web::{error, HttpResponse};
-use autonomi::client::ConnectError;
-use autonomi::register::RegisterError;
-use autonomi::AddressParseError;
 use hex::FromHexError;
 use serde::Serialize;
 use std::fmt::Debug;
@@ -14,13 +11,13 @@ use thiserror::Error;
 use tokio::sync::mpsc::error::SendError;
 
 pub mod chunk_error;
-pub mod graph_error;
-pub mod pointer_error;
-pub mod public_archive_error;
+//pub mod graph_error;
+//pub mod pointer_error;
+//pub mod public_archive_error;
 pub mod tarchive_error;
 pub mod public_data_error;
-pub mod register_error;
-pub mod scratchpad_error;
+//pub mod register_error;
+//pub mod scratchpad_error;
 pub mod archive_error;
 // todo: split into a crate + separate files
 
@@ -180,28 +177,13 @@ impl From<rmp_serde::decode::Error> for GetError {
     }
 }
 
-impl From<ConnectError> for GetError {
-    fn from(value: ConnectError) -> Self {
-        Self::NetworkOffline(value.to_string())
-    }
-}
-
-impl From<AddressParseError> for GetError {
-    fn from(value: AddressParseError) -> Self {
-        match value {
-            AddressParseError::PublicKey(_) => Self::Decryption(value.to_string()),
-            _ => Self::BadAddress(value.to_string()),
-        }
-    }
-}
-
 impl From<FromHexError> for GetError {
     fn from(value: FromHexError) -> Self {
         Self::BadAddress(value.to_string())
     }
 }
 
-impl From<RegisterError> for GetError {
+/*impl From<RegisterError> for GetError {
     fn from(value: RegisterError) -> Self {
         match value {
             // todo: add other error mappings
@@ -209,7 +191,7 @@ impl From<RegisterError> for GetError {
             _ => Self::BadAddress(value.to_string()),
         }
     }
-}
+}*/
 
 #[derive(Error, Debug, Serialize)]
 pub enum GetStreamError {

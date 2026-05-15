@@ -1,6 +1,8 @@
 use std::io::{Read, Seek};
 use tar::Archive;
-use autonomi::{XorName, SecretKey};
+use xor_name::XorName;
+use saorsa_pqc::api::sig::MlDsaSecretKey;
+use saorsa_pqc::ml_dsa_65;
 
 pub struct Tarchive;
 
@@ -11,7 +13,7 @@ impl Tarchive {
 
     /// Generates a tar index string for the given tar file.
     /// The index format follows: "filename offset size xorname signature"
-    pub fn index<R: Read + Seek>(reader: &mut R, app_private_key: &SecretKey) -> Result<String, std::io::Error> {
+    pub fn index<R: Read + Seek>(reader: &mut R, app_private_key: &MlDsaSecretKey) -> Result<String, std::io::Error> {
         let mut archive = Archive::new(reader);
         let mut index = String::new();
 
@@ -31,7 +33,8 @@ impl Tarchive {
                 entry.read_to_end(&mut content)?;
                 let xor_name = XorName::from_content(&content);
                 let xor_name_hex = hex::encode(xor_name.0);
-                let signature = app_private_key.sign(&xor_name.0);
+                let dsa = ml_dsa_65();
+                let signature = dsa.sign(app_private_key, &xor_name.0).unwrap();
                 let signature_hex = hex::encode(signature.to_bytes());
                 
                 index.push_str(&format!("{} {} {} {} {}\n", path_str, offset, size, xor_name_hex, signature_hex));
@@ -51,28 +54,29 @@ mod tests {
     #[test]
     fn test_tarchive_index() {
         let mut buf = Vec::new();
-        let app_private_key = SecretKey::random();
-        {
-            let mut builder = Builder::new(&mut buf);
-            
-            let data1 = b"hello world";
-            let mut header1 = tar::Header::new_gnu();
-            header1.set_size(data1.len() as u64);
-            header1.set_path("file1.txt").unwrap();
-            header1.set_cksum();
-            builder.append(&header1, &data1[..]).unwrap();
+        let dsa = ml_dsa_65();
+        let (_, app_private_key) = dsa.generate_keypair().unwrap();
+    
+        let mut builder = Builder::new(&mut buf);
+        
+        let data1 = b"hello world";
+        let mut header1 = tar::Header::new_gnu();
+        header1.set_size(data1.len() as u64);
+        header1.set_path("file1.txt").unwrap();
+        header1.set_cksum();
+        builder.append(&header1, &data1[..]).unwrap();
 
-            let data2 = b"anttp tarchive support";
-            let mut header2 = tar::Header::new_gnu();
-            header2.set_size(data2.len() as u64);
-            header2.set_path("dir/file2.txt").unwrap();
-            header2.set_cksum();
-            builder.append(&header2, &data2[..]).unwrap();
-            
-            builder.finish().unwrap();
-        }
+        let data2 = b"anttp tarchive support";
+        let mut header2 = tar::Header::new_gnu();
+        header2.set_size(data2.len() as u64);
+        header2.set_path("dir/file2.txt").unwrap();
+        header2.set_cksum();
+        builder.append(&header2, &data2[..]).unwrap();
+        
+        builder.finish().unwrap();
 
-        let mut cursor = Cursor::new(buf);
+        let mut buf2 = Vec::new();
+        let mut cursor = Cursor::new(&mut buf2);
         let index = Tarchive::index(&mut cursor, &app_private_key).unwrap();
         
         let lines: Vec<&str> = index.lines().collect();

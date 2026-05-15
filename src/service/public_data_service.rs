@@ -13,7 +13,7 @@ use crate::error::public_data_error::PublicDataError;
 #[double]
 use crate::service::resolver_service::ResolverService;
 use crate::service::chunk_service::Chunk;
-use mockall::automock;
+use mockall::mock;
 
 #[derive(Serialize, Deserialize, ToSchema)]
 pub struct PublicData {
@@ -27,7 +27,18 @@ pub struct PublicDataService {
     resolver_service: ResolverService
 }
 
-#[automock]
+mock! {
+    pub PublicDataService {
+        pub fn new(public_data_caching_client: PublicDataCachingClient, resolver_service: ResolverService) -> Self;
+        pub async fn create_public_data(&self, bytes: Bytes, store_type: StoreType) -> Result<Chunk, PublicDataError>;
+        pub async fn push_public_data(&self, address: String, store_type: StoreType) -> Result<Chunk, PublicDataError>;
+        pub async fn get_public_data_binary(&self, address: String) -> Result<Bytes, PublicDataError>;
+    }
+    impl Clone for PublicDataService {
+        fn clone(&self) -> Self;
+    }
+}
+
 impl PublicDataService {
     pub fn new(public_data_caching_client: PublicDataCachingClient, resolver_service: ResolverService) -> Self {
         Self { public_data_caching_client, resolver_service }

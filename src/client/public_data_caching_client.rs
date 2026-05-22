@@ -1,5 +1,5 @@
 use std::path::PathBuf;
-use ant_core::data::XorName;
+use ant_core::data::{compute_address, DataMap, XorName};
 use bytes::Bytes;
 use chunk_streamer::chunk_encrypter::ChunkEncrypter;
 use hex::ToHex;
@@ -62,13 +62,12 @@ impl PublicDataCachingClient {
         let chunk_encrypter = ChunkEncrypter::new();
         match chunk_encrypter.encrypt(true, data.clone()).await {
             Ok((chunks, data_map_chunk)) => {
-                let data_map_addr = data_map_chunk.chunk_identifiers.get(0).unwrap().dst_hash.0;
-                info!("updating cache with data map chunk at address [{}]", hex::encode(data_map_addr));
+                let data_map_xor_name = self.cache_public_data_map(&store_type, &data_map_chunk)?;
 
                 for chunk_info in data_map_chunk.chunk_identifiers {
                     match chunks.get(chunk_info.index) {
                         Some(chunk) => {
-                            let chunk_address: String = chunk_info.dst_hash.encode_hex();
+                            let chunk_address = hex::encode(chunk_info.dst_hash.0);
                             let chunk_content = chunk.content.to_vec();
                             if store_type == StoreType::Disk {
                                 info!("updating disk cache with chunk at address [{}]", chunk_address);
@@ -83,10 +82,28 @@ impl PublicDataCachingClient {
                         }
                     }
                 }
-                Ok(XorName::from(data_map_addr))
+                Ok(data_map_xor_name)
             },
             Err(e) => Err(CreateError::Encryption(e.to_string()).into())
         }
+    }
+
+    fn cache_public_data_map(&self, store_type: &StoreType, data_map_chunk: &DataMap) -> Result<XorName, PublicDataError> {
+        let data_map_serialized = rmp_serde::to_vec(&data_map_chunk)
+            .map_err(|e| CreateError::Serialization(format!("Failed to serialize DataMap: {e}")))?;
+
+        let data_map_serialized_bytes = Bytes::from(data_map_serialized.clone());
+        let data_map_xor_name = compute_address(&data_map_serialized_bytes);
+        let data_map_address = hex::encode(data_map_xor_name);
+
+        if *store_type == StoreType::Disk {
+            info!("updating disk cache with data map chunk at address [{}]", &data_map_address);
+            self.caching_client.get_hybrid_cache().insert(format!("{}", &data_map_address), data_map_serialized);
+        } else {
+            info!("updating cache with data map chunk at address [{}]", data_map_address);
+            self.caching_client.get_hybrid_cache().memory().insert(format!("{}", &data_map_address), data_map_serialized);
+        }
+        Ok(data_map_xor_name)
     }
 
     pub async fn data_get_public(&self, addr: &XorName) -> Result<Bytes, PublicDataError> {

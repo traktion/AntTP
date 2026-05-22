@@ -684,7 +684,7 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> io::Result<()> {
         }
     })
         .bind(listen_address)?
-        //.bind_rustls_0_23(https_listen_address, rustls_config())?
+        .bind_rustls_0_23(https_listen_address, rustls_config())?
         .run();
 
     let mut guard = ACTIX_SERVER_HANDLE.lock().await;
@@ -804,7 +804,7 @@ pub async fn stop_server() -> Result<(), String> {
     }
 }
 
-/*fn rustls_config() -> rustls::ServerConfig {
+fn rustls_config() -> rustls::ServerConfig {
     let rcgen::CertifiedKey { cert, signing_key } =
         rcgen::generate_simple_self_signed(["*".to_owned()]).unwrap();
     let cert_file = cert.pem();
@@ -836,4 +836,4 @@ pub async fn stop_server() -> Result<(), String> {
     config.alpn_protocols.push(H1_ALPN.to_vec());
 
     config
-}*/
+}

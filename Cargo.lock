@@ -1144,7 +1144,6 @@ dependencies = [
  "actix-web",
  "ant-core",
  "anyhow",
- "async-recursion",
  "async-stream",
  "async-trait",
  "async_job",
@@ -1172,6 +1171,7 @@ dependencies = [
  "rmcp",
  "rmcp-actix-web",
  "rmp-serde",
+ "rustls",
  "rustls-pemfile",
  "sanitize-filename",
  "saorsa-pqc 0.5.1",
@@ -1440,17 +1440,6 @@ name = "asn1-rs-impl"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7b18050c2cd6fe86c3a76584ef5e0baf286d038cda203eb6223df2cc413565f7"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 2.0.117",
-]
-
-[[package]]
-name = "async-recursion"
-version = "1.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3b43422f69d8ff38f95f1b2bb76517c91589a924d1559a0e935d7c8ce0274c11"
 dependencies = [
  "proc-macro2",
  "quote",

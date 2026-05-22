@@ -1,6 +1,5 @@
 use actix_multipart::form::MultipartForm;
 use actix_web::{web, web::Data, HttpRequest, HttpResponse};
-use ant_core::data::Wallet;
 use crate::controller::get_store_type;
 use crate::error::archive_error::ArchiveError;
 use crate::service::archive_service::{ArchiveForm, ArchiveResponse, ArchiveService, Upload};
@@ -65,7 +64,6 @@ pub async fn put_archive_root(
     path_params: web::Path<String>,
     archive_form: MultipartForm<ArchiveForm>,
     archive_service: Data<ArchiveService>,
-    evm_wallet_data: Data<Wallet>,
     request: HttpRequest,
 ) -> Result<HttpResponse, ArchiveError> {
     let address = path_params.into_inner();
@@ -75,7 +73,6 @@ pub async fn put_archive_root(
             address,
             None,
             archive_form,
-            evm_wallet_data.get_ref().clone(),
             store_type,
         )
         .await?;
@@ -100,7 +97,6 @@ pub async fn put_archive(
     path_params: web::Path<(String, String)>,
     archive_form: MultipartForm<ArchiveForm>,
     archive_service: Data<ArchiveService>,
-    evm_wallet_data: Data<Wallet>,
     request: HttpRequest,
 ) -> Result<HttpResponse, ArchiveError> {
     let (address, path) = path_params.into_inner();
@@ -110,7 +106,6 @@ pub async fn put_archive(
             address,
             Some(path),
             archive_form,
-            evm_wallet_data.get_ref().clone(),
             store_type,
         )
         .await?;
@@ -133,7 +128,6 @@ pub async fn put_archive(
 pub async fn delete_archive(
     path_params: web::Path<(String, String)>,
     archive_service: Data<ArchiveService>,
-    evm_wallet_data: Data<Wallet>,
     request: HttpRequest,
 ) -> Result<HttpResponse, ArchiveError> {
     let (address, path) = path_params.into_inner();
@@ -142,7 +136,6 @@ pub async fn delete_archive(
         .truncate_archive(
             address,
             path,
-            evm_wallet_data.get_ref().clone(),
             store_type,
         )
         .await?;
@@ -164,7 +157,6 @@ pub async fn delete_archive(
 pub async fn push_archive(
     path_params: web::Path<String>,
     archive_service: Data<ArchiveService>,
-    evm_wallet_data: Data<Wallet>,
     request: HttpRequest,
 ) -> Result<HttpResponse, ArchiveError> {
     let address = path_params.into_inner();
@@ -172,7 +164,6 @@ pub async fn push_archive(
     let res = archive_service
         .push_archive(
             address,
-            evm_wallet_data.get_ref().clone(),
             store_type,
         )
         .await?;

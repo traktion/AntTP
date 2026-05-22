@@ -5,6 +5,8 @@ use futures_util::StreamExt;
 use hex::ToHex;
 use log::{debug, error};
 use mockall::mock;
+use mockall_double::double;
+#[double]
 use crate::client::ChunkCachingClient;
 use crate::config::anttp_config::AntTpConfig;
 use crate::error::chunk_error::ChunkError;

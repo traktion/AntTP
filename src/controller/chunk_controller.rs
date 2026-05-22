@@ -2,7 +2,6 @@ use actix_http::header;
 use actix_web::{web, HttpRequest, HttpResponse};
 use actix_web::http::header::{ContentLength, ContentType};
 use actix_web::web::{Data, Payload};
-use ant_core::data::Wallet;
 use log::debug;
 use crate::error::chunk_error::ChunkError;
 use crate::controller::get_store_type;
@@ -25,7 +24,6 @@ use crate::service::chunk_service::{Chunk, ChunkService};
 )]
 pub async fn post_chunk(
     chunk_service: Data<ChunkService>,
-    evm_wallet_data: Data<Wallet>,
     chunk: web::Json<Chunk>,
     request: HttpRequest
 ) -> Result<HttpResponse, ChunkError> {
@@ -51,7 +49,6 @@ pub async fn post_chunk(
 )]
 pub async fn post_chunk_binary(
     chunk_service: Data<ChunkService>,
-    evm_wallet_data: Data<Wallet>,
     payload: Payload,
     request: HttpRequest
 ) -> Result<HttpResponse, ChunkError> {

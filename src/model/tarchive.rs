@@ -45,7 +45,7 @@ impl Tarchive {
     }
 }
 
-/*#[cfg(test)]
+#[cfg(test)]
 mod tests {
     use super::*;
     use std::io::Cursor;
@@ -56,27 +56,29 @@ mod tests {
         let mut buf = Vec::new();
         let dsa = ml_dsa_65();
         let (_, app_private_key) = dsa.generate_keypair().unwrap();
-    
-        let mut builder = Builder::new(&mut buf);
-        
-        let data1 = b"hello world";
-        let mut header1 = tar::Header::new_gnu();
-        header1.set_size(data1.len() as u64);
-        header1.set_path("file1.txt").unwrap();
-        header1.set_cksum();
-        builder.append(&header1, &data1[..]).unwrap();
 
-        let data2 = b"anttp tarchive support";
-        let mut header2 = tar::Header::new_gnu();
-        header2.set_size(data2.len() as u64);
-        header2.set_path("dir/file2.txt").unwrap();
-        header2.set_cksum();
-        builder.append(&header2, &data2[..]).unwrap();
-        
-        builder.finish().unwrap();
+        {
+            let mut builder = Builder::new(&mut buf);
 
-        let mut buf2 = Vec::new();
-        let mut cursor = Cursor::new(&mut buf2);
+            let data1 = b"hello world";
+            let mut header1 = tar::Header::new_gnu();
+            header1.set_size(data1.len() as u64);
+            header1.set_path("file1.txt").unwrap();
+            header1.set_cksum();
+            builder.append(&header1, &data1[..]).unwrap();
+
+            let data2 = b"anttp tarchive support";
+            let mut header2 = tar::Header::new_gnu();
+            header2.set_size(data2.len() as u64);
+            header2.set_path("dir/file2.txt").unwrap();
+            header2.set_cksum();
+            builder.append(&header2, &data2[..]).unwrap();
+
+            builder.finish().unwrap();
+        }
+
+        //let mut buf2 = Vec::new();
+        let mut cursor = Cursor::new(&mut buf);
         let index = Tarchive::index(&mut cursor, &app_private_key).unwrap();
         
         let lines: Vec<&str> = index.lines().collect();
@@ -88,12 +90,11 @@ mod tests {
         let parts1: Vec<&str> = lines[0].split_whitespace().collect();
         assert_eq!(parts1[2], "11");
         assert_eq!(parts1[3], hex::encode(XorName::from_content(b"hello world").0));
-        assert_eq!(parts1[4].len(), 192); // 96 bytes as hex
+        assert_eq!(parts1[4].len(), 6618); // 6618 bytes as hex
         
         let parts2: Vec<&str> = lines[1].split_whitespace().collect();
         assert_eq!(parts2[2], "22");
         assert_eq!(parts2[3], hex::encode(XorName::from_content(b"anttp tarchive support").0));
-        assert_eq!(parts2[4].len(), 192);
+        assert_eq!(parts2[4].len(), 6618);
     }
 }
-*/

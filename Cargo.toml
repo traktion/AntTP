@@ -1,6 +1,6 @@
 [package]
 name = "anttp"
-version = "0.26.0"
+version = "0.26.1"
 edition = "2024"
 authors = ["Paul Green"]
 description = "AntTP is an HTTP server for the Autonomi Network"
@@ -48,11 +48,11 @@ indexmap = "2.11"
 rand = "0.9"
 thiserror = "2.0"
 tempfile = "3"
-async-recursion = "1.1"
+#async-recursion = "1.1"
 async-stream = "0.3.6"
 tonic = { version = "0.12", features = ["router"], optional = true }
 prost = { version = "0.13", optional = true }
-#rustls = { version = "0.23.35", default-features = false, features = ["ring"] }
+rustls = { version = "0.23.40", default-features = false, features = ["aws_lc_rs", "std", "tls12"] }
 rustls-pemfile = "2.2.0"
 rcgen = "0.14.5"
 futures-core = "0.3.31"
@@ -63,8 +63,8 @@ mockall = "0.14"
 mockall_double = "0.3"
 anyhow = "1.0.99"
 ant-core = "0.2.4"
-evmlib = "0.8.0"
-saorsa-pqc = "0.5"
+evmlib = "0.8.1"
+saorsa-pqc = "0.5.1"
 
 [build-dependencies]
 tonic-build = { version = "0.12", optional = true }

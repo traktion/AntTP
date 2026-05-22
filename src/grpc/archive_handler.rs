@@ -1,6 +1,5 @@
 use tonic::{Request, Response, Status};
 use actix_web::web::Data;
-use ant_core::data::Wallet;
 use actix_multipart::form::tempfile::TempFile;
 use actix_multipart::form::MultipartForm;
 use std::io::Write;
@@ -18,13 +17,12 @@ pub use archive_proto::archive_service_server::ArchiveServiceServer;
 use archive_proto::{ArchiveType, CreateArchiveRequest, UpdateArchiveRequest, TruncateArchiveRequest, GetArchiveRequest, PushArchiveRequest, ArchiveResponse, Item, File as ProtoFile};
 
 pub struct ArchiveHandler {
-    archive_service: Data<ArchiveService>,
-    evm_wallet: Data<Wallet>,
+    archive_service: Data<ArchiveService>
 }
 
 impl ArchiveHandler {
-    pub fn new(archive_service: Data<ArchiveService>, evm_wallet: Data<Wallet>) -> Self {
-        Self { archive_service, evm_wallet }
+    pub fn new(archive_service: Data<ArchiveService>) -> Self {
+        Self { archive_service }
     }
 
     fn map_to_multipart_form(&self, files: Vec<ProtoFile>) -> Result<MultipartForm<ArchiveForm>, Status> {
@@ -112,7 +110,6 @@ impl ArchiveServiceTrait for ArchiveHandler {
                 let result = self.archive_service.create_public_archive(
                     req.path,
                     archive_form,
-                    self.evm_wallet.get_ref().clone(),
                     StoreType::from(req.store_type.unwrap_or_default())
                 ).await?;
                 Ok(Response::new(ArchiveResponse::from(result)))
@@ -121,7 +118,6 @@ impl ArchiveServiceTrait for ArchiveHandler {
                 let result = self.archive_service.create_tarchive(
                     req.path,
                     archive_form,
-                    self.evm_wallet.get_ref().clone(),
                     StoreType::from(req.store_type.unwrap_or_default())
                 ).await?;
                 Ok(Response::new(ArchiveResponse::from(result)))
@@ -140,7 +136,6 @@ impl ArchiveServiceTrait for ArchiveHandler {
             req.address,
             req.path,
             archive_form,
-            self.evm_wallet.get_ref().clone(),
             StoreType::from(req.store_type.unwrap_or_default()),
         ).await?;
 
@@ -156,7 +151,6 @@ impl ArchiveServiceTrait for ArchiveHandler {
         let result = self.archive_service.truncate_archive(
             req.address,
             req.path,
-            self.evm_wallet.get_ref().clone(),
             StoreType::from(req.store_type.unwrap_or_default()),
         ).await?;
 
@@ -182,7 +176,6 @@ impl ArchiveServiceTrait for ArchiveHandler {
 
         let result = self.archive_service.push_archive(
             req.address,
-            self.evm_wallet.get_ref().clone(),
             StoreType::from(req.store_type.unwrap_or_else(|| "network".to_string())),
         ).await?;
 

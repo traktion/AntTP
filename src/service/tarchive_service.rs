@@ -6,7 +6,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use actix_multipart::form::MultipartForm;
 use actix_web::web::Bytes;
-use ant_core::data::{Wallet, XorName};
+use ant_core::data::XorName;
 use log::{debug, info, warn};
 use sanitize_filename::sanitize;
 use uuid::Uuid;
@@ -78,7 +78,7 @@ impl TarchiveService {
         }
     }
 
-    pub async fn create_tarchive(&self, target_path: Option<String>, tarchive_form: MultipartForm<PublicArchiveForm>, evm_wallet: Wallet, store_type: StoreType) -> Result<Upload, TarchiveError> {
+    pub async fn create_tarchive(&self, target_path: Option<String>, tarchive_form: MultipartForm<PublicArchiveForm>, store_type: StoreType) -> Result<Upload, TarchiveError> {
         info!("Creating new tarchive");
         let tmp_dir = Self::create_tmp_dir()?;
         let tar_path = tmp_dir.join("archive.tar");
@@ -100,13 +100,13 @@ impl TarchiveService {
         result
     }
 
-    pub async fn push_tarchive(&self, address: String, evm_wallet: Wallet, store_type: StoreType) -> Result<Upload, TarchiveError> {
+    pub async fn push_tarchive(&self, address: String, store_type: StoreType) -> Result<Upload, TarchiveError> {
         let resolved_address = self.resolver_service.resolve_name(&address).await.unwrap_or(address);
         Ok(self.public_data_service.push_public_data(resolved_address, store_type).await
             .map(|chunk| Upload::new(chunk.address))?)
     }
 
-    pub async fn update_tarchive(&self, address: String, target_path: Option<String>, tarchive_form: MultipartForm<PublicArchiveForm>, evm_wallet: Wallet, store_type: StoreType) -> Result<Upload, TarchiveError> {
+    pub async fn update_tarchive(&self, address: String, target_path: Option<String>, tarchive_form: MultipartForm<PublicArchiveForm>, store_type: StoreType) -> Result<Upload, TarchiveError> {
         // Acquire per-address lock to prevent concurrent updates to the same tarchive (based on input name/address)
         let addr_lock = {
             let mut locks = self.address_locks.lock().await;
@@ -158,7 +158,7 @@ impl TarchiveService {
         result
     }
 
-    pub async fn truncate_tarchive(&self, address: String, path: String, evm_wallet: Wallet, store_type: StoreType) -> Result<Upload, TarchiveError> {
+    pub async fn truncate_tarchive(&self, address: String, path: String, store_type: StoreType) -> Result<Upload, TarchiveError> {
         // Acquire per-address lock to prevent concurrent truncations to the same tarchive (based on input name/address)
         let addr_lock = {
             let mut locks = self.address_locks.lock().await;

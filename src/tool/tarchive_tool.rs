@@ -93,7 +93,6 @@ impl McpTool {
         Ok(self.tarchive_service.create_tarchive(
             path,
             tarchive_form,
-            self.evm_wallet.get_ref().clone(),
             StoreType::from(store_type)
         ).await?.into())
     }
@@ -108,7 +107,6 @@ impl McpTool {
             address,
             path,
             tarchive_form,
-            self.evm_wallet.get_ref().clone(),
             StoreType::from(store_type)
         ).await?.into())
     }
@@ -121,7 +119,6 @@ impl McpTool {
         Ok(self.tarchive_service.truncate_tarchive(
             address,
             path,
-            self.evm_wallet.get_ref().clone(),
             StoreType::from(store_type)
         ).await?.into())
     }

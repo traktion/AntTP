@@ -9,7 +9,7 @@ A public archive is a collection of files uploaded to the network that can be br
 ### Uploading an Archive
 To upload a directory as an archive using the `ant` CLI:
 ```bash
-ant file upload -p /path/to/your/directory
+ant file upload --public /path/to/your/directory
 ```
 The CLI will return an "At address" which is the XOR address of your archive.
 
@@ -70,7 +70,7 @@ Tarchives support appending new files while maintaining their chronological sequ
     ```
 3.  **Upload the updated tarchive:**
     ```bash
-    ant file upload -p archive.tar
+    ant file upload --public archive.tar
     ```
 
 AntTP transparently handles the retrieval of individual files from within a Tarchive.

@@ -4,14 +4,11 @@ use async_job::{Job, Schedule};
 use async_trait::async_trait;
 use foyer::HybridCache;
 use crate::config::anttp_config::AntTpConfig;
-use bytes::Bytes;
 use tokio::sync::mpsc::Sender;
 use crate::error::{CheckError, CreateError, GetError, UpdateError};
-use crate::error::chunk_error::ChunkError;
 use mockall::mock;
 use crate::client::client_harness::ClientHarness;
 use crate::client::command::Command;
-use ant_core::data::XorName;
 
 #[derive(Clone)]
 pub struct CachingClient {
@@ -25,13 +22,6 @@ mock! {
     pub CachingClient {
         pub fn new(client_harness: Data<tokio::sync::Mutex<ClientHarness>>, ant_tp_config: AntTpConfig,
                    hybrid_cache: Data<HybridCache<String, Vec<u8>>>, command_executor: Data<Sender<Box<dyn Command>>>) -> Self;
-        pub async fn download_stream(
-            &self,
-            addr: &XorName,
-            range_from: i64,
-            range_to: i64,
-        ) -> Result<Bytes, ChunkError>;
-        pub fn get_derived_ranges(&self, range_from: i64, range_to: i64, length: Option<u64>) -> (u64, u64);
         pub async fn send_create_command(&self, command: Box<dyn Command>) -> Result<(), CreateError>;
         pub async fn send_update_command(&self, command: Box<dyn Command>) -> Result<(), UpdateError>;
         pub async fn send_get_command(&self, command: Box<dyn Command>) -> Result<(), GetError>;
@@ -122,62 +112,16 @@ impl Job for CachingClient {
 
 #[cfg(test)]
 mod tests {
-    use ant_core::data::EvmNetwork::ArbitrumOne;
-    use ant_core::data::Network;
     use super::*;
     use foyer::HybridCacheBuilder;
     use clap::Parser;
+    use evmlib::Network::ArbitrumOne;
     use tokio::sync::mpsc;
     use tempfile::tempdir;
 
     async fn create_mock_caching_client() -> (MockCachingClient, mpsc::Receiver<Box<dyn Command>>) {
         let (_tx, rx) = mpsc::channel(100);
         let mut client = MockCachingClient::default();
-        
-        client.expect_get_derived_ranges()
-            .returning(|range_from, range_to, length| {
-                match length {
-                    Some(length) => {
-                        let derived_range_from: u64 = if range_from < 0 {
-                            let from = u64::try_from(range_from.abs()).unwrap();
-                            if from < length {
-                                length.saturating_sub(1).saturating_sub(from)
-                            } else {
-                                0 // start from the beginning
-                            }
-                        } else {
-                            let from = u64::try_from(range_from).unwrap();
-                            if from > length.saturating_sub(1) {
-                                length.saturating_sub(1)
-                            } else {
-                                from
-                            }
-                        };
-                        let derived_range_to: u64 = if range_to <= 0 {
-                            let to = u64::try_from(range_to.abs()).unwrap();
-                            if to < length {
-                                length.saturating_sub(1).saturating_sub(to)
-                            } else {
-                                length.saturating_sub(1)
-                            }
-                        } else {
-                            let to = u64::try_from(range_to).unwrap();
-                            if to > length.saturating_sub(1) {
-                                length.saturating_sub(1)
-                            } else {
-                                to
-                            }
-                        };
-                        (derived_range_from, derived_range_to)
-                    },
-                    None => {
-                        let derived_range_from = u64::try_from(range_from.abs()).unwrap();
-                        let derived_range_to = u64::try_from(range_to.abs()).unwrap();
-                        (derived_range_from, derived_range_to)
-                    }
-                }
-            });
-
         (client, rx)
     }
 

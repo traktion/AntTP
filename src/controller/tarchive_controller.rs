@@ -1,7 +1,6 @@
 use actix_multipart::form::MultipartForm;
 use actix_web::{web, HttpRequest, HttpResponse};
 use actix_web::web::Data;
-use ant_core::data::Wallet;
 use log::debug;
 /*use crate::service::public_archive_service::{PublicArchiveForm, Upload, ArchiveResponse};*/
 use crate::service::tarchive_service::TarchiveService;
@@ -25,16 +24,14 @@ use crate::service::archive_service::{ArchiveResponse, PublicArchiveForm, Upload
 pub async fn delete_tarchive(
     path_params: web::Path<(String, String)>,
     tarchive_service: Data<TarchiveService>,
-    evm_wallet_data: Data<Wallet>,
     request: HttpRequest,
 ) -> Result<HttpResponse, TarchiveError> {
     let (address, mut path) = path_params.into_inner();
     path = path.replace("%2F", "/");
-    let evm_wallet = evm_wallet_data.get_ref().clone();
 
     debug!("Truncating tarchive at address [{}] and path [{}]", address, path);
     Ok(HttpResponse::Ok().json(
-        tarchive_service.truncate_tarchive(address, path, evm_wallet, get_store_type(&request)).await?
+        tarchive_service.truncate_tarchive(address, path, get_store_type(&request)).await?
     ))
 }
 
@@ -52,15 +49,13 @@ pub async fn delete_tarchive(
 pub async fn push_tarchive(
     path: web::Path<String>,
     tarchive_service: Data<TarchiveService>,
-    evm_wallet_data: Data<Wallet>,
     request: HttpRequest,
 ) -> Result<HttpResponse, TarchiveError> {
     let address = path.into_inner();
-    let evm_wallet = evm_wallet_data.get_ref().clone();
 
     debug!("Pushing tarchive [{}] to target store type [{:?}]", address, get_store_type(&request));
     Ok(HttpResponse::Ok().json(
-        tarchive_service.push_tarchive(address, evm_wallet, get_store_type(&request)).await?
+        tarchive_service.push_tarchive(address, get_store_type(&request)).await?
     ))
 }
 
@@ -82,14 +77,11 @@ pub async fn push_tarchive(
 pub async fn post_tarchive_root(
     tarchive_form: MultipartForm<PublicArchiveForm>,
     tarchive_service: Data<TarchiveService>,
-    evm_wallet_data: Data<Wallet>,
     request: HttpRequest
 ) -> Result<HttpResponse, TarchiveError> {
-    let evm_wallet = evm_wallet_data.get_ref().clone();
-
     debug!("Creating new tarchive from multipart POST");
     Ok(HttpResponse::Created().json(
-        tarchive_service.create_tarchive(None, tarchive_form, evm_wallet, get_store_type(&request)).await?
+        tarchive_service.create_tarchive(None, tarchive_form, get_store_type(&request)).await?
     ))
 }
 
@@ -113,16 +105,14 @@ pub async fn post_tarchive(
     path_params: web::Path<String>,
     tarchive_form: MultipartForm<PublicArchiveForm>,
     tarchive_service: Data<TarchiveService>,
-    evm_wallet_data: Data<Wallet>,
     request: HttpRequest
 ) -> Result<HttpResponse, TarchiveError> {
     let mut path = path_params.into_inner();
     path = path.replace("%2F", "/");
-    let evm_wallet = evm_wallet_data.get_ref().clone();
 
     debug!("Creating new tarchive from multipart POST at path [{}]", path);
     Ok(HttpResponse::Created().json(
-        tarchive_service.create_tarchive(Some(path), tarchive_form, evm_wallet, get_store_type(&request)).await?
+        tarchive_service.create_tarchive(Some(path), tarchive_form, get_store_type(&request)).await?
     ))
 }
 
@@ -146,15 +136,13 @@ pub async fn put_tarchive_root(
     path: web::Path<String>,
     tarchive_form: MultipartForm<PublicArchiveForm>,
     tarchive_service: Data<TarchiveService>,
-    evm_wallet_data: Data<Wallet>,
     request: HttpRequest,
 ) -> Result<HttpResponse, TarchiveError> {
     let address = path.into_inner();
-    let evm_wallet = evm_wallet_data.get_ref().clone();
 
     debug!("Updating [{}] tarchive from multipart PUT with store type [{:?}]", address, get_store_type(&request));
     Ok(HttpResponse::Ok().json(
-        tarchive_service.update_tarchive(address, None, tarchive_form, evm_wallet, get_store_type(&request)).await?
+        tarchive_service.update_tarchive(address, None, tarchive_form, get_store_type(&request)).await?
     ))
 }
 
@@ -179,16 +167,14 @@ pub async fn put_tarchive(
     path_params: web::Path<(String, String)>,
     tarchive_form: MultipartForm<PublicArchiveForm>,
     tarchive_service: Data<TarchiveService>,
-    evm_wallet_data: Data<Wallet>,
     request: HttpRequest,
 ) -> Result<HttpResponse, TarchiveError> {
     let (address, mut path) = path_params.into_inner();
     path = path.replace("%2F", "/");
-    let evm_wallet = evm_wallet_data.get_ref().clone();
 
     debug!("Updating [{}] tarchive from multipart PUT at path [{}] with store type [{:?}]", address, path, get_store_type(&request));
     Ok(HttpResponse::Ok().json(
-        tarchive_service.update_tarchive(address, Some(path), tarchive_form, evm_wallet, get_store_type(&request)).await?
+        tarchive_service.update_tarchive(address, Some(path), tarchive_form, get_store_type(&request)).await?
     ))
 }
 

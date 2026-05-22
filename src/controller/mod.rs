@@ -72,12 +72,12 @@ impl From<String> for DataKey {
     }
 }
 
-fn data_key(request: &HttpRequest) -> DataKey {
+/*fn data_key(request: &HttpRequest) -> DataKey {
     match request.headers().get("x-data-key") {
         Some(header_value) => DataKey::from(header_value.to_str().unwrap_or("").to_string()),
         None => DataKey::Personal
     }
-}
+}*/
 
 #[cfg(test)]
 mod tests {

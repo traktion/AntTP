@@ -2,20 +2,21 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use actix_web::web::Data;
 use ant_core::data::{Client, ClientConfig, Error};
 use evmlib::Network;
+use evmlib::wallet::Wallet;
 use log::{debug, info};
 use crate::config::anttp_config::AntTpConfig;
 
 pub struct ClientHarness {
-    evm_network: Network,
+    network: Network,
     ant_tp_config: AntTpConfig,
     maybe_client: Option<Data<Client>>,
     last_accessed_time: u64,
 }
 
 impl ClientHarness {
-    pub fn new(evm_network: Network, ant_tp_config: AntTpConfig) -> Self {
+    pub fn new(network: Network, ant_tp_config: AntTpConfig) -> Self {
         let last_accessed_time = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
-        ClientHarness { evm_network, ant_tp_config, maybe_client: None, last_accessed_time }
+        ClientHarness { network, ant_tp_config, maybe_client: None, last_accessed_time }
     }
 
     pub async fn get_client(&mut self) -> Result<Data<Client>, Error> {
@@ -43,22 +44,25 @@ impl ClientHarness {
     }
 
     async fn init_client(&self) -> Result<Client, Error> {
-        // todo: fix unwraps
+        let bootstrap_peers = match ant_core::config::load_bootstrap_peers() {
+            Ok(Some(bootstrap_peers)) => bootstrap_peers,
+            Ok(None) => return Err(Error::Network("failed to find bootstrap peers".to_string())),
+            Err(e) => return Err(Error::Network(format!("failed to load bootstrap peers: {}", e))),
+        };
+
+        let wallet = match Wallet::new_from_private_key(self.network.clone(), self.ant_tp_config.wallet_private_key.as_str()) {
+            Ok(wallet) => wallet,
+            Err(e) => return Err(Error::Network(format!("failed to load wallet: {}", e))),
+        };
+
         Ok(
             Client::connect(
-                ant_core::config::load_bootstrap_peers().unwrap().unwrap().as_slice(),
+                bootstrap_peers.as_slice(),
                 ClientConfig::default(),
             ).await?
-                //.with_wallet(Wallet::new_from_private_key(EvmNetwork::ArbitrumOne, self.ant_tp_config.wallet_private_key.as_str()).unwrap())
-                .with_evm_network(self.evm_network.clone())
+                .with_evm_network(self.network.clone())
+                .with_wallet(wallet)
+                //todo: disable chunk cache, as foyer provides this (and with more control)
         )
-        /*Ok(Client {
-            config: ClientConfig::default(),
-            network: Network::new(self.ant_tp_config.peers.as_slice(), true).await?,
-            wallet: Some(Arc::new(Wallet::new_with_random_wallet(EvmNetwork::ArbitrumOne))),
-            evm_network: Some(self.evm_network.clone()),
-            chunk_cache: ChunkCache::new(0),
-            next_request_id: AtomicU64::new(0),
-        })*/
     }
 }

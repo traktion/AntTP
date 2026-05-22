@@ -304,8 +304,7 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> io::Result<()> {
         tarchive_service_data.clone(),
         resolver_service_data.clone(),
         /*key_value_service_data.clone(),*/
-        crypto_service_data.clone(),
-        evm_wallet_data.clone()
+        crypto_service_data.clone()
     );
     let mcp_tool_service = StreamableHttpService::builder()
         .service_factory(Arc::new(move || { Ok(mcp_tool.clone()) }))
@@ -319,14 +318,14 @@ pub async fn run_server(ant_tp_config: AntTpConfig) -> io::Result<()> {
     if !ant_tp_config.grpc_disabled && !ant_tp_config.uploads_disabled {
         //let pointer_handler = PointerHandler::new(pointer_service_data.clone(), evm_wallet_data.clone());
         //let register_handler = RegisterHandler::new(register_service_data.clone(), evm_wallet_data.clone());
-        let chunk_handler = ChunkHandler::new(chunk_service_data.clone(), evm_wallet_data.clone());
+        let chunk_handler = ChunkHandler::new(chunk_service_data.clone());
         //let graph_handler = GraphHandler::new(graph_service_data.clone(), evm_wallet_data.clone());
         let command_handler = CommandHandler::new(command_service_data.clone());
         //let pnr_handler = PnrHandler::new(pnr_service_data.clone(), evm_wallet_data.clone());
-        let public_data_handler = PublicDataHandler::new(public_data_service_data.clone(), evm_wallet_data.clone());
+        let public_data_handler = PublicDataHandler::new(public_data_service_data.clone());
         //let public_archive_handler = PublicArchiveHandler::new(public_archive_service_data.clone(), evm_wallet_data.clone());
-        let archive_handler = ArchiveHandler::new(archive_service_data.clone(), evm_wallet_data.clone());
-        let tarchive_handler = TarchiveHandler::new(tarchive_service_data.clone(), public_data_service_data.clone(), evm_wallet_data.clone());
+        let archive_handler = ArchiveHandler::new(archive_service_data.clone());
+        let tarchive_handler = TarchiveHandler::new(tarchive_service_data.clone(), public_data_service_data.clone());
         //let private_scratchpad_handler = PrivateScratchpadHandler::new(scratchpad_service_data.clone(), evm_wallet_data.clone());
         //let public_scratchpad_handler = PublicScratchpadHandler::new(scratchpad_service_data.clone(), evm_wallet_data.clone());
         let resolver_handler = ResolverHandler::new(resolver_service_data.clone());

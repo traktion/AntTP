@@ -1,11 +1,11 @@
 #![cfg_attr(test, warn(unused_imports, unused_variables, dead_code))]
 const ARCHIVE_CACHE_KEY: &'static str = "ar";
-const GRAPH_ENTRY_CACHE_KEY: &'static str = "gg";
+/*const GRAPH_ENTRY_CACHE_KEY: &'static str = "gg";
 const POINTER_CACHE_KEY: &'static str = "pg";
 const POINTER_CHECK_CACHE_KEY: &'static str = "pce";
 const PUBLIC_ARCHIVE_CACHE_KEY: &'static str = "pa";
 const REGISTER_CACHE_KEY: &'static str = "rg";
-const SCRATCHPAD_CACHE_KEY: &'static str = "sg";
+const SCRATCHPAD_CACHE_KEY: &'static str = "sg";*/
 const TARCHIVE_CACHE_KEY: &'static str = "tar";
 
 pub mod caching_client;
@@ -23,7 +23,7 @@ pub mod public_data_caching_client;
 pub mod command;
 pub mod streaming_client;
 
-pub use self::caching_client::*;
+pub use caching_client::{CachingClient, MockCachingClient};
 pub use chunk_caching_client::{ChunkCachingClient, MockChunkCachingClient};
 /*pub use scratchpad_caching_client::{ScratchpadCachingClient, MockScratchpadCachingClient};
 pub use graph_entry_caching_client::{GraphEntryCachingClient, MockGraphEntryCachingClient};

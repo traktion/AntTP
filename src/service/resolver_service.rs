@@ -191,7 +191,7 @@ impl ResolverService {
         }
     }
 
-    async fn is_allowed(&self, address: &String) -> bool {
+    async fn is_allowed(&self, _address: &String) -> bool {
         /*let access_checker = self.access_checker.lock().await;
         access_checker.is_allowed(address)*/
         true
@@ -234,17 +234,17 @@ impl ResolverService {
         chunk_address.len() == 64 && XorName::from_hex(chunk_address).ok().is_some()
     }
 
-    pub fn is_mutable_address(&self, hex_address: &String) -> bool {
+    pub fn is_mutable_address(&self, _hex_address: &String) -> bool {
         /*hex_address.len() == 96 && PublicKey::from_hex(hex_address).ok().is_some()*/
         false
     }
 
-    async fn is_bookmark(&self, name: &String) -> bool {
+    async fn is_bookmark(&self, _name: &String) -> bool {
         /*self.bookmark_resolver.lock().await.is_bookmark(name)*/
         false
     }
 
-    pub async fn resolve_bookmark(&self, name: &String) -> Option<String> {
+    pub async fn resolve_bookmark(&self, _name: &String) -> Option<String> {
         /*self.bookmark_resolver.lock().await.resolve(name)*/
         None
     }

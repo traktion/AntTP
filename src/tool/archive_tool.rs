@@ -121,13 +121,11 @@ impl McpTool {
             ArchiveType::Public => Ok(self.archive_service.create_public_archive(
                 path,
                 archive_form,
-                self.evm_wallet.get_ref().clone(),
                 StoreType::from(store_type)
             ).await?.into()),
             ArchiveType::Tarchive => Ok(self.archive_service.create_tarchive(
                 path,
                 archive_form,
-                self.evm_wallet.get_ref().clone(),
                 StoreType::from(store_type)
             ).await?.into()),
         }
@@ -143,7 +141,6 @@ impl McpTool {
             address,
             path,
             archive_form,
-            self.evm_wallet.get_ref().clone(),
             StoreType::from(store_type),
         ).await?.into())
     }
@@ -156,7 +153,6 @@ impl McpTool {
         Ok(self.archive_service.truncate_archive(
             address,
             path,
-            self.evm_wallet.get_ref().clone(),
             StoreType::from(store_type),
         ).await?.into())
     }
@@ -176,7 +172,6 @@ impl McpTool {
     ) -> Result<CallToolResult, ErrorData> {
         Ok(self.archive_service.push_archive(
             address,
-            self.evm_wallet.get_ref().clone(),
             StoreType::from(store_type),
         ).await?.into())
     }

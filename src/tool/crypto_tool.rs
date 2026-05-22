@@ -8,7 +8,7 @@ use rmcp::schemars::JsonSchema;
 use serde::Deserialize;
 use serde_json::json;
 use std::collections::HashMap;
-use crate::service::crypto_service::{Crypto as ServiceCrypto, CryptoContent as ServiceCryptoContent};
+use crate::service::crypto_service::{Crypto as ServiceCrypto/*, CryptoContent as ServiceCryptoContent*/};
 use crate::tool::McpTool;
 
 #[derive(Debug, Deserialize, JsonSchema)]

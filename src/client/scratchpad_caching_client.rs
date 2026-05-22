@@ -1,4 +1,4 @@
-use bytes::Bytes;
+/*use bytes::Bytes;
 use log::{debug, info};
 use mockall_double::double;
 use crate::client::cache_item::CacheItem;
@@ -199,4 +199,4 @@ impl ScratchpadCachingClient {
         }
         Ok(cache_item.item.unwrap())
     }
-}
+}*/

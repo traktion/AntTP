@@ -1,6 +1,6 @@
 [package]
 name = "anttp"
-version = "0.26.0"
+version = "0.26.1"
 edition = "2024"
 authors = ["Paul Green"]
 description = "AntTP is an HTTP server for the Autonomi Network"
@@ -63,8 +63,8 @@ mockall = "0.14"
 mockall_double = "0.3"
 anyhow = "1.0.99"
 ant-core = "0.2.4"
-evmlib = "0.8.0"
-saorsa-pqc = "0.5"
+evmlib = "0.8.1"
+saorsa-pqc = "0.5.1"
 
 [build-dependencies]
 tonic-build = { version = "0.12", optional = true }

@@ -2,7 +2,6 @@ use actix_http::header;
 use actix_web::{web, HttpRequest, HttpResponse};
 use actix_web::http::header::{ContentLength, ContentType};
 use actix_web::web::{Data, Payload};
-use ant_core::data::Wallet;
 use log::debug;
 use crate::error::public_data_error::PublicDataError;
 use crate::controller::get_store_type;
@@ -24,7 +23,6 @@ use crate::service::chunk_service::Chunk;
 pub async fn push_public_data(
     path: web::Path<String>,
     public_data_service: Data<PublicDataService>,
-    evm_wallet_data: Data<Wallet>,
     request: HttpRequest,
 ) -> Result<HttpResponse, PublicDataError> {
     let address = path.into_inner();
@@ -52,7 +50,6 @@ pub async fn push_public_data(
 )]
 pub async fn post_public_data(
     public_data_service: Data<PublicDataService>,
-    evm_wallet_data: Data<Wallet>,
     payload: Payload,
     request: HttpRequest
 ) -> Result<HttpResponse, PublicDataError> {

@@ -3,7 +3,6 @@ use actix_web::web::Data;
 use actix_multipart::form::tempfile::TempFile;
 use actix_multipart::form::MultipartForm;
 use std::io::Write;
-use ant_core::data::Wallet;
 /*use crate::service::public_archive_service::{PublicArchiveForm, Upload};*/
 use crate::service::tarchive_service::TarchiveService;
 use crate::controller::StoreType;
@@ -22,12 +21,11 @@ use crate::service::public_data_service::PublicDataService;
 pub struct TarchiveHandler {
     tarchive_service: Data<TarchiveService>,
     public_data_service: Data<PublicDataService>,
-    evm_wallet: Data<Wallet>,
 }
 
 impl TarchiveHandler {
-    pub fn new(tarchive_service: Data<TarchiveService>, public_data_service: Data<PublicDataService>, evm_wallet: Data<Wallet>) -> Self {
-        Self { tarchive_service, public_data_service, evm_wallet }
+    pub fn new(tarchive_service: Data<TarchiveService>, public_data_service: Data<PublicDataService>) -> Self {
+        Self { tarchive_service, public_data_service }
     }
 
     fn map_to_multipart_form(&self, files: Vec<ProtoFile>) -> Result<MultipartForm<PublicArchiveForm>, Status> {
@@ -77,7 +75,6 @@ impl TarchiveServiceTrait for TarchiveHandler {
         let result = self.tarchive_service.create_tarchive(
             req.path,
             tarchive_form,
-            self.evm_wallet.get_ref().clone(),
             StoreType::from(req.store_type.unwrap_or_default())
         ).await?;
 
@@ -95,7 +92,6 @@ impl TarchiveServiceTrait for TarchiveHandler {
             req.address,
             req.path,
             tarchive_form,
-            self.evm_wallet.get_ref().clone(),
             StoreType::from(req.store_type.unwrap_or_default())
         ).await?;
 
@@ -111,7 +107,6 @@ impl TarchiveServiceTrait for TarchiveHandler {
         let result = self.tarchive_service.truncate_tarchive(
             req.address,
             req.path,
-            self.evm_wallet.get_ref().clone(),
             StoreType::from(req.store_type.unwrap_or_default())
         ).await?;
 

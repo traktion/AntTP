@@ -1,7 +1,7 @@
 use tonic::{Request, Response, Status};
 use actix_web::web::Data;
 use std::collections::HashMap;
-use crate::service::crypto_service::{CryptoService, Crypto as ServiceCrypto, CryptoContent as ServiceCryptoContent};
+use crate::service::crypto_service::{CryptoService, Crypto as ServiceCrypto/*, CryptoContent as ServiceCryptoContent*/};
 
 pub mod crypto_proto {
     tonic::include_proto!("crypto");
@@ -9,7 +9,7 @@ pub mod crypto_proto {
 
 pub use crypto_proto::crypto_service_server::CryptoServiceServer;
 use crypto_proto::crypto_service_server::CryptoService as CryptoServiceTrait;
-use crypto_proto::{Crypto, CryptoRequest, CryptoResponse, CryptoContent/*, CryptoContentRequest, CryptoContentResponse*/};
+use crypto_proto::{Crypto, CryptoRequest, CryptoResponse/*, CryptoContent, CryptoContentRequest, CryptoContentResponse*/};
 
 pub struct CryptoHandler {
     crypto_service: Data<CryptoService>,
@@ -31,7 +31,7 @@ impl CryptoHandler {
         data_map
     }
 
-    fn build_crypto_content_data_map(&self, crypto_content: Vec<CryptoContent>) -> HashMap<String, ServiceCryptoContent> {
+    /*fn build_crypto_content_data_map(&self, crypto_content: Vec<CryptoContent>) -> HashMap<String, ServiceCryptoContent> {
         let mut data_map = HashMap::new();
         for v in crypto_content {
             data_map.insert(v.data, ServiceCryptoContent {
@@ -39,7 +39,7 @@ impl CryptoHandler {
             });
         }
         data_map
-    }
+    }*/
 }
 
 #[tonic::async_trait]

@@ -14,7 +14,6 @@ use crate::service::resolver_service::ResolverService;
 /*use crate::service::key_value_service::KeyValueService;*/
 use crate::service::crypto_service::CryptoService;
 use actix_web::web::Data;
-use ant_core::data::Wallet;
 use rmcp::handler::server::tool::ToolRouter;
 use rmcp::model::{ServerCapabilities, ServerInfo};
 use rmcp::{tool_handler, ServerHandler};
@@ -52,7 +51,6 @@ pub struct McpTool {
     resolver_service: Data<ResolverService>,
     /*key_value_service: Data<KeyValueService>,*/
     crypto_service: Data<CryptoService>,
-    evm_wallet: Data<Wallet>,
     tool_router: ToolRouter<Self>,
 }
 
@@ -71,8 +69,7 @@ impl McpTool {
         tarchive_service: Data<TarchiveService>,
         resolver_service: Data<ResolverService>,
         /*key_value_service: Data<KeyValueService>,*/
-        crypto_service: Data<CryptoService>,
-        evm_wallet: Data<Wallet>
+        crypto_service: Data<CryptoService>
     ) -> Self {
         Self {
             command_service,
@@ -89,7 +86,6 @@ impl McpTool {
             resolver_service,
             /*key_value_service,*/
             crypto_service,
-            evm_wallet,
             tool_router: Self::chunk_tool_router()
                 /*+ Self::pnr_tool_router()*/
                 + Self::command_tool_router()

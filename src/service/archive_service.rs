@@ -6,7 +6,7 @@ use crate::service::resolver_service::ResolverService;
 use actix_multipart::form::MultipartForm;
 use actix_multipart::form::tempfile::TempFile;
 use actix_web::HttpRequest;
-use ant_core::data::{Wallet, XorName};
+use ant_core::data::XorName;
 use bytes::Bytes;
 use hex::FromHex;
 use log::{debug, info};
@@ -133,7 +133,6 @@ impl ArchiveService {
         address: String,
         target_path: Option<String>,
         form: MultipartForm<ArchiveForm>,
-        wallet: Wallet,
         store_type: StoreType,
     ) -> Result<ArchiveResponse, ArchiveError> {
         let address = self.resolver_service.resolve_name(&address).await.unwrap_or(address);
@@ -143,22 +142,22 @@ impl ArchiveService {
         
         match archive.archive_type {
             ArchiveType::Public => {
-                let public_form = MultipartForm(PublicArchiveForm { files });
-                /*self.public_archive_service.update_public_archive(address, target_path, public_form, wallet, store_type).await
+                /*let public_form = MultipartForm(PublicArchiveForm { files });
+                self.public_archive_service.update_public_archive(address, target_path, public_form, wallet, store_type).await
                     .map(|res| ArchiveResponse::new(res.items, res.content, res.address))
                     .map_err(ArchiveError::from)*/
                 Err(ArchiveError::CreateError(CreateError::InvalidData("Not implemented".to_string())))
             },
             ArchiveType::Tarchive => {
                 let tarchive_form = MultipartForm(PublicArchiveForm { files });
-                self.tarchive_service.update_tarchive(address, target_path, tarchive_form, wallet, store_type).await
+                self.tarchive_service.update_tarchive(address, target_path, tarchive_form, store_type).await
                     .map(|res| ArchiveResponse::new(vec![], "".to_string(), res.address.unwrap_or_default()))
                     .map_err(ArchiveError::from)
             },
         }
     }
 
-    pub async fn truncate_archive(&self, address: String, path: String, wallet: Wallet, store_type: StoreType) -> Result<Upload, ArchiveError> {
+    pub async fn truncate_archive(&self, address: String, path: String, store_type: StoreType) -> Result<Upload, ArchiveError> {
         let address = self.resolver_service.resolve_name(&address).await.unwrap_or(address);
         let archive_address = XorName::from_hex(address.as_str())?;
         let archive = self.archive_caching_client.archive_get(archive_address).await?;
@@ -166,11 +165,11 @@ impl ArchiveService {
             ArchiveType::Public => /*self.public_archive_service.truncate_public_archive(address, path, wallet, store_type).await.map(|u| Upload { address: u.address }).map_err(ArchiveError::from)*/
                 Err(ArchiveError::CreateError(CreateError::InvalidData("Not implemented".to_string()))),
             ArchiveType::Tarchive =>
-                self.tarchive_service.truncate_tarchive(address, path, wallet, store_type).await.map(|u| Upload { address: u.address }).map_err(ArchiveError::from),
+                self.tarchive_service.truncate_tarchive(address, path, store_type).await.map(|u| Upload { address: u.address }).map_err(ArchiveError::from),
         }
     }
 
-    pub async fn push_archive(&self, address: String, wallet: Wallet, store_type: StoreType) -> Result<Upload, ArchiveError> {
+    pub async fn push_archive(&self, address: String, store_type: StoreType) -> Result<Upload, ArchiveError> {
         let address = self.resolver_service.resolve_name(&address).await.unwrap_or(address);
         let archive_address = XorName::from_hex(address.as_str())?;
         let archive = self.archive_caching_client.archive_get(archive_address).await?;
@@ -178,23 +177,23 @@ impl ArchiveService {
             ArchiveType::Public => /*self.public_archive_service.push_public_archive(address, wallet, store_type).await.map(|u| Upload { address: u.address }).map_err(ArchiveError::from)*/
                 Err(ArchiveError::CreateError(CreateError::InvalidData("Not implemented".to_string()))),
             ArchiveType::Tarchive =>
-                self.tarchive_service.push_tarchive(address, wallet, store_type).await.map(|u| Upload { address: u.address }).map_err(ArchiveError::from),
+                self.tarchive_service.push_tarchive(address, store_type).await.map(|u| Upload { address: u.address }).map_err(ArchiveError::from),
         }
     }
 
-    pub async fn create_public_archive(&self, target_path: Option<String>, form: MultipartForm<ArchiveForm>, wallet: Wallet, store_type: StoreType) -> Result<ArchiveResponse, ArchiveError> {
-        let files = form.into_inner().files;
+    pub async fn create_public_archive(&self, _target_path: Option<String>, _form: MultipartForm<ArchiveForm>, _store_type: StoreType) -> Result<ArchiveResponse, ArchiveError> {
+        /*let files = form.into_inner().files;
         let public_form = MultipartForm(PublicArchiveForm { files });
-        /*self.public_archive_service.create_public_archive(target_path, public_form, wallet, store_type).await
+        self.public_archive_service.create_public_archive(target_path, public_form, wallet, store_type).await
             .map(|res| ArchiveResponse::new(res.items, res.content, res.address))
             .map_err(ArchiveError::from)*/
         Err(ArchiveError::CreateError(CreateError::InvalidData("Not implemented".to_string())))
     }
 
-    pub async fn create_tarchive(&self, target_path: Option<String>, form: MultipartForm<ArchiveForm>, wallet: Wallet, store_type: StoreType) -> Result<Upload, ArchiveError> {
+    pub async fn create_tarchive(&self, target_path: Option<String>, form: MultipartForm<ArchiveForm>, store_type: StoreType) -> Result<Upload, ArchiveError> {
         let files = form.into_inner().files;
         let tarchive_form = MultipartForm(PublicArchiveForm { files });
-        self.tarchive_service.create_tarchive(target_path, tarchive_form, wallet, store_type).await.map(|u| Upload { address: u.address }).map_err(ArchiveError::from)
+        self.tarchive_service.create_tarchive(target_path, tarchive_form, store_type).await.map(|u| Upload { address: u.address }).map_err(ArchiveError::from)
     }
 
     pub async fn get_archive_info(&self, resolved_address: &ResolvedAddress, request: &HttpRequest) -> ArchiveInfo {

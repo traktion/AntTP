@@ -1,6 +1,5 @@
 use tonic::{Request, Response, Status};
 use actix_web::web::Data;
-use ant_core::data::Wallet;
 use crate::service::chunk_service::{Chunk as ServiceChunk, ChunkService};
 use crate::controller::StoreType;
 use bytes::Bytes;
@@ -15,13 +14,12 @@ use chunk_proto::{Chunk, ChunkResponse, CreateChunkRequest, CreateChunkBinaryReq
 use crate::error::chunk_error::ChunkError;
 
 pub struct ChunkHandler {
-    chunk_service: Data<ChunkService>,
-    evm_wallet: Data<Wallet>,
+    chunk_service: Data<ChunkService>
 }
 
 impl ChunkHandler {
-    pub fn new(chunk_service: Data<ChunkService>, evm_wallet: Data<Wallet>) -> Self {
-        Self { chunk_service, evm_wallet }
+    pub fn new(chunk_service: Data<ChunkService>) -> Self {
+        Self { chunk_service }
     }
 }
 

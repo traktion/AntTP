@@ -6,7 +6,7 @@ use actix_web::{Error, HttpResponse};
 use actix_web::web::{Data, Payload};
 use async_stream::__private::AsyncStream;
 use bytes::Bytes;
-use log::{debug, error};
+use log::{debug, error, warn};
 use tokio::io::Interest;
 use tokio::net::TcpStream;
 
@@ -74,7 +74,7 @@ pub async fn forward(
                                 }
                             }
                             Err(e) => {
-                                error!("error polling payload: {}", e);
+                                warn!("error polling payload: {}", e);
                                 break;
                             }
                         }
